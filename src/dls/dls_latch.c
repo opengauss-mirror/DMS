@@ -29,6 +29,7 @@
 #include "dms_errno.h"
 #include "drc_lock.h"
 #include "dms_msg.h"
+#include "scrlock_adapter.h"
 
 void dms_init_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned int oid, unsigned short uid)
 {
@@ -194,6 +195,10 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
 bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks, unsigned char is_force)
 {
     CM_ASSERT(dlatch->drid.type > DMS_DR_TYPE_INVALID && dlatch->drid.type < DMS_DR_TYPE_MAX);
+
+    if (g_dms.scrlock_ctx.enable) {
+        return dms_scrlock_timed_s(dms_ctx, dlatch, wait_ticks);
+    }
 
     uint32 ticks = 0;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
@@ -439,6 +444,10 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 {
     CM_ASSERT(dlatch->drid.type > DMS_DR_TYPE_INVALID && dlatch->drid.type < DMS_DR_TYPE_MAX);
 
+    if (g_dms.scrlock_ctx.enable) {
+        return dms_scrlock_timed_x(dms_ctx, dlatch, wait_ticks);
+    }
+
     uint32 ticks = 0;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
@@ -510,6 +519,10 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 {
     CM_ASSERT(dlatch->drid.type > DMS_DR_TYPE_INVALID && dlatch->drid.type < DMS_DR_TYPE_MAX);
+
+    if (g_dms.scrlock_ctx.enable) {
+        return dms_scrlock_unlock(dms_ctx, dlatch);
+    }
 
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);

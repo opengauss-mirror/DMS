@@ -217,6 +217,20 @@ int dms_reform_init(dms_profile_t *dms_profile)
     }
 #endif
 
+    if (g_dms.scrlock_ctx.enable) {
+        int ret;
+        ret = memcpy_s(reform_context->scrlock_reinit_ctx.log_path, DMS_OCK_LOG_PATH_LEN, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
+        DMS_SECUREC_CHECK(ret);
+        reform_context->scrlock_reinit_ctx.log_level = dms_profile->scrlock_log_level;
+        reform_context->scrlock_reinit_ctx.worker_num = dms_profile->scrlock_worker_cnt;
+        reform_context->scrlock_reinit_ctx.worker_bind_core = dms_profile->enable_scrlock_worker_bind_core;
+        reform_context->scrlock_reinit_ctx.worker_bind_core_start = dms_profile->scrlock_worker_bind_core_start;
+        reform_context->scrlock_reinit_ctx.worker_bind_core_end = dms_profile->scrlock_worker_bind_core_end;
+        reform_context->scrlock_reinit_ctx.sleep_mode = dms_profile->enable_scrlock_server_sleep_mode;
+        reform_context->scrlock_reinit_ctx.server_bind_core_start = dms_profile->scrlock_server_bind_core_start;
+        reform_context->scrlock_reinit_ctx.server_bind_core_end =  dms_profile->scrlock_server_bind_core_end;
+    }
+
     reform_context->catalog_centralized = (bool8)dms_profile->resource_catalog_centralized;
     reform_context->primary_standby = (bool8)dms_profile->load_balance_mode;
     reform_context->channel_cnt = dms_profile->channel_cnt;

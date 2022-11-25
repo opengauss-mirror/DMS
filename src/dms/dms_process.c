@@ -42,6 +42,7 @@
 #include "mes_func.h"
 #include "dms_reform.h"
 #include "dms_reform_msg.h"
+#include "scrlock_adapter.h"
 
 dms_instance_t g_dms = { 0 };
 
@@ -622,6 +623,7 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.inst_cnt = dms_profile->inst_cnt;
     g_dms.inst_map = dms_profile->inst_map;
     g_dms.enable_reform = dms_profile->enable_reform;
+    g_dms.scrlock_ctx.enable = dms_profile->enable_scrlock;
 }
 
 static void dms_init_mfc(dms_profile_t *dms_profile)
@@ -732,6 +734,14 @@ int dms_init(dms_profile_t *dms_profile)
         return ret;
     }
 
+    ret = dms_scrlock_init(dms_profile);
+    if (ret != DMS_SUCCESS) {
+        dms_reform_uninit();
+        drc_destroy();
+        dms_release_inst_resource();
+        return ret;
+    }
+
 #ifndef WIN32
     char dms_version[DMS_VERSION_MAX_LEN];
     dms_show_version(dms_version);
@@ -742,6 +752,7 @@ int dms_init(dms_profile_t *dms_profile)
 
 void dms_uninit(void)
 {
+    dms_scrlock_uninit();
     dms_reform_uninit();
     mfc_uninit();
 
