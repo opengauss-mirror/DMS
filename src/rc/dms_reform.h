@@ -31,6 +31,7 @@
 #include "dms_cm.h"
 #include "drc.h"
 #include "dms_reform_cm_res.h"
+#include "scrlock_adapter.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -282,6 +283,23 @@ typedef struct st_switchover_info {
     uint16              sess_id;                // session id of initiator, use for message reentry
 } switchover_info_t;
 
+typedef struct st_reform_scrlock_context {
+    unsigned char log_path[DMS_OCK_LOG_PATH_LEN];
+    uint8 log_level;
+    uint8 worker_num;
+    bool8 worker_bind_core;
+    uint8 worker_bind_core_start;
+    uint8 worker_bind_core_end;
+    uint8 scrlock_server_id;
+    uint8 scrlock_server_port;
+    bool8 sleep_mode;
+    uint8 server_bind_core_start;
+    uint8 server_bind_core_end;
+    bool8 enable_ssl_param;
+    bool8 is_server;
+    uint8 recovery_node_num;
+} reform_scrlock_context_t;
+
 typedef struct st_reform_context {
     thread_t            thread_judgement;       // dms_reform_judgement_thread
     thread_t            thread_reformer;        // dms_reformer_thread
@@ -314,6 +332,7 @@ typedef struct st_reform_context {
     bool8               init_success;
     bool8               mes_has_init;
     uint8               unused[3];
+    reform_scrlock_context_t scrlock_reinit_ctx;
 } reform_context_t;
 
 #define REFORM_TYPE_IS_SWITCHOVER(type) (type == DMS_REFORM_TYPE_FOR_SWITCHOVER || \

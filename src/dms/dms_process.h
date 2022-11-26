@@ -48,12 +48,17 @@ typedef struct st_dms_cntlr {
     spinlock_t lock;
 }dms_cntlr_t;
 
+typedef struct st_ock_scrlock_context {
+    unsigned char enable;
+}dms_ock_scrlock_context_t;
+
 typedef struct st_dms_instance {
     uint32 inst_id;
     uint32 inst_cnt; // all instance count in cluster
     volatile uint64 inst_map;
     uint32 page_size;
     uint32 proc_ctx_cnt;
+    dms_ock_scrlock_context_t scrlock_ctx;
     dms_process_context_t *proc_ctx;
     dms_processor_t processors[CM_MAX_MES_MSG_CMD];
     dms_callback_t callback;

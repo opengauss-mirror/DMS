@@ -512,6 +512,19 @@ static int dms_reform_remaster(void)
 {
     LOG_RUN_FUNC_ENTER;
     dms_reform_remaster_inner();
+    if(g_dms.scrlock_ctx.enable){
+        reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+        share_info_t *share_info = DMS_SHARE_INFO;
+        uint8 server_id;
+        if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
+            server_id = share_info->promote_id;
+        }else {
+            server_id = share_info->reformer_id;
+        }
+        reform_ctx->scrlock_reinit_ctx.scrlock_server_id = server_id;
+        reform_ctx->scrlock_reinit_ctx.recovery_node_num = share_info->list_online.inst_id_count;
+        dms_scrlock_reinit();
+    }
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -1148,6 +1161,7 @@ static int dms_reform_switchover_demote(void)
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
+    dms_scrlock_stop_server();
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;

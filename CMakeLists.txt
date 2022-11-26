@@ -131,6 +131,7 @@ set(DMS_DLS_PATH ${PROJECT_SOURCE_DIR}/src/dls)
 set(DMS_DMS_PATH ${PROJECT_SOURCE_DIR}/src/dms)
 set(DMS_RC_PATH ${PROJECT_SOURCE_DIR}/src/rc)
 set(DMS_INTERFACE_PATH ${PROJECT_SOURCE_DIR}/src/interface)
+set(DMS_OCK_PATH ${PROJECT_SOURCE_DIR}/src/ock)
 
 ## other dependency include 
 set(DMS_SECUREC_INC_PATH        "${CMAKE_CURRENT_SOURCE_DIR}/library/huawei_security/include")
