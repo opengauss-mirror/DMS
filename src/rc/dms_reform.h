@@ -89,14 +89,14 @@ typedef enum en_inst_list_type {
 } inst_list_type_t;
 
 // The steps will be repeated, DMS_REFORM_STEP_TOTAL_COUNT > DMS_REFORM_STEP_COUNT
-#define DMS_REFORM_STEP_TOTAL_COUNT   64
+#define DMS_REFORM_STEP_TOTAL_COUNT     64
+#define DMS_REFORM_PHASE_TOTAL_COUNT    8
 
 // Notice: every step should not be dependent on its Value, Value is only used for distinguish different step
 typedef enum en_reform_step {
     DMS_REFORM_STEP_DONE,
     DMS_REFORM_STEP_PREPARE,                        // just sync wait reformer. do nothing
     DMS_REFORM_STEP_START,                          // no need to set last_fail before this step
-    DMS_REFORM_STEP_MSG_SYNC,
     DMS_REFORM_STEP_DISCONNECT,
     DMS_REFORM_STEP_RECONNECT,
     DMS_REFORM_STEP_DRC_CLEAN,
@@ -107,7 +107,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SWITCH_LOCK,
     DMS_REFORM_STEP_SWITCHOVER_DEMOTE,
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE,
-    DMS_REFORM_STEP_RECOVERY_FAILOVER,
+    DMS_REFORM_STEP_RECOVERY,
     DMS_REFORM_STEP_RECOVERY_PARALLEL,
     DMS_REFORM_STEP_RECOVERY_OPENGAUSS,
     DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN,
@@ -118,15 +118,20 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_REFORM_FAIL,                    // cause by notification from reformer
     DMS_REFORM_STEP_SYNC_WAIT,                      // tips: can not use before reconnect
     DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
-    DMS_REFORM_STEP_LOCK_ACCESS,                    // set lock accessible
+    DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
     DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS,
-    DMS_REFORM_STEP_LOAD_TABLESPACE,                // for Gauss100
+    DMS_REFORM_STEP_MOUNT_TO_RECOVERY,                // for Gauss100
     DMS_REFORM_STEP_STARTUP_OPENGAUSS,              // for opengauss
     DMS_REFORM_STEP_FLUSH_COPY,
-    DMS_REFORM_STEP_REFRESH_POINT,                  // for Gauss100
     DMS_REFORM_STEP_DONE_CHECK,
+    DMS_REFORM_STEP_SET_PHASE,                      // for Gauss100
+    DMS_REFORM_STEP_WAIT_DB,                        // for Gauss100
+    DMS_REFORM_STEP_BCAST_ENABLE,                   // for Gauss100
+    DMS_REFORM_STEP_BCAST_UNABLE,                   // for Gauss100
+    DMS_REFORM_STEP_UPDATE_SCN,
+    DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
 
@@ -137,21 +142,12 @@ typedef enum en_reform_status {
     DMS_REFORM_STATUS_START
 } reform_status_t;
 
-typedef enum en_dms_status {
-    DMS_STATUS_OUT = 0,
-    DMS_STATUS_JOIN = 1,
-    DMS_STATUS_REFORM = 2,
-    DMS_STATUS_IN = 3
-} dms_status_t;             // used in database startup
-
-
 typedef enum en_dms_reform_type {
     // for multi_write
     DMS_REFORM_TYPE_FOR_NORMAL = 0,
 
     // for Gauss100
     DMS_REFORM_TYPE_FOR_BUILD,
-    DMS_REFORM_TYPE_FOR_STANDBY,
     DMS_REFORM_TYPE_FOR_FAILOVER,
     DMS_REFORM_TYPE_FOR_SWITCHOVER,
 
@@ -163,7 +159,7 @@ typedef enum en_dms_reform_type {
     // common
     DMS_REFORM_TYPE_FOR_FULL_CLEAN, // for all instances are online and stable, and all instances status is IN
     DMS_REFORM_TYPE_FOR_MAINTAIN,   // for start database without CM, every instance is supported
-
+    // New type need to be added start from here
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
 
@@ -172,6 +168,14 @@ typedef enum en_dms_session_type {
     DMS_SESSION_IN_REFORM = 1,
     DMS_SESSION_IN_RECOVERY = 2,
 } dms_session_type_t;
+
+typedef enum en_db_open_status {
+    DB_OPEN_STATUS_NORMAL = 0,
+    DB_OPEN_STATUS_RESTRICT = 1,
+    DB_OPEN_STATUS_EMERGENCY = 2,
+    DB_OPEN_STATUS_UPGRADE = 3,
+    DB_OPEN_STATUS_UPGRADE_PHASE_2 = 4,
+} db_open_status_t;
 
 typedef struct st_migrate_task {
     uint8               export_inst;
@@ -189,6 +193,7 @@ typedef struct st_migrate_info {
 typedef struct st_remaster_info {
     drc_part_t          part_map[DRC_MAX_PART_NUM];
     drc_inst_part_t     inst_part_tbl[DMS_MAX_INSTANCES];
+    uint8               deposit_map[DMS_MAX_INSTANCES];
 } remaster_info_t;
 
 typedef struct st_version_info {
@@ -199,6 +204,7 @@ typedef struct st_version_info {
 
 typedef struct st_share_info {
     reform_step_t       reform_step[DMS_REFORM_STEP_TOTAL_COUNT];
+    reform_phase_t      reform_phase[DMS_REFORM_PHASE_TOTAL_COUNT];
     instance_list_t     list_stable;
     instance_list_t     list_online;
     instance_list_t     list_offline;
@@ -207,9 +213,7 @@ typedef struct st_share_info {
     instance_list_t     list_clean;
     instance_list_t     list_rebuild;
     instance_list_t     list_recovery;
-    instance_list_t     list_remove;
     instance_list_t     list_withdraw;
-    instance_list_t     list_deposit;
     instance_list_t     list_rollback;
     uint64              bitmap_stable;
     uint64              bitmap_online;
@@ -217,12 +221,14 @@ typedef struct st_share_info {
     uint64              bitmap_disconnect;
     uint64              bitmap_clean;
     uint64              bitmap_recovery;
+    uint64              bitmap_in;
     remaster_info_t     remaster_info;
     migrate_info_t      migrate_info;
     version_info_t      reformer_version;       // record reformer version, find reformer restart in time
     version_info_t      switch_version;         // in reform of switchover, there is another reformer
     dms_reform_type_t   reform_type;
     uint8               reform_step_count;
+    uint8               reform_phase_count;
     bool8               full_clean;
     uint8               reformer_id;            // current reformer id
     uint8               promote_id;             // instance promote to primary
@@ -242,6 +248,9 @@ typedef struct st_reformer_ctrl {
 } reformer_ctrl_t;
 
 typedef struct st_reform_info {
+    latch_t             bcast_latch;
+    latch_t             ddl_latch;
+    uint64              max_scn;
     spinlock_t          version_lock;
     spinlock_t          mes_lock;
     uint64              bitmap_mes;
@@ -250,8 +259,6 @@ typedef struct st_reform_info {
     version_info_t      reformer_version;
     uint64              start_time;
     spinlock_t          status_lock;
-    atomic32_t          msg_sync_count;
-    int32               msg_sync_total_count;
     int32               err_code;
     uint8               reform_status;
     uint8               dms_role;
@@ -267,12 +274,15 @@ typedef struct st_reform_info {
     bool8               sync_send_success;
     bool8               build_complete;         // build_complete when dms_reform_init, it is not realtime
     bool8               has_offline;
-    bool8               page_accessible;
-    uint8               lock_accessible;
     bool8               maintain;               // env DMS_MAINTAIN, if true, DMS is not dependent on CM
     uint8               reform_done;
     bool8               true_start;
-    uint8               unused;
+    uint8               reform_phase_index;
+    uint8               reform_phase;           // set by reform_proc
+    bool8               reform_pause;
+    bool8               bcast_unable;
+    bool8               ddl_unable;
+    uint8               unused[2];
 } reform_info_t;
 
 typedef struct st_switchover_info {
@@ -348,6 +358,7 @@ void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list);
 bool8 dms_dst_id_is_self(uint8 dst_id);
 bool8 dms_reform_list_exist(instance_list_t *list, uint8 inst_id);
 bool8 dms_reform_type_is(dms_reform_type_t type);
+char *dms_reform_phase_desc(uint8 reform_phase);
 
 #ifdef __cplusplus
 }

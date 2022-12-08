@@ -26,6 +26,7 @@
 
 #include "drc.h"
 #include "dms.h"
+#include "dms_errno.h"
 #include "cm_date.h"
 #include "cm_timer.h"
 #include "drc_res_mgr.h"
@@ -33,18 +34,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-static inline void drc_clean_share_copy_insts(char *resid, uint16 len, uint8 type, uint64 invld_owner_map)
-{
-    drc_buf_res_t *buf_res = drc_get_buf_res(resid, len, type, CM_FALSE, CM_FALSE);
-    cm_panic_log(buf_res != NULL, "[DCS][%s][drc_clean_share_copy_insts]: buf_res is NULL",
-        cm_display_resid(resid, type));
-    drc_enter_buf_res(buf_res);
-    buf_res->copy_insts = buf_res->copy_insts & (~invld_owner_map);
-    LOG_DEBUG_INF("[DCS][%s][drc_clean_share_copy_insts]: invld_owner_map=%llu, curr_copy_insts=%llu",
-        cm_display_resid(resid, type), invld_owner_map, buf_res->copy_insts);
-    drc_leave_buf_res(buf_res);
-}
 
 static inline bool32 if_cvt_need_confirm(drc_buf_res_t *buf_res)
 {

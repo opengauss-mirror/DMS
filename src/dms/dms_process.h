@@ -39,7 +39,6 @@ typedef struct st_dms_processor {
     dms_message_proc_t proc;
     bool32 is_enqueue;
     bool32 is_enable_before_reform;
-    bool32 is_sync_msg;
     char name[CM_MAX_NAME_LEN];
 } dms_processor_t;
 
@@ -67,7 +66,6 @@ typedef struct st_dms_instance {
     uint64 min_scn[DMS_MAX_INSTANCES];
     uint8 enable_reform;
     cm_res_mgr_t cm_res_mgr;
-    dms_cntlr_t *cntlr[DMS_MAX_INSTANCES];
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)

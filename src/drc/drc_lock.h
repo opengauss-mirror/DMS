@@ -50,6 +50,7 @@ typedef struct st_drc_local_lock_res {
     uint16          count;
     spinlock_t      lockc;
     spinlock_t      lock;
+    uint64          ver;
     volatile bool8  releasing;  // align later
     drc_local_latch_t latch_stat;
 } drc_local_lock_res_t;
@@ -58,6 +59,7 @@ typedef struct st_drc_local_lock_res {
 drc_local_lock_res_t* drc_get_local_resx(dms_drid_t *lock_id);
 bool32 drc_try_lock_local_resx(drc_local_lock_res_t *lock_res);
 void drc_lock_local_resx(drc_local_lock_res_t *lock_res);
+bool32 drc_timed_lock_local_resx(drc_local_lock_res_t *lock_res, uint32 timeout_ticks);
 void drc_unlock_local_resx(drc_local_lock_res_t *lock_res);
 void drc_lock_local_res_count(drc_local_lock_res_t *lock_res);
 void drc_unlock_local_res_count(drc_local_lock_res_t *lock_res);
@@ -65,7 +67,7 @@ void drc_get_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 *is_locked, 
 void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked, bool8 is_owner);
 void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t **latch_stat);
 int drc_confirm_owner(char* resid, uint8 *lock_mode);
-int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode);
+int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint64 *ver);
 #ifdef __cplusplus
 }
 #endif

@@ -182,7 +182,7 @@ int dms_request_opengauss_update_xid(dms_context_t *dms_ctx, unsigned short t_in
         return ret;
     }
 
-    ret = mfc_allocbuf_and_recv_data(dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
+    ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
         LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%u)",

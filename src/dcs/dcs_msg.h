@@ -62,6 +62,7 @@ typedef struct st_msg_pcr_request {
     uint64 query_scn;
     char pageid[DMS_PAGEID_SIZE];
     char xid[DMS_XID_SIZE];
+    bool32 sess_rcy;
 } msg_pcr_request_t;
 
 typedef struct st_msg_pcr_ack {

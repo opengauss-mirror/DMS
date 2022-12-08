@@ -71,15 +71,7 @@ void dms_reform_change_status(uint8 reform_status)
 bool8 dms_reform_in_status(uint8 status)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    bool8 in_status = CM_FALSE;
-
-    cm_spin_lock(&reform_info->status_lock, NULL);
-    if (reform_info->reform_status == status) {
-        in_status = CM_TRUE;
-    }
-    cm_spin_unlock(&reform_info->status_lock);
-
-    return in_status;
+    return reform_info->reform_status == status;
 }
 
 int dms_reform_in_process(void)
@@ -94,14 +86,12 @@ int dms_drc_accessible(unsigned char res_type)
         return CM_TRUE;
     }
 #endif
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-
-    if (res_type == (uint8)DRC_RES_PAGE_TYPE) {
-        return reform_info->page_accessible;
+    drc_global_res_map_t *res_map = DRC_GLOBAL_RES_MAP(res_type);
+    if (res_type == (uint8)DRC_RES_LOCK_TYPE) {
+        return (int)res_map->drc_access;
+    } else {
+        return (int)res_map->data_access;
     }
-
-    CM_ASSERT(res_type == (uint8)DRC_RES_LOCK_TYPE);
-    return reform_info->lock_accessible;
 }
 
 // set fail in order to stop reform
@@ -121,6 +111,9 @@ void dms_reform_set_start(void)
     reform_info->reform_done = CM_FALSE;
     reform_info->err_code = DMS_SUCCESS;
     reform_info->reform_step_index = 0;
+    reform_info->reform_phase_index = 0;
+    reform_info->reform_phase = 0;
+    reform_info->reform_pause = CM_FALSE;
     reform_info->current_step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
     dms_reform_change_status(DMS_REFORM_STATUS_START);
     LOG_DEBUG_FUNC_SUCCESS;
@@ -180,6 +173,7 @@ static bool8 dms_reform_get_maintain(void)
 static void dms_reform_init_for_maintain(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
     drc_part_t *part_map = NULL;
@@ -188,7 +182,7 @@ static void dms_reform_init_for_maintain(void)
         return;
     }
 
-    reform_info->lock_accessible = CM_TRUE;
+    ctx->global_lock_res.drc_access = CM_TRUE;
     inst_part->count = DRC_MAX_PART_NUM;
     inst_part->expected_num = DRC_MAX_PART_NUM;
     inst_part->first = CM_INVALID_ID16;
@@ -213,6 +207,11 @@ int dms_reform_init(dms_profile_t *dms_profile)
 
 #ifdef OPENGAUSS
     if (!dms_profile->enable_reform) {
+        drc_res_ctx_t *ctx = DRC_RES_CTX;
+        ctx->global_buf_res.drc_access = CM_TRUE;
+        ctx->global_buf_res.data_access = CM_TRUE;
+        ctx->global_lock_res.drc_access = CM_TRUE;
+        ctx->global_lock_res.data_access = CM_TRUE;
         return DMS_SUCCESS;
     }
 #endif
@@ -264,17 +263,13 @@ int dms_reform_init(dms_profile_t *dms_profile)
     g_dms.callback.check_if_build_complete(g_dms.reform_ctx.handle_judge, &build_complete);
     reform_info->build_complete = (bool8)build_complete;
     reform_info->maintain = dms_reform_get_maintain();
+    reform_info->bcast_unable = CM_TRUE;
 #endif
     if (reform_info->build_complete && !reform_info->maintain) {
         ret = dms_reform_cm_res_init();
         if (ret != DMS_SUCCESS) {
             DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
             return ret;
-        }
-
-        // instance should unlock reformer when restart, because there is no part info
-        if (!DMS_CATALOG_IS_CENTRALIZED) {
-            dms_reform_cm_res_unlock();
         }
     }
     reform_info->reformer_id = CM_INVALID_ID8;
@@ -300,9 +295,13 @@ void dms_reform_uninit(void)
         return;
     }
 
+#ifdef DMS_TEST
+    dms_reform_cm_simulation_uninit();
+#endif
     cm_close_thread(&reform_context->thread_judgement);
     cm_close_thread(&reform_context->thread_reformer);
     cm_close_thread(&reform_context->thread_reform);
+    reform_context->init_success = CM_FALSE;
 }
 
 int dms_wait_reform(unsigned int *has_offline)
@@ -316,6 +315,9 @@ int dms_wait_reform(unsigned int *has_offline)
     while (!DMS_FIRST_REFORM_FINISH) {
         DMS_REFORM_LONG_SLEEP;
         if (reform_info->last_fail) {
+            if (DMS_FIRST_REFORM_FINISH) {
+                return CM_TRUE;
+            }
             return CM_FALSE;
         }
     }
@@ -323,6 +325,71 @@ int dms_wait_reform(unsigned int *has_offline)
     g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_IN);
     *has_offline = (unsigned int)reform_info->has_offline;
     return CM_TRUE;
+}
+
+int dms_wait_reform_finish(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    while (!DMS_FIRST_REFORM_FINISH) {
+        if (reform_info->last_fail) {
+            if (DMS_FIRST_REFORM_FINISH) {
+                return CM_TRUE;
+            }
+            return CM_FALSE;
+        }
+        DMS_REFORM_LONG_SLEEP;
+    }
+
+    g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_IN);
+    return CM_TRUE;
+}
+
+char *dms_reform_phase_desc(uint8 reform_phase)
+{
+    switch (reform_phase) {
+        case DMS_PHASE_START:
+            return "START";
+        case DMS_PHASE_AFTER_RECOVERY:
+            return "RECOVERY";
+        case DMS_PHASE_BEFORE_DC_INIT:
+            return "BEFORE DC INIT";
+        case DMS_PHASE_BEFORE_ROLLBACK:
+            return "REFORE ROLLBACK";
+        case DMS_PHASE_END:
+            return "END";
+        default:
+            return "UNKNOWN PHASE";
+    }
+}
+
+int dms_wait_reform_phase(unsigned char reform_phase)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    LOG_RUN_INF("[DMS REORM] wait reform phase %s start", dms_reform_phase_desc(reform_phase));
+    while (CM_TRUE) {
+        if (reform_info->last_fail) {
+            LOG_RUN_ERR("[DMS REORM] wait reform phase %s error", dms_reform_phase_desc(reform_phase));
+            return CM_FALSE;
+        }
+        if (reform_info->reform_phase >= reform_phase) {
+            LOG_RUN_INF("[DMS REORM] wait reform phase %s finish", dms_reform_phase_desc(reform_phase));
+            return CM_TRUE;
+        }
+        DMS_REFORM_LONG_SLEEP;
+    }
+}
+
+void dms_get_has_offline(unsigned int *has_offline)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    *has_offline = (unsigned int)reform_info->has_offline;
+}
+
+void dms_set_reform_continue(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    reform_info->reform_pause = CM_FALSE;
 }
 
 int dms_reform_failed(void)
@@ -394,4 +461,31 @@ int dms_reform_last_failed(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     return reform_info->last_fail;
+}
+
+int dms_is_reformer(void)
+{
+    return DMS_IS_REFORMER ? CM_TRUE : CM_FALSE;
+}
+
+int dms_is_share_reformer(void)
+{
+    return DMS_IS_SHARE_REFORMER ? CM_TRUE : CM_FALSE;
+}
+
+void dms_ddl_enter(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_latch_s(&reform_info->ddl_latch, 0, CM_FALSE, NULL);
+    while (reform_info->ddl_unable) {
+        cm_unlatch(&reform_info->ddl_latch, NULL);
+        DMS_REFORM_SHORT_SLEEP;
+        cm_latch_s(&reform_info->ddl_latch, 0, CM_FALSE, NULL);
+    }
+}
+
+void dms_ddl_leave(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_unlatch(&reform_info->ddl_latch, NULL);
 }

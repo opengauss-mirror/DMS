@@ -40,6 +40,8 @@ extern "C" {
 #define DMS_MSG_SLEEP_TIME      (1000) // ms
 #define DMS_CVT_EXPIRE_TIME     (2 * DMS_WAIT_MAX_TIME) // ms
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
+#define DMS_MSG_CONFIRM_TIMES   (10)
+#define DMS_CONFIRM_TIMEWAIT    (5000) // ms
 
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
@@ -84,15 +86,14 @@ typedef enum en_msg_command {
     MSG_REQ_DMS_STATUS = 38,
     MSG_REQ_REFORM_PREPARE = 39,
     MSG_REQ_SYNC_NEXT_STEP = 40,
-    MSG_REQ_OWNER_CLEAN_FLAG = 41,
-    MSG_REQ_MSG_SYNC = 42,
-    MSG_REQ_PAGE = 43,
-    MSG_REQ_SWITCHOVER = 44,
-	MSG_REQ_CHANNEL_CHECK = 45,
-    MSG_REQ_CANCEL_REQUEST_RES = 46,
-    MSG_REQ_OPENGAUSS_DDLLOCK = 47,
-    MSG_REQ_CONFIRM_CVT = 48,
-    MSG_REQ_CHECK_REFORM_DONE = 49,
+    MSG_REQ_PAGE = 41,
+    MSG_REQ_SWITCHOVER = 42,
+	MSG_REQ_CHANNEL_CHECK = 43,
+    MSG_REQ_CANCEL_REQUEST_RES = 44,
+    MSG_REQ_OPENGAUSS_DDLLOCK = 45,
+    MSG_REQ_CONFIRM_CVT = 46,
+    MSG_REQ_CHECK_REFORM_DONE = 47,
+    MSG_REQ_MAP_INFO = 48,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -134,6 +135,7 @@ typedef enum en_msg_command {
     MSG_ACK_EDP_READY = 163,
     MSG_ACK_COMMON = 164,
     MSG_ACK_CONFIRM_CVT = 165,
+    MSG_ACK_MAP_INFO = 166,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -159,6 +161,7 @@ typedef struct st_dms_ask_res_req {
     uint8 res_type;
     uint16 len;
     uint16 unused;
+    uint64 ver;
     char resid[DMS_RESID_SIZE];
 } dms_ask_res_req_t;
 
@@ -174,11 +177,7 @@ typedef struct st_dms_ask_res_ack {
     uint64 lsn;
     uint64 scn;
     uint64 edp_map;
-#ifdef OPENGAUSS
-    uint64 lsn_on_disk;
-    uint8 seg_fileno;
-    uint32 seg_blockno;
-#endif
+    uint64 ver;
 } dms_ask_res_ack_t;
 
 typedef struct st_dms_claim_owner_req {
@@ -191,6 +190,7 @@ typedef struct st_dms_claim_owner_req {
     uint16 len;
     uint16 unused2;
     uint64 lsn;
+    uint64 ver;
     char resid[DMS_RESID_SIZE];
 } dms_claim_owner_req_t;
 
@@ -200,6 +200,7 @@ typedef struct st_dms_invld_req {
     uint8  res_type;
     uint16 len;
     bool32 sess_rcy;
+    uint64 ver;
     char   resid[DMS_RESID_SIZE];
 } dms_invld_req_t;
 
@@ -218,6 +219,7 @@ typedef struct st_dms_res_req_info {
     uint16 req_sid;
     uint32 req_rsn;
     uint32 len;
+    uint64 ver;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     char resid[DMS_RESID_SIZE];
@@ -229,6 +231,7 @@ typedef struct st_dms_cancel_request_res {
     uint8  unused;
     uint16 len;
     char resid[DMS_RESID_SIZE];
+    bool8 sess_rcy;
 }dms_cancel_request_res_t;
 
 typedef struct st_dms_confirm_cvt_req {
@@ -249,6 +252,7 @@ typedef struct st_dms_confirm_cvt_ack {
     uint32 result;
     uint64 lsn;
     uint64 edp_map;
+    uint64 ver;
 }dms_confirm_cvt_ack_t;
 
 static inline void cm_print_error_msg(const void *msg_data)
@@ -307,9 +311,8 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
 
 void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint32 dst_rsn, int32 ret);
 int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
-int32 dms_request_res_internal(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
+    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint64 ver);
+int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
 void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_proc_invld_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);

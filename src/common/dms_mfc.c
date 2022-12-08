@@ -174,14 +174,14 @@ int32 mfc_send_data3(mes_message_head_t *head, uint32 head_size, const void *bod
     }
 }
 
-static inline int32 mfc_send_data4_req(mes_message_head_t *head,
+static inline int32 mfc_send_data4_req(mes_message_head_t *head, uint32 head_size,
     const void *body1, uint32 len1, const void *body2, uint32 len2)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
-    int ret = mes_send_data4(head, body1, len1, body2, len2);
+    int ret = mes_send_data4(head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
     }
@@ -189,27 +189,28 @@ static inline int32 mfc_send_data4_req(mes_message_head_t *head,
     return ret;
 }
 
-static inline int32 mfc_send_data4_ack(mes_message_head_t *head,
+static inline int32 mfc_send_data4_ack(mes_message_head_t *head, uint32 head_size,
     const void *body1, uint32 len1, const void *body2, uint32 len2)
 {
     head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
-    int ret = mes_send_data4(head, body1, len1, body2, len2);
+    int ret = mes_send_data4(head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
     }
     return ret;
 }
 
-int32 mfc_send_data4(mes_message_head_t *head, const void *body1, uint32 len1, const void *body2, uint32 len2)
+int32 mfc_send_data4(mes_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+    const void *body2, uint32 len2)
 {
     if (DMS_MFC_OFF) {
-        return mes_send_data4(head, body1, len1, body2, len2);
+        return mes_send_data4(head, head_size, body1, len1, body2, len2);
     }
 
     if (mfc_msg_is_req(head)) {
-        return mfc_send_data4_req(head, body1, len1, body2, len2);
+        return mfc_send_data4_req(head, head_size, body1, len1, body2, len2);
     } else {
-        return mfc_send_data4_ack(head, body1, len1, body2, len2);
+        return mfc_send_data4_ack(head, head_size, body1, len1, body2, len2);
     }
 }
 
