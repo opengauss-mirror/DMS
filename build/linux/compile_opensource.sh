@@ -30,7 +30,7 @@ fi
 
 ## openssl
 if [[ ! -d "${LIBRARY}/openssl/lib" ]]; then
-    ARCH=`uname -p`
+    ARCH=$(uname -p)
     cd ${OPEN_SOURCE}/openssl/;
     cd openssl-1.1.1n/
     if [ "${ARCH}" == x86_64 ]; then

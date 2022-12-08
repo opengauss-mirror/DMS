@@ -33,6 +33,7 @@
 #include "mes_type.h"
 #include "cm_chan.h"
 #include "cm_thread.h"
+#include "cm_latch.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,8 @@ extern "C" {
 #define DRC_BUF_RES_POOL (&g_drc_res_ctx.global_buf_res.res_map.res_pool)
 #define DRC_LOCK_RES_MAP (&g_drc_res_ctx.global_lock_res.res_map)
 #define DRC_LOCK_RES_POOL (&g_drc_res_ctx.global_lock_res.res_map.res_pool)
+#define DRC_GLOBAL_RES_MAP(res_type) ((res_type) == (uint8)DRC_RES_PAGE_TYPE ? &g_drc_res_ctx.global_buf_res : \
+    &g_drc_res_ctx.global_lock_res)
 
 typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,
@@ -144,6 +147,7 @@ typedef struct st_drc_buf_res {
     bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
     uint64          lsn;                /* the newest edp LSN of current page in the cluster */
+    uint64          ver;
     uint16          len;                /* the length of data below */
     uint16          unused;
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
@@ -161,17 +165,16 @@ typedef struct st_drc_buf_res_msg {
     uint64 copy_insts;
     uint64 edp_map;
     drc_request_info_t converting;
+    uint64 ver;
 } drc_buf_res_msg_t;
 
 typedef struct st_drc_global_res_map {
+    latch_t res_latch;
+    bool32 drc_access;  // drc access means we can modify drc
+    bool32 data_access; // data access means we can modify data control by this drc
     drc_res_map_t res_map;
     bilist_t res_parts[DRC_MAX_PART_NUM];
 } drc_global_res_map_t;
-
-typedef struct st_drc_deposit_map {
-    spinlock_t lock;
-    uint32 deposit_id;
-} drc_deposit_map_t;
 
 typedef enum en_drc_mgrt_res_type {
     DRC_MGRT_RES_PAGE_TYPE,
@@ -229,7 +232,7 @@ typedef struct st_drc_res_ctx {
     drc_part_mngr_t         part_mngr;
     drc_res_map_t           txn_res_map;
     drc_res_map_t           local_txn_map;
-    drc_deposit_map_t       deposit_map[DMS_MAX_INSTANCES];
+    uint8                   deposit_map[DMS_MAX_INSTANCES];
     chan_t*                 chan;
     thread_t                smon_thread;
     uint32                  smon_sid;
@@ -253,6 +256,7 @@ typedef struct st_drc_req_owner_result {
     uint8 curr_owner_id;
     bool8 has_share_copy;
     uint64 invld_insts;  // share copies to be invalidated.
+    uint64 ver;
 } drc_req_owner_result_t;
 
 typedef struct st_cvt_info {
@@ -269,6 +273,7 @@ typedef struct st_cvt_info {
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     uint64  invld_insts;
+    uint64  ver;
     drc_req_owner_result_type_t type;
 } cvt_info_t;
 
@@ -280,8 +285,10 @@ typedef struct st_claim_info {
     uint32  len;
     uint64  lsn;
     uint32  sess_id;
+    uint64  ver;
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
+    bool32  sess_rcy;
 } claim_info_t;
 
 typedef struct st_edp_info {
@@ -289,6 +296,13 @@ typedef struct st_edp_info {
     uint64  lsn;            /* current LSN of page */
     uint8   latest_edp;     /* instance id which holds the max LSN's EDP */
 } edp_info_t;
+
+typedef struct st_res_id {
+    char    data[DMS_RESID_SIZE];
+    uint16  len;
+    uint8   type;
+    uint8   unused;
+} res_id_t;
 
 static inline bool32 dms_same_page(char *res, const char *resid, uint32 len)
 {
@@ -330,7 +344,7 @@ static inline uint32 drc_resource_id_hash(uint8 *id, uint32 len, uint32 range)
     for (i = 0; i < len; i++) {
         hash = hash * seed + (*id++);
     }
-
+    
     return (hash % range);
 }
 
@@ -403,6 +417,8 @@ static inline bool32 bitmap64_exist_ex(uint64 bitmap1, uint64 bitmap2)
 {
     return (bitmap1 & bitmap2) != 0;
 }
+
+int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
 
 #ifdef __cplusplus
 }

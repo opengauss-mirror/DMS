@@ -65,6 +65,12 @@ DMS_DECLARE void dms_get_error(int *errcode, const char **errmsg);
 DMS_DECLARE int dms_register_thread_init(dms_thread_init_t thrd_init);
 
 /*
+* @brief DMS pre uninit, only uninit reform context
+* @return
+*/
+DMS_DECLARE void dms_pre_uninit(void);
+
+/*
  * @brief DMS uninit
  * @return
  */
@@ -262,6 +268,14 @@ DMS_DECLARE void dms_init_latch2(dms_drlatch_t *dlatch, dms_dr_type_t type, unsi
 DMS_DECLARE void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is_force);
 
 /*
+* @brief distributed latch shared acquire method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+
+/*
 * @brief distributed latch shared acquire timeout method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
@@ -290,6 +304,14 @@ DMS_DECLARE void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
 DMS_DECLARE unsigned char dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+
+/*
+* @brief distributed latch degrade method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @return
+*/
+DMS_DECLARE void dms_latch_degrade(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 
 /*
 * @brief distributed latch release method.
@@ -690,6 +712,17 @@ DMS_DECLARE void dms_show_version(char *version);
  * @* @return TRUE - reform failed; FALSE - reform normal
  */
 DMS_DECLARE int dms_reform_last_failed(void);
+
+DMS_DECLARE int dms_wait_reform_phase(unsigned char reform_phase);
+DMS_DECLARE int dms_wait_reform_finish(void);
+DMS_DECLARE void dms_get_has_offline(unsigned int *has_offline);
+DMS_DECLARE void dms_set_reform_continue(void);
+
+DMS_DECLARE int dms_is_reformer(void);
+DMS_DECLARE int dms_is_share_reformer(void);
+
+DMS_DECLARE void dms_ddl_enter(void);
+DMS_DECLARE void dms_ddl_leave(void);
 
 #ifdef __cplusplus
 }

@@ -16,12 +16,13 @@ OUTPUT_DIR="${DMS_DIR}/output"
 TMP_DIR="${BUILD_DIR}/tmp"
 PLATFORM_DIR="${DMS_DIR}/platform"
 CBB_DIR="${PLATFORM_DIR}/CBB"
+DMS_MES_DIR=${CBB_DIR}/src/cm_mes
 
 ############  pkg  ############
 source $BUILD_DIR/get_OS_Version.sh
 
 PACKAGE_PRE_NAME="DMS"
-PACKAGE_OS_VERSION=`echo $OS_VERSION |  tr "[a-z]" "[A-Z]"`
+PACKAGE_OS_VERSION=$(echo $OS_VERSION |  tr "[a-z]" "[A-Z]")
 SERVER_PACKAGE_NAME="${PACKAGE_PRE_NAME}_${PACKAGE_OS_VERSION}"
 SYMBOL_PACKAGE_NAME="${PACKAGE_PRE_NAME}_${PACKAGE_OS_VERSION}_SYMBOL"
 PACKAGE_HOME="${OUTPUT_DIR}/"
@@ -268,6 +269,16 @@ function build_source_prepare() {
     else
         build_cbb_mode="debug"
     fi
+    #Changing the name of the mes global variable
+    sed -i 's/extern mes_instance_t g_cbb_mes/extern mes_instance_t g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.h
+    sed -i 's/MES_GLOBAL_INST_MSG g_cbb_mes/MES_GLOBAL_INST_MSG g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.h
+    sed -i 's/mes_instance_t g_cbb_mes/mes_instance_t g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.c
+    sed -i 's/g_mes_stat/g_dms_mes_stat/g'  ${DMS_MES_DIR}/mes_func.h
+    sed -i 's/g_mes_stat/g_dms_mes_stat/g'  ${DMS_MES_DIR}/mes_func.c
+    sed -i 's/g_mes_stat/g_dms_mes_stat/g'  ${DMS_MES_DIR}/mes_msg_pool.c
+    sed -i 's/g_mes_elapsed_stat/g_dms_mes_elapsed_stat/g'  ${DMS_MES_DIR}/mes_func.c
+    sed -i 's/g_mes_elapsed_stat/g_dms_mes_elapsed_stat/g'  ${DMS_MES_DIR}/mes_func.h
+
     sed -i "s/openssl;make;make install/openssl;make -j8;make install/g" "${PLATFORM_DIR}"/CBB/build/linux/compile_opensource.sh
     
     if [ "$1" != 'Ut' ] && [ "$1" != 'Test-Cov' ]; then
@@ -496,7 +507,7 @@ function main() {
     do
         value=${arg_list[i-1]}
         if [ x"${value}" != x ];then
-            str=`echo ${value} | tr 'a-z' 'A-Z'`
+            str=$(echo ${value} | tr 'a-z' 'A-Z')
             if [ x"${str}" == x"OPENGAUSS" ];then
                 opengauss_flag=1
                 echo "Build DMS with openGauss..."

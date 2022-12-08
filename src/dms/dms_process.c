@@ -51,128 +51,109 @@ typedef struct st_processor_func {
     dms_message_proc_t proc;
     bool32 is_enqueue_work_thread;      // Whether to let the worker thread process
     bool32 is_enable_before_reform;     // Whether msg enable before first reform finished
-    bool32 is_sync_msg;
     const char *func_name;
 } processor_func_t;
 
 static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BEGIN] = {
-    { MSG_REQ_ASK_MASTER_FOR_PAGE,    dms_proc_ask_master_for_res,      CM_TRUE, CM_TRUE,  CM_TRUE,  "ask master for res" },
-    { MSG_REQ_ASK_OWNER_FOR_PAGE,     dms_proc_ask_owner_for_res,       CM_TRUE, CM_TRUE,  CM_TRUE,  "ask owner for res" },
-    { MSG_REQ_INVALIDATE_SHARE_COPY,  dms_proc_invld_req,               CM_TRUE, CM_TRUE,  CM_TRUE,  "invalidate req" },
-    { MSG_REQ_CLAIM_OWNER,            dms_proc_claim_ownership_req,     CM_TRUE, CM_TRUE,  CM_FALSE, "claim ownership req" },
-    { MSG_REQ_CR_PAGE,                dcs_proc_pcr_request,
-        CM_TRUE, CM_FALSE, CM_TRUE,  "consistency read page req" },
-    { MSG_REQ_ASK_MASTER_FOR_CR_PAGE, dcs_proc_pcr_req_master,          CM_TRUE, CM_FALSE, CM_TRUE,  "ask master for cr page" },
-    { MSG_REQ_ASK_OWNER_FOR_CR_PAGE,  dcs_proc_pcr_req_owner,           CM_TRUE, CM_FALSE, CM_TRUE,  "ask owner for cr page" },
-    { MSG_REQ_CHECK_VISIBLE,          dcs_proc_check_visible,           CM_TRUE, CM_FALSE, CM_TRUE,  "row check visible" },
+    { MSG_REQ_ASK_MASTER_FOR_PAGE,    dms_proc_ask_master_for_res,      CM_TRUE, CM_TRUE,  "ask master for res" },
+    { MSG_REQ_ASK_OWNER_FOR_PAGE,     dms_proc_ask_owner_for_res,       CM_TRUE, CM_TRUE,  "ask owner for res" },
+    { MSG_REQ_INVALIDATE_SHARE_COPY,  dms_proc_invld_req,               CM_TRUE, CM_TRUE,  "invalidate req" },
+    { MSG_REQ_CLAIM_OWNER,            dms_proc_claim_ownership_req,     CM_TRUE, CM_TRUE,  "claim ownership req" },
+    { MSG_REQ_CR_PAGE,                dcs_proc_pcr_request,             CM_TRUE, CM_FALSE, "consistency read page req" },
+    { MSG_REQ_ASK_MASTER_FOR_CR_PAGE, dcs_proc_pcr_req_master,          CM_TRUE, CM_FALSE, "ask master for cr page" },
+    { MSG_REQ_ASK_OWNER_FOR_CR_PAGE,  dcs_proc_pcr_req_owner,           CM_TRUE, CM_FALSE, "ask owner for cr page" },
+    { MSG_REQ_CHECK_VISIBLE,          dcs_proc_check_visible,           CM_TRUE, CM_FALSE, "row check visible" },
     { MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, dcs_proc_try_ask_master_for_page_owner_id,
-        CM_TRUE, CM_FALSE, CM_TRUE, "try ask master for page owner id" },
-    { MSG_REQ_BROADCAST,              dcs_proc_broadcast_req,           CM_TRUE, CM_FALSE, CM_TRUE,  "broadcast msg" },
-    { MSG_REQ_TXN_INFO,               dcs_proc_txn_info_req,            CM_TRUE, CM_FALSE, CM_TRUE,  "txn info msg" },
-    { MSG_REQ_TXN_SNAPSHOT,           dcs_proc_txn_snapshot_req,        CM_TRUE, CM_FALSE, CM_TRUE,  "txn snapshot msg" },
-    { MSG_REQ_WAIT_TXN,               dcs_proc_txn_wait_req,            CM_TRUE, CM_FALSE, CM_TRUE,  "txn wait msg" },
-    { MSG_REQ_AWAKE_TXN,              dcs_proc_txn_awake_req,           CM_TRUE, CM_FALSE, CM_FALSE, "txn awake msg" },
-    { MSG_REQ_MASTER_CKPT_EDP,        dcs_proc_master_ckpt_edp_req,     CM_TRUE, CM_FALSE, CM_FALSE, "master ckpt edp msg" },
-    { MSG_REQ_OWNER_CKPT_EDP,         dcs_proc_owner_ckpt_edp_req,      CM_TRUE, CM_FALSE, CM_FALSE, "owner ckpt edp msg" },
-    { MSG_REQ_MASTER_CLEAN_EDP,       dcs_proc_master_clean_edp_req,    CM_TRUE, CM_FALSE, CM_FALSE, "master clean edp msg" },
-    { MSG_REQ_OWNER_CLEAN_EDP,        dcs_proc_owner_clean_edp_req,
-        CM_TRUE, CM_FALSE, CM_FALSE, "owner clean edp msg" },
-    { MES_REQ_MGRT_MASTER_DATA,       dms_reform_proc_req_migrate,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "drc process the migrated data" },
-    { MSG_REQ_RELEASE_OWNER,          dcs_proc_release_owner_req,       CM_TRUE, CM_TRUE,  CM_TRUE,  "release owner req" },
-    { MSG_REQ_BOC,                    dcs_proc_boc,                     CM_TRUE, CM_TRUE,  CM_TRUE,  "commit scn broadcast" },
-    { MSG_REQ_SMON_DLOCK_INFO,        dcs_proc_smon_dlock_msg,          CM_TRUE, CM_FALSE, CM_TRUE,  "smon req dead lock msg" },
-    { MSG_REQ_SMON_DEADLOCK_SQL,      dcs_proc_smon_deadlock_sql,       CM_TRUE, CM_FALSE, CM_TRUE,  "smon req sql" },
-    { MSG_REQ_SMON_DEADLOCK_ITL,      dcs_proc_process_get_itl_lock,    CM_TRUE, CM_FALSE, CM_TRUE,  "smon req itl" },
+        CM_TRUE, CM_FALSE, "try ask master for page owner id" },
+    { MSG_REQ_BROADCAST,              dcs_proc_broadcast_req,           CM_TRUE, CM_FALSE,  "broadcast msg" },
+    { MSG_REQ_TXN_INFO,               dcs_proc_txn_info_req,            CM_TRUE, CM_FALSE,  "txn info msg" },
+    { MSG_REQ_TXN_SNAPSHOT,           dcs_proc_txn_snapshot_req,        CM_TRUE, CM_FALSE,  "txn snapshot msg" },
+    { MSG_REQ_WAIT_TXN,               dcs_proc_txn_wait_req,            CM_TRUE, CM_FALSE,  "txn wait msg" },
+    { MSG_REQ_AWAKE_TXN,              dcs_proc_txn_awake_req,           CM_TRUE, CM_FALSE,  "txn awake msg" },
+    { MSG_REQ_MASTER_CKPT_EDP,        dcs_proc_master_ckpt_edp_req,     CM_TRUE, CM_FALSE,  "master ckpt edp msg" },
+    { MSG_REQ_OWNER_CKPT_EDP,         dcs_proc_owner_ckpt_edp_req,      CM_TRUE, CM_FALSE,  "owner ckpt edp msg" },
+    { MSG_REQ_MASTER_CLEAN_EDP,       dcs_proc_master_clean_edp_req,    CM_TRUE, CM_FALSE,  "master clean edp msg" },
+    { MSG_REQ_OWNER_CLEAN_EDP,        dcs_proc_owner_clean_edp_req,     CM_TRUE, CM_FALSE,  "owner clean edp msg" },
+    { MES_REQ_MGRT_MASTER_DATA,       dms_reform_proc_req_migrate,      CM_TRUE, CM_TRUE,   "drc process the migrated data" },
+    { MSG_REQ_RELEASE_OWNER,          dcs_proc_release_owner_req,       CM_TRUE, CM_TRUE,   "release owner req" },
+    { MSG_REQ_BOC,                    dcs_proc_boc,                     CM_TRUE, CM_TRUE,   "commit scn broadcast" },
+    { MSG_REQ_SMON_DLOCK_INFO,        dcs_proc_smon_dlock_msg,          CM_TRUE, CM_FALSE,  "smon req dead lock msg" },
+    { MSG_REQ_SMON_DEADLOCK_SQL,      dcs_proc_smon_deadlock_sql,       CM_TRUE, CM_FALSE,  "smon req sql" },
+    { MSG_REQ_SMON_DEADLOCK_ITL,      dcs_proc_process_get_itl_lock,    CM_TRUE, CM_FALSE,  "smon req itl" },
     { MSG_REQ_SMON_DEADLOCK_CHECK_STATUS, dcs_proc_smon_check_tlock_status,
-        CM_TRUE, CM_FALSE, CM_TRUE, "smon req event or table status" },
+        CM_TRUE, CM_FALSE, "smon req event or table status" },
     { MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID, dcs_proc_smon_table_lock_by_tid,
-        CM_TRUE, CM_FALSE, CM_TRUE, "smon req tlock msg" },
+        CM_TRUE, CM_FALSE, "smon req tlock msg" },
     { MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, dcs_proc_smon_table_lock_by_rm,
-        CM_TRUE, CM_FALSE, CM_TRUE, "smon req rm" },
-    { MSG_REQ_BUF_RES_DRC_REBUILD,    dms_reform_proc_req_rebuild_buf_res, CM_TRUE, CM_TRUE,  CM_TRUE,  "buf res drc rebuild" },
-    { MSG_REQ_LOCK_RES_DRC_REBUILD,   dms_reform_proc_req_rebuild_lock,    CM_TRUE, CM_TRUE,  CM_TRUE,  "lock res drc rebuild" },
-    { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,
-        CM_TRUE, CM_FALSE, CM_TRUE,  "req opengauss txn status" },
+        CM_TRUE, CM_FALSE, "smon req rm" },
+    { MSG_REQ_BUF_RES_DRC_REBUILD,    dms_reform_proc_req_rebuild_buf_res, CM_TRUE, CM_TRUE,  "buf res drc rebuild" },
+    { MSG_REQ_LOCK_RES_DRC_REBUILD,   dms_reform_proc_req_rebuild_lock,    CM_TRUE, CM_TRUE,  "lock res drc rebuild" },
+    { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,   CM_TRUE, CM_FALSE, "req opengauss txn status" },
     { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, dcs_proc_opengauss_txn_snapshot_req,
-        CM_TRUE, CM_FALSE, CM_TRUE,  "req opengauss txn snapshot" },
+        CM_TRUE, CM_FALSE,  "req opengauss txn snapshot" },
     { MES_REQ_RELEASE_OWNER_BATCH,    dcs_proc_release_owner_batch_req,
-        CM_TRUE, CM_FALSE, CM_TRUE,  "release page owner batch req"},
+        CM_TRUE, CM_FALSE,  "release page owner batch req"},
     { MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, dcs_proc_opengauss_update_xid_req,
-        CM_TRUE, CM_FALSE, CM_TRUE,  "req opengauss update xid" },
-    { MSG_REQ_OPENGAUSS_XID_CSN,      dcs_proc_opengauss_xid_csn_req,      CM_TRUE, CM_FALSE, CM_TRUE,  "req opengauss txn csn" },
+        CM_TRUE, CM_FALSE,  "req opengauss update xid" },
+    { MSG_REQ_OPENGAUSS_XID_CSN,      dcs_proc_opengauss_xid_csn_req,  CM_TRUE, CM_FALSE, "req opengauss txn csn" },
     { MSG_REQ_OPENGAUSS_LOCK_BUFFER,  dcs_proc_opengauss_lock_buffer_req,
-        CM_TRUE, CM_FALSE, CM_TRUE,  "req opengauss lock buffer" },
-    { MSG_REQ_ASK_EDP_REMOTE,         dcs_proc_ask_remote_for_edp,         CM_TRUE, CM_TRUE,  CM_TRUE,  "ask remote for edp" },
-    { MSG_REQ_SYNC_STEP,              dms_reform_proc_sync_step,           CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform sync step" },
-    { MSG_REQ_SYNC_SHARE_INFO,        dms_reform_proc_sync_share_info,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform sync share info" },
-    { MSG_REQ_DMS_STATUS,             dms_reform_proc_req_dms_status,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform get instance status" },
-    { MSG_REQ_REFORM_PREPARE,         dms_reform_proc_req_prepare,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform broadcast prepare" },
-    { MSG_REQ_SYNC_NEXT_STEP,         dms_reform_proc_sync_next_step,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform sync next step" },
-    { MSG_REQ_OWNER_CLEAN_FLAG,       dcs_proc_owner_clean_flag_req,       CM_TRUE, CM_FALSE, CM_FALSE, "req owner clean flag"},
-    { MSG_REQ_MSG_SYNC,               dms_reform_proc_msg_sync,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform msg sync and wait" },
-    { MSG_REQ_PAGE,                   dms_reform_proc_req_page,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform request page info" },
-    { MSG_REQ_SWITCHOVER,             dms_reform_proc_req_switchover,      CM_TRUE, CM_FALSE, CM_TRUE,  "dms switchover" },
-    { MSG_REQ_CHANNEL_CHECK,          dms_reform_proc_channel_check,       CM_TRUE, CM_TRUE,  CM_TRUE,  "dms check channel" },
-    { MSG_REQ_CANCEL_REQUEST_RES,     dms_proc_cancel_request_res,         CM_TRUE, CM_TRUE,  CM_FALSE, "dms cancel request res" },
-    { MSG_REQ_OPENGAUSS_DDLLOCK,      dcs_proc_broadcast_req,              CM_TRUE, CM_TRUE,  CM_TRUE,  "broadcast msg" },
-    { MSG_REQ_CONFIRM_CVT,            dms_proc_confirm_cvt_req,            CM_TRUE, CM_FALSE, CM_TRUE,  "dms proc confirm converting" },
-    { MSG_REQ_CHECK_REFORM_DONE,      dms_reform_proc_reform_done_req,
-        CM_TRUE, CM_TRUE,  CM_TRUE,  "dms reform check reform done"},
+        CM_TRUE, CM_FALSE,  "req opengauss lock buffer" },
+    { MSG_REQ_ASK_EDP_REMOTE,         dcs_proc_ask_remote_for_edp,     CM_TRUE, CM_TRUE,  "ask remote for edp" },
+    { MSG_REQ_SYNC_STEP,              dms_reform_proc_sync_step,       CM_TRUE, CM_TRUE,  "dms reform sync step" },
+    { MSG_REQ_SYNC_SHARE_INFO,        dms_reform_proc_sync_share_info, CM_TRUE, CM_TRUE,  "dms reform sync share info" },
+    { MSG_REQ_DMS_STATUS,             dms_reform_proc_req_dms_status,  CM_TRUE, CM_TRUE,  "dms reform get instance status" },
+    { MSG_REQ_REFORM_PREPARE,         dms_reform_proc_req_prepare,     CM_TRUE, CM_TRUE,  "dms reform broadcast prepare" },
+    { MSG_REQ_SYNC_NEXT_STEP,         dms_reform_proc_sync_next_step,  CM_TRUE, CM_TRUE,  "dms reform sync next step" },
+    { MSG_REQ_PAGE,                   dms_reform_proc_req_page,        CM_TRUE, CM_TRUE,  "dms reform request page info" },
+    { MSG_REQ_SWITCHOVER,             dms_reform_proc_req_switchover,  CM_TRUE, CM_FALSE, "dms switchover" },
+    { MSG_REQ_CHANNEL_CHECK,          dms_reform_proc_channel_check,   CM_TRUE, CM_TRUE,  "dms check channel" },
+    { MSG_REQ_CANCEL_REQUEST_RES,     dms_proc_cancel_request_res,     CM_TRUE, CM_TRUE,  "dms cancel request res" },
+    { MSG_REQ_OPENGAUSS_DDLLOCK,      dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
+    { MSG_REQ_CONFIRM_CVT,            dms_proc_confirm_cvt_req,        CM_TRUE, CM_FALSE, "dms proc confirm converting" },
+    { MSG_REQ_CHECK_REFORM_DONE,      dms_reform_proc_reform_done_req, CM_TRUE, CM_TRUE,  "dms reform check reform done"},
+    { MSG_REQ_MAP_INFO,               dms_reform_proc_map_info_req,    CM_TRUE, CM_TRUE,  "dms ask map from IN instance"},
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
-    { MSG_ACK_CHECK_VISIBLE,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "row check visible ack" },
-    { MSG_ACK_PAGE_OWNER_ID,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "page owner id ack" },
-    { MSG_ACK_BROADCAST,                    dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, CM_FALSE, "broadcast ack" },
-    { MSG_ACK_BROADCAST_WITH_MSG,           dms_proc_broadcast_ack2, CM_FALSE, CM_TRUE, CM_FALSE, "broadcast ack2" },
-    { MSG_ACK_PAGE_READY,                   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "owner ack page ready" },
-    { MSG_ACK_GRANT_OWNER,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "master ack grant owner" },
-    { MSG_ACK_ALREADY_OWNER,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "master ack already owner" },
-    { MSG_ACK_CR_PAGE,                      dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "consistency read ack" },
-    { MSG_ACK_TXN_WAIT,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "TXN wait" },
-    { MSG_ACK_LOCK,                         dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "lock ack msg" },
-    { MSG_ACK_TXN_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "txn info ack msg" },
-    { MSG_ACK_TXN_SNAPSHOT,                 dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "txn snapshot ack msg" },
-    { MSG_ACK_WAIT_TXN,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "txn wait ack msg" },
-    { MSG_ACK_AWAKE_TXN,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "txn awake ack msg" },
-    { MSG_ACK_MASTER_CKPT_EDP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "master ckpt edp ack msg" },
-    { MSG_ACK_OWNER_CKPT_EDP,               dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "owner ckpt edp ack msg" },
-    { MSG_ACK_MASTER_CLEAN_EDP,             dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "master clean edp ack msg" },
-    { MSG_ACK_OWNER_CLEAN_EDP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "owner clean edp ack msg" },
-    { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "error msg" },
-    { MSG_ACK_RELEASE_PAGE_OWNER,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "release page owner ack" },
-    { MSG_ACK_CONFIRM_CVT,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "confirm converting ack" },
-    { MSG_ACK_INVLD_OWNER,                  dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, CM_FALSE, "relase lock owner ack" },
-    { MSG_ACK_BOC,                          dms_proc_broadcast_ack,  CM_FALSE, CM_TRUE, CM_FALSE, "commit scn broadcast ack" },
-    { MSG_ACK_SMON_DLOCK_INFO,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack smon req dead lock msg" },
-    { MSG_ACK_SMON_DEADLOCK_SQL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack smon req sql" },
-    { MSG_ACK_SMON_DEADLOCK_ITL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack smon req itl" },
-    { MSG_ACK_SMON_DEADLOCK_CHECK_STATUS,   dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "ack smon req event or table status" },
-    { MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack smon req tlock msg" },
-    { MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM,  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack smon req rm" },
-    { MSG_ACK_OPENGAUSS_TXN_STATUS,         dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "ack opengauss transaction info" },
-    { MSG_ACK_OPENGAUSS_TXN_SNAPSHOT,       dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "ack opengauss transaction snapshot" },
-    { MES_ACK_RELEASE_OWNER_BATCH,          dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "release page owner batch ack" },
-    { MSG_ACK_OPENGAUSS_TXN_UPDATE_XID,     dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "ack opengauss update xid" },
-    { MSG_ACK_OPENGAUSS_XID_CSN,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack opengauss xid csn" },
-    { MSG_ACK_OPENGAUSS_LOCK_BUFFER,        dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "ack opengauss lock buffer" },
-    { MSG_ACK_EDP_LOCAL,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack edp local" },
-    { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, CM_FALSE, "ack edp remote ready" },
-    { MSG_ACK_COMMON,                       dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, CM_FALSE, "ack for request used in dms reform" }
+    { MSG_ACK_CHECK_VISIBLE,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "row check visible ack" },
+    { MSG_ACK_PAGE_OWNER_ID,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "page owner id ack" },
+    { MSG_ACK_BROADCAST,                    dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "broadcast ack" },
+    { MSG_ACK_BROADCAST_WITH_MSG,           dms_proc_broadcast_ack2, CM_FALSE, CM_TRUE, "broadcast ack2" },
+    { MSG_ACK_PAGE_READY,                   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "owner ack page ready" },
+    { MSG_ACK_GRANT_OWNER,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "master ack grant owner" },
+    { MSG_ACK_ALREADY_OWNER,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "master ack already owner" },
+    { MSG_ACK_CR_PAGE,                      dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "consistency read ack" },
+    { MSG_ACK_TXN_WAIT,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "TXN wait" },
+    { MSG_ACK_LOCK,                         dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "lock ack msg" },
+    { MSG_ACK_TXN_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "txn info ack msg" },
+    { MSG_ACK_TXN_SNAPSHOT,                 dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "txn snapshot ack msg" },
+    { MSG_ACK_WAIT_TXN,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "txn wait ack msg" },
+    { MSG_ACK_AWAKE_TXN,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "txn awake ack msg" },
+    { MSG_ACK_MASTER_CKPT_EDP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "master ckpt edp ack msg" },
+    { MSG_ACK_OWNER_CKPT_EDP,               dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "owner ckpt edp ack msg" },
+    { MSG_ACK_MASTER_CLEAN_EDP,             dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "master clean edp ack msg" },
+    { MSG_ACK_OWNER_CLEAN_EDP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "owner clean edp ack msg" },
+    { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "error msg" },
+    { MSG_ACK_RELEASE_PAGE_OWNER,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "release page owner ack" },
+    { MSG_ACK_CONFIRM_CVT,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "confirm converting ack" },
+    { MSG_ACK_INVLD_OWNER,                  dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "relase lock owner ack" },
+    { MSG_ACK_BOC,                          dms_proc_broadcast_ack,  CM_FALSE, CM_TRUE, "commit scn broadcast ack" },
+    { MSG_ACK_SMON_DLOCK_INFO,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req dead lock msg" },
+    { MSG_ACK_SMON_DEADLOCK_SQL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req sql" },
+    { MSG_ACK_SMON_DEADLOCK_ITL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req itl" },
+    { MSG_ACK_SMON_DEADLOCK_CHECK_STATUS,   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req event or table status" },
+    { MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req tlock msg" },
+    { MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM,  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req rm" },
+    { MSG_ACK_OPENGAUSS_TXN_STATUS,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss transaction info" },
+    { MSG_ACK_OPENGAUSS_TXN_SNAPSHOT,       dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss transaction snapshot" },
+    { MES_ACK_RELEASE_OWNER_BATCH,          dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "release page owner batch ack" },
+    { MSG_ACK_OPENGAUSS_TXN_UPDATE_XID,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss update xid" },
+    { MSG_ACK_OPENGAUSS_XID_CSN,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss xid csn" },
+    { MSG_ACK_OPENGAUSS_LOCK_BUFFER,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss lock buffer" },
+    { MSG_ACK_EDP_LOCAL,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp local" },
+    { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
+    { MSG_ACK_COMMON,                       dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for request used in dms reform" },
+    { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -228,7 +209,7 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
 #ifdef OPENGAUSS
     bool32 enable_proc = !g_dms.enable_reform || DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
 #else
-    bool32 enable_proc = DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
+    bool32 enable_proc = CM_TRUE;
 #endif
     if (!enable_proc) {
         LOG_DEBUG_INF("[DMS] msg was discarded，cmd:%u, src_inst:%u, dst_inst:%u, src_sid:%u, dest_sid:%u",
@@ -260,7 +241,6 @@ static int dms_register_proc_func(processor_func_t *proc_func)
         return ERRNO_DMS_CMD_INVALID;
     }
     g_dms.processors[proc_func->cmd_type].proc = proc_func->proc;
-    g_dms.processors[proc_func->cmd_type].is_sync_msg = proc_func->is_sync_msg;
     g_dms.processors[proc_func->cmd_type].is_enqueue  = proc_func->is_enqueue_work_thread;
     g_dms.processors[proc_func->cmd_type].is_enable_before_reform = proc_func->is_enable_before_reform;
 
@@ -362,6 +342,7 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHANNEL_CHECK:
+        case MSG_REQ_MAP_INFO:
             return MES_TASK_GROUP_ONE;      // group one is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
             return MES_TASK_GROUP_TWO;
@@ -529,7 +510,7 @@ static int32 init_drc_smon_ctx(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
 
-    ctx->chan = cm_chan_new(DRC_SMON_QUEUE_SIZE, sizeof(void*));
+    ctx->chan = cm_chan_new(DRC_SMON_QUEUE_SIZE, sizeof(res_id_t));
     if (ctx->chan == NULL) {
         LOG_RUN_ERR("[DRC]fail to create smon queue,size=%d", DRC_SMON_QUEUE_SIZE);
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
@@ -640,33 +621,6 @@ static void dms_init_mfc(dms_profile_t *dms_profile)
     }
 }
 
-static int32 dms_init_cntlr(void)
-{
-    size_t mem_size = CM_MAX_MES_ROOMS * sizeof(dms_cntlr_t);
-    for (uint32 i = 0; i < g_dms.inst_cnt; i++) {
-        g_dms.cntlr[i] = (dms_cntlr_t *)malloc(mem_size);
-        if (g_dms.cntlr[i] == NULL) {
-            LOG_RUN_ERR("[DMS] alloc proc ctrl failed");
-            return ERRNO_DMS_ALLOC_FAILED;
-        }
-        DMS_SECUREC_CHECK(memset_s(g_dms.cntlr[i], mem_size, 0, mem_size));
-    }
-    return DMS_SUCCESS;
-}
-
-static inline void dms_release_inst_resource(void)
-{
-    if (g_dms.proc_ctx != NULL) {
-        CM_FREE_PTR(g_dms.proc_ctx);
-    }
-
-    for (uint32 i = 0; i < g_dms.inst_cnt; i++) {
-        if (g_dms.cntlr[i] != NULL) {
-            CM_FREE_PTR(g_dms.cntlr[i]);
-        }
-    }
-}
-
 int dms_init(dms_profile_t *dms_profile)
 {
     int ret;
@@ -708,20 +662,14 @@ int dms_init(dms_profile_t *dms_profile)
 
     ret = dms_init_drc_res_ctx(dms_profile);
     if (ret != DMS_SUCCESS) {
-        dms_release_inst_resource();
-        return ret;
-    }
-
-    ret = dms_init_cntlr();
-    if (ret != DMS_SUCCESS) {
-        dms_release_inst_resource();
+        CM_FREE_PTR(g_dms.proc_ctx);
         return ret;
     }
 
     ret = dms_init_mes(dms_profile);
     if (ret != DMS_SUCCESS) {
         drc_destroy();
-        dms_release_inst_resource();
+        CM_FREE_PTR(g_dms.proc_ctx);
         return ret;
     }
 
@@ -730,7 +678,7 @@ int dms_init(dms_profile_t *dms_profile)
     ret = dms_reform_init(dms_profile);
     if (ret != DMS_SUCCESS) {
         drc_destroy();
-        dms_release_inst_resource();
+        CM_FREE_PTR(g_dms.proc_ctx);
         return ret;
     }
 
@@ -750,10 +698,17 @@ int dms_init(dms_profile_t *dms_profile)
     return DMS_SUCCESS;
 }
 
+void dms_pre_uninit(void)
+{
+    dms_reform_uninit();
+}
+
 void dms_uninit(void)
 {
+#ifdef OPENGAUSS    
     dms_scrlock_uninit();
     dms_reform_uninit();
+#endif
     mfc_uninit();
 
     if (g_dms_stat.sess_stats != NULL) {
@@ -764,7 +719,7 @@ void dms_uninit(void)
     drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
-    dms_release_inst_resource();
+    CM_FREE_PTR(g_dms.proc_ctx);
 }
 
 unsigned long long dms_get_min_scn(unsigned long long min_scn)

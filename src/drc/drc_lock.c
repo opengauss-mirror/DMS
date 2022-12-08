@@ -52,6 +52,7 @@ static drc_local_lock_res_t *drc_create_local_lock_res(drc_res_bucket_t *bucket,
     lock_res->latch_stat.stat = LATCH_STATUS_IDLE;
     lock_res->latch_stat.sid = 0;
     lock_res->releasing = CM_FALSE;
+    lock_res->ver = 0;
 
     drc_res_map_add_res(bucket, (char *)lock_res);
     return lock_res;
@@ -87,6 +88,11 @@ bool32 drc_try_lock_local_resx(drc_local_lock_res_t *lock_res)
 void drc_lock_local_resx(drc_local_lock_res_t *lock_res)
 {
     cm_spin_lock(&lock_res->lock, NULL);
+}
+
+bool32 drc_timed_lock_local_resx(drc_local_lock_res_t *lock_res, uint32 timeout_ticks)
+{
+    return cm_spin_timed_lock(&lock_res->lock, timeout_ticks);
 }
 
 void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
@@ -128,20 +134,21 @@ int drc_confirm_owner(char* resid, uint8 *lock_mode)
     return DMS_SUCCESS;
 }
 
-int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode)
+int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint64 *ver)
 {
     bool32 is_locked = CM_FALSE;
     drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);
     date_t begin = g_timer()->now;
 
     while (CM_TRUE) {
-        is_locked = drc_try_lock_local_resx(lock_res);
+        is_locked = drc_timed_lock_local_resx(lock_res, DMS_MSG_CONFIRM_TIMES);
         if (is_locked || (g_timer()->now - begin > DMS_REFORM_CONFIRM_TIMEOUT)) {
             break;
         }
         DMS_REFORM_SHORT_SLEEP;
     }
     if (is_locked) {
+        *ver = lock_res->ver;
         *lock_mode = lock_res->latch_stat.lock_mode;
         drc_unlock_local_resx(lock_res);
         return DMS_SUCCESS;
@@ -150,6 +157,7 @@ int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode)
         return CM_TIMEDOUT;
     }
 
+    *ver = lock_res->ver;
     *lock_mode = lock_res->latch_stat.lock_mode;
     return DMS_SUCCESS;
 }

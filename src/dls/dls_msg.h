@@ -51,18 +51,17 @@ extern "C" {
         (drid)->part = _part;                                 \
     } while (0)
 
-int32 dls_request_lock(dms_context_t *dms_ctx, dms_drid_t *lock_id, dms_lock_mode_t curr_mode, dms_lock_mode_t mode);
-int32 dls_try_request_lock(dms_context_t *dms_ctx, dms_drid_t *lock_id,
+int32 dls_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t mode);
-int32 dls_invld_share_copy(char *resid, uint8 req_mode, bool8 is_try);
+int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
+    dms_lock_mode_t curr_mode, dms_lock_mode_t mode);
+int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint64 *version);
 int32 dls_handle_grant_owner_ack(dms_context_t *dms_ctx,
-    dms_buf_ctrl_t *ctrl, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
+    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
 int32 dls_handle_already_owner_ack(dms_context_t *dms_ctx,
-    dms_buf_ctrl_t *ctrl, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
+    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
 int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
-    dms_buf_ctrl_t *ctrl, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
-int32 dls_handle_ask_owner_ack(dms_context_t *dms_ctx,
-    dms_buf_ctrl_t *ctrl, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
+    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
 
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info);
 void dls_cancel_request_lock(dms_context_t *dms_ctx, dms_drid_t *lock_id);

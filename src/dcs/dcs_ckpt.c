@@ -48,8 +48,8 @@ static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint8 cmd, dms_
         head.rsn = mfc_get_rsn(dms_ctx->sess_id);
         head.size = (uint16)size;
 
-        if ((ret = mfc_send_data4(&head, &send_cnt, (uint32)sizeof(unsigned int), pages,
-            send_cnt * (uint32)sizeof(dms_edp_info_t))) != CM_SUCCESS) {
+        if ((ret = mfc_send_data4(&head, sizeof(mes_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
+            pages, send_cnt * (uint32)sizeof(dms_edp_info_t))) != CM_SUCCESS) {
             LOG_DEBUG_ERR("[DMS]send edp failed, errno = %d", ret);
             DMS_THROW_ERROR(ERRNO_DMS_DCS_SEND_EDP_FAILED);
             return ERRNO_DMS_DCS_SEND_EDP_FAILED;
@@ -108,7 +108,7 @@ static int dcs_get_page_master_id(dms_context_t *dms_ctx, char pageid[DMS_PAGEID
 
 static int dcs_get_page_owner_id(dms_context_t *dms_ctx, char pageid[DMS_PAGEID_SIZE], unsigned char *owner_id)
 {
-    return drc_get_page_owner_id(dms_ctx->edp_inst, pageid, owner_id);
+    return drc_get_page_owner_id(dms_ctx->edp_inst, pageid, CM_FALSE, owner_id);
 }
 
 typedef int32(*cb_calc_edp)(dms_context_t *dms_ctx, char pageid[DMS_PAGEID_SIZE], uint8 *inst_id);
@@ -209,12 +209,17 @@ static int32 dcs_owner_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, 
 
 static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
 {
-    drc_buf_res_t *buf_res = drc_get_buf_res(edp->page, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, CM_FALSE, CM_FALSE);
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_FALSE, CM_FALSE, CM_TRUE);
+    int ret = drc_enter_buf_res(edp->page, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return CM_FALSE;
+    }
+
     if (buf_res == NULL) {
         return CM_FALSE;
     }
 
-    drc_enter_buf_res(buf_res);
     if (buf_res->lsn > edp->lsn || buf_res->edp_map == 0) {
         drc_leave_buf_res(buf_res);
         return CM_FALSE;

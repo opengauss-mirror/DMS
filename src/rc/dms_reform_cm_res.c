@@ -31,78 +31,123 @@
 #endif
 
 #ifdef DMS_TEST
-uint8 g_reformer_id = 0;
 
-static void dms_reform_get_reformer_id(void)
+cm_simulation_t g_cm_simulation;
+
+static config_item_t g_cm_params[] = {
+    { CM_REFORMER_ID, CM_TRUE, CM_FALSE, "0", NULL, NULL, "-", "[0, 63]", "INTEGER", NULL, CM_PARAM_REFORMER_ID,
+        EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
+    { CM_BITMAP_ONLINE, CM_TRUE, CM_FALSE, "3", NULL, NULL, "-", "-", "BIG INTEGER", NULL, CM_PARAM_BITMAP_ONLINE,
+        EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
+};
+
+static void dms_reform_cm_simulation_init()
 {
-    char *reformer_id_str = getenv("DMS_REFORMER_ID");
-    uint32 reformer_id;
+    g_cm_simulation.params.reformer_id = CM_INVALID_ID32;
+    g_cm_simulation.params.bitmap_online = 0;
+}
 
-    if (reformer_id_str == NULL) {
+static void dms_reform_cm_simulation_refresh(void)
+{
+    char *value = cm_get_config_value(&g_cm_simulation.config, CM_REFORMER_ID);
+    if (cm_str2uint32(value, &g_cm_simulation.params.reformer_id) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to get REFORMER_ID");
+    }
+
+    value = cm_get_config_value(&g_cm_simulation.config, CM_BITMAP_ONLINE);
+    if (cm_str2uint64(value, &g_cm_simulation.params.bitmap_online) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to get BITMAP_ONLINE");
+    }
+}
+
+static void dms_reform_cm_simulation_thread(thread_t *thread)
+{
+    char *cm_config_path = getenv(CM_CONFIG_PATH);
+    if (cm_config_path == NULL) {
+        LOG_RUN_ERR("[DMS REFORM][cm_simulation]fail to get CM_CONFIG_PATH");
         return;
     }
 
-    if (cm_str2uint32(reformer_id_str, &reformer_id) != CM_SUCCESS) {
+    cm_set_thread_name("cm_simulation");
+    LOG_RUN_INF("[DMS REFORM][cm_simulation]dms_reform_cm_simulation thread started");
+    dms_reform_cm_simulation_init();
+
+    while (!thread->closed) {
+        cm_spin_lock(&g_cm_simulation.lock, NULL);
+        int status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_path, &g_cm_simulation.config, CM_FALSE);
+        if (status != CM_SUCCESS) {
+            cm_spin_unlock(&g_cm_simulation.lock);
+            LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to load cm simulation");
+            cm_sleep(DMS_REFORM_LONG_TIMEOUT);
+            continue;
+        }
+        dms_reform_cm_simulation_refresh();
+        cm_spin_unlock(&g_cm_simulation.lock);
+        cm_sleep(DMS_REFORM_LONG_TIMEOUT);
+    }
+}
+
+static void dms_reform_cm_simulation(void)
+{
+    char *cm_config_path = getenv(CM_CONFIG_PATH);
+    if (cm_config_path == NULL) {
+        LOG_RUN_ERR("[DMS REFORM][cm_simulation]fail to get CM_CONFIG_PATH");
         return;
     }
 
-    if (reformer_id >= g_dms.inst_cnt) {
-        return;
+    int ret = cm_create_thread(dms_reform_cm_simulation_thread, 0, NULL, &g_cm_simulation.thread);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS REFORM][cm_simulation]fail to create dms_reform_cm_simulation_thread");
     }
-
-    g_reformer_id = (uint8)reformer_id;
 }
 
 int dms_reform_cm_res_init(void)
 {
 #ifdef UT_TEST
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
 
     reform_info->first_reform_finish = CM_TRUE;
-    reform_info->page_accessible = CM_TRUE;
-    reform_info->lock_accessible = CM_TRUE;
+    ctx->global_buf_res.drc_access = CM_TRUE;
+    ctx->global_buf_res.data_access = CM_TRUE;
+    ctx->global_lock_res.drc_access = CM_TRUE;
+    ctx->global_lock_res.data_access = CM_TRUE;
     printf("DMS FOR UT TEST.\n");
     LOG_RUN_INF("[DMS REFORM]cm_res_init success(FOR UT TEST)");
 #else
     printf("DMS FOR DB TEST.\n");
+    dms_reform_cm_simulation();
     LOG_RUN_INF("[DMS REFORM]cm_res_init success(FOR DB TEST)");
-    dms_reform_get_reformer_id();
 #endif
     return DMS_SUCCESS;
 }
 
-static bool8 dms_reform_get_online_list(instance_list_t *list_online)
+void dms_reform_cm_simulation_uninit(void)
 {
-    char *online_bitmap_str = getenv("DMS_ONLINE_BITMAP");
-    uint64 online_bitmap = 0;
+    cm_close_thread(&g_cm_simulation.thread);
+}
 
-    if (online_bitmap_str == NULL) {
-        return CM_FALSE;
-    }
-
-    if (cm_str2uint64(online_bitmap_str, &online_bitmap) != CM_SUCCESS) {
-        return CM_FALSE;
+static void dms_reform_get_online_list(instance_list_t *list_online)
+{
+    char *cm_config_path = getenv(CM_CONFIG_PATH);
+    if (cm_config_path == NULL) {
+        for (uint8 i = 0; i < g_dms.inst_cnt; i++) {
+            list_online->inst_id_list[list_online->inst_id_count++] = i;
+        }
+        return;
     }
 
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        if (bitmap64_exist(&online_bitmap, i)) {
+        if (bitmap64_exist(&g_cm_simulation.params.bitmap_online, i)) {
             list_online->inst_id_list[list_online->inst_id_count++] = i;
         }
     }
-
-    return CM_TRUE;
 }
 
 int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_t *list_offline,
     instance_list_t *list_unknown)
 {
-    if (dms_reform_get_online_list(list_online)) {
-        return DMS_SUCCESS;
-    }
-
-    for (uint32 i = 0; i < g_dms.inst_cnt; i++) {
-        list_online->inst_id_list[list_online->inst_id_count++] = (uint8)i;
-    }
+    dms_reform_get_online_list(list_online);
     return DMS_SUCCESS;
 }
 
@@ -118,14 +163,45 @@ void dms_reform_cm_res_unlock(void)
 
 int dms_reform_cm_res_get_lock_owner(uint8 *owner_id)
 {
-    *owner_id = g_reformer_id;
+    *owner_id = (uint8)g_cm_simulation.params.reformer_id;
     return DMS_SUCCESS;
 }
 
 void dms_reform_cm_res_trans_lock(uint8 inst_id)
 {
-    g_reformer_id = inst_id;
-    return;
+    int status = CM_SUCCESS;
+    char buf[CM_BUFLEN_32];
+
+    char *cm_config_path = getenv(CM_CONFIG_PATH);
+    if (cm_config_path == NULL) {
+        g_cm_simulation.params.reformer_id = inst_id;
+        return;
+    }
+
+    int ret = sprintf_s(buf, CM_BUFLEN_32, "%d", (int)inst_id);
+    if (ret == -1) {
+        return;
+    }
+
+    if (DMS_IS_SHARE_REFORMER) {
+        cm_spin_lock(&g_cm_simulation.lock, NULL);
+        status = cm_alter_config(&g_cm_simulation.config, CM_REFORMER_ID, buf, CONFIG_SCOPE_BOTH, CM_TRUE);
+        if (status != CM_SUCCESS) {
+            cm_spin_unlock(&g_cm_simulation.lock);
+            LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to modify REFORMER_ID");
+            return;
+        }
+        cm_spin_unlock(&g_cm_simulation.lock);
+    }
+
+    cm_spin_lock(&g_cm_simulation.lock, NULL);
+    status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_path, &g_cm_simulation.config, CM_FALSE);
+    if (status != CM_SUCCESS) {
+        cm_spin_unlock(&g_cm_simulation.lock);
+        LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to load cm simulation");
+    }
+    dms_reform_cm_simulation_refresh();
+    cm_spin_unlock(&g_cm_simulation.lock);
 }
 
 #else

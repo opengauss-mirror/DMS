@@ -77,7 +77,8 @@ static inline uint16 mfc_clean_tickets(mfc_ticket_t *ticket)
 int32 mfc_send_data(mes_message_head_t *msg);
 int32 mfc_send_data2(mes_message_head_t *head, const void *body);
 int32 mfc_send_data3(mes_message_head_t *head, uint32 head_size, const void *body);
-int32 mfc_send_data4(mes_message_head_t *head, const void *body1, uint32 len1, const void *body2, uint32 len2);
+int32 mfc_send_data4(mes_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+    const void *body2, uint32 len2);
 int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout);
 #define mfc_release_message_buf mes_release_message_buf
 static inline void mfc_broadcast(uint32 sid, uint64 inst_bits, const void *msg_data, uint64 *success_inst)

@@ -26,7 +26,7 @@
 #define __DMS_REFORM_CM_RES_H__
 
 #include "dms.h"
-#include "cm_types.h"
+#include "cm_config.h"
 #include "cm_res_mgr.h"
 
 #ifdef __cplusplus
@@ -63,6 +63,34 @@ int dms_reform_cm_res_get_lock_owner(uint8 *owner_id);
 void dms_reform_cm_res_lock(void);
 void dms_reform_cm_res_unlock(void);
 void dms_reform_cm_res_trans_lock(uint8 inst_id);
+
+#ifdef DMS_TEST
+#define CM_CONFIG_PATH        "CM_CONFIG_PATH"
+#define CM_REFORMER_ID        "REFORMER_ID"
+#define CM_BITMAP_ONLINE      "BITMAP_ONLINE"
+
+typedef enum en_cm_params {
+    CM_PARAM_REFORMER_ID,
+    CM_PARAM_BITMAP_ONLINE,
+
+    /* add above here */
+    CM_PARAM_COUNT
+} cm_params_e;
+
+typedef struct st_cm_params {
+    uint64          bitmap_online;
+    uint32          reformer_id;
+} cm_params_t;
+
+typedef struct st_cm_simulation {
+    thread_t        thread;
+    spinlock_t      lock;
+    config_t        config;
+    cm_params_t     params;
+} cm_simulation_t;
+
+void dms_reform_cm_simulation_uninit(void);
+#endif
 
 #ifdef __cplusplus
 }

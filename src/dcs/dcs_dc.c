@@ -36,6 +36,15 @@ extern "C" {
 
 void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    cm_latch_s(&reform_info->bcast_latch, process_ctx->sess_id, CM_FALSE, NULL);
+    if (reform_info->bcast_unable) {
+        cm_unlatch(&reform_info->bcast_latch, NULL);
+        cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BROADCAST, ERRNO_DMS_REFORM_IN_PROCESS);
+        return;
+    }
+
     uint32 output_msg_len = 0;
     char output_msg[DCS_BROADCAST_OUTPUT_MSG_LEN] = {0};
     mes_message_head_t *head = (mes_message_head_t *)(receive_msg->buffer);
@@ -43,13 +52,13 @@ void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, mes_message_t *r
     char *data = receive_msg->buffer + sizeof(mes_message_head_t);
     uint32 len = (uint32)(head->size - sizeof(mes_message_head_t));
     int32 ret = g_dms.callback.process_broadcast(process_ctx->db_handle, data, len, output_msg, &output_msg_len);
+    cm_unlatch(&reform_info->bcast_latch, NULL);
     if (output_msg_len != 0) {
         char ack_buf[DCS_BROADCAST_OUTPUT_MSG_LEN + sizeof(mes_message_head_t)];
         cm_ack_result_msg2(process_ctx, receive_msg, MSG_ACK_BROADCAST_WITH_MSG, output_msg, output_msg_len, ack_buf);
     } else {
         cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BROADCAST, ret);
     }
-    return;
 }
 
 static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_inst, char *recv_msg[CM_MAX_INSTANCES])
@@ -138,15 +147,35 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
     unsigned char handle_recv_msg, unsigned int timeout)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    int ret = DMS_SUCCESS;
+
+    cm_latch_s(&reform_info->bcast_latch, dms_ctx->sess_id, CM_FALSE, NULL);
+    if (reform_info->bcast_unable) {
+        cm_unlatch(&reform_info->bcast_latch, NULL);
+        LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
     if (timeout != CM_INFINITE_TIMEOUT) {
-        return dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg);
+        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg);
+        cm_unlatch(&reform_info->bcast_latch, NULL);
+        return ret;
     }
 
     while (CM_TRUE) {
         if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg) == DMS_SUCCESS) {
+            cm_unlatch(&reform_info->bcast_latch, NULL);
             return DMS_SUCCESS;
         }
+        cm_unlatch(&reform_info->bcast_latch, NULL);
         cm_sleep(DMS_MSG_RETRY_TIME);
+        cm_latch_s(&reform_info->bcast_latch, dms_ctx->sess_id, CM_FALSE, NULL);
+        if (reform_info->bcast_unable) {
+            cm_unlatch(&reform_info->bcast_latch, NULL);
+            LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
+            return ERRNO_DMS_REFORM_IN_PROCESS;
+        }
     }
 }
 

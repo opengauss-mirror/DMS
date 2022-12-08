@@ -47,6 +47,7 @@ extern "C" {
 #define ERRNO_DMS_COMMON_CBB_FAILED        10012
 #define ERRNO_DMS_MFC_NO_TICKETS           10013
 #define ERRNO_DMS_MES_INVALID_MSG          10014
+#define ERRNO_DMS_RES_INVALID_VERSION      10015
 
 /* ****BEGIN error code definition of dms dcs 11001 ~ 13000 ************* */
 #define ERRNO_DMS_DCS_PAGE_MASTER_ID       11001
@@ -87,10 +88,12 @@ extern "C" {
 #define ERRNO_DMS_REFORM_IN_PROCESS                    13021
 #define ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST           13022
 #define ERRNO_DMS_DRC_INVALID_CLAIM_REQUEST            13023
+#define ERRNO_DMS_DRC_INVALID                          13024
 
 /* ****BEGIN error code definition of dms dls 15001 ~ 16000 ************* */
 #define ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED          15001
 #define ERRNO_DMS_DLS_INFORM_NEW_OWNERS_FAILED         15002
+#define ERRNO_DMS_DLS_TRY_LOCK_FAILED                  15003
 
 /* ****BEGIN error code definition of dms callback function 16001 ~ 17000 ************* */
 #define ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR                      16001

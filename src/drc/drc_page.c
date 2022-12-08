@@ -221,6 +221,7 @@ static void drc_get_page_no_owner(drc_req_owner_result_t *result, drc_buf_res_t 
     }
 
     if (buf_res->last_edp == CM_INVALID_ID8) {
+        buf_res->ver = 0;
         result->type = DRC_REQ_OWNER_GRANTED;
         result->curr_owner_id = req_info->inst_id;
         LOG_DEBUG_INF("[DRC][%s][drc_get_page_no_owner]grant owner directly, in recovery: %d, owner: %d, type: %u",
@@ -245,12 +246,19 @@ static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
         return;
     }
     drc_request_info_t *cvt_req = &buf_res->converting.req_info;
+    res_id_t res_id;
+    res_id.type = buf_res->type;
+    res_id.len = buf_res->len;
+    int ret = memcpy_s(res_id.data, DMS_RESID_SIZE, buf_res->data, DMS_RESID_SIZE);
+    if (ret != EOK) {
+        LOG_DEBUG_ERR("[DRC]memcpy_s err: %d", ret);
+        return;
+    }
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%u sid:%u rsn:%u req_mode:%u] prepare confirm",
         cm_display_resid(buf_res->data, buf_res->type), (uint32)cvt_req->inst_id,
         (uint32)cvt_req->sess_id, cvt_req->rsn, (uint32)cvt_req->req_mode);
-    drc_inc_buf_res_ref(buf_res);
-    if (cm_chan_send_timeout(DRC_RES_CTX->chan, &buf_res, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
-        drc_dec_buf_res_ref(buf_res);
+    if (cm_chan_send_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRC][%s]fail to add to confirm queue", cm_display_resid(buf_res->data, buf_res->type));
     }
 }
 
@@ -262,7 +270,7 @@ static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *bu
             drc_get_page_no_owner(result, buf_res, req_info);
             return;
         }
-
+        result->ver = buf_res->ver;
         result->curr_owner_id = buf_res->claimed_owner;
 
         if (buf_res->claimed_owner == req_info->inst_id) {
@@ -331,21 +339,20 @@ static int drc_request_page_owner_internal(char *resid, uint8 type,
 int32 drc_request_page_owner(char* resid, uint16 len, uint8 res_type,
     drc_request_info_t* req_info, drc_req_owner_result_t* result)
 {
-    if (!dms_drc_accessible(res_type) && !req_info->sess_rcy) {
-        LOG_RUN_WAR("[DRC][%s]: request page fail, reform is in progress", cm_display_resid(resid, res_type));
-        return ERRNO_DMS_REFORM_IN_PROCESS;
-    }
-
     result->invld_insts    = 0;
     result->has_share_copy = CM_FALSE;
 
-    drc_buf_res_t *buf_res = drc_get_buf_res(resid, len, res_type, req_info->sess_rcy, CM_TRUE);
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_TRUE, req_info->sess_rcy, CM_TRUE);
+    int ret = drc_enter_buf_res(resid, len, res_type, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
     if (buf_res == NULL) {
         LOG_DEBUG_ERR("[DMS][%s]alloc buf res failed", cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
-    drc_enter_buf_res(buf_res);
-    int32 ret = drc_request_page_owner_internal(resid, res_type, req_info, result, buf_res);
+    ret = drc_request_page_owner_internal(resid, res_type, req_info, result, buf_res);
     drc_leave_buf_res(buf_res);
     return ret;
 }
@@ -383,6 +390,7 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
     CM_ASSERT(cvt_info->req_id < CM_MAX_INSTANCES);
 
+    cvt_info->ver = buf_res->ver;
     cvt_info->owner_id = buf_res->claimed_owner;
 
     if (buf_res->lock_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_SHARE) {
@@ -417,10 +425,11 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
     cvt_info->invld_insts = 0;
 
     if (buf_res->converting.req_info.inst_id != claim_info->new_id ||
-        buf_res->converting.req_info.sess_id != claim_info->sess_id) {
-        LOG_DEBUG_ERR("[DMS][%s]invalid claim req, cvt_inst=%u, cvt_sid=%u, claim_inst=%u, claim_sid=%u",
+        buf_res->converting.req_info.sess_id != claim_info->sess_id || claim_info->ver < buf_res->ver) {
+        LOG_DEBUG_ERR("[DMS][%s]invalid claim req, drc:[inst=%u sid=%u ver=%llu] claim:[inst=%u sid=%u ver=%llu]",
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->converting.req_info.inst_id,
-            (uint32)buf_res->converting.req_info.sess_id, (uint32)claim_info->new_id, claim_info->sess_id);
+            (uint32)buf_res->converting.req_info.sess_id, buf_res->ver,
+            (uint32)claim_info->new_id, claim_info->sess_id, claim_info->ver);
         return ERRNO_DMS_DRC_INVALID_CLAIM_REQUEST;
     }
     // X mode or first owner
@@ -444,6 +453,8 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
         }
     }
 
+    buf_res->ver = claim_info->ver;
+
     if (cm_bilist_empty(&buf_res->convert_q)) {
         init_drc_cvt_item(&buf_res->converting);
         return DMS_SUCCESS;
@@ -462,16 +473,17 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
 
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
 {
-    drc_buf_res_t *buf_res = drc_get_buf_res(claim_info->resid,
-        (uint16)claim_info->len, claim_info->res_type, CM_FALSE, CM_FALSE);
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_FALSE, claim_info->sess_rcy, CM_TRUE);
+    int ret = drc_enter_buf_res(claim_info->resid, (uint16)claim_info->len, claim_info->res_type, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
     if (buf_res == NULL) {
-        LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL",
-            cm_display_pageid(claim_info->resid));
+        LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL", cm_display_pageid(claim_info->resid));
         return ERRNO_DMS_DRC_PAGE_NOT_FOUND;
     }
-
-    drc_enter_buf_res(buf_res);
-    int32 ret = drc_convert_page_owner(buf_res, claim_info, cvt_info);
+    ret = drc_convert_page_owner(buf_res, claim_info, cvt_info);
     if (ret != DMS_SUCCESS) {
         drc_leave_buf_res(buf_res);
         return ret;
@@ -544,14 +556,17 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
     cvt_info->req_id = CM_INVALID_ID8;
     cvt_info->invld_insts = 0;
 
-    drc_buf_res_t *buf_res = drc_get_buf_res(resid, len, res_type, CM_FALSE, CM_FALSE);
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_FALSE, req->sess_rcy, CM_TRUE);
+    int ret = drc_enter_buf_res(resid, len, res_type, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return;
+    }
     if (buf_res == NULL) {
         LOG_DEBUG_WAR("[DRC][%s][drc_cancel_request_res]: buf_res is NULL src_inst =%u, src_sid=%u, rsn=%u",
             cm_display_resid(resid, res_type), (uint32)req->inst_id, (uint32)req->sess_id, req->rsn);
         return;
     }
-
-    drc_enter_buf_res(buf_res);
 
     if (drc_cancel_converting(buf_res, req, cvt_info)) {
         drc_leave_buf_res(buf_res);
@@ -559,7 +574,6 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
     }
 
     drc_cancel_convert_q(buf_res, req);
-
     drc_leave_buf_res(buf_res);
 }
 
@@ -591,20 +605,17 @@ int drc_release_page_owner(bool32 sess_rcy, char* resid, uint16 len, uint8 inst_
 {
     *released = CM_FALSE;
 
-    if (!dms_drc_accessible((uint8)DRC_RES_PAGE_TYPE) && !sess_rcy) {
-        LOG_RUN_WAR("[DRC][%s]: release page fail, reform is in progress", cm_display_pageid(resid));
-        return ERRNO_DMS_REFORM_IN_PROCESS;
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_IGNORE_DATA | DRC_RES_CHECK_ACCESS);
+    int ret = drc_enter_buf_res(resid, len, DRC_RES_PAGE_TYPE, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return ret;
     }
-
-    drc_buf_res_t *buf_res = drc_get_buf_res(resid, len, DRC_RES_PAGE_TYPE, CM_FALSE, CM_FALSE);
     if (buf_res == NULL) {
         LOG_RUN_WAR("[DCS][%s][drc_release_page_owner]: buf_res is NULL", cm_display_pageid(resid));
         *released = CM_TRUE;
         return DMS_SUCCESS;
     }
-
-    drc_enter_buf_res(buf_res);
-
     if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8) {
         drc_try_prepare_confirm_cvt(buf_res);
         if (buf_res->converting.req_info.inst_id == inst_id || buf_res->claimed_owner == inst_id) {
@@ -663,8 +674,12 @@ int drc_release_page_owner(bool32 sess_rcy, char* resid, uint16 len, uint8 inst_
     }
 
     // no owner, no share copy, and no requester is using the buf_res now, so we can release it
+    uint8 res_type = buf_res->type;
     drc_release_buf_res(buf_res, DRC_BUF_RES_MAP, bucket);
     cm_spin_unlock(&bucket->lock);
+
+    // buf res has add into free list, so can not use drc_leave_buf_res here
+    drc_buf_res_unlatch(res_type);
     LOG_DEBUG_INF("[DCS][%s][drc_release_page_owner]: success", cm_display_pageid(resid));
 
     return DMS_SUCCESS;
@@ -672,7 +687,8 @@ int drc_release_page_owner(bool32 sess_rcy, char* resid, uint16 len, uint8 inst_
 
 void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
 {
-    drc_res_map_t *res_map = type == DRC_RES_PAGE_TYPE ? DRC_BUF_RES_MAP : DRC_LOCK_RES_MAP;
+    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(type);
+    drc_res_map_t *res_map = &global_res_map->res_map;
     bilist_node_t *node = cm_bilist_head(part_list);
     drc_res_bucket_t *bucket = NULL;
     drc_buf_res_t *buf_res = NULL;
@@ -690,12 +706,16 @@ void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
 
 int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip)
 {
-    drc_buf_res_t *buf_res = drc_get_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, CM_FALSE, CM_FALSE);
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_FALSE, CM_TRUE, CM_TRUE);
+    int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
     if (buf_res == NULL) {
         *skip = CM_FALSE;
         return DMS_SUCCESS;
     }
-    drc_enter_buf_res(buf_res);
     if (buf_res->in_recovery || buf_res->claimed_owner == CM_INVALID_ID8) {
         *skip = CM_FALSE;
     } else {
