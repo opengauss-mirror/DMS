@@ -291,7 +291,7 @@ typedef struct st_reform_scrlock_context {
     uint8 worker_bind_core_start;
     uint8 worker_bind_core_end;
     uint8 scrlock_server_id;
-    uint8 scrlock_server_port;
+    uint32 scrlock_server_port;
     bool8 sleep_mode;
     uint8 server_bind_core_start;
     uint8 server_bind_core_end;
