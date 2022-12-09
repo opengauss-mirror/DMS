@@ -62,6 +62,7 @@ static int dms_reform_prepare(void)
     share_info_t* share_info = DMS_SHARE_INFO;
     g_dms.callback.reform_start_notify(g_dms.reform_ctx.handle_proc, reform_info->dms_role, share_info->reform_type);
 #endif
+    dms_scrlock_stop_server();
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;

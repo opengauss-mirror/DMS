@@ -163,6 +163,9 @@ static int scrlock_init(dms_profile_t *dms_profile)
     SCRLockServerOptions server_options;
 
     // common configs
+    while (dms_profile->enable_reform && g_dms.reform_ctx.reform_info.reformer_id == CM_INVALID_ID8) {
+        sleep(1);
+    }
     uint32 primary_inst_id = dms_profile->enable_reform ? g_dms.reform_ctx.reform_info.reformer_id : dms_profile->primary_inst_id;
     options.logLevel = dms_profile->scrlock_log_level;
     int ret = memcpy_s(options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, dms_profile->inst_net_addr[primary_inst_id].ip, DMS_MAX_IP_LEN);
@@ -250,13 +253,13 @@ unsigned char dms_scrlock_reinit()
     client_options.workerBindCoreEnd = scrlock_ctx->worker_bind_core_end;
     scrlock_options.client = &client_options;
 
-    if(scrlock_ctx->scrlock_server_id == g_dms.inst_id){
+    if (scrlock_ctx->scrlock_server_id == g_dms.inst_id) {
         server_options.sleepMode = scrlock_ctx->sleep_mode;
         server_options.bindCoreStart = scrlock_ctx->server_bind_core_start;
         server_options.bindCoreEnd = scrlock_ctx->server_bind_core_end;
         server_options.recoveryNodeNum = scrlock_ctx->recovery_node_num;
         scrlock_options.server = &server_options;
-    }else {
+    } else {
         scrlock_options.server = NULL;
     }
 

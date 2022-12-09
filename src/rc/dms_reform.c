@@ -220,6 +220,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
         int ret;
         ret = memcpy_s(reform_context->scrlock_reinit_ctx.log_path, DMS_OCK_LOG_PATH_LEN, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
         DMS_SECUREC_CHECK(ret);
+        reform_context->scrlock_reinit_ctx.scrlock_server_port = dms_profile->scrlock_server_port;
         reform_context->scrlock_reinit_ctx.log_level = dms_profile->scrlock_log_level;
         reform_context->scrlock_reinit_ctx.worker_num = dms_profile->scrlock_worker_cnt;
         reform_context->scrlock_reinit_ctx.worker_bind_core = dms_profile->enable_scrlock_worker_bind_core;
