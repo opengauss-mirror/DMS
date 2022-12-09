@@ -1296,11 +1296,11 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
+    dms_reform_judgement_drc_access();
     dms_reform_judgement_flush_copy();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_failover_promote_opengauss();
     dms_reform_judgement_recovery_opengauss(inst_lists);
-    dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
@@ -1317,10 +1317,10 @@ static void dms_reform_judgement_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
+    dms_reform_judgement_drc_access();
     dms_reform_judgement_flush_copy();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_recovery_opengauss(inst_lists);
-    dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
