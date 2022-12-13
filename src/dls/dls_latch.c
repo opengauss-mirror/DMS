@@ -118,10 +118,13 @@ static void dms_latch_spin_sleep(const drc_local_latch_t *latch_stat)
 
 void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is_force)
 {
+#ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
             0, "[DLS] add latch_s(%s) failed, because latch not initialized", cm_display_lockid(&dlatch->drid));
     }
+#endif
+
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
 
@@ -194,10 +197,12 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
 
 bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks, unsigned char is_force)
 {
+#ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
             0, "[DLS] add latch_timed_s(%s) failed, because latch not initialized", cm_display_lockid(&dlatch->drid));
     }
+#endif
 
     if (g_dms.scrlock_ctx.enable) {
         return dms_scrlock_timed_s(dms_ctx, dlatch, wait_ticks);
@@ -373,10 +378,13 @@ static bool8 dms_latch_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock
 
 void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 {
+#ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
             0, "[DLS] add latch_x(%s) failed, because latch not initialized", cm_display_lockid(&dlatch->drid));
     }
+#endif
+
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
 
@@ -448,10 +456,12 @@ static bool8 dms_latch_timed_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t
 
 bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
 {
+#ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
             0, "[DLS] add latch_timed_x(%s) failed, because latch not initialized", cm_display_lockid(&dlatch->drid));
     }
+#endif
 
     if (g_dms.scrlock_ctx.enable) {
         return dms_scrlock_timed_x(dms_ctx, dlatch, wait_ticks);
@@ -527,10 +537,12 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 
 void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 {
+#ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
             0, "[DLS] release latch(%s) failed, because latch not initialized", cm_display_lockid(&dlatch->drid));
     }
+#endif
 
     if (g_dms.scrlock_ctx.enable) {
         return dms_scrlock_unlock(dms_ctx, dlatch);
