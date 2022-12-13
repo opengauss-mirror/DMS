@@ -686,7 +686,6 @@ int dms_init(dms_profile_t *dms_profile)
     if (ret != DMS_SUCCESS) {
         dms_reform_uninit();
         drc_destroy();
-        dms_release_inst_resource();
         return ret;
     }
 
