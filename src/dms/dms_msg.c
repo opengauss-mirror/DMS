@@ -360,7 +360,7 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
 
         case MSG_ACK_ERROR:
             ret = ERRNO_DMS_COMMON_MSG_ACK;
-            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(msg.buffer) + sizeof(msg_error_t)));
+            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((char *)(msg.buffer) + sizeof(msg_error_t)));
             break;
 
         case MSG_ACK_EDP_LOCAL:
