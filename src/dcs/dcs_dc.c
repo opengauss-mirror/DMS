@@ -110,13 +110,14 @@ static int dcs_handle_recv_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_ins
     return ret;
 }
 
-static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32 len, uint32 timeout, bool8 handle_msg)
+static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32 len, uint32 timeout, bool8 handle_msg,
+    msg_command_t cmd)
 {
     uint64 succ_inst = 0;
     mes_message_head_t head;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    MES_INIT_MESSAGE_HEAD(&head, MSG_REQ_BROADCAST, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
+    MES_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(mes_message_head_t) + len);
     head.rsn = mfc_get_rsn(dms_ctx->sess_id);
 
@@ -144,8 +145,8 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     return ret;
 }
 
-int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
-    unsigned char handle_recv_msg, unsigned int timeout)
+int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
+    unsigned int timeout, msg_command_t cmd)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
@@ -158,13 +159,13 @@ int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
     }
 
     if (timeout != CM_INFINITE_TIMEOUT) {
-        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg);
+        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd);
         cm_unlatch(&reform_info->bcast_latch, NULL);
         return ret;
     }
 
     while (CM_TRUE) {
-        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg) == DMS_SUCCESS) {
+        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd) == DMS_SUCCESS) {
             cm_unlatch(&reform_info->bcast_latch, NULL);
             return DMS_SUCCESS;
         }
@@ -177,6 +178,12 @@ int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
             return ERRNO_DMS_REFORM_IN_PROCESS;
         }
     }
+}
+
+int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
+    unsigned char handle_recv_msg, unsigned int timeout)
+{
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST);
 }
 
 void dcs_proc_boc(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
@@ -277,6 +284,12 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
     }
 
     return ret;
+}
+
+int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
+    unsigned int timeout)
+{
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC);
 }
 
 #ifdef __cplusplus

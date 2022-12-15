@@ -93,6 +93,7 @@ typedef enum en_msg_command {
     MSG_REQ_CONFIRM_CVT = 46,
     MSG_REQ_CHECK_REFORM_DONE = 47,
     MSG_REQ_MAP_INFO = 48,
+    MSG_REQ_DDL_SYNC = 49,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
