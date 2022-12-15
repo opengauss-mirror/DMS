@@ -41,7 +41,6 @@ extern "C" {
 #define DMS_CVT_EXPIRE_TIME     (2 * DMS_WAIT_MAX_TIME) // ms
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
 #define DMS_MSG_CONFIRM_TIMES   (10)
-#define DMS_CONFIRM_TIMEWAIT    (5000) // ms
 
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
@@ -161,7 +160,7 @@ typedef struct st_dms_ask_res_req {
     uint8 res_type;
     uint16 len;
     uint16 unused;
-    uint64 ver;
+    uint32 ver;
     char resid[DMS_RESID_SIZE];
 } dms_ask_res_req_t;
 
@@ -177,7 +176,7 @@ typedef struct st_dms_ask_res_ack {
     uint64 lsn;
     uint64 scn;
     uint64 edp_map;
-    uint64 ver;
+    uint32 ver;
 } dms_ask_res_ack_t;
 
 typedef struct st_dms_claim_owner_req {
@@ -190,7 +189,7 @@ typedef struct st_dms_claim_owner_req {
     uint16 len;
     uint16 unused2;
     uint64 lsn;
-    uint64 ver;
+    uint32 ver;
     char resid[DMS_RESID_SIZE];
 } dms_claim_owner_req_t;
 
@@ -200,7 +199,7 @@ typedef struct st_dms_invld_req {
     uint8  res_type;
     uint16 len;
     bool32 sess_rcy;
-    uint64 ver;
+    uint32 ver;
     char   resid[DMS_RESID_SIZE];
 } dms_invld_req_t;
 
@@ -219,7 +218,7 @@ typedef struct st_dms_res_req_info {
     uint16 req_sid;
     uint32 req_rsn;
     uint32 len;
-    uint64 ver;
+    uint32 ver;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     char resid[DMS_RESID_SIZE];
@@ -252,7 +251,7 @@ typedef struct st_dms_confirm_cvt_ack {
     uint32 result;
     uint64 lsn;
     uint64 edp_map;
-    uint64 ver;
+    uint32 ver;
 }dms_confirm_cvt_ack_t;
 
 static inline void cm_print_error_msg(const void *msg_data)
@@ -298,7 +297,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
     } while (0)
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint32 rsn,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, bool8 sess_rcy)
+    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, bool8 sess_rcy, uint32 ver)
 {
     req_info->rsn = rsn;
     req_info->inst_id = req_id;
@@ -307,12 +306,14 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->curr_mode = curr_mode;
     req_info->req_mode = req_mode;
     req_info->sess_rcy = sess_rcy;
+    req_info->ver = ver;
 }
 
 void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint32 dst_rsn, int32 ret);
 int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint64 ver);
-int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
+    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 ver);
+int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode,
+    dms_lock_mode_t req_mode, uint32 ver);
 void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_proc_invld_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);

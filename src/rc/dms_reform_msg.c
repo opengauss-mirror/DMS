@@ -786,7 +786,8 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
     dms_reform_ack_common_t ack_common;
     uint8 lock_mode = DMS_LOCK_NULL;
     int ret = DMS_SUCCESS;
-    uint64 edp_map, lsn, ver;
+    uint64 edp_map, lsn;
+    uint32 ver;
 
     if (req->res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(process_ctx->db_handle,
@@ -878,7 +879,7 @@ void dms_reform_proc_req_page(dms_process_context_t *process_ctx, mes_message_t 
     mfc_release_message_buf(receive_msg);
 }
 
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint64 *ver)
+int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 *ver)
 {
     mes_message_t res;
     dms_reform_ack_common_t *ack_common = NULL;

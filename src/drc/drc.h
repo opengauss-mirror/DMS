@@ -117,6 +117,7 @@ typedef struct st_drc_request_info {
     uint8   unused;
     uint16  sess_id;            /* the session id that the request comes from */
     uint32  rsn;                /* request packet serial number */
+    uint32  ver;                /* local ver of request */
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -147,7 +148,7 @@ typedef struct st_drc_buf_res {
     bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
     uint64          lsn;                /* the newest edp LSN of current page in the cluster */
-    uint64          ver;
+    uint32          ver;
     uint16          len;                /* the length of data below */
     uint16          unused;
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
@@ -165,7 +166,7 @@ typedef struct st_drc_buf_res_msg {
     uint64 copy_insts;
     uint64 edp_map;
     drc_request_info_t converting;
-    uint64 ver;
+    uint32 ver;
 } drc_buf_res_msg_t;
 
 typedef struct st_drc_global_res_map {
@@ -256,7 +257,7 @@ typedef struct st_drc_req_owner_result {
     uint8 curr_owner_id;
     bool8 has_share_copy;
     uint64 invld_insts;  // share copies to be invalidated.
-    uint64 ver;
+    uint32 ver;
 } drc_req_owner_result_t;
 
 typedef struct st_cvt_info {
@@ -273,7 +274,7 @@ typedef struct st_cvt_info {
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     uint64  invld_insts;
-    uint64  ver;
+    uint32  ver;
     drc_req_owner_result_type_t type;
 } cvt_info_t;
 
@@ -285,10 +286,11 @@ typedef struct st_claim_info {
     uint32  len;
     uint64  lsn;
     uint32  sess_id;
-    uint64  ver;
+    uint32  ver;
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
     bool32  sess_rcy;
+    uint32  rsn;
 } claim_info_t;
 
 typedef struct st_edp_info {
