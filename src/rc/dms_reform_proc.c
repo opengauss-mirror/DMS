@@ -227,7 +227,7 @@ static int dms_reform_confirm_owner(drc_buf_res_t *buf_res)
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint64 ver   = buf_res->ver;
+    uint32 ver   = buf_res->ver;
     uint8 dst_id = buf_res->claimed_owner;
 
     if (buf_res->lock_mode == DMS_LOCK_SHARE && buf_res->converting.req_info.req_mode == DMS_LOCK_SHARE) {
@@ -286,7 +286,8 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res)
     int result;
     uint8 lock_mode;
     bool8 is_edp;
-    uint64 lsn, ver;
+    uint64 lsn;
+    uint32 ver;
     uint8 dst_id = buf_res->converting.req_info.inst_id;
 
     while (CM_TRUE) {
@@ -340,7 +341,7 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res)
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint64 ver = buf_res->ver;
+    uint32 ver = buf_res->ver;
     uint8 dst_id = buf_res->claimed_owner;
 
     while (CM_TRUE) {
@@ -680,7 +681,7 @@ int dms_reform_rebuild_buf_res_l(char *resid, dms_buf_ctrl_t *ctrl, uint64 lsn, 
         drc_add_edp_map(buf_res, inst_id, lsn);
     }
 
-    buf_res->ver = MAX(ctrl->ver, buf_res->ver);
+    buf_res->ver = ctrl->ver;
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
 }
@@ -769,7 +770,7 @@ int dms_reform_rebuild_lock_l(drc_local_lock_res_t *lock_res, uint8 src_inst)
         bitmap64_set(&buf_res->copy_insts, src_inst);
     }
     
-    buf_res->ver = MAX(buf_res->ver, lock_res->ver);
+    buf_res->ver = lock_res->ver;
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
 }
@@ -930,7 +931,7 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint64 ver = buf_res->ver;
+    uint32 ver = buf_res->ver;
 
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, inst_id, DMS_REQ_EDP_LSN);

@@ -134,7 +134,7 @@ int drc_confirm_owner(char* resid, uint8 *lock_mode)
     return DMS_SUCCESS;
 }
 
-int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint64 *ver)
+int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint32 *ver)
 {
     bool32 is_locked = CM_FALSE;
     drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);

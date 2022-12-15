@@ -75,7 +75,7 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool
     return lock_res;
 }
 
-int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint64 *version)
+int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint32 ver)
 {
     dms_drid_t *lockid = (dms_drid_t*)resid;
     LOG_DEBUG_INF("[DLS] dls_invld_lock_ownership(%s) try:%u", cm_display_lockid(lockid), (uint32)is_try);
@@ -87,9 +87,9 @@ int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint64
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
 
-    if (*version < lock_res->ver) {
-        LOG_DEBUG_WAR("[DLS] dls_invld_lock_ownership(%s) invalid req, req_ver:%llu res_ver:%llu",
-            cm_display_lockid(lockid), *version, lock_res->ver);
+    if (ver != lock_res->ver) {
+        LOG_DEBUG_WAR("[DLS] dls_invld_lock_ownership(%s) invalid req, req_ver:%u res_ver:%u",
+            cm_display_lockid(lockid), ver, lock_res->ver);
         drc_unlock_local_resx(lock_res);
         return ERRNO_DMS_RES_INVALID_VERSION;
     }
@@ -97,8 +97,6 @@ int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint64
     dls_change_global_lock_mode(lock_res, req_mode);
 
     lock_res->releasing = CM_FALSE;
-
-    *version = lock_res->ver;
 
     drc_unlock_local_resx(lock_res);
 
@@ -108,7 +106,7 @@ int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint64
 
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info)
 {
-    int32 ret = dls_invld_lock_ownership(req_info->resid, req_info->req_mode, req_info->is_try, &req_info->ver);
+    int32 ret = dls_invld_lock_ownership(req_info->resid, req_info->req_mode, req_info->is_try, req_info->ver);
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
             req_info->req_id, req_info->req_sid, req_info->req_rsn, ret);
@@ -129,14 +127,14 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
 int32 dls_handle_grant_owner_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
 {
-    lock_res->ver++;
+    lock_res->ver = cm_random(CM_INVALID_ID32);
     return dms_claim_ownership_r(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64, lock_res->ver);
 }
 
 int32 dls_handle_already_owner_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
 {
-    lock_res->ver++;
+    lock_res->ver = cm_random(CM_INVALID_ID32);
     return dms_claim_ownership_r(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64, lock_res->ver);
 }
 
@@ -146,7 +144,7 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
     CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
 
-    lock_res->ver = (mode == DMS_LOCK_EXCLUSIVE) ? ++ack->ver : ack->ver;
+    lock_res->ver = (mode == DMS_LOCK_EXCLUSIVE) ? cm_random(CM_INVALID_ID32) : ack->ver;
     return dms_claim_ownership_r(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64, lock_res->ver);
 }
 
@@ -158,7 +156,7 @@ int32 dls_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
     dms_ctx->type   = DRC_RES_LOCK_TYPE;
     int32 ret = memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, (char*)&lock_res->resid, dms_ctx->len);
     DMS_SECUREC_CHECK(ret);
-    return dms_request_res_internal(dms_ctx, (void*)lock_res, curr_mode, mode);
+    return dms_request_res_internal(dms_ctx, (void*)lock_res, curr_mode, mode, lock_res->ver);
 }
 
 int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
@@ -169,7 +167,7 @@ int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_re
     dms_ctx->type   = DRC_RES_LOCK_TYPE;
     int32 ret = memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, (char*)&lock_res->resid, dms_ctx->len);
     DMS_SECUREC_CHECK(ret);
-    return dms_request_res_internal(dms_ctx, (void*)lock_res, curr_mode, mode);
+    return dms_request_res_internal(dms_ctx, (void*)lock_res, curr_mode, mode, lock_res->ver);
 }
 
 void dls_cancel_request_lock(dms_context_t *dms_ctx, dms_drid_t *lock_id)

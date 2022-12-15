@@ -44,7 +44,7 @@ typedef struct st_dms_reform_ack_common {
     uint8               lock_mode;
     bool8               is_edp;
     uint64              lsn;
-    uint64              ver;
+    uint32              ver;
     uint64              start_time;
 } dms_reform_ack_common_t;
 
@@ -121,7 +121,7 @@ typedef struct st_dms_reform_req_res {
     uint8 res_type;
 } dms_reform_req_res_t;
 void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action);
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint64 *ver);
+int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 *ver);
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 int dms_reform_send_data(mes_message_head_t *msg_head);
