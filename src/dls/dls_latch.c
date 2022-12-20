@@ -545,7 +545,8 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 #endif
 
     if (g_dms.scrlock_ctx.enable) {
-        return dms_scrlock_unlock(dms_ctx, dlatch);
+        dms_scrlock_unlock(dms_ctx, dlatch);
+        return;
     }
 
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);

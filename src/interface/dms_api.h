@@ -28,9 +28,9 @@
 extern "C" {
 #endif
 
-#ifdef OPENGAUSS
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
+#ifdef OPENGAUSS
 #define DMS_PAGEID_SIZE         24  // openGauss bufferTag size
 #else
 #define DMS_PAGEID_SIZE         16
