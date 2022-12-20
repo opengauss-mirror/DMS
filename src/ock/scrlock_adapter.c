@@ -36,6 +36,7 @@
 #define MAX_PATH_LEN SCRLOCK_MAX_PATH_LEN
 
 typedef struct {
+    void* g_scrlock_handle;
     SCRLockInit init;
     SCRLockStopServer stop_server;
     SCRLockReinit reinit;
@@ -44,32 +45,30 @@ typedef struct {
     SCRUnlock unlock;    
 } dms_scrlock_func_t;
 
-void* g_scrlock_handle = NULL;
 dms_scrlock_func_t g_scrlock_func;
 
-
-#define SCRLOCK_LOAD_SYMBOLS(ACTION)  \
-    ACTION(init, SCRLockInit)   \
+#define SCRLOCK_LOAD_SYMBOLS(ACTION)        \
+    ACTION(init, SCRLockInit)               \
     ACTION(stop_server, SCRLockStopServer)  \
-    ACTION(reinit, SCRLockReinit)   \
-    ACTION(uninit, SCRLockUninit)   \
-    ACTION(trylock, SCRTrylock) \
+    ACTION(reinit, SCRLockReinit)           \
+    ACTION(uninit, SCRLockUninit)           \
+    ACTION(trylock, SCRTrylock)             \
     ACTION(unlock, SCRUnlock)
-       
-#define SCRLOCK_HANDLE_GET_SYM(op, name)                     \
-    do {                                                                \
-        g_scrlock_func.op = dlsym(g_scrlock_handle, #name);           \
-        if (g_scrlock_func.op == NULL) {                                    \
-            LOG_RUN_ERR("dlsym #name failed, err %s", dlerror());  \
-            return DMS_ERROR;                                        \
-        }                                                               \
+
+#define SCRLOCK_HANDLE_GET_SYM(op, name)                                                                \
+    do {                                                                                                \
+        int ret = cm_load_symbol(g_scrlock_func.g_scrlock_handle, #name, (void **)&g_scrlock_func.op);  \
+        if (ret != DMS_SUCCESS) {                                                                       \
+            LOG_RUN_ERR("dlsym #name failed, err %d", cm_get_os_error());                               \
+            return DMS_ERROR;                                                                           \
+        }                                                                                               \
     } while (0);
 
 static int scrlock_resolve_path(char* absolute_path, const char* raw_path, const char* filename)
 {
     char path[MAX_PATH_LEN] = { 0 };
 
-    if (realpath(raw_path, path) == NULL) {
+    if (realpath_file(raw_path, path, MAX_PATH_LEN) != DMS_SUCCESS) {
         LOG_RUN_ERR("realpath path:%s failed", raw_path);
         return DMS_ERROR;
     }
@@ -85,9 +84,8 @@ static int scrlock_resolve_path(char* absolute_path, const char* raw_path, const
 
 static int scrlock_load_symbols(char* lib_dl_path)
 {
-    g_scrlock_handle = dlopen(lib_dl_path, RTLD_LAZY);
-    if (g_scrlock_handle == NULL) {
-        LOG_RUN_ERR("dlopen %s failed., err %s", lib_dl_path, dlerror());
+    if (cm_open_dl(&g_scrlock_func.g_scrlock_handle, lib_dl_path) != DMS_SUCCESS) {
+        LOG_RUN_ERR("dlopen %s failed, err %d", lib_dl_path, cm_get_os_error());
         return DMS_ERROR;
     }
 
@@ -164,7 +162,7 @@ static int scrlock_init(dms_profile_t *dms_profile)
 
     // common configs
     while (dms_profile->enable_reform && g_dms.reform_ctx.reform_info.reformer_id == CM_INVALID_ID8) {
-        sleep(1);
+        cm_sleep(1);
     }
     uint32 primary_inst_id = dms_profile->enable_reform ? g_dms.reform_ctx.reform_info.reformer_id : dms_profile->primary_inst_id;
     options.logLevel = dms_profile->scrlock_log_level;
