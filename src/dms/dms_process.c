@@ -112,6 +112,7 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_CONFIRM_CVT,            dms_proc_confirm_cvt_req,        CM_TRUE, CM_FALSE, "dms proc confirm converting" },
     { MSG_REQ_CHECK_REFORM_DONE,      dms_reform_proc_reform_done_req, CM_TRUE, CM_TRUE,  "dms reform check reform done"},
     { MSG_REQ_MAP_INFO,               dms_reform_proc_map_info_req,    CM_TRUE, CM_TRUE,  "dms ask map from IN instance"},
+    { MSG_REQ_DDL_SYNC,               dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -345,7 +346,8 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_MAP_INFO:
             return MES_TASK_GROUP_ONE;      // group one is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
-            return MES_TASK_GROUP_TWO;
+        case MSG_REQ_DDL_SYNC:
+            return MES_TASK_GROUP_TWO;      // group two is used for ddl sync
         default:
             return MES_TASK_GROUP_ZERO;
     }
@@ -354,7 +356,7 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
 /*
     Work thread allocation
     group 1: total_work_thread   2
-    group 2: total_work_thread   0
+    group 2: total_work_thread   1
     group 3: total_work_thread   0
     group 0: total_work_thread - group 1 - group 2 - group 3
     Allocation principle: Allocate time-consuming requests to different groups.

@@ -334,6 +334,18 @@ DMS_DECLARE int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned i
     unsigned char handle_recv_msg, unsigned int timeout);
 
 /*
+* @brief broadcast ddl sync message to other instances.
+* @param dms_ctx - dms_context_t structure.
+* @param data - message data.
+* @param len - message length.
+* @param handle_recv_msg - handle_recv_msg.
+* @param timeout - wait response msg in timeout
+* @return DMS_SUCCESS - success;otherwise: failed
+*/
+DMS_DECLARE int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
+    unsigned char handle_recv_msg, unsigned int timeout);
+
+/*
 * @brief broadcast scn to other instances when commit transaction.
 * @param dms_ctx - dms_context_t structure.
 * @param commit_scn - commit scn of transaction
