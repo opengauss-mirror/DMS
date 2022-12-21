@@ -32,7 +32,6 @@
 
 #define OCK_SCRLOCK_ENV_PATH "OCK_SCRLOCK_LIB_PATH"
 #define OCK_SCRLOCK_SO_NAME "libscrlock.so"
-#define OCK_SCRLOCK_LOGFILE "scrlock.log"
 #define MAX_PATH_LEN SCRLOCK_MAX_PATH_LEN
 
 typedef struct {
@@ -180,8 +179,8 @@ static int scrlock_init(dms_profile_t *dms_profile)
     client_options.workerNum = dms_profile->scrlock_worker_cnt;
     client_options.workerBindCoreStart = dms_profile->scrlock_worker_bind_core_start;
     client_options.workerBindCoreEnd = dms_profile->scrlock_worker_bind_core_end;
-    ret = scrlock_resolve_path(client_options.logPath, dms_profile->ock_log_path, OCK_SCRLOCK_LOGFILE);
-    if (ret != DMS_SUCCESS) {
+    if (realpath_file(dms_profile->ock_log_path, client_options.logPath, SCRLOCK_MAX_PATH_LEN) != DMS_SUCCESS) {
+        LOG_RUN_ERR("realpath path:%s failed", dms_profile->ock_log_path);
         return DMS_ERROR;
     }
 
