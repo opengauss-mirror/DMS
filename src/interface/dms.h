@@ -727,7 +727,6 @@ DMS_DECLARE int dms_reform_last_failed(void);
 
 DMS_DECLARE int dms_wait_reform_phase(unsigned char reform_phase);
 DMS_DECLARE int dms_wait_reform_finish(void);
-DMS_DECLARE void dms_get_has_offline(unsigned int *has_offline);
 DMS_DECLARE void dms_set_reform_continue(void);
 
 DMS_DECLARE int dms_is_reformer(void);

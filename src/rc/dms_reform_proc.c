@@ -1946,31 +1946,6 @@ static int dms_reform_drc_inaccess(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_mount_to_recovery(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    uint32 has_offline = 0;
-    int ret = DMS_SUCCESS;
-
-    LOG_RUN_FUNC_ENTER;
-    if (DMS_FIRST_REFORM_FINISH) {
-        LOG_RUN_FUNC_SKIP;
-        dms_reform_next_step();
-        return DMS_SUCCESS;
-    }
-
-    ret = g_dms.callback.mount_to_recovery(g_dms.reform_ctx.handle_proc, &has_offline);
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_FUNC_FAIL;
-        return ret;
-    }
-    reform_info->has_offline = (bool8)has_offline;
-    LOG_RUN_FUNC_SUCCESS;
-    dms_reform_next_step();
-
-    return DMS_SUCCESS;
-}
-
 static bool32 dms_reform_check_partner_fail(void)
 {
     reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
@@ -2158,10 +2133,6 @@ static void dms_reform_inner(bool8 *finished)
 
         case DMS_REFORM_STEP_DRC_INACCESS:
             ret = dms_reform_drc_inaccess();
-            break;
-
-        case DMS_REFORM_STEP_MOUNT_TO_RECOVERY:
-            ret = dms_reform_mount_to_recovery();
             break;
 
         case DMS_REFORM_STEP_STARTUP_OPENGAUSS:
