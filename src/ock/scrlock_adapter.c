@@ -155,6 +155,7 @@ static int scrlock_get_ssl_param(SCRLockOptions* options)
 
 static int scrlock_init(dms_profile_t *dms_profile)
 {
+    int ret;
     SCRLockOptions options;
     SCRLockClientOptions client_options;
     SCRLockServerOptions server_options;
@@ -165,9 +166,11 @@ static int scrlock_init(dms_profile_t *dms_profile)
     }
     uint32 primary_inst_id = dms_profile->enable_reform ? g_dms.reform_ctx.reform_info.reformer_id : dms_profile->primary_inst_id;
     options.logLevel = dms_profile->scrlock_log_level;
-    int ret = memcpy_s(options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, dms_profile->inst_net_addr[primary_inst_id].ip, DMS_MAX_IP_LEN);
+    ret = memcpy_s(options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, dms_profile->inst_net_addr[primary_inst_id].ip, DMS_MAX_IP_LEN);
     DMS_SECUREC_CHECK(ret);
     options.serverAddr.port = dms_profile->scrlock_server_port;
+    ret = memcpy_s(options.clientAddr.ip, SCRLOCK_MAX_IP_LEN, dms_profile->inst_net_addr[dms_profile->inst_id].ip, DMS_MAX_IP_LEN);
+    DMS_SECUREC_CHECK(ret);
     options.sslCfg.enable = dms_profile->enable_scrlock_secure_mode;
     ret = scrlock_get_ssl_param(&options);
     if (ret != DMS_SUCCESS) {
@@ -236,6 +239,7 @@ unsigned char dms_scrlock_reinit()
     scrlock_options.logLevel = scrlock_ctx->log_level;
     scrlock_options.serverAddr.port = scrlock_ctx->scrlock_server_port;
     ret = memcpy_s(scrlock_options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, MES_GLOBAL_INST_MSG.profile.inst_net_addr[scrlock_ctx->scrlock_server_id].ip, MES_MAX_IP_LEN);
+    DMS_SECUREC_CHECK(ret);
     scrlock_options.sslCfg.enable = scrlock_ctx->enable_ssl_param;
     ret = scrlock_get_ssl_param(&scrlock_options);
     if (ret != DMS_SUCCESS) {
@@ -243,6 +247,8 @@ unsigned char dms_scrlock_reinit()
     }
 
     ret = memcpy_s(client_options.logPath, DMS_OCK_LOG_PATH_LEN, scrlock_ctx->log_path, DMS_OCK_LOG_PATH_LEN);
+    DMS_SECUREC_CHECK(ret);
+    ret = memcpy_s(scrlock_options.clientAddr.ip, SCRLOCK_MAX_IP_LEN, MES_GLOBAL_INST_MSG.profile.inst_net_addr[g_dms.inst_id].ip, MES_MAX_IP_LEN);
     DMS_SECUREC_CHECK(ret);
     client_options.workerNum = scrlock_ctx->worker_num;
     client_options.workerBindCore = scrlock_ctx->worker_bind_core;
