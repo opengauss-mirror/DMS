@@ -324,7 +324,6 @@ int dms_wait_reform(unsigned int *has_offline)
     }
 
     g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_IN);
-    *has_offline = (unsigned int)reform_info->has_offline;
     return CM_TRUE;
 }
 
@@ -379,12 +378,6 @@ int dms_wait_reform_phase(unsigned char reform_phase)
         }
         DMS_REFORM_LONG_SLEEP;
     }
-}
-
-void dms_get_has_offline(unsigned int *has_offline)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    *has_offline = (unsigned int)reform_info->has_offline;
 }
 
 void dms_set_reform_continue(void)

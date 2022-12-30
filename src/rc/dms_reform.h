@@ -122,7 +122,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
     DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS,
-    DMS_REFORM_STEP_MOUNT_TO_RECOVERY,                // for Gauss100
     DMS_REFORM_STEP_STARTUP_OPENGAUSS,              // for opengauss
     DMS_REFORM_STEP_FLUSH_COPY,
     DMS_REFORM_STEP_DONE_CHECK,
@@ -273,7 +272,6 @@ typedef struct st_reform_info {
     uint8               sync_step;              // for DMS_REFORM_STEP_SYNC_WAIT
     bool8               sync_send_success;
     bool8               build_complete;         // build_complete when dms_reform_init, it is not realtime
-    bool8               has_offline;
     bool8               maintain;               // env DMS_MAINTAIN, if true, DMS is not dependent on CM
     uint8               reform_done;
     bool8               true_start;
@@ -282,7 +280,7 @@ typedef struct st_reform_info {
     bool8               reform_pause;
     bool8               bcast_unable;
     bool8               ddl_unable;
-    uint8               unused[2];
+    uint8               unused[3];
 } reform_info_t;
 
 typedef struct st_switchover_info {
