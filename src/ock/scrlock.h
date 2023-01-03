@@ -78,6 +78,7 @@ typedef struct {
 
 typedef struct {
     unsigned int logLevel;
+    SCRLockNetAddr clientAddr;
     SCRLockNetAddr serverAddr;
     SSLParam sslCfg;
     SCRLockClientOptions *client;
