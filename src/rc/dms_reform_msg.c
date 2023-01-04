@@ -697,6 +697,7 @@ int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 mast
         MES_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_LOCK_RES_DRC_REBUILD, 0, g_dms.inst_id, master_id,
             reform_ctx->sess_proc, CM_INVALID_ID16);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
+        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
 
     if (req_rebuild->offset + append_size > DMS_REFORM_MSG_MAX_LENGTH) {
