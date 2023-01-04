@@ -1200,6 +1200,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
@@ -1261,6 +1262,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
@@ -1327,6 +1329,7 @@ static void dms_reform_judgement_build(instance_list_t *inst_lists)
     dms_reform_judgement_drc_inaccess();
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_drc_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_set_phase(DMS_PHASE_BEFORE_DC_INIT);
@@ -1357,6 +1360,7 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_drc_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);

@@ -349,6 +349,8 @@ char *dms_reform_phase_desc(uint8 reform_phase)
     switch (reform_phase) {
         case DMS_PHASE_START:
             return "START";
+        case DMS_PHASE_AFTER_DRC_ACCESS:
+            return "DRC ACCESS";
         case DMS_PHASE_AFTER_RECOVERY:
             return "RECOVERY";
         case DMS_PHASE_BEFORE_DC_INIT:
