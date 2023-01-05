@@ -431,10 +431,11 @@ typedef enum en_dms_role {
 
 typedef enum en_reform_phase {
     DMS_PHASE_START = 0,
-    DMS_PHASE_AFTER_RECOVERY = 1,
-    DMS_PHASE_BEFORE_DC_INIT = 2,
-    DMS_PHASE_BEFORE_ROLLBACK = 3,
-    DMS_PHASE_END = 4,
+    DMS_PHASE_AFTER_DRC_ACCESS = 1,
+    DMS_PHASE_AFTER_RECOVERY = 2,
+    DMS_PHASE_BEFORE_DC_INIT = 3,
+    DMS_PHASE_BEFORE_ROLLBACK = 4,
+    DMS_PHASE_END = 5,
 } reform_phase_t;
 
 typedef enum en_dms_status {
@@ -761,7 +762,7 @@ typedef struct st_dms_profile {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           40
+#define DMS_LOCAL_VERSION           41
 
 #ifdef __cplusplus
 }
