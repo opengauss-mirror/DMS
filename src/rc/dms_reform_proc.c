@@ -29,6 +29,8 @@
 #include "drc_page.h"
 #include "dms_reform_judge.h"
 #include "dcs_page.h"
+#include "dms_reform_health.h"
+#include "cm_timer.h"
 
 void dms_reform_display_buf(drc_buf_res_t *buf_res, const char *desc)
 {
@@ -1486,11 +1488,23 @@ static int dms_reform_success(void)
     return DMS_SUCCESS;
 }
 
+static void dms_reform_proc_set_pause(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    CM_ASSERT(reform_info->thread_status == DMS_THREAD_STATUS_RUNNING);
+    LOG_RUN_INF("[DMS REFORM]dms_reform_proc pausing");
+    reform_info->thread_status = DMS_THREAD_STATUS_PAUSING;
+}
+
 static void dms_reform_end(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t share_info;
+
+    // health check should pause before clear share info
+    dms_reform_health_set_pause();
+    dms_reform_proc_set_pause();
 
     int ret = memset_s(&share_info, sizeof(share_info_t), 0, sizeof(share_info_t));
     DMS_SECUREC_CHECK(ret);
@@ -1500,6 +1514,7 @@ static void dms_reform_end(void)
     reform_ctx->share_info = share_info;
     reform_info->ddl_unable = CM_FALSE;
     reform_info->bcast_unable = CM_FALSE;
+    reform_info->reform_done = CM_TRUE;
 }
 
 static void dms_reform_set_switchover_result(void)
@@ -1543,7 +1558,7 @@ static int dms_reform_done(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_done_check(bool8 *finished)
+static int dms_reform_done_check()
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
@@ -1551,10 +1566,8 @@ static int dms_reform_done_check(bool8 *finished)
         ret = dms_reform_check_reform_done();
         // for ERRNO_DMS_REFORM_NOT_FINISHED, just return DMS_SUCCESS for enter this method again
         if (ret == ERRNO_DMS_REFORM_NOT_FINISHED) {
-            *finished = CM_FALSE;
             return DMS_SUCCESS;
         } else if (ret != DMS_SUCCESS) {
-            *finished = CM_FALSE;
             return ret;
         }
     }
@@ -1562,7 +1575,6 @@ static int dms_reform_done_check(bool8 *finished)
     dms_reform_end();
     reform_info->last_fail = CM_FALSE;
     reform_info->first_reform_finish = CM_TRUE;
-    *finished = CM_TRUE;
 #ifdef OPENGAUSS
     g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
 #endif
@@ -1584,7 +1596,7 @@ static int dms_reform_set_phase(void)
     reform_info->reform_pause = CM_TRUE;
     CM_MFENCE;
     reform_info->reform_phase = (uint8)share_info->reform_phase[reform_info->reform_phase_index++];
-    LOG_RUN_INF("[DMS REFORM] current phase: %s", dms_reform_phase_desc(reform_info->reform_phase));
+    LOG_RUN_INF("[DMS REFORM]dms_reform_set_phase: %s", dms_reform_phase_desc(reform_info->reform_phase));
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -1968,38 +1980,6 @@ bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2)
     return (v1->inst_id == v2->inst_id) && (v1->start_time == v2->start_time);
 }
 
-static bool32 dms_reform_check_version(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    share_info_t *share_info = DMS_SHARE_INFO;
-    version_info_t reformer_version = share_info->reformer_version;
-    version_info_t switch_version = share_info->switch_version;
-
-    cm_spin_lock(&reform_info->version_lock, NULL);
-    version_info_t local_version = reform_info->reformer_version;
-    cm_spin_unlock(&reform_info->version_lock);
-
-    if (dms_reform_version_same(&local_version, &reformer_version)) {
-        return CM_TRUE;
-    }
-
-    // SWITCHOVER will change reformer, local_version will be changed after new reformer get online status
-    if (!REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
-        LOG_RUN_ERR("[DMS REFORM]local reformer version(%d, %llu) is not same as share reformer version(%d, %llu)",
-            local_version.inst_id, local_version.start_time, reformer_version.inst_id, reformer_version.start_time);
-        return CM_FALSE;
-    }
-
-    if (dms_reform_version_same(&local_version, &switch_version)) {
-        return CM_TRUE;
-    }
-
-    LOG_RUN_ERR("[DMS REFORM]local reformer version(%d, %llu) is not same as share reformer version(%d, %llu) and"
-        "share switchover version(%d, %llu)", local_version.inst_id, local_version.start_time, reformer_version.inst_id,
-        reformer_version.start_time, switch_version.inst_id, switch_version.start_time);
-
-    return CM_FALSE;
-}
 
 static int dms_reform_startup_opengauss(void)
 {
@@ -2029,7 +2009,7 @@ static int dms_reform_startup_opengauss(void)
     return DMS_SUCCESS;
 }
 
-static void dms_reform_inner(bool8 *finished)
+static void dms_reform_inner(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
@@ -2144,7 +2124,7 @@ static void dms_reform_inner(bool8 *finished)
             break;
 
         case DMS_REFORM_STEP_DONE_CHECK:
-            ret = dms_reform_done_check(finished);
+            ret = dms_reform_done_check();
             break;
 
         case DMS_REFORM_STEP_SET_PHASE:
@@ -2173,12 +2153,10 @@ static void dms_reform_inner(bool8 *finished)
 
         case DMS_REFORM_STEP_SELF_FAIL:
             dms_reform_self_fail();
-            *finished = CM_TRUE;
             break;
 
         case DMS_REFORM_STEP_REFORM_FAIL:
             dms_reform_fail();
-            *finished = CM_TRUE;
             break;
 
         default:
@@ -2186,8 +2164,7 @@ static void dms_reform_inner(bool8 *finished)
             return;
     }
 
-    if (*finished) {
-        reform_info->reform_done = CM_TRUE;
+    if (reform_info->reform_done) {
         return;
     }
 
@@ -2208,36 +2185,12 @@ static void dms_reform_inner(bool8 *finished)
         reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
         return;
     }
-
-    if (!dms_reform_check_version()) {
-        reform_info->current_step = DMS_REFORM_STEP_SELF_FAIL;
-        reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
-    }
-}
-
-static void dms_reform_idle_sleep(bool8 *reform_start)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    uint8 reform_status;
-
-    cm_spin_lock(&reform_info->status_lock, NULL);
-    reform_status = reform_info->reform_status;
-    cm_spin_unlock(&reform_info->status_lock);
-
-    if (reform_status == DMS_REFORM_STATUS_IDLE) {
-        *reform_start = CM_FALSE;
-        DMS_REFORM_SHORT_SLEEP;
-    } else {
-        *reform_start = CM_TRUE;
-        LOG_RUN_INF("[DMS REFORM]dms_reform_proc, sleep finish");
-    }
 }
 
 void dms_reform_proc_thread(thread_t *thread)
 {
     cm_set_thread_name("reform_proc");
-    bool8 reform_start = CM_FALSE;
-    bool8 reform_finish = CM_FALSE;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
 #ifdef OPENGAUSS
     // this thread will invoke startup method in opengauss
     // need_startup flag need set to be true
@@ -2246,15 +2199,19 @@ void dms_reform_proc_thread(thread_t *thread)
 
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc thread started");
     while (!thread->closed) {
-        if (!reform_start) {
-            dms_reform_idle_sleep(&reform_start);
+        if (reform_info->thread_status == DMS_THREAD_STATUS_IDLE ||
+            reform_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
+            DMS_REFORM_LONG_SLEEP;
             continue;
         }
-        dms_reform_inner(&reform_finish);
-        if (reform_finish) {
-            dms_reform_change_status(DMS_REFORM_STATUS_IDLE);
-            reform_start = CM_FALSE;
-            reform_finish = CM_FALSE;
+        if (reform_info->thread_status == DMS_THREAD_STATUS_PAUSING) {
+            LOG_RUN_INF("[DMS REFORM]dms_reform_proc paused");
+            reform_info->thread_status = DMS_THREAD_STATUS_PAUSED;
+            continue;
+        }
+        if (reform_info->thread_status == DMS_THREAD_STATUS_RUNNING) {
+            reform_info->proc_time = (uint64)g_timer()->now; // record time for check if dms_reform_proc is active
+            dms_reform_inner();
         }
     }
 }

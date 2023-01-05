@@ -213,15 +213,13 @@ int dms_reform_req_sync_step_wait(void)
     return ret;
 }
 
-void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id)
+void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id, uint32 sess_id)
 {
-    reform_context_t *ctx = DMS_REFORM_CONTEXT;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    MES_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_DMS_STATUS, 0, g_dms.inst_id, dst_id, ctx->sess_judge,
-        CM_INVALID_ID16);
+    MES_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_DMS_STATUS, 0, g_dms.inst_id, dst_id, sess_id, CM_INVALID_ID16);
     req->head.size = (uint16)sizeof(dms_reform_req_partner_status_t);
-    req->head.rsn = mes_get_rsn(ctx->sess_judge);
+    req->head.rsn = mes_get_rsn(sess_id);
     req->lsn = reform_info->start_time;
 }
 
@@ -242,12 +240,12 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, mes_messa
     }
 }
 
-int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, uint8 dst_id)
+int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, uint8 dst_id, uint32 sess_id)
 {
     mes_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_allocbuf_and_recv_data((uint16)g_dms.reform_ctx.sess_judge, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_allocbuf_and_recv_data((uint16)sess_id, &res, DMS_REFORM_LONG_TIMEOUT);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_req_dms_status_wait error: %d, dst_id: %d", ret, dst_id);
         return ret;
@@ -298,7 +296,6 @@ void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message
 {
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare set last reform fail");
     while (dms_reform_in_process()) {
-        dms_reform_set_fail();
         DMS_REFORM_SHORT_SLEEP;
     }
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare last reform finish");

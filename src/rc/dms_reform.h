@@ -50,6 +50,7 @@ extern "C" {
 #define DMS_MIGRATE_INFO                (&g_dms.reform_ctx.share_info.migrate_info)
 #define DMS_REBUILD_INFO                (&g_dms.reform_ctx.reform_info.rebuild_info)
 #define DMS_SWITCHOVER_INFO             (&g_dms.reform_ctx.switchover_info)
+#define DMS_HEALTH_INFO                 (&g_dms.reform_ctx.health_info)
 #define DRC_PART_REMASTER_ID(part_id)   (g_dms.reform_ctx.share_info.remaster_info.part_map[(part_id)].inst_id)
 #define DMS_CATALOG_IS_CENTRALIZED      (g_dms.reform_ctx.catalog_centralized)
 #define DMS_CATALOG_IS_PRIMARY_STANDBY  (g_dms.reform_ctx.primary_standby)
@@ -72,6 +73,8 @@ extern "C" {
 #define DMS_FIRST_REFORM_FINISH         (g_dms.reform_ctx.reform_info.first_reform_finish)
 
 #define DMS_MAINTAIN_ENV                "DMS_MAINTAIN"
+
+#define DMS_MAX_FAIL_TIME               30
 
 typedef enum en_inst_list_type {
     INST_LIST_OLD_BASE = 0,
@@ -136,11 +139,6 @@ typedef enum en_reform_step {
 
 #define DMS_REFORM_STEP_DESC_STR_LEN 30
 
-typedef enum en_reform_status {
-    DMS_REFORM_STATUS_IDLE,
-    DMS_REFORM_STATUS_START
-} reform_status_t;
-
 typedef enum en_dms_reform_type {
     // for multi_write
     DMS_REFORM_TYPE_FOR_NORMAL = 0,
@@ -175,6 +173,13 @@ typedef enum en_db_open_status {
     DB_OPEN_STATUS_UPGRADE = 3,
     DB_OPEN_STATUS_UPGRADE_PHASE_2 = 4,
 } db_open_status_t;
+
+typedef enum en_dms_thread_status {
+    DMS_THREAD_STATUS_IDLE = 0,
+    DMS_THREAD_STATUS_RUNNING,
+    DMS_THREAD_STATUS_PAUSING,
+    DMS_THREAD_STATUS_PAUSED,
+} dms_thread_status_t;
 
 typedef struct st_migrate_task {
     uint8               export_inst;
@@ -257,9 +262,10 @@ typedef struct st_reform_info {
     rebuild_info_t      rebuild_info;
     version_info_t      reformer_version;
     uint64              start_time;
+    uint64              proc_time;              // check proc if active or fall into an endless loop
     spinlock_t          status_lock;
     int32               err_code;
-    uint8               reform_status;
+    dms_thread_status_t thread_status;
     uint8               dms_role;
     uint8               reformer_id;            // who hold dms_reformer_lock, it is realtime
     bool8               last_fail;              // record last round reform result
@@ -280,7 +286,6 @@ typedef struct st_reform_info {
     bool8               reform_pause;
     bool8               bcast_unable;
     bool8               ddl_unable;
-    uint8               unused[3];
 } reform_info_t;
 
 typedef struct st_switchover_info {
@@ -308,10 +313,17 @@ typedef struct st_reform_scrlock_context {
     uint8 recovery_node_num;
 } reform_scrlock_context_t;
 
+typedef struct st_health_info {
+    uint8               online_status[DMS_MAX_INSTANCES];
+    uint64              online_times[DMS_MAX_INSTANCES];
+    dms_thread_status_t thread_status;
+} health_info_t;
+
 typedef struct st_reform_context {
     thread_t            thread_judgement;       // dms_reform_judgement_thread
     thread_t            thread_reformer;        // dms_reformer_thread
     thread_t            thread_reform;          // reform
+    thread_t            thread_health;          // health check
     /*
         1. handle_judge&sess_judge used in thread<dms_reform_judgement_thread>
         2. handle_proc&sess_proc used in thread<dms_reform_proc_thread> while step before RECOVERY, include RECOVERY
@@ -323,9 +335,11 @@ typedef struct st_reform_context {
     void                *handle_judge;          // used in reform judgment
     void                *handle_proc;           // used in reform, and set recovery flag in buf_res
     void                *handle_reform;         // used in reform, but not set recovery flag in buf_res
+    void                *handle_health;
     uint32              sess_judge;             // used to send message in reform judgment
     uint32              sess_proc;              // used to send message in reform proc
     uint32              sess_reform;
+    uint32              sess_health;
     reformer_ctrl_t     reformer_ctrl;
     reform_info_t       reform_info;
     spinlock_t          share_info_lock;
@@ -333,6 +347,7 @@ typedef struct st_reform_context {
     reform_info_t       last_reform_info;       // for debug
     share_info_t        last_share_info;        // for debug
     switchover_info_t   switchover_info;
+    health_info_t       health_info;
     uint32              channel_cnt;            // used for channel check
     bool8               catalog_centralized;    // centralized or distributed
     bool8               primary_standby;        // primary_standby or not
@@ -350,8 +365,6 @@ int dms_reform_init(dms_profile_t *dms_profile);
 void dms_reform_judgement_step_log(void);
 void dms_reform_set_start(void);
 void dms_reform_uninit(void);
-void dms_reform_set_fail(void);
-void dms_reform_change_status(uint8 reform_status);
 void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list);
 bool8 dms_dst_id_is_self(uint8 dst_id);
 bool8 dms_reform_list_exist(instance_list_t *list, uint8 inst_id);

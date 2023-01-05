@@ -13,25 +13,27 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * dms_reform_preempt.h
+ * dms_reform_health.h
  *
  *
  * IDENTIFICATION
- *    src/rc/dms_reform_preempt.h
+ *    src/rc/dms_reform_health.h
  *
  * -------------------------------------------------------------------------
  */
 
-#ifndef __DMS_REFORM_PREEMPT_H__
-#define __DMS_REFORM_PREEMPT_H__
+#ifndef __DMS_REFORM_HEALTH_H__
+#define __DMS_REFORM_HEALTH_H__
 
-#include "cm_thread.h"
+#include "dms_reform.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void dms_reformer_preempt_thread(thread_t *thread);
+void dms_reform_health_thread(thread_t *thread);
+void dms_reform_health_set_running(void);
+void dms_reform_health_set_pause(void);
 
 #ifdef __cplusplus
 }

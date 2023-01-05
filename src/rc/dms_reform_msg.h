@@ -75,8 +75,8 @@ typedef struct st_dms_reform_req_partner_status {
     mes_message_head_t  head;
     uint64              lsn;
 } dms_reform_req_partner_status_t;
-void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id);
-int dms_reform_req_dms_status_wait(uint8 *online_status, uint64 *online_times, uint8 dst_id);
+void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id, uint32 sess_id);
+int dms_reform_req_dms_status_wait(uint8 *online_status, uint64 *online_times, uint8 dst_id, uint32 sess_id);
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_prepare {
