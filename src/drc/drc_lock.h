@@ -55,6 +55,16 @@ typedef struct st_drc_local_lock_res {
     drc_local_latch_t latch_stat;
 } drc_local_lock_res_t;
 
+static inline bool32 drc_owner_table_lock_shared(dms_context_t *dms_ctx, drc_local_latch_t *latch_stat)
+{
+#ifndef OPENGAUSS
+    return dms_ctx->lock_id.type == DMS_DR_TYPE_TABLE && dms_ctx->sess_id == latch_stat->sid &&
+           latch_stat->shared_count == 1;
+#else
+    return CM_FALSE;
+#endif
+}
+
 /* local lock resource API */
 drc_local_lock_res_t* drc_get_local_resx(dms_drid_t *lock_id);
 bool32 drc_try_lock_local_resx(drc_local_lock_res_t *lock_res);

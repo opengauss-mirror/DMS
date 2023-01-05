@@ -269,7 +269,7 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
 {
     uint32 count = 0;
     while (latch_stat->shared_count > 0) {
-        if (dms_ctx->sess_id == latch_stat->sid && latch_stat->shared_count == 1) {
+        if (drc_owner_table_lock_shared(dms_ctx, latch_stat)) {
             break;
         }
         count++;
@@ -280,7 +280,7 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
     }
 
     drc_lock_local_resx(lock_res);
-    if (latch_stat->shared_count == 0 || (latch_stat->shared_count == 1 && dms_ctx->sess_id == latch_stat->sid)) {
+    if (latch_stat->shared_count == 0 || drc_owner_table_lock_shared(dms_ctx, latch_stat)) {
         /* No need to request again */
         if (latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE) {
             latch_stat->sid = dms_ctx->sess_id;
@@ -314,7 +314,7 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
     uint32 ticks = 0;
 
     while (latch_stat->shared_count > 0) {
-        if (dms_ctx->sess_id == latch_stat->sid && latch_stat->shared_count == 1) {
+        if (drc_owner_table_lock_shared(dms_ctx, latch_stat)) {
             break;
         }
         if (ticks >= wait_ticks) {
@@ -329,7 +329,7 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
     }
 
     drc_lock_local_resx(lock_res);
-    if (latch_stat->shared_count == 0 || (latch_stat->shared_count == 1 && dms_ctx->sess_id == latch_stat->sid)) {
+    if (latch_stat->shared_count == 0 || drc_owner_table_lock_shared(dms_ctx, latch_stat)) {
         /* No need to request again */
         if (latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE) {
             latch_stat->sid = dms_ctx->sess_id;
