@@ -732,6 +732,67 @@ static int dms_reform_rebuild_buf_res(void)
     return dms_reform_rebuild_send_rest();
 }
 
+void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn, unsigned char is_dirty)
+{
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
+
+    int ret = drc_enter_buf_res(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    if (ret != DMS_SUCCESS || buf_res == NULL) {
+        CM_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
+        return;
+    }
+    if (buf_res->claimed_owner != g_dms.inst_id) {
+        drc_leave_buf_res(buf_res);
+        return;
+    }
+    LOG_DEBUG_INF("[DRC][%s]dms_validate_drc check", cm_display_pageid(dms_ctx->resid));
+
+    cm_panic_log(memcmp(buf_res->data, dms_ctx->resid, DMS_PAGEID_SIZE) == 0,
+        "[DRC validate]pageid unmatch(DRC:%s, buf:%s)",
+        cm_display_pageid(buf_res->data),
+        cm_display_pageid(dms_ctx->resid));
+
+    bool ctrl_matches_cvt = false;
+    bool first_time_req = false;
+    drc_request_info_t *req_info = &buf_res->converting.req_info;
+    if (req_info->inst_id != CM_INVALID_ID8) {
+        /*
+         * If lock modes unmatch, then either cvt matches ctrl, or cvt satisfies first time read
+         * If lock modes match, then the ack message of cvt request must be lost,
+         * no need to check connverting info.
+         */
+        if (ctrl->lock_mode != buf_res->lock_mode) {
+            ctrl_matches_cvt = req_info->req_mode == ctrl->lock_mode;
+            first_time_req = req_info->req_mode == DMS_LOCK_SHARE &&
+                ctrl->lock_mode == DMS_LOCK_EXCLUSIVE && buf_res->lock_mode == DMS_LOCK_NULL;
+            cm_panic_log(ctrl_matches_cvt || first_time_req, 
+                "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
+                cm_display_pageid(dms_ctx->resid), buf_res->lock_mode,
+                ctrl->lock_mode, req_info->req_mode);
+        }
+        /*
+         * If versions unmatch, must be local X request on S, or first time X read.
+         * Otherwise version would not refresh after page transferred, therefore ver must match.
+         */
+        if (buf_res->ver != ctrl->ver) {
+            ctrl_matches_cvt = req_info->ver == buf_res->ver; /* only ctrl ver is different */
+            cm_panic_log(ctrl_matches_cvt && ctrl->lock_mode == DMS_LOCK_EXCLUSIVE,
+                "[DRC validate][%s]version unmatch with converting info(DRC:%u, buf:%u, cvt;%u)",
+                cm_display_pageid(dms_ctx->resid), buf_res->ver, ctrl->ver, req_info->ver);
+        }
+    } else {
+        cm_panic_log(buf_res->ver == ctrl->ver, "[DRC validate][%s]version unmatch(DRC:%u, buf:%u)",
+            cm_display_pageid(dms_ctx->resid), buf_res->ver, ctrl->ver);
+
+        cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,
+            "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+            cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
+    }
+
+    drc_leave_buf_res(buf_res);
+}
+
 static void drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id)
 {
     uint16 part_id;
@@ -1959,6 +2020,16 @@ static int dms_reform_drc_inaccess(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_drc_validate()
+{
+    g_dms.callback.drc_validate(g_dms.reform_ctx.handle_proc);
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+
+    return DMS_SUCCESS;
+}
+
 static bool32 dms_reform_check_partner_fail(void)
 {
     reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
@@ -2114,6 +2185,10 @@ static void dms_reform_inner(void)
 
         case DMS_REFORM_STEP_DRC_INACCESS:
             ret = dms_reform_drc_inaccess();
+            break;
+
+        case DMS_REFORM_STEP_DRC_VALIDATE:
+            ret = dms_reform_drc_validate();
             break;
 
         case DMS_REFORM_STEP_STARTUP_OPENGAUSS:

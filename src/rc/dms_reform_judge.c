@@ -873,6 +873,30 @@ static void dms_reform_judgement_drc_access(void)
     dms_reform_add_step(DMS_REFORM_STEP_DRC_ACCESS);
 }
 
+/* DEBUG version only, check for DRC reform correctness */
+static void dms_reform_judgement_drc_validate(bool set_inaccess)
+{
+#ifndef NDEBUG
+    share_info_t *share_info = DMS_SHARE_INFO;
+    LOG_DEBUG_INF("Add step dms_validate_drc for reform:%d, DEBUG only", share_info->reform_type);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_DRC_INACCESS);
+
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_DRC_VALIDATE);
+
+    if (set_inaccess) {
+        return;
+    } else {
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_DRC_ACCESS);
+
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_PAGE_ACCESS);
+    }
+#endif
+}
+
 static void dms_reform_judgement_success(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
@@ -928,6 +952,7 @@ static char reform_step_desc[DMS_REFORM_STEP_COUNT][DMS_REFORM_STEP_DESC_STR_LEN
     [DMS_REFORM_STEP_BCAST_UNABLE] = "BCAST_UNABLE",
     [DMS_REFORM_STEP_UPDATE_SCN] = "UPDATE_SCN",
     [DMS_REFORM_STEP_WAIT_CKPT] = "WAIT_CKPT",
+    [DMS_REFORM_STEP_DRC_VALIDATE] = "DRC_VALIDATE",
 };
 
 static char *dms_reform_get_type_desc(void)
@@ -1144,6 +1169,7 @@ static void dms_reform_judgement_switchover_opengauss(instance_list_t *inst_list
 {
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
+    dms_reform_judgement_drc_validate(false);
     dms_reform_judgement_switchover_demote(inst_lists);
     dms_reform_judgement_drc_inaccess();
     dms_reform_judgement_remaster(inst_lists);
@@ -1152,6 +1178,7 @@ static void dms_reform_judgement_switchover_opengauss(instance_list_t *inst_list
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
     dms_reform_judgement_switchover_promote_opengauss();
+    dms_reform_judgement_drc_validate(false);
     dms_reform_judgement_success();
     dms_reform_judgement_done();
 }
@@ -1198,12 +1225,14 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
+    dms_reform_judgement_drc_validate(true); /* maintain drc inaccess as failover not finished */
     dms_reform_judgement_drc_access();
     dms_reform_judgement_flush_copy();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_failover_promote_opengauss();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
+    dms_reform_judgement_drc_validate(false);
     dms_reform_judgement_success();
     dms_reform_judgement_done();
 }
@@ -1224,6 +1253,7 @@ static void dms_reform_judgement_opengauss(instance_list_t *inst_lists)
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
+    dms_reform_judgement_drc_validate(false);
     dms_reform_judgement_success();
     dms_reform_judgement_done();
 }
