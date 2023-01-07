@@ -100,7 +100,7 @@ static bool32 dms_reform_list_cmp(instance_list_t *list1, instance_list_t *list2
 }
 
 // get online offline unknown list from CMS
-static int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline)
+int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     instance_list_t list_unknown;
@@ -139,27 +139,6 @@ static int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_li
     return DMS_SUCCESS;
 }
 
-// if there is instance in online list before and not in online list now, set reform fail
-static void dms_reform_cmp_list_online(instance_list_t *list_online)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-    bool32 in_list_current = CM_FALSE;
-    bool32 in_list_cache = CM_FALSE;
-    uint64 bitmap_online_current = 0;
-
-    dms_reform_list_to_bitmap(&bitmap_online_current, list_online);
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        in_list_current = bitmap64_exist(&bitmap_online_current, i);
-        in_list_cache = bitmap64_exist(&share_info->bitmap_online, i);
-        if (in_list_cache && !in_list_current) {
-            dms_reform_set_fail();
-            LOG_RUN_INF("[DMS REFORM]dms_reform_cmp_list_online error, inst(%d) offline, cache: %llu, current: %llu",
-                i, share_info->bitmap_online, bitmap_online_current);
-            return;
-        }
-    }
-}
-
 void dms_reform_update_reformer_version(uint64 start_time, uint8 inst_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -182,18 +161,18 @@ static int dms_reform_get_online_status_l(uint8 *online_status, uint64 *online_t
 }
 
 // don't retry while wait overtime, finish current judgement and get online list again
-static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_times, uint8 dst_id)
+static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_times, uint8 dst_id, uint32 sess_id)
 {
     dms_reform_req_partner_status_t req;
 
-    dms_reform_init_req_dms_status(&req, dst_id);
+    dms_reform_init_req_dms_status(&req, dst_id, sess_id);
     int ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_get_online_status_r SEND error: %d, dst_id: %d", ret, dst_id);
         return ret;
     }
 
-    ret = dms_reform_req_dms_status_wait(online_status, online_times, dst_id);
+    ret = dms_reform_req_dms_status_wait(online_status, online_times, dst_id, sess_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_get_online_status_r WAIT error: %d, dst_id: %d", ret, dst_id);
     }
@@ -202,8 +181,10 @@ static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_t
 }
 
 // 1. req to online list and get status
-static int dms_reform_get_online_status(instance_list_t *list_online, uint8 *online_status, uint64* online_times)
+int dms_reform_get_online_status(uint8 *online_status, uint64* online_times, uint32 sess_id)
 {
+    share_info_t *share_info = DMS_SHARE_INFO;
+    instance_list_t *list_online = &share_info->list_online;
     uint8 dst_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
@@ -212,7 +193,7 @@ static int dms_reform_get_online_status(instance_list_t *list_online, uint8 *onl
         if (dms_dst_id_is_self(dst_id)) {
             ret = dms_reform_get_online_status_l(online_status, online_times, dst_id);
         } else {
-            ret = dms_reform_get_online_status_r(online_status, online_times, dst_id);
+            ret = dms_reform_get_online_status_r(online_status, online_times, dst_id, sess_id);
         }
         if (ret != DMS_SUCCESS) {
             return ret;
@@ -220,81 +201,6 @@ static int dms_reform_get_online_status(instance_list_t *list_online, uint8 *onl
     }
 
     return DMS_SUCCESS;
-}
-
-// if there is instance status before less than now
-// it means the instance restart in the period of reform, set reform fail
-static void dms_reform_cmp_online_status(uint8 *online_status, uint8 *online_status_cache,
-    uint64 *online_times, uint64 *online_times_cache)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-    uint64 list_online_cache = 0;
-    bool32 in_list_cache = CM_FALSE;
-
-    dms_reform_list_to_bitmap(&list_online_cache, &share_info->list_online);
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        in_list_cache = bitmap64_exist(&list_online_cache, i);
-        if (!in_list_cache) {
-            continue;
-        }
-        if (online_status_cache[i] > online_status[i]) {
-            dms_reform_set_fail();
-            LOG_RUN_ERR("[DMS REFORM]dms_reform_cmp_online_status error, inst(%d), status cache: %d, current: %d",
-                i, online_status_cache[i], online_status[i]);
-            return;
-        } else {
-            online_status_cache[i] = online_status[i];
-        }
-
-        // for switchover, not need to use online_times to judge
-        if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
-            continue;
-        }
-        if (online_times[i] != online_times_cache[i]) {
-            dms_reform_set_fail();
-            LOG_RUN_ERR("[DMS REFORM]dms_reform_cmp_online_status error, inst(%d), time cache: %llu, current: %llu",
-                        i, online_times_cache[i], online_times[i]);
-            return;
-        }
-    }
-}
-
-// in the period of reform, some errors may occur
-static void dms_reform_check_abnormal(uint8 *online_status_cache, uint64 *online_times_cache)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    share_info_t *share_info = DMS_SHARE_INFO;
-    uint8 online_status[DMS_MAX_INSTANCES] = { 0 };
-    uint64 online_times[DMS_MAX_INSTANCES] = { 0 };
-    instance_list_t list_online;
-    instance_list_t list_offline;
-
-    if (!reform_info->build_complete) {
-        return;
-    }
-
-    if (reform_info->maintain) {
-        return;
-    }
-
-    if (reform_info->reform_fail) {
-        return;
-    }
-
-    if (dms_reform_get_list_from_cm(&list_online, &list_offline) != DMS_SUCCESS) {
-        return;
-    }
-
-    dms_reform_cmp_list_online(&list_online);
-    if (reform_info->reform_fail) {
-        return;
-    }
-
-    if (dms_reform_get_online_status(&share_info->list_online, online_status, online_times) != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_check_abnormal skip, fail to get online status");
-        return;
-    }
-    dms_reform_cmp_online_status(online_status, online_status_cache, online_times, online_times_cache);
 }
 
 static void dms_reform_modify_list(void)
@@ -1863,14 +1769,16 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     return CM_TRUE;
 }
 
-static void dms_reform_judgement_reformer(uint8 *online_status, uint64 *online_times)
+static void dms_reform_judgement_reformer(void)
 {
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     share_info_t *share_info = DMS_SHARE_INFO;
+    health_info_t *health_info = DMS_HEALTH_INFO;
 
     if (dms_reform_in_process()) {
-        dms_reform_check_abnormal(online_status, online_times);
         return;
     }
+
     if (dms_reform_get_list_from_cm(&share_info->list_online, &share_info->list_offline) != DMS_SUCCESS) {
         return;
     }
@@ -1890,12 +1798,13 @@ static void dms_reform_judgement_reformer(uint8 *online_status, uint64 *online_t
         return;
     }
 #endif
-    if (dms_reform_get_online_status(&share_info->list_online, online_status, online_times) != DMS_SUCCESS) {
+    if (dms_reform_get_online_status(health_info->online_status, health_info->online_times, reform_ctx->sess_judge) !=
+        DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get online status");
         return;
     }
 
-    if (!dms_reform_judgement(online_status)) {
+    if (!dms_reform_judgement(health_info->online_status)) {
         return;
     }
 
@@ -1942,8 +1851,6 @@ static void dms_reform_judgement_mes_init(void)
 void dms_reform_judgement_thread(thread_t *thread)
 {
     cm_set_thread_name("reform_judgement");
-    uint8 online_status[DMS_MAX_INSTANCES] = { 0 };
-    uint64 online_times[DMS_MAX_INSTANCES] = { 0 };
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
@@ -1951,7 +1858,7 @@ void dms_reform_judgement_thread(thread_t *thread)
     dms_reform_judgement_mes_init();
     while (!thread->closed) {
         if (DMS_IS_REFORMER) {
-            dms_reform_judgement_reformer(online_status, online_times);
+            dms_reform_judgement_reformer();
         } else if (DMS_IS_PARTNER) {
             dms_reform_judgement_partner();
         }

@@ -29,6 +29,7 @@
 #include "dms_reform_msg.h"
 #include "dms_log.h"
 #include "cm_timer.h"
+#include "dms_reform_health.h"
 #ifndef WIN32
 #include "config.h"
 #endif
@@ -57,26 +58,16 @@ void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list)
     }
 }
 
-void dms_reform_change_status(uint8 reform_status)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-
-    cm_spin_lock(&reform_info->status_lock, NULL);
-    reform_info->reform_status = reform_status;
-    cm_spin_unlock(&reform_info->status_lock);
-    LOG_RUN_INF("[DMS REFORM]dms change status: %d", reform_status);
-}
-
-// check if reform start or not
-bool8 dms_reform_in_status(uint8 status)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    return reform_info->reform_status == status;
-}
-
 int dms_reform_in_process(void)
 {
-    return dms_reform_in_status(DMS_REFORM_STATUS_START);
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    if (reform_info->thread_status == DMS_THREAD_STATUS_RUNNING ||
+        reform_info->thread_status == DMS_THREAD_STATUS_PAUSING) {
+        return CM_TRUE;
+    } else {
+        return CM_FALSE;
+    }
 }
 
 int dms_drc_accessible(unsigned char res_type)
@@ -94,11 +85,18 @@ int dms_drc_accessible(unsigned char res_type)
     }
 }
 
-// set fail in order to stop reform
-void dms_reform_set_fail(void)
+static void dms_reform_proc_set_running(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    reform_info->reform_fail = CM_TRUE;
+    while (CM_TRUE) {
+        if (reform_info->thread_status == DMS_THREAD_STATUS_IDLE ||
+            reform_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
+            break;
+        }
+        DMS_REFORM_LONG_SLEEP;
+    }
+    LOG_RUN_INF("[DMS REFORM]dms_reform_proc running");
+    reform_info->thread_status = DMS_THREAD_STATUS_RUNNING;
 }
 
 void dms_reform_set_start(void)
@@ -106,8 +104,8 @@ void dms_reform_set_start(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
+    LOG_RUN_INF("[DMS REFORM]dms_reform_set_start");
     reform_info->true_start = CM_FALSE;
-    reform_info->reform_fail = CM_FALSE;
     reform_info->reform_done = CM_FALSE;
     reform_info->err_code = DMS_SUCCESS;
     reform_info->reform_step_index = 0;
@@ -115,7 +113,9 @@ void dms_reform_set_start(void)
     reform_info->reform_phase = 0;
     reform_info->reform_pause = CM_FALSE;
     reform_info->current_step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
-    dms_reform_change_status(DMS_REFORM_STATUS_START);
+    reform_info->proc_time = (uint64)g_timer()->now;
+    dms_reform_health_set_running();
+    dms_reform_proc_set_running();
     LOG_DEBUG_FUNC_SUCCESS;
 }
 
@@ -141,6 +141,13 @@ static int dms_reform_init_thread(void)
     ret = cm_create_thread(dms_reformer_preempt_thread, 0, NULL, &reform_context->thread_reformer);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DMS REFORM]fail to create dms_reformer_thread");
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
+        return ERRNO_DMS_COMMON_CBB_FAILED;
+    }
+
+    ret = cm_create_thread(dms_reform_health_thread, 0, NULL, &reform_context->thread_health);
+    if (ret != CM_SUCCESS) {
+        LOG_RUN_ERR("[DMS REFORM]fail to create dms_reform_health_thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -228,7 +235,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
         reform_context->scrlock_reinit_ctx.worker_bind_core_end = dms_profile->scrlock_worker_bind_core_end;
         reform_context->scrlock_reinit_ctx.sleep_mode = dms_profile->enable_scrlock_server_sleep_mode;
         reform_context->scrlock_reinit_ctx.server_bind_core_start = dms_profile->scrlock_server_bind_core_start;
-        reform_context->scrlock_reinit_ctx.server_bind_core_end =  dms_profile->scrlock_server_bind_core_end;
+        reform_context->scrlock_reinit_ctx.server_bind_core_end = dms_profile->scrlock_server_bind_core_end;
     }
 
     reform_context->catalog_centralized = (bool8)dms_profile->resource_catalog_centralized;
@@ -255,6 +262,12 @@ int dms_reform_init(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
+    reform_context->handle_health = g_dms.callback.get_db_handle(&reform_context->sess_health);
+    if (reform_context->handle_health == NULL) {
+        LOG_RUN_ERR("[DMS REFORM]fail to get db session");
+        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
+        return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
+    }
 #if defined(OPENGAUSS) || defined(UT_TEST)
     reform_info->build_complete = CM_TRUE;
     reform_info->maintain = CM_FALSE;
@@ -274,7 +287,6 @@ int dms_reform_init(dms_profile_t *dms_profile)
         }
     }
     reform_info->reformer_id = CM_INVALID_ID8;
-    reform_info->reform_status = DMS_REFORM_STATUS_IDLE;
     reform_info->start_time = (uint64)g_timer()->now;
     reform_context->ignore_offline = CM_TRUE;
     share_info->version_num = 0;
@@ -302,6 +314,7 @@ void dms_reform_uninit(void)
     cm_close_thread(&reform_context->thread_judgement);
     cm_close_thread(&reform_context->thread_reformer);
     cm_close_thread(&reform_context->thread_reform);
+    cm_close_thread(&reform_context->thread_health);
     reform_context->init_success = CM_FALSE;
 }
 
