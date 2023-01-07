@@ -62,7 +62,7 @@ typedef struct st_msg_pcr_request {
     uint64 query_scn;
     char pageid[DMS_PAGEID_SIZE];
     char xid[DMS_XID_SIZE];
-    bool32 sess_rcy;
+    dms_session_e sess_type;
 } msg_pcr_request_t;
 
 typedef struct st_msg_pcr_ack {
@@ -160,7 +160,7 @@ typedef struct st_msg_rls_owner_req {
     mes_message_head_t head;
     uint64 owner_lsn;
     uint64 owner_scn;
-    bool32 sess_rcy;
+    dms_session_e sess_type;
     char pageid[DMS_PAGEID_SIZE];
 } msg_rls_owner_req_t;
 

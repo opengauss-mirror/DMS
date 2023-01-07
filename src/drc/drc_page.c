@@ -225,7 +225,7 @@ inline uint8 drc_lookup_owner_id(uint64 *owner_map)
 
 static void drc_get_page_no_owner(drc_req_owner_result_t *result, drc_buf_res_t *buf_res, drc_request_info_t* req_info)
 {
-    if (req_info->sess_rcy == DMS_SESSION_IN_RECOVERY && buf_res->type == DRC_RES_PAGE_TYPE) {
+    if (req_info->sess_type == DMS_SESSION_RECOVER && buf_res->type == DRC_RES_PAGE_TYPE) {
         buf_res->in_recovery = CM_TRUE;
     }
 
@@ -334,7 +334,7 @@ static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *bu
 static int drc_request_page_owner_internal(char *resid, uint8 type,
     drc_request_info_t *req_info, drc_req_owner_result_t *result, drc_buf_res_t *buf_res)
 {
-    if (req_info->sess_rcy == CM_FALSE && buf_res->in_recovery) {
+    if (req_info->sess_type == DMS_SESSION_NORMAL && buf_res->in_recovery) {
         LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
         return ERRNO_DMS_DRC_RECOVERY_PAGE;
     }
@@ -365,7 +365,7 @@ int32 drc_request_page_owner(char* resid, uint16 len, uint8 res_type,
     result->has_share_copy = CM_FALSE;
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, req_info->sess_rcy, CM_TRUE);
+    uint8 options = drc_build_options(CM_TRUE, req_info->sess_type, CM_TRUE);
     int ret = drc_enter_buf_res(resid, len, res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -497,7 +497,7 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, claim_info->sess_rcy, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, claim_info->sess_type, CM_TRUE);
     int ret = drc_enter_buf_res(claim_info->resid, (uint16)claim_info->len, claim_info->res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -580,7 +580,7 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
     cvt_info->invld_insts = 0;
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, req->sess_rcy, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, req->sess_type, CM_TRUE);
     int ret = drc_enter_buf_res(resid, len, res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return;
@@ -624,12 +624,12 @@ inline static void drc_promote_share_copy2owner(drc_buf_res_t *buf_res)
     bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
 }
 
-int drc_release_page_owner(bool32 sess_rcy, char* resid, uint16 len, uint8 inst_id, bool8 *released)
+int drc_release_page_owner(char* resid, uint16 len, uint8 inst_id, bool8 *released)
 {
     *released = CM_FALSE;
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_IGNORE_DATA | DRC_RES_CHECK_ACCESS);
+    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
     int ret = drc_enter_buf_res(resid, len, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -730,7 +730,7 @@ void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
 int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, CM_TRUE, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;

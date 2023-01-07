@@ -298,7 +298,7 @@ int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode
 
 #ifdef OPENGAUSS
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    if (g_dms.enable_reform && !reform_info->first_reform_finish && !dms_ctx->sess_rcy) {
+    if (g_dms.enable_reform && !reform_info->first_reform_finish && dms_ctx->sess_type == DMS_SESSION_NORMAL) {
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
@@ -662,7 +662,7 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, mes_m
     drc_req_owner_result_t result;
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, page_req.head.src_inst, page_req.head.src_sid, page_req.head.rsn,
-        page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_rcy, page_req.ver);
+        page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_type, page_req.ver);
 
     int ret = drc_request_page_owner(page_req.resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -709,7 +709,7 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
     req_info.curr_mode = ctrl->lock_mode;
     req_info.rsn = mfc_get_rsn(dms_ctx->sess_id);
     req_info.is_try = CM_TRUE;
-    req_info.sess_rcy = (bool8)dms_ctx->sess_rcy;
+    req_info.sess_type = dms_ctx->sess_type;
     req_info.ver = ctrl->ver;
 
     int ret = drc_request_page_owner(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info, &result);
@@ -752,7 +752,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
 
     dcs_set_page_req_parameter(dms_ctx, ctrl, req_mode, &page_req);
     page_req.len = DMS_PAGEID_SIZE;
-    page_req.sess_rcy = (bool8)dms_ctx->sess_rcy;
+    page_req.sess_type = dms_ctx->sess_type;
     page_req.ver = ctrl->ver;
     int ret = memcpy_sp(page_req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
     if (SECUREC_UNLIKELY(ret != EOK)) {
@@ -860,7 +860,7 @@ static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id)
         CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(msg_rls_owner_req_t);
     req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    req.sess_rcy = dms_ctx->sess_rcy;
+    req.sess_type = dms_ctx->sess_type;
 #ifndef OPENGAUSS
     req.owner_lsn = g_dms.callback.get_global_lsn(dms_ctx->db_handle);
     req.owner_scn = g_dms.callback.get_global_scn(dms_ctx->db_handle);
@@ -922,7 +922,7 @@ int dcs_release_owner(dms_context_t *dms_ctx, unsigned char *released)
 
     int ret;
     if (master_id == dms_ctx->inst_id) {
-        ret = drc_release_page_owner(dms_ctx->sess_rcy, dms_ctx->resid, DMS_PAGEID_SIZE, (uint8)dms_ctx->inst_id,
+        ret = drc_release_page_owner(dms_ctx->resid, DMS_PAGEID_SIZE, (uint8)dms_ctx->inst_id,
             released);
     } else {
         ret = dcs_release_owner_r(dms_ctx, master_id, released);
@@ -963,7 +963,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
 #endif
 
     bool8 released = CM_FALSE;
-    (void)drc_release_page_owner(req->sess_rcy, req->pageid, DMS_PAGEID_SIZE, req->head.src_inst, &released);
+    (void)drc_release_page_owner(req->pageid, DMS_PAGEID_SIZE, req->head.src_inst, &released);
     (void)dcs_send_rls_owner_ack(ctx, req, released);
     mfc_release_message_buf(receive_msg);
 }
@@ -1108,7 +1108,7 @@ static void dcs_release_owner_batch_l(char *pages, uint32 page_count, uint8 old_
         do {
             // 1. if retry several times or wait to long time but still not released
             // 2. erase directly maybe more efficiently
-            (void)drc_release_page_owner(CM_FALSE, pageid, DMS_PAGEID_SIZE, old_owner_id, &released);
+            (void)drc_release_page_owner(pageid, DMS_PAGEID_SIZE, old_owner_id, &released);
             if (released) {
                 break;
             }

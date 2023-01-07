@@ -653,7 +653,7 @@ int dms_reform_rebuild_buf_res_l(char *resid, dms_buf_ctrl_t *ctrl, uint64 lsn, 
         cm_display_pageid(resid), ctrl->is_remote_dirty, ctrl->lock_mode, ctrl->is_edp, inst_id, lsn, is_dirty);
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, CM_TRUE, CM_FALSE);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_FALSE);
     int ret = drc_enter_buf_res(resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -755,7 +755,7 @@ int dms_reform_rebuild_lock_l(drc_local_lock_res_t *lock_res, uint8 src_inst)
         cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode);
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, CM_TRUE, CM_FALSE);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_FALSE);
     int ret = drc_enter_buf_res((char *)&lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;

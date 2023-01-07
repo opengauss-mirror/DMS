@@ -341,11 +341,6 @@ static drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, u
         return NULL;
     }
 
-    // created before recovery should set recovery flag. otherwise, the page will be skip because it has owner
-    if ((options & DRC_RES_BEFORE_RCY) && res_type == (uint8)DRC_RES_PAGE_TYPE) {
-        buf_res->in_recovery = CM_TRUE;
-    }
-
     drc_inc_buf_res_ref(buf_res);
     cm_spin_unlock(&bucket->lock);
     return buf_res;
@@ -367,7 +362,7 @@ static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
             cm_unlatch(&res_map->res_latch, NULL);
             return ERRNO_DMS_REFORM_IN_PROCESS;
         }
-        if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_IGNORE_DATA) && !res_map->data_access) {
+        if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) && !res_map->data_access) {
             LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
             cm_unlatch(&res_map->res_latch, NULL);
             return ERRNO_DMS_REFORM_IN_PROCESS;
@@ -490,10 +485,10 @@ void drc_destroy(void)
     }
 }
 
-int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], bool32 sess_rcy, uint8 *id)
+int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, sess_rcy, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, sess_type, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -609,7 +604,7 @@ int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
     return drc_get_lock_master_id((dms_drid_t*)resid, master_id);
 }
 
-uint8 drc_build_options(bool32 alloc, bool32 rcy_flag, bool32 check_master)
+uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_master)
 {
     uint8 options = DRC_RES_NORMAL;
 
@@ -617,12 +612,14 @@ uint8 drc_build_options(bool32 alloc, bool32 rcy_flag, bool32 check_master)
         options |= DRC_RES_ALLOC;
     }
 
-    if (rcy_flag == DMS_SESSION_IN_RECOVERY) {
-        options |= DRC_RES_BEFORE_RCY;
-    }
-
-    if (!rcy_flag) {
-        options |= DRC_RES_CHECK_ACCESS;
+    switch (sess_type) {
+        case DMS_SESSION_NORMAL:
+            options |= DRC_RES_CHECK_ACCESS;
+            break;
+        case DMS_SESSION_RECOVER:
+        case DMS_SESSION_REFORM:
+        default:
+            break;
     }
 
     if (check_master) {
