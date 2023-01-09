@@ -36,10 +36,9 @@ extern "C" {
 
 #define DRC_RES_NORMAL              0
 #define DRC_RES_ALLOC               1   // if alloc or not when drc not exists
-#define DRC_RES_BEFORE_RCY          2   // if access page before recovery, should set in recovery flag for new buf_res
-#define DRC_RES_CHECK_ACCESS        4   // handle_reform & handle_proc should not to check access
-#define DRC_RES_CHECK_MASTER        8   // if recheck master id or not
-#define DRC_RES_IGNORE_DATA         0x10    // if for release, no need wait recovery finish
+#define DRC_RES_CHECK_ACCESS        2   // handle_reform & handle_proc should not to check access
+#define DRC_RES_CHECK_MASTER        4   // if recheck master id or not
+#define DRC_RES_RELEASE             8   // if for release, no need wait recovery finish
 
 #define DMS_RES_MAP_INIT_PARAM 2
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
@@ -65,7 +64,7 @@ static inline void drc_dec_buf_res_ref(drc_buf_res_t *buf_res)
     (void)cm_atomic32_dec(&buf_res->count);
 }
 
-int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], bool32 sess_rcy, uint8 *id);
+int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id);
 int32 drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id);
 void drc_add_buf_res_in_part_list(drc_buf_res_t *buf_res);
 void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res);
@@ -76,7 +75,7 @@ bool32 drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
 int drc_enter_buf_res(char *resid, uint16 len, uint8 res_type, uint8 options, drc_buf_res_t **buf_res);
 void drc_leave_buf_res(drc_buf_res_t *buf_res);
 void drc_buf_res_unlatch(uint8 res_type);
-uint8 drc_build_options(bool32 alloc, bool32 rcy_flag, bool32 check_master);
+uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_master);
 
 #ifdef __cplusplus
 }

@@ -155,13 +155,13 @@ typedef struct st_dms_ask_res_req {
     mes_message_head_t head;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
+    dms_session_e sess_type;
+    uint32 ver;
+    uint16 len;
     bool8 has_share_copy;
-    bool8 sess_rcy;
     bool8 is_try;
     uint8 res_type;
-    uint16 len;
-    uint16 unused;
-    uint32 ver;
+    uint8 unused[3];
     char resid[DMS_RESID_SIZE];
 } dms_ask_res_req_t;
 
@@ -183,12 +183,10 @@ typedef struct st_dms_ask_res_ack {
 typedef struct st_dms_claim_owner_req {
     mes_message_head_t head;
     dms_lock_mode_t req_mode;
+    dms_session_e sess_type;
     bool8  has_edp;  // previous owner has earlier dirty page
-    bool8  sess_rcy;
     uint8  res_type;
-    uint8  unused1;
     uint16 len;
-    uint16 unused2;
     uint64 lsn;
     uint32 ver;
     char resid[DMS_RESID_SIZE];
@@ -199,7 +197,7 @@ typedef struct st_dms_invld_req {
     uint8  is_try;
     uint8  res_type;
     uint16 len;
-    bool32 sess_rcy;
+    dms_session_e sess_type;
     uint32 ver;
     char   resid[DMS_RESID_SIZE];
 } dms_invld_req_t;
@@ -213,10 +211,11 @@ typedef struct st_dms_res_req_info {
     uint8 req_id;
     uint8 owner_id;
     bool8 has_share_copy;
-    bool8 in_recovery;
     uint8 res_type;
+    uint8 unused;
     bool8 is_try;
     uint16 req_sid;
+    dms_session_e sess_type;
     uint32 req_rsn;
     uint32 len;
     uint32 ver;
@@ -227,11 +226,12 @@ typedef struct st_dms_res_req_info {
 
 typedef struct st_dms_cancel_request_res {
     mes_message_head_t head;
+    dms_session_e sess_type;
+    uint16 len;
     uint8  res_type;
     uint8  unused;
-    uint16 len;
+
     char resid[DMS_RESID_SIZE];
-    bool8 sess_rcy;
 }dms_cancel_request_res_t;
 
 typedef struct st_dms_confirm_cvt_req {
@@ -298,7 +298,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
     } while (0)
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint32 rsn,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, bool8 sess_rcy, uint32 ver)
+    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, dms_session_e sess_type, uint32 ver)
 {
     req_info->rsn = rsn;
     req_info->inst_id = req_id;
@@ -306,7 +306,7 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->is_try = is_try;
     req_info->curr_mode = curr_mode;
     req_info->req_mode = req_mode;
-    req_info->sess_rcy = sess_rcy;
+    req_info->sess_type = sess_type;
     req_info->ver = ver;
 }
 

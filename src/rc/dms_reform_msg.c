@@ -481,7 +481,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type)
 static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, drc_buf_res_msg_t *res_msg, uint8 type)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, CM_TRUE, CM_TRUE);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_TRUE);
     int ret = drc_enter_buf_res(res_msg->resid, res_msg->len, type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;

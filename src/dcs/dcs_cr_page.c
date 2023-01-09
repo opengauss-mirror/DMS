@@ -272,7 +272,7 @@ static int dcs_init_pcr_request(msg_pcr_request_t *request, dms_context_t *dms_c
     request->query_scn = dms_cr->query_scn;
     request->ssn = dms_cr->ssn;
     request->force_cvt = 0;
-    request->sess_rcy = dms_ctx->sess_rcy;
+    request->sess_type = dms_ctx->sess_type;
 
     return DMS_SUCCESS;
 }
@@ -687,7 +687,7 @@ static void dcs_handle_pcr_req_master(dms_process_context_t *ctx, mes_message_t 
     int ret;
 
     while (local_route) {
-        ret = drc_get_page_owner_id(CM_INVALID_ID8, request->pageid, request->sess_rcy, &owner_id);
+        ret = drc_get_page_owner_id(CM_INVALID_ID8, request->pageid, request->sess_type, &owner_id);
         if (ret != DMS_SUCCESS) {
             cm_send_error_msg(msg->head, ret, "construct heap page failed");
             break;
@@ -967,7 +967,7 @@ int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_c
     }
 
     if (master_id == dms_ctx->inst_id) {
-        ret = drc_get_page_owner_id(CM_INVALID_ID8, dms_ctx->resid, dms_ctx->sess_rcy, &owner_id);
+        ret = drc_get_page_owner_id(CM_INVALID_ID8, dms_ctx->resid, dms_ctx->sess_type, &owner_id);
         if (ret != DMS_SUCCESS) {
             return ret;
         }

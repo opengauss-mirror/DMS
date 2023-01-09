@@ -154,6 +154,12 @@ typedef enum en_drc_res_type {
     DRC_RES_LOCK_ITEM_TYPE,
 } drc_res_type_e;
 
+typedef enum en_dms_session {
+    DMS_SESSION_NORMAL = 0,     // can not access DRC when DRC is inaccessible
+    DMS_SESSION_REFORM = 1,     // can access DRC when DRC is inaccessible
+    DMS_SESSION_RECOVER = 2,    // can access DRC when DRC is inaccessible, buf if no owner, should set in recovery
+} dms_session_e;
+
 #define DMS_RESID_SIZE  32
 #define DMS_DRID_SIZE   sizeof(dms_drid_t)
 
@@ -181,7 +187,7 @@ typedef struct st_dms_xmap_ctx {
 typedef struct st_dms_context {
     unsigned int inst_id;   // current instance id
     unsigned int sess_id;   // current session id
-    unsigned int sess_rcy;  // request page: recovery session flag
+    dms_session_e sess_type;  // request page: recovery session flag
     void *db_handle;
     unsigned char is_try;
     unsigned char type;
@@ -762,7 +768,7 @@ typedef struct st_dms_profile {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           41
+#define DMS_LOCAL_VERSION           42
 
 #ifdef __cplusplus
 }

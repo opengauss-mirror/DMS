@@ -113,11 +113,10 @@ typedef struct st_drc_request_info {
     uint8   curr_mode;          /* current holding lock mode in request instance */
     uint8   req_mode;           /* the expected lock mode that request instance wants */
     uint8   is_try;             /* if is try request */
-    bool8   sess_rcy;           /* whether session in recovery */
-    uint8   unused;
-    uint16  sess_id;            /* the session id that the request comes from */
+    dms_session_e sess_type;    /* session type */
     uint32  rsn;                /* request packet serial number */
     uint32  ver;                /* local ver of request */
+    uint16  sess_id;            /* the session id that the request comes from */
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -289,7 +288,7 @@ typedef struct st_claim_info {
     uint32  ver;
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
-    bool32  sess_rcy;
+    dms_session_e sess_type;
     uint32  rsn;
 } claim_info_t;
 

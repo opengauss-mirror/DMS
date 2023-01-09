@@ -160,12 +160,6 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
 
-typedef enum en_dms_session_type {
-    DMS_SESSION_NORMAL = 0,
-    DMS_SESSION_IN_REFORM = 1,
-    DMS_SESSION_IN_RECOVERY = 2,
-} dms_session_type_t;
-
 typedef enum en_db_open_status {
     DB_OPEN_STATUS_NORMAL = 0,
     DB_OPEN_STATUS_RESTRICT = 1,

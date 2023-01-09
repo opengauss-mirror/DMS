@@ -412,11 +412,11 @@ int dms_is_recovery_session(unsigned int sid)
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
 
     if (reform_context->sess_proc == sid) {
-        return DMS_SESSION_IN_RECOVERY;
+        return (int)DMS_SESSION_RECOVER;
     } else if (reform_context->sess_reform == sid) {
-        return DMS_SESSION_IN_REFORM;
+        return (int)DMS_SESSION_REFORM;
     } else {
-        return DMS_SESSION_NORMAL;
+        return (int)DMS_SESSION_NORMAL;
     }
 }
 
