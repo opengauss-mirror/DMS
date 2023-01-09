@@ -43,6 +43,7 @@
 #include "dms_reform.h"
 #include "dms_reform_msg.h"
 #include "scrlock_adapter.h"
+#include "cm_log.h"
 
 dms_instance_t g_dms = { 0 };
 
@@ -577,6 +578,93 @@ static void dms_init_log(dms_profile_t *dms_profile)
 {
     cm_log_param_instance()->log_write = (usr_cb_log_output_t)dms_profile->callback.log_output;
     cm_log_param_instance()->log_level = MAX_LOG_LEVEL;
+}
+
+static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, char *file_name, uint32 file_name_len)
+{
+    int32 ret;
+    switch (log_id) {
+        case LOG_RUN:
+            ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/run/%s", log_param->log_home, "dms.rlog");
+            break;
+        case LOG_DEBUG:
+            ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/debug/%s", log_param->log_home, "dms.dlog");
+            break;
+        case LOG_ALARM:
+            ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/alarm/%s", log_param->log_home, "dms.alog");
+            break;
+        case LOG_AUDIT:
+            ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/audit/%s", log_param->log_home, "dms.aud");
+            break;
+        default:
+            ret = 0;
+            break;
+    }
+
+    return (ret != -1) ? DMS_SUCCESS : ERRNO_DMS_INIT_LOG_FAILED;
+}
+
+static int32 init_single_logger(log_param_t *log_param, log_type_t log_id)
+{
+    char file_name[CM_FILE_NAME_BUFFER_SIZE] = {'\0'};
+    CM_RETURN_IFERR(init_single_logger_core(log_param, log_id, file_name, CM_FILE_NAME_BUFFER_SIZE));
+    (void)cm_log_init(log_id, (const char *)file_name);
+    return DMS_SUCCESS;
+}
+
+void dms_refresh_logger(char *log_field, unsigned long long *value)
+{
+    if (log_field ==NULL) {
+        return;
+    }
+
+    if (strcmp(log_field, "LOG_LEVEL") == 0) {
+        cm_log_param_instance()->log_level = (uint32)(*value);
+    }
+    else if (strcmp(log_field, "LOG_MAX_FILE_SIZE") == 0) {
+        cm_log_param_instance()->max_log_file_size = (uint64)(*value);
+        cm_log_param_instance()->max_audit_file_size = (uint64)(*value);
+    }
+    else if (strcmp(log_field, "LOG_BACKUP_FILE_COUNT") == 0) {
+        cm_log_param_instance()->log_backup_file_count = (uint32)(*value);
+        cm_log_param_instance()->audit_backup_file_count = (uint32)(*value);
+    }
+}
+
+int32 dms_init_logger(logger_param_t *param_def)
+{
+    errno_t ret;
+    log_param_t *log_param = cm_log_param_instance();
+    ret = memset_s(log_param, sizeof(log_param_t), 0, sizeof(log_param_t));
+    if (ret != EOK) {
+        return ERRNO_DMS_INIT_LOG_FAILED;
+    }
+
+    log_param->log_level = param_def->log_level;
+    log_param->log_backup_file_count = param_def->log_backup_file_count;
+    log_param->audit_backup_file_count = param_def->log_backup_file_count;
+    log_param->max_log_file_size = param_def->log_max_file_size;
+    log_param->max_audit_file_size = param_def->log_max_file_size;
+    cm_log_set_file_permissions(600);
+    cm_log_set_path_permissions(700);
+    (void)cm_set_log_module_name("DMS", sizeof("DMS"));
+    ret = strcpy_sp(log_param->instance_name, CM_MAX_NAME_LEN, "DMS");
+    if (ret != EOK) {
+        return ERRNO_DMS_INIT_LOG_FAILED;
+    }
+
+    ret = strcpy_sp(log_param->log_home, CM_MAX_LOG_HOME_LEN, param_def->log_home);
+    if (ret != EOK) {
+        return ERRNO_DMS_INIT_LOG_FAILED;
+    }
+
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_RUN));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DEBUG));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_ALARM));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_AUDIT));
+
+    log_param->log_instance_startup = (bool32)CM_TRUE;
+    return DMS_SUCCESS;
 }
 
 static int dms_init_stat(dms_profile_t *dms_profile)
