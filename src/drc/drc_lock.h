@@ -38,6 +38,7 @@ typedef struct st_drc_local_latch_stat {
     volatile uint16 shared_count;
     volatile uint16 stat;
     volatile uint32 sid;
+    volatile uint32 sid_sum;
     uint8 lock_mode;    /* master register mode */
     uint8 unused[3];
 } drc_local_latch_t;
@@ -55,11 +56,11 @@ typedef struct st_drc_local_lock_res {
     drc_local_latch_t latch_stat;
 } drc_local_lock_res_t;
 
-static inline bool32 drc_owner_table_lock_shared(dms_context_t *dms_ctx, drc_local_latch_t *latch_stat)
+static inline bool32 drc_owner_table_lock_shared(dms_context_t *dms_ctx, drc_local_latch_t *latch_stat,
+    dms_dr_type_t type)
 {
 #ifndef OPENGAUSS
-    return dms_ctx->lock_id.type == DMS_DR_TYPE_TABLE && dms_ctx->sess_id == latch_stat->sid &&
-           latch_stat->shared_count == 1;
+    return type == DMS_DR_TYPE_TABLE && dms_ctx->sess_id == latch_stat->sid_sum && latch_stat->shared_count == 1;
 #else
     return CM_FALSE;
 #endif

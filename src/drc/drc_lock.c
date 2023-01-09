@@ -51,6 +51,7 @@ static drc_local_lock_res_t *drc_create_local_lock_res(drc_res_bucket_t *bucket,
     lock_res->latch_stat.shared_count = 0;
     lock_res->latch_stat.stat = LATCH_STATUS_IDLE;
     lock_res->latch_stat.sid = 0;
+    lock_res->latch_stat.sid_sum = 0;
     lock_res->releasing = CM_FALSE;
     lock_res->ver = 0;
 
