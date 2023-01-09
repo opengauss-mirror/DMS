@@ -45,6 +45,7 @@ extern "C" {
 
 #define DMS_VERSION_MAX_LEN     256
 #define DMS_OCK_LOG_PATH_LEN    256
+#define DMS_LOG_PATH_LEN        (256)
 typedef enum en_dms_online_status {
     DMS_ONLINE_STATUS_OUT = 0,
     DMS_ONLINE_STATUS_JOIN = 1,
@@ -760,6 +761,13 @@ typedef struct st_dms_profile {
     unsigned char scrlock_server_bind_core_end;
 } dms_profile_t;
 
+typedef struct st_logger_param {
+    unsigned int log_level;
+    unsigned long long log_max_file_size;
+    unsigned int log_backup_file_count;
+    char log_home[DMS_LOG_PATH_LEN];
+} logger_param_t;
+
 #define DMS_BUF_CTRL_IS_OWNER(ctrl) ((ctrl)->lock_mode == DMS_LOCK_EXCLUSIVE || \
     ((ctrl)->lock_mode == DMS_LOCK_SHARE))
 #define DMS_BUF_CTRL_NOT_LOCK(ctrl)  ((ctrl)->lock_mode == DMS_LOCK_NULL)
@@ -768,7 +776,7 @@ typedef struct st_dms_profile {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           42
+#define DMS_LOCAL_VERSION           43
 
 #ifdef __cplusplus
 }

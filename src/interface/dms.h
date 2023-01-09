@@ -50,6 +50,21 @@ extern "C" {
 DMS_DECLARE int dms_init(dms_profile_t *dms_profile);
 
 /*
+* @brief DMS init logger
+ * @[in] param param_def - logger parameter 
+ * @return DMS_SUCCESS - success; otherwise: failed
+*/
+DMS_DECLARE int dms_init_logger(logger_param_t *param_def);
+
+/*
+* @brief DMS refresh logger configure
+ * @[in] log_field -  logger configure string.
+ * @[in] value -  logger configure value.
+ * @return void 
+*/
+DMS_DECLARE void dms_refresh_logger(char *log_field, unsigned long long *value);
+
+/*
 * @brief DMS get error msg and error code
  * @[out]param errcode -  get dms error code.
  * @[out]param errmsg -  get dms error msg.

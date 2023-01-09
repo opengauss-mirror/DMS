@@ -48,6 +48,7 @@ extern "C" {
 #define ERRNO_DMS_MFC_NO_TICKETS           10013
 #define ERRNO_DMS_MES_INVALID_MSG          10014
 #define ERRNO_DMS_RES_INVALID_VERSION      10015
+#define ERRNO_DMS_INIT_LOG_FAILED          10016
 
 /* ****BEGIN error code definition of dms dcs 11001 ~ 13000 ************* */
 #define ERRNO_DMS_DCS_PAGE_MASTER_ID       11001
