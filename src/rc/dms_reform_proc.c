@@ -1515,6 +1515,7 @@ static void dms_reform_end(void)
     reform_info->ddl_unable = CM_FALSE;
     reform_info->bcast_unable = CM_FALSE;
     reform_info->reform_done = CM_TRUE;
+    reform_info->reform_fail =  CM_FALSE;
 }
 
 static void dms_reform_set_switchover_result(void)
