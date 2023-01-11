@@ -253,6 +253,8 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
 
     uint64 invld_insts = 0;
     switch ((dms_opengauss_lock_req_type_t)lock_req_type) {
+        case SHARED_INVAL_MSG:
+        case DROP_BUF_MSG:
         case LOCK_NORMAL_MODE: {
             /* normal case, send to all normal nodes exclude self and in recovery */
             share_info_t *share_info = DMS_SHARE_INFO;
