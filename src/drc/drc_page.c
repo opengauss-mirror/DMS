@@ -664,9 +664,9 @@ int drc_release_page_owner(char* resid, uint16 len, uint8 inst_id, bool8 *releas
         }
     }
     if (buf_res->claimed_owner == inst_id) {
-        if (buf_res->need_flush || buf_res->edp_map != 0) {
-            LOG_DEBUG_INF("[DCS][%s][drc_release_page_owner]: can't release owner, need flush(%u) or edp_map(%llu)"
-                "exists", cm_display_pageid(resid), (uint32)buf_res->need_flush, buf_res->edp_map);
+        if (buf_res->copy_promote || buf_res->edp_map != 0) {
+            LOG_DEBUG_INF("[DCS][%s][drc_release_page_owner]: can't release owner, copy promote(%u) or edp_map(%llu)"
+                "exists", cm_display_pageid(resid), (uint32)buf_res->copy_promote, buf_res->edp_map);
             drc_leave_buf_res(buf_res);
             return DMS_SUCCESS;
         }
@@ -756,6 +756,7 @@ int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *ski
     if (buf_res->in_recovery || buf_res->claimed_owner == CM_INVALID_ID8) {
         *skip = CM_FALSE;
     } else {
+        buf_res->recovery_skip = CM_TRUE;
         *skip = CM_TRUE;
     }
     drc_leave_buf_res(buf_res);

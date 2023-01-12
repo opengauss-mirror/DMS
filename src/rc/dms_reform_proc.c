@@ -959,8 +959,8 @@ static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res)
     }
 
     bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
-    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN) && buf_res->type == DRC_RES_PAGE_TYPE) {
-        buf_res->need_flush = CM_TRUE;
+    if (buf_res->type == DRC_RES_PAGE_TYPE) {
+        buf_res->copy_promote = CM_TRUE;
     }
     LOG_DEBUG_INF("[DMS REFORM][%s]dms_reform_repair_with_copy_insts, owner: %d, copy_inst: %llu",
         cm_display_resid(buf_res->data, buf_res->type), buf_res->claimed_owner, buf_res->copy_insts);
@@ -1129,21 +1129,20 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res)
 {
     int ret = DMS_SUCCESS;
 
-    if (!buf_res->need_flush) {
-        return ret;
-    }
-
+    if (buf_res->copy_promote && buf_res->recovery_skip) {
 #ifdef OPENGAUSS
-    ret = g_dms.callback.flush_copy(g_dms.reform_ctx.handle_proc, buf_res->data);
-#else
-    if (dms_dst_id_is_self(buf_res->claimed_owner)) {
         ret = g_dms.callback.flush_copy(g_dms.reform_ctx.handle_proc, buf_res->data);
-    } else {
-        ret = dms_reform_flush_copy_page(buf_res);
-    }
+#else
+        if (dms_dst_id_is_self(buf_res->claimed_owner)) {
+            ret = g_dms.callback.flush_copy(g_dms.reform_ctx.handle_proc, buf_res->data);
+        } else {
+            ret = dms_reform_flush_copy_page(buf_res);
+        }
 #endif
+    }
+    buf_res->copy_promote = CM_FALSE;
+    buf_res->recovery_skip = CM_FALSE;
 
-    buf_res->need_flush = CM_FALSE;
     return ret;
 }
 
