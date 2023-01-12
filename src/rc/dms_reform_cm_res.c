@@ -63,8 +63,15 @@ static void dms_reform_cm_simulation_refresh(void)
 static void dms_reform_cm_simulation_thread(thread_t *thread)
 {
     char *cm_config_path = getenv(CM_CONFIG_PATH);
+    char cm_config_realpath[CM_MAX_PATH_LEN];
     if (cm_config_path == NULL) {
         LOG_RUN_ERR("[DMS REFORM][cm_simulation]fail to get CM_CONFIG_PATH");
+        return;
+    }
+
+    int status = realpath_file(cm_config_path, cm_config_realpath, CM_MAX_PATH_LEN);
+    if (status != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS REFORM]invalid cfg dir");
         return;
     }
 
@@ -74,7 +81,7 @@ static void dms_reform_cm_simulation_thread(thread_t *thread)
 
     while (!thread->closed) {
         cm_spin_lock(&g_cm_simulation.lock, NULL);
-        int status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_path, &g_cm_simulation.config, CM_FALSE);
+        int status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_realpath, &g_cm_simulation.config, CM_FALSE);
         if (status != CM_SUCCESS) {
             cm_spin_unlock(&g_cm_simulation.lock);
             LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to load cm simulation");
@@ -90,8 +97,15 @@ static void dms_reform_cm_simulation_thread(thread_t *thread)
 static void dms_reform_cm_simulation(void)
 {
     char *cm_config_path = getenv(CM_CONFIG_PATH);
+    char cm_config_realpath[CM_MAX_PATH_LEN];
     if (cm_config_path == NULL) {
         LOG_RUN_ERR("[DMS REFORM][cm_simulation]fail to get CM_CONFIG_PATH");
+        return;
+    }
+
+    int status = realpath_file(cm_config_path, cm_config_realpath, CM_MAX_PATH_LEN);
+    if (status != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS REFORM]invalid cfg dir");
         return;
     }
 
@@ -130,10 +144,17 @@ void dms_reform_cm_simulation_uninit(void)
 static void dms_reform_get_online_list(instance_list_t *list_online)
 {
     char *cm_config_path = getenv(CM_CONFIG_PATH);
+    char cm_config_realpath[CM_MAX_PATH_LEN];
     if (cm_config_path == NULL) {
         for (uint8 i = 0; i < g_dms.inst_cnt; i++) {
             list_online->inst_id_list[list_online->inst_id_count++] = i;
         }
+        return;
+    }
+
+    int status = realpath_file(cm_config_path, cm_config_realpath, CM_MAX_PATH_LEN);
+    if (status != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS REFORM]invalid cfg dir");
         return;
     }
 
@@ -171,10 +192,17 @@ void dms_reform_cm_res_trans_lock(uint8 inst_id)
 {
     int status = CM_SUCCESS;
     char buf[CM_BUFLEN_32];
+    char cm_config_realpath[CM_MAX_PATH_LEN];
 
     char *cm_config_path = getenv(CM_CONFIG_PATH);
     if (cm_config_path == NULL) {
         g_cm_simulation.params.reformer_id = inst_id;
+        return;
+    }
+
+    status = realpath_file(cm_config_path, cm_config_realpath, CM_MAX_PATH_LEN);
+    if (status != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS REFORM]invalid cfg dir");
         return;
     }
 
@@ -195,7 +223,7 @@ void dms_reform_cm_res_trans_lock(uint8 inst_id)
     }
 
     cm_spin_lock(&g_cm_simulation.lock, NULL);
-    status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_path, &g_cm_simulation.config, CM_FALSE);
+    status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_realpath, &g_cm_simulation.config, CM_FALSE);
     if (status != CM_SUCCESS) {
         cm_spin_unlock(&g_cm_simulation.lock);
         LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to load cm simulation");
