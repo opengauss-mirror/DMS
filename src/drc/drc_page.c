@@ -266,9 +266,15 @@ static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%u sid:%u rsn:%u req_mode:%u] prepare confirm",
         cm_display_resid(buf_res->data, buf_res->type), (uint32)cvt_req->inst_id,
         (uint32)cvt_req->sess_id, cvt_req->rsn, (uint32)cvt_req->req_mode);
+#ifdef OPENGAUSS
+    if (cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRC][%s]fail to add to confirm queue", cm_display_resid(buf_res->data, buf_res->type));
+    }
+#else
     if (cm_chan_send_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
         LOG_DEBUG_ERR("[DRC][%s]fail to add to confirm queue", cm_display_resid(buf_res->data, buf_res->type));
     }
+#endif
 }
 
 static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *buf_res,
