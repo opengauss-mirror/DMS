@@ -930,6 +930,34 @@ static int32 dms_notify_already_owner(dms_process_context_t *ctx, cvt_info_t *cv
     return CM_SUCCESS;
 }
 
+static int32 dms_notify_granted_directly(dms_process_context_t *ctx, cvt_info_t *cvt_info)
+{
+    // this page not in memory of other instance, notify requester to load from disk
+    dms_ask_res_ack_ld_t ack;
+    MES_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER,
+        0, ctx->inst_id, cvt_info->req_id, ctx->sess_id, cvt_info->req_sid);
+    ack.head.rsn  = cvt_info->req_rsn;
+    ack.head.size = sizeof(dms_ask_res_ack_ld_t);
+
+#ifndef OPENGAUSS
+    if (cvt_info->res_type == DRC_RES_PAGE_TYPE) {
+        ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
+        ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
+    }
+#endif
+    if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][ASK MASTER]send failed, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
+            cm_display_resid(cvt_info->resid, cvt_info->res_type), (uint32)ack.head.src_inst,
+            (uint32)ack.head.src_sid, (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid, (uint32)cvt_info->req_mode);
+        return CM_ERROR;
+    }
+
+    LOG_DEBUG_INF("[DMS][%s][ASK MASTER]send OK, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
+        cm_display_resid(cvt_info->resid, cvt_info->res_type), (uint32)ack.head.src_inst,
+        (uint32)ack.head.src_sid, (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid, (uint32)cvt_info->req_mode);
+    return CM_SUCCESS;
+}
+
 static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info)
 {
     int ret;
@@ -945,6 +973,9 @@ static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info
             break;
         case DRC_REQ_OWNER_ALREADY_OWNER:
             ret = dms_notify_already_owner(ctx, cvt_info);
+            break;
+        case DRC_REQ_OWNER_GRANTED:
+            ret = dms_notify_granted_directly(ctx, cvt_info);
             break;
         default:
             ret = CM_ERROR;

@@ -415,6 +415,9 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
     cvt_info->ver = buf_res->ver;
     cvt_info->owner_id = buf_res->claimed_owner;
 
+    errno_t ret = memcpy_s(cvt_info->resid, DMS_RESID_SIZE, buf_res->data, buf_res->len);
+    DMS_SECUREC_CHECK(ret);
+
     if (buf_res->lock_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_SHARE) {
         cvt_info->invld_insts = 0;
     } else if (buf_res->lock_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
@@ -424,17 +427,22 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
         CM_ASSERT(buf_res->copy_insts == 0);
     }
 
+    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        CM_ASSERT(buf_res->lock_mode == DMS_LOCK_NULL);
+        cvt_info->type = DRC_REQ_OWNER_GRANTED;
+        return;
+    }
+
     if (buf_res->claimed_owner != req_info->inst_id) {
         cvt_info->type = DRC_REQ_OWNER_CONVERTING;
-    } else {
-        cvt_info->has_share_copy = CM_TRUE;
-        cvt_info->type = DRC_REQ_OWNER_ALREADY_OWNER;
-        cm_panic_log(buf_res->lock_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE,
-            "[DRC][%s] buf res status error, curr mode = %u, req mode = %u",
-            cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->lock_mode, (uint32)req_info->req_mode);
+        return;
     }
-    errno_t ret = memcpy_s(cvt_info->resid, DMS_RESID_SIZE, buf_res->data, buf_res->len);
-    DMS_SECUREC_CHECK(ret);
+
+    cvt_info->has_share_copy = CM_TRUE;
+    cvt_info->type = DRC_REQ_OWNER_ALREADY_OWNER;
+    cm_panic_log(buf_res->lock_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE,
+        "[DRC][%s] buf res status error, curr mode = %u, req mode = %u",
+        cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->lock_mode, (uint32)req_info->req_mode);
 }
 
 int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cvt_info_t* cvt_info)
