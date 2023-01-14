@@ -750,6 +750,13 @@ DMS_DECLARE int dms_is_share_reformer(void);
 DMS_DECLARE void dms_ddl_enter(void);
 DMS_DECLARE void dms_ddl_leave(void);
 
+/*
+ * @brief thorough check for DRC and bufferpool buffer befor reform ends
+ * @ PANIC if any of version, pageid, lockmode and need_flush is unmatched.
+ */
+DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
+    unsigned long long lsn, unsigned char is_dirty);
+
 #ifdef __cplusplus
 }
 #endif

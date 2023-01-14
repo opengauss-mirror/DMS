@@ -134,6 +134,8 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_BCAST_UNABLE,                   // for Gauss100
     DMS_REFORM_STEP_UPDATE_SCN,
     DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
+    DMS_REFORM_STEP_DRC_VALIDATE,
+
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
 
