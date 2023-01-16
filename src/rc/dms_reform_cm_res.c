@@ -62,6 +62,10 @@ static void dms_reform_cm_simulation_refresh(void)
 
 static void dms_reform_cm_simulation_thread(thread_t *thread)
 {
+#ifdef OPENGAUSS
+    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
+#endif
+
     char *cm_config_path = getenv(CM_CONFIG_PATH);
     char cm_config_realpath[CM_MAX_PATH_LEN];
     if (cm_config_path == NULL) {
