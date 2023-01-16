@@ -416,6 +416,7 @@ static int dms_reform_req_migrate_add_buf_res(drc_buf_res_t *buf_res, dms_reform
     res_msg->claimed_owner = buf_res->claimed_owner;
     res_msg->copy_insts = buf_res->copy_insts;
     res_msg->lsn = buf_res->lsn;
+    res_msg->last_edp = buf_res->last_edp;
     res_msg->mode = buf_res->lock_mode;
     res_msg->edp_map = buf_res->edp_map;
     res_msg->len = buf_res->len;
@@ -492,6 +493,7 @@ static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, dr
     init_drc_cvt_item(&buf_res->converting);
     buf_res->claimed_owner = res_msg->claimed_owner;
     buf_res->copy_insts = res_msg->copy_insts;
+    buf_res->last_edp = res_msg->last_edp;
     buf_res->lock_mode = res_msg->mode;
     buf_res->edp_map = res_msg->edp_map;
     buf_res->lsn  = res_msg->lsn;

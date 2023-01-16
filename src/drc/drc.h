@@ -142,14 +142,15 @@ typedef struct st_drc_buf_res {
     uint8           last_edp;           /* the newest edp instance id */
     uint8           type;               /* page or lock */
     bool8           in_recovery;        /* in recovery or not */
-    bool8           need_flush;         /* need flush or not */
+    bool8           copy_promote;       /* copy promote to owner, can not release, may need flush */
     uint16          part_id;            /* which partition id that current page belongs to */
     bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
     uint64          lsn;                /* the newest edp LSN of current page in the cluster */
     uint32          ver;
     uint16          len;                /* the length of data below */
-    uint16          unused;
+    uint8           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
+    uint8           unused;
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
     bilist_t        convert_q;          /* current page's requester queue */
     char            data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
@@ -158,7 +159,7 @@ typedef struct st_drc_buf_res {
 typedef struct st_drc_buf_res_msg {
     uint8 claimed_owner;
     uint8 mode;
-    uint8 lock_item_num;
+    uint8 last_edp;
     uint16 len;
     char resid[DMS_RESID_SIZE];
     uint64 lsn;
