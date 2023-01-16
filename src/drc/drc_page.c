@@ -756,7 +756,9 @@ int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *ski
     if (buf_res->in_recovery || buf_res->claimed_owner == CM_INVALID_ID8) {
         *skip = CM_FALSE;
     } else {
+#ifndef OPENGAUSS
         buf_res->recovery_skip = CM_TRUE;
+#endif
         *skip = CM_TRUE;
     }
     drc_leave_buf_res(buf_res);

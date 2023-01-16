@@ -1129,20 +1129,22 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res)
 {
     int ret = DMS_SUCCESS;
 
-    if (buf_res->copy_promote && buf_res->recovery_skip) {
 #ifdef OPENGAUSS
+    if (buf_res->copy_promote) {
         ret = g_dms.callback.flush_copy(g_dms.reform_ctx.handle_proc, buf_res->data);
+    }
+    buf_res->copy_promote = CM_FALSE;
 #else
+    if (buf_res->copy_promote && buf_res->recovery_skip) {
         if (dms_dst_id_is_self(buf_res->claimed_owner)) {
             ret = g_dms.callback.flush_copy(g_dms.reform_ctx.handle_proc, buf_res->data);
         } else {
             ret = dms_reform_flush_copy_page(buf_res);
         }
-#endif
     }
     buf_res->copy_promote = CM_FALSE;
     buf_res->recovery_skip = CM_FALSE;
-
+#endif
     return ret;
 }
 
