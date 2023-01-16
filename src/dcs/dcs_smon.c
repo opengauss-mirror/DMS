@@ -28,6 +28,7 @@
 #include "dms_mfc.h"
 
 #ifndef OPENGAUSS
+#define CM_MAX_RMS 16320
 static void dcs_proc_smon_get_sid(dms_process_context_t *ctx, mes_message_t *receive_msg)
 {
     int ret = CM_SUCCESS;
@@ -36,6 +37,13 @@ static void dcs_proc_smon_get_sid(dms_process_context_t *ctx, mes_message_t *rec
     uint16 rmid = *(uint16 *)(receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint32));
     uint32 mes_size = (uint32)(sizeof(mes_message_head_t) + sizeof(uint16));
     uint16 sid;
+
+    if (SECUREC_UNLIKELY(rmid >= CM_MAX_RMS)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid rmid value");
+        mfc_release_message_buf(receive_msg);
+        LOG_RUN_ERR("[SMON] proc get sid, the rmid %u is invalid", (uint32)rmid);
+        return;
+    }
 
     send_msg = (uint8 *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (send_msg == NULL) {
@@ -78,6 +86,13 @@ static void dcs_proc_smon_get_txn_dlock(dms_process_context_t *ctx, mes_message_
     uint32 mes_size = (uint32)(sizeof(mes_message_head_t) + DMS_SMON_DLOCK_MSG_MAX_LEN);
     char *ss_lock;
 
+     if (SECUREC_UNLIKELY(rmid >= CM_MAX_RMS)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid rmid value");
+        mfc_release_message_buf(receive_msg);
+        LOG_RUN_ERR("[SMON] proc get txn dlock, the rmid %u is invalid", (uint32)rmid);
+        return;
+    }
+
     send_msg = (uint8 *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (send_msg == NULL) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
@@ -119,6 +134,13 @@ static void dcs_proc_smon_get_rowid(dms_process_context_t *ctx, mes_message_t *r
     uint16 rmid = *(uint16 *)(receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint32));
     uint32 mes_size = (uint32)(sizeof(mes_message_head_t) + DMS_ROWID_SIZE);
     char *rowid;
+
+    if (SECUREC_UNLIKELY(rmid >= CM_MAX_RMS)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid rmid value");
+        mfc_release_message_buf(receive_msg);
+        LOG_RUN_ERR("[SMON] proc get rowid, the rmid %u is invalid", (uint32)rmid);
+        return;
+    }
 
     send_msg = (uint8 *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (send_msg == NULL) {
@@ -172,7 +194,9 @@ void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, mes_message_t *receive_
             dcs_proc_smon_get_rowid(ctx, receive_msg);
             break;
         default:
-            cm_panic(0);
+            CM_THROW_ERROR(ERRNO_DMS_CAPABILITY_NOT_SUPPORT, "dlock msg type");
+            LOG_RUN_ERR("invalid dlock msg type");
+            break;
     }
 #endif
 }
@@ -231,6 +255,12 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, mes_message_t *recei
 
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)(sizeof(mes_message_head_t) + sizeof(uint16)), CM_TRUE, CM_TRUE);
     uint16 sid = *(uint16 *)(receive_msg->buffer + sizeof(mes_message_head_t));
+    if (SECUREC_UNLIKELY(sid >= CM_MAX_SESSIONS)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid sid value");
+        mfc_release_message_buf(receive_msg);
+        LOG_RUN_ERR("[SMON] proc dead lock sql, the sid %u is invalid", (uint32)sid);
+        return;
+    }
     char *sql_str = (char *)g_dms.callback.mem_alloc(ctx->db_handle, DMS_SMON_MAX_SQL_LEN);
     if (sql_str == NULL) {
         mfc_release_message_buf(receive_msg);
@@ -304,6 +334,14 @@ void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, mes_message_t 
     uint32 type = check_tlock->type;
     uint16 sid = check_tlock->sid;
     uint64 tableid = check_tlock->table_id;
+
+    if (SECUREC_UNLIKELY(sid >= CM_MAX_SESSIONS)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid sid value");
+        mfc_release_message_buf(receive_msg);
+        LOG_RUN_ERR("[SMON] proc check tlock status, the sid %u is invalid", (uint32)sid);
+        return;
+    }
+
     send_msg = (uint8 *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (send_msg == NULL) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
@@ -425,6 +463,13 @@ void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, mes_message_t *r
     uint16 sid = req_tlock->sid;
     uint16 rmid = req_tlock->rmid;
     uint32 mes_size = (uint32)(sizeof(mes_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN);
+
+    if (SECUREC_UNLIKELY(sid >= CM_MAX_SESSIONS)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid sid value");
+        mfc_release_message_buf(receive_msg);
+        LOG_RUN_ERR("[SMON] proc table lock by rm, the sid %u is invalid", (uint32)sid);
+        return;
+    }
 
     send_msg = (uint8 *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (send_msg == NULL) {
