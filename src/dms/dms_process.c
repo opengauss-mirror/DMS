@@ -574,12 +574,6 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
     return ret;
 }
 
-static void dms_init_log(dms_profile_t *dms_profile)
-{
-    cm_log_param_instance()->log_write = (usr_cb_log_output_t)dms_profile->callback.log_output;
-    cm_log_param_instance()->log_level = MAX_LOG_LEVEL;
-}
-
 static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, char *file_name, uint32 file_name_len)
 {
     int32 ret;
@@ -728,7 +722,6 @@ int dms_init(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
         return ERRNO_DMS_PARAM_NULL;
     }
-    dms_init_log(dms_profile);
 
     ret = memset_s(&g_dms, sizeof(dms_instance_t), 0, sizeof(dms_instance_t));
     DMS_SECUREC_CHECK(ret);
