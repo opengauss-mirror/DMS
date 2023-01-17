@@ -193,6 +193,14 @@ static void dms_reform_health_handle_fail(void)
 
 static void dms_reform_health_check(void)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    // if has set reform fail, no need check again, just wait timeout and abort
+    if (reform_info->reform_fail) {
+        dms_reform_health_handle_fail();
+        return;
+    }
+
     if (dms_reform_health_check_reformer() != CM_TRUE) {
         LOG_RUN_ERR("[DMS REFORM]reformer abort during reform");
         dms_reform_health_handle_fail();
