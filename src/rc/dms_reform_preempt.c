@@ -94,8 +94,14 @@ void dms_reformer_preempt_thread(thread_t *thread)
         }
         reform_info->reformer_id = reform_id;
         if (dms_dst_id_is_self(reform_id)) {
+            if (reform_info->dms_role != DMS_ROLE_REFORMER) {
+                LOG_RUN_INF("[DMS REFORM]dms_reformer_preempt set role reformer");
+            }
             reform_info->dms_role = DMS_ROLE_REFORMER;
         } else {
+            if (reform_info->dms_role != DMS_ROLE_PARTNER) {
+                LOG_RUN_INF("[DMS REFORM]dms_reformer_preempt set role partner");
+            }
             reform_info->dms_role = DMS_ROLE_PARTNER;
         }
     }
