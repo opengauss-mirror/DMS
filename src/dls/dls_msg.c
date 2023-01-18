@@ -27,6 +27,7 @@
 #include "dms_stat.h"
 #include "dcs_msg.h"
 #include "dls_msg.h"
+#include "cm_encrypt.h"
 
 static inline void dls_change_global_lock_mode(drc_local_lock_res_t *lock_res, uint8 req_mode)
 {
