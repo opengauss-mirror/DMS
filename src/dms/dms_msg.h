@@ -94,6 +94,7 @@ typedef enum en_msg_command {
     MSG_REQ_CHECK_REFORM_DONE = 47,
     MSG_REQ_MAP_INFO = 48,
     MSG_REQ_DDL_SYNC = 49,
+    MSG_REQ_QUERY_PAGE_ONWER = 50,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -136,6 +137,7 @@ typedef enum en_msg_command {
     MSG_ACK_COMMON = 164,
     MSG_ACK_CONFIRM_CVT = 165,
     MSG_ACK_MAP_INFO = 166,
+    MSG_ACK_QUERY_PAGE_ONWER = 167,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -254,6 +256,16 @@ typedef struct st_dms_confirm_cvt_ack {
     uint64 edp_map;
     uint32 ver;
 }dms_confirm_cvt_ack_t;
+
+typedef struct st_dms_query_owner_req  {
+    mes_message_head_t head;
+    char resid[DMS_RESID_SIZE];
+} dms_query_owner_req_t;
+
+typedef struct st_dms_query_owner_ack  {
+    mes_message_head_t head;
+    uint8 owner_id;
+} dms_query_owner_ack_t;
 
 static inline void cm_print_error_msg(const void *msg_data)
 {
