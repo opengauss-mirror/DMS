@@ -1809,14 +1809,18 @@ static void dms_reform_judgement_reformer(void)
         return;
     }
 
+    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before get online list");
     if (dms_reform_get_list_from_cm(&share_info->list_online, &share_info->list_offline) != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get online list");
         return;
     }
 
 #ifdef UT_TEST
     return;
 #endif
+    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before get stable list");
     if (dms_reform_get_list_stable() != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get stable list");
         return;
     }
 
@@ -1824,17 +1828,22 @@ static void dms_reform_judgement_reformer(void)
 
     // mes_channel_entry has been created in mes_init, add mes_channel_entry dynamically is not allowed in openGauss
 #ifndef OPENGAUSS
+    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before connect to online list");
     if (dms_reform_connect(&share_info->list_online) != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to connect to online list");
         return;
     }
 #endif
+    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before get online status");
     if (dms_reform_get_online_status(health_info->online_status, health_info->online_times, reform_ctx->sess_judge) !=
         DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get online status");
         return;
     }
 
+    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before judgement");
     if (!dms_reform_judgement(health_info->online_status)) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to judge");
         return;
     }
 
