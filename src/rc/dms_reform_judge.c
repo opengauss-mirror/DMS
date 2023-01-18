@@ -26,6 +26,8 @@
 #include "dms_reform_msg.h"
 #include "dms_errno.h"
 
+extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
+
 #ifndef OPENGAUSS
 static void dms_reform_list_remove(instance_list_t *list, int index)
 {
@@ -914,47 +916,6 @@ static void dms_refrom_judgement_startup_opengauss(void)
     dms_reform_add_step(DMS_REFORM_STEP_STARTUP_OPENGAUSS);
 }
 
-static char reform_step_desc[DMS_REFORM_STEP_COUNT][DMS_REFORM_STEP_DESC_STR_LEN] = {
-    [DMS_REFORM_STEP_DONE] = "DONE",
-    [DMS_REFORM_STEP_PREPARE] = "PREPARE",
-    [DMS_REFORM_STEP_START] = "START",
-    [DMS_REFORM_STEP_DISCONNECT] = "DISCONNECT",
-    [DMS_REFORM_STEP_RECONNECT] = "RECONNECT",
-    [DMS_REFORM_STEP_DRC_CLEAN] = "DRC_CLEAN",
-    [DMS_REFORM_STEP_MIGRATE] = "MIGRATE",
-    [DMS_REFORM_STEP_REBUILD] = "REBUILD",
-    [DMS_REFORM_STEP_REMASTER] = "REMASTER",
-    [DMS_REFORM_STEP_REPAIR] = "REPAIR",
-    [DMS_REFORM_STEP_SWITCH_LOCK] = "SWITCH_LOCK",
-    [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = "SWITCHOVER_DEMOTE",
-    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = "SWITCHOVER_PROMOTE",
-    [DMS_REFORM_STEP_RECOVERY] = "RECOVERY",
-    [DMS_REFORM_STEP_RECOVERY_PARALLEL] = "RECOVERY_PARALLEL",
-    [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = "RECOVERY_OPENGAUSS",
-    [DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN] = "RECOVERY_FLAG_CLEAN",
-    [DMS_REFORM_STEP_TXN_DEPOSIT] = "TXN_DEPOSIT",
-    [DMS_REFORM_STEP_ROLLBACK] = "ROLLBACK",
-    [DMS_REFORM_STEP_SUCCESS] = "SUCCESS",
-    [DMS_REFORM_STEP_SELF_FAIL] = "SELF_FAIL",
-    [DMS_REFORM_STEP_REFORM_FAIL] = "REFORM_FAIL",
-    [DMS_REFORM_STEP_SYNC_WAIT] = "SYNC_WAIT",
-    [DMS_REFORM_STEP_DRC_ACCESS] = "DRC_ACCESS",
-    [DMS_REFORM_STEP_PAGE_ACCESS] = "PAGE_ACCESS",
-    [DMS_REFORM_STEP_DRC_INACCESS] = "DRC_INACCESS",
-    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] = "SWITCHOVER_PROMOTE_OPENGAUSS",
-    [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] = "FAILOVER_PROMOTE_OPENGAUSS",
-    [DMS_REFORM_STEP_STARTUP_OPENGAUSS] = "STARTUP_OPENGAUSS",
-    [DMS_REFORM_STEP_FLUSH_COPY] = "FLUSH_COPY",
-    [DMS_REFORM_STEP_DONE_CHECK] = "DONE_CHECK",
-    [DMS_REFORM_STEP_SET_PHASE] = "SET_PHASE",
-    [DMS_REFORM_STEP_WAIT_DB] = "WAIT_DB",
-    [DMS_REFORM_STEP_BCAST_ENABLE] = "BCAST_ENABLE",
-    [DMS_REFORM_STEP_BCAST_UNABLE] = "BCAST_UNABLE",
-    [DMS_REFORM_STEP_UPDATE_SCN] = "UPDATE_SCN",
-    [DMS_REFORM_STEP_WAIT_CKPT] = "WAIT_CKPT",
-    [DMS_REFORM_STEP_DRC_VALIDATE] = "DRC_VALIDATE",
-};
-
 static char *dms_reform_get_type_desc(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -1000,14 +961,14 @@ void dms_reform_judgement_step_log(void)
     char desc[DMS_INFO_DESC_LEN] = { 0 };
     errno_t err;
 
-    err = strcat_s(desc, DMS_INFO_DESC_LEN, reform_step_desc[step]);
+    err = strcat_s(desc, DMS_INFO_DESC_LEN, g_dms_reform_procs[step].desc);
     DMS_SECUREC_CHECK(err);
 
     for (uint8 i = 1; i < share_info->reform_step_count; i++) {
         err = strcat_s(desc, DMS_INFO_DESC_LEN, "-");
         DMS_SECUREC_CHECK(err);
         step = (uint8)share_info->reform_step[i];
-        err = strcat_s(desc, DMS_INFO_DESC_LEN, reform_step_desc[step]);
+        err = strcat_s(desc, DMS_INFO_DESC_LEN, g_dms_reform_procs[step].desc);
         DMS_SECUREC_CHECK(err);
     }
 
