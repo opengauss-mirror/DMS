@@ -124,7 +124,7 @@ static int32 dcs_notify_process_edp(dms_context_t *dms_ctx, dms_edp_info_t *page
     uint32 tmp_count = count;
 
     for (uint32 i = 0; i < tmp_count; i++) {
-        if ((ret = calc_edp(dms_ctx, pages[i].page, &pages[i].id)) != DMS_SUCCESS) {
+        if (calc_edp(dms_ctx, pages[i].page, &pages[i].id) != DMS_SUCCESS || pages[i].id == CM_INVALID_ID8) {
             /* get master id or owner id failed, move it to array's tail */
             SWAP(dms_edp_info_t, pages[i], pages[tmp_count - 1]);
             tmp_count--;

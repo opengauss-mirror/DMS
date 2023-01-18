@@ -31,6 +31,7 @@
 #include "dms_log.h"
 #include "drc_page.h"
 #include "dms_reform_proc.h"
+#include "cm_encrypt.h"
 
 #ifdef __cplusplus
 extern "C" {
