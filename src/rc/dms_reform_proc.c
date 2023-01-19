@@ -1826,7 +1826,7 @@ static void dms_reform_remote_fail(void)
 }
 
 // reform fail cause by self
-static void dms_reform_self_fail(void)
+static int dms_reform_self_fail(void)
 {
     LOG_RUN_FUNC_ENTER;
     if (DMS_IS_SHARE_REFORMER) {
@@ -1838,10 +1838,11 @@ static void dms_reform_self_fail(void)
     dms_reform_set_switchover_result();
     dms_reform_end();
     LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
 }
 
 // reform fail cause by notification from reformer
-static void dms_reform_fail(void)
+static int dms_reform_fail(void)
 {
     LOG_RUN_FUNC_ENTER;
     if (DMS_IS_SHARE_REFORMER) {
@@ -1851,6 +1852,7 @@ static void dms_reform_fail(void)
     dms_reform_set_switchover_result();
     dms_reform_end();
     LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
 }
 
 static int dms_reform_sync_next_step_r(uint8 dst_id)
@@ -2082,163 +2084,62 @@ static int dms_reform_startup_opengauss(void)
     return DMS_SUCCESS;
 }
 
+dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
+    [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL },
+    [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL },
+    [DMS_REFORM_STEP_START] = { "START", dms_reform_start, NULL },
+    [DMS_REFORM_STEP_DISCONNECT] = { "DISCONN", dms_reform_disconnect, NULL },
+    [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, NULL },
+    [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, NULL},
+    [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, NULL },
+    [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, NULL },
+    [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL },
+    [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, NULL },
+    [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL },
+    [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL },
+    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL },
+    [DMS_REFORM_STEP_RECOVERY] = { "RECOVERY", dms_reform_recovery, NULL },
+    [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY", dms_reform_recovery_opengauss, NULL },
+    [DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN] = { "RCY_CLEAN", dms_reform_recovery_flag_clean, NULL },
+    [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL },
+    [DMS_REFORM_STEP_ROLLBACK] = { "ROLLBACK", dms_reform_rollback, NULL },
+    [DMS_REFORM_STEP_SUCCESS] = { "SUCCESS", dms_reform_success, NULL },
+    [DMS_REFORM_STEP_SELF_FAIL] = { "SELF_FAIL", dms_reform_self_fail, NULL },
+    [DMS_REFORM_STEP_REFORM_FAIL] = { "REFORM_FAIL", dms_reform_fail, NULL },
+    [DMS_REFORM_STEP_SYNC_WAIT] = { "SYNC_WAIT", dms_reform_sync_wait, NULL },
+    [DMS_REFORM_STEP_PAGE_ACCESS] = { "PAGE_ACCESS", dms_reform_page_access, NULL },
+    [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL },
+    [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL },
+    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] = { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL },
+    [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] = { "F_PROMOTE", dms_reform_failover_promote_opengauss, NULL },
+    [DMS_REFORM_STEP_STARTUP_OPENGAUSS] = { "STARTUP", dms_reform_startup_opengauss, NULL },
+    [DMS_REFORM_STEP_FLUSH_COPY] = { "FLUSH_COPY", dms_reform_flush_copy, NULL },
+    [DMS_REFORM_STEP_DONE_CHECK] = { "DONE_CHECK", dms_reform_done_check, NULL },
+    [DMS_REFORM_STEP_SET_PHASE] = { "SET_PHASE", dms_reform_set_phase, NULL },
+    [DMS_REFORM_STEP_WAIT_DB] = { "WAIT_DB", dms_reform_wait_db, NULL },
+    [DMS_REFORM_STEP_BCAST_ENABLE] = { "BCAST_ENABLE", dms_reform_bcast_enable, NULL },
+    [DMS_REFORM_STEP_BCAST_UNABLE] = { "BCAST_UNABLE", dms_reform_bcast_unable, NULL },
+    [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL },
+    [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL },
+    [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL },
+};
+
 static void dms_reform_inner(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
 
-    switch (reform_info->current_step) {
-        case DMS_REFORM_STEP_PREPARE:
-            ret = dms_reform_prepare();
-            break;
+    if (reform_info->current_step >= DMS_REFORM_STEP_COUNT) {
+        LOG_RUN_ERR("dms_reform_inner, error step: %d", reform_info->current_step);
+        reform_info->current_step = DMS_REFORM_STEP_SELF_FAIL;
+        reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
+    }
 
-        case DMS_REFORM_STEP_START:
-            ret = dms_reform_start();
-            break;
-
-        case DMS_REFORM_STEP_DISCONNECT:
-            ret = dms_reform_disconnect();
-            break;
-
-        case DMS_REFORM_STEP_RECONNECT:
-            ret = dms_reform_reconnect();
-            break;
-
-        case DMS_REFORM_STEP_DRC_CLEAN:
-            ret = dms_reform_drc_clean();
-            break;
-
-        case DMS_REFORM_STEP_MIGRATE:
-            ret = dms_reform_migrate();
-            break;
-
-        case DMS_REFORM_STEP_REBUILD:
-            ret = dms_reform_rebuild();
-            break;
-
-        case DMS_REFORM_STEP_REMASTER:
-            ret = dms_reform_remaster();
-            break;
-
-        case DMS_REFORM_STEP_REPAIR:
-            ret = dms_reform_repair();
-            break;
-
-        case DMS_REFORM_STEP_FLUSH_COPY:
-            ret = dms_reform_flush_copy();
-            break;
-
-        case DMS_REFORM_STEP_SWITCH_LOCK:
-            ret = dms_reform_switch_lock();
-            break;
-
-        case DMS_REFORM_STEP_SWITCHOVER_DEMOTE:
-            ret = dms_reform_switchover_demote();
-            break;
-
-        case DMS_REFORM_STEP_SWITCHOVER_PROMOTE:
-            ret = dms_reform_switchover_promote();
-            break;
-
-        case DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS:
-            ret = dms_reform_switchover_promote_opengauss();
-            break;
-
-        case DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS:
-            ret = dms_reform_failover_promote_opengauss();
-            break;
-
-        case DMS_REFORM_STEP_RECOVERY:
-            ret = dms_reform_recovery();
-            break;
-
-        case DMS_REFORM_STEP_RECOVERY_OPENGAUSS:
-            ret = dms_reform_recovery_opengauss();
-            break;
-
-        case DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN:
-            ret = dms_reform_recovery_flag_clean();
-            break;
-
-        case DMS_REFORM_STEP_TXN_DEPOSIT:
-            ret = dms_reform_txn_deposit();
-            break;
-
-        case DMS_REFORM_STEP_ROLLBACK:
-            ret = dms_reform_rollback();
-            break;
-
-        case DMS_REFORM_STEP_SUCCESS:
-            ret = dms_reform_success();
-            break;
-
-        case DMS_REFORM_STEP_SYNC_WAIT:
-            ret = dms_reform_sync_wait();
-            break;
-
-        case DMS_REFORM_STEP_PAGE_ACCESS:
-            ret = dms_reform_page_access();
-            break;
-
-        case DMS_REFORM_STEP_DRC_ACCESS:
-            ret = dms_reform_drc_access();
-            break;
-
-        case DMS_REFORM_STEP_DRC_INACCESS:
-            ret = dms_reform_drc_inaccess();
-            break;
-
-        case DMS_REFORM_STEP_DRC_VALIDATE:
-            ret = dms_reform_drc_validate();
-            break;
-
-        case DMS_REFORM_STEP_STARTUP_OPENGAUSS:
-            ret = dms_reform_startup_opengauss();
-            break;
-
-        case DMS_REFORM_STEP_DONE:
-            ret = dms_reform_done();
-            break;
-
-        case DMS_REFORM_STEP_DONE_CHECK:
-            ret = dms_reform_done_check();
-            break;
-
-        case DMS_REFORM_STEP_SET_PHASE:
-            ret = dms_reform_set_phase();
-            break;
-
-        case DMS_REFORM_STEP_WAIT_DB:
-            ret = dms_reform_wait_db();
-            break;
-
-        case DMS_REFORM_STEP_BCAST_ENABLE:
-            ret = dms_reform_bcast_enable();
-            break;
-
-        case DMS_REFORM_STEP_BCAST_UNABLE:
-            ret = dms_reform_bcast_unable();
-            break;
-
-        case DMS_REFORM_STEP_UPDATE_SCN:
-            ret = dms_reform_update_scn();
-            break;
-
-        case DMS_REFORM_STEP_WAIT_CKPT:
-            ret = dms_reform_wait_ckpt();
-            break;
-
-        case DMS_REFORM_STEP_SELF_FAIL:
-            dms_reform_self_fail();
-            break;
-
-        case DMS_REFORM_STEP_REFORM_FAIL:
-            dms_reform_fail();
-            break;
-
-        default:
-            LOG_RUN_ERR("dms_reform_inner, error step: %d", reform_info->current_step);
-            return;
+    dms_reform_proc_t reform_proc = g_dms_reform_procs[reform_info->current_step];
+    if (reform_info->parallel_enable && reform_proc.proc_parallel != NULL) {
+        ret = reform_proc.proc_parallel();
+    } else {
+        ret = reform_proc.proc();
     }
 
     if (reform_info->reform_done) {

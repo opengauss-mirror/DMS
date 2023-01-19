@@ -111,7 +111,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SWITCHOVER_DEMOTE,
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE,
     DMS_REFORM_STEP_RECOVERY,
-    DMS_REFORM_STEP_RECOVERY_PARALLEL,
     DMS_REFORM_STEP_RECOVERY_OPENGAUSS,
     DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN,
     DMS_REFORM_STEP_TXN_DEPOSIT,
@@ -282,6 +281,8 @@ typedef struct st_reform_info {
     bool8               reform_pause;
     bool8               bcast_unable;
     bool8               ddl_unable;
+    bool8               parallel_enable;        // dms reform proc parallel enable
+    uint8               unused[3];
 } reform_info_t;
 
 typedef struct st_switchover_info {
@@ -356,6 +357,13 @@ typedef struct st_reform_context {
 
 #define REFORM_TYPE_IS_SWITCHOVER(type) (type == DMS_REFORM_TYPE_FOR_SWITCHOVER || \
     type == DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS)
+
+typedef int(*dms_reform_proc)();
+typedef struct st_dms_reform_proc {
+    char                desc[DMS_REFORM_STEP_DESC_STR_LEN];
+    dms_reform_proc     proc;
+    dms_reform_proc     proc_parallel;
+} dms_reform_proc_t;
 
 int dms_reform_init(dms_profile_t *dms_profile);
 void dms_reform_judgement_step_log(void);
