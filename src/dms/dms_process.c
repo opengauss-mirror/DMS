@@ -114,6 +114,8 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_CHECK_REFORM_DONE,      dms_reform_proc_reform_done_req, CM_TRUE, CM_TRUE,  "dms reform check reform done"},
     { MSG_REQ_MAP_INFO,               dms_reform_proc_map_info_req,    CM_TRUE, CM_TRUE,  "dms ask map from IN instance"},
     { MSG_REQ_DDL_SYNC,               dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
+    { MSG_REQ_QUERY_PAGE_ONWER, dcs_proc_query_page_owner,
+        CM_TRUE, CM_FALSE, "ask master for page owner id" },
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -156,6 +158,7 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
     { MSG_ACK_COMMON,                       dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for request used in dms reform" },
     { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
+    { MSG_ACK_QUERY_PAGE_ONWER, dms_proc_msg_ack,       CM_FALSE, CM_TRUE, "ask owner id info from master" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
