@@ -303,6 +303,7 @@ static int dms_reform_check_remote_inner(uint8 dst_id)
     share_info_t *share_info = DMS_SHARE_INFO;
     int ret = DMS_SUCCESS;
     bool8 last_fail = CM_FALSE;
+    int in_reform = CM_FALSE;
 
     dms_reform_init_req_prepare(&req, dst_id);
     ret = mfc_send_data(&req.head);
@@ -311,10 +312,15 @@ static int dms_reform_check_remote_inner(uint8 dst_id)
         return ret;
     }
 
-    ret = dms_reform_req_prepare_wait(&last_fail);
+    ret = dms_reform_req_prepare_wait(&last_fail, &in_reform);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_remote_inner WAIT error: %d, dst_id: %d", ret, dst_id);
         return ret;
+    }
+
+    if (in_reform) {
+        LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_remote_inner in reform, dst_id: %d", dst_id);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
     if (last_fail) {

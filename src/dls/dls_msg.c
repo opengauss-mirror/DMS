@@ -39,7 +39,6 @@ static inline void dls_change_global_lock_mode(drc_local_lock_res_t *lock_res, u
     }
     if (lock_res->latch_stat.lock_mode == DMS_LOCK_EXCLUSIVE) {
         lock_res->latch_stat.lock_mode = DMS_LOCK_SHARE;
-        lock_res->latch_stat.shared_count = 1;
     }
 }
 

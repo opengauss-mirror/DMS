@@ -84,7 +84,7 @@ typedef struct st_dms_reform_req_prepare {
     bool8               last_fail;
 } dms_reform_req_prepare_t;
 void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id);
-int dms_reform_req_prepare_wait(bool8 *last_fail);
+int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform);
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_migrate {
