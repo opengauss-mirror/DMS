@@ -277,7 +277,7 @@ void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id)
     req->head.rsn = mes_get_rsn(ctx->sess_judge);
 }
 
-void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg, int in_reform)
 {
     dms_reform_ack_common_t ack_common;
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -285,6 +285,7 @@ void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_message_
 
     mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
+    ack_common.result = in_reform;
     ack_common.last_fail = reform_info->last_fail;
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
@@ -294,13 +295,15 @@ void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_message_
 
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare set last reform fail");
-    while (dms_reform_in_process()) {
-        DMS_REFORM_SHORT_SLEEP;
-    }
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare last reform finish");
-    dms_reform_ack_req_prepare(process_ctx, receive_msg);
+    int in_reform = dms_reform_in_process();
+    LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare in reform: %d", in_reform);
+    dms_reform_ack_req_prepare(process_ctx, receive_msg, in_reform);
     mfc_release_message_buf(receive_msg);
+
+    if (in_reform) {
+        dms_reform_set_fail();
+        return;
+    }
 
     // switchover will change reformer, initial status array at every instances
     reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
@@ -310,7 +313,7 @@ void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message
     }
 }
 
-int dms_reform_req_prepare_wait(bool8 *last_fail)
+int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform)
 {
     mes_message_t res;
     int ret = DMS_SUCCESS;
@@ -323,6 +326,7 @@ int dms_reform_req_prepare_wait(bool8 *last_fail)
 
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     *last_fail = ack_common->last_fail;
+    *in_reform = ack_common->result;
     mfc_release_message_buf(&res);
     return DMS_SUCCESS;
 }

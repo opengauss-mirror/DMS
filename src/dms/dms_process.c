@@ -331,14 +331,13 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
 
 #define DMS_WORK_THREAD_TASK_GROUP1     2
 #define DMS_WORK_THREAD_TASK_GROUP2     1
-#define DMS_WORK_THREAD_TASK_GROUP3     0
+#define DMS_WORK_THREAD_TASK_GROUP3     1
 
 static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
 {
     switch (cmd) {
         case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_SYNC_STEP:
-        case MSG_REQ_DMS_STATUS:
         case MSG_REQ_REFORM_PREPARE:
         case MSG_REQ_SYNC_NEXT_STEP:
         case MES_REQ_MGRT_MASTER_DATA:
@@ -352,6 +351,8 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
             return MES_TASK_GROUP_TWO;      // group two is used for ddl sync
+        case MSG_REQ_DMS_STATUS:
+            return MES_TASK_GROUP_THREE;    // only for request dms status
         default:
             return MES_TASK_GROUP_ZERO;
     }
@@ -361,7 +362,7 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
     Work thread allocation
     group 1: total_work_thread   2
     group 2: total_work_thread   1
-    group 3: total_work_thread   0
+    group 3: total_work_thread   1
     group 0: total_work_thread - group 1 - group 2 - group 3
     Allocation principle: Allocate time-consuming requests to different groups.
 */

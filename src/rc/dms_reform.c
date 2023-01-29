@@ -472,6 +472,12 @@ int dms_reform_last_failed(void)
     return reform_info->last_fail;
 }
 
+void dms_reform_set_fail(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    reform_info->reform_fail = CM_TRUE;
+}
+
 int dms_is_reformer(void)
 {
     return DMS_IS_REFORMER ? CM_TRUE : CM_FALSE;

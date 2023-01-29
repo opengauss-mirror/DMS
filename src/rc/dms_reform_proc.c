@@ -2055,7 +2055,6 @@ bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2)
     return (v1->inst_id == v2->inst_id) && (v1->start_time == v2->start_time);
 }
 
-
 static int dms_reform_startup_opengauss(void)
 {
     int ret = DMS_SUCCESS;
