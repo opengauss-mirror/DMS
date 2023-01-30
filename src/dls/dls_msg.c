@@ -42,29 +42,43 @@ static inline void dls_change_global_lock_mode(drc_local_lock_res_t *lock_res, u
     }
 }
 
-static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool8 is_try)
+static drc_local_lock_res_t* dls_try_get_lock_res_4_release(dms_drid_t *lockid, uint8 req_mode)
 {
+    bool8 locked, is_owner;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(lockid);
     CM_ASSERT(lock_res != NULL);
 
-    if (is_try) {
-        bool8 locked, is_owner;
-        drc_get_local_lock_statx(lock_res, &locked, &is_owner);
-        if (locked) {
-            return NULL;
-        }
-        drc_lock_local_resx(lock_res);
-        drc_get_local_lock_statx(lock_res, &locked, &is_owner);
-        if (locked) {
-            drc_unlock_local_resx(lock_res);
-            return NULL;
-        }
-        return lock_res;
+    drc_get_local_lock_statx(lock_res, &locked, &is_owner);
+    if (locked && (req_mode != DMS_LOCK_SHARE || lock_res->latch_stat.stat != LATCH_STATUS_S)) {
+        return NULL;
     }
-    lock_res->releasing = CM_TRUE;
+
+    drc_lock_local_resx(lock_res);
+    drc_get_local_lock_statx(lock_res, &locked, &is_owner);
+    if (locked && (req_mode != DMS_LOCK_SHARE || lock_res->latch_stat.stat != LATCH_STATUS_S)) {
+        drc_unlock_local_resx(lock_res);
+        return NULL;
+    }
+    return lock_res;
+}
+
+static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool8 is_try, uint8 req_mode)
+{
+    if (is_try) {
+        return dls_try_get_lock_res_4_release(lockid, req_mode);
+    }
+
+    drc_local_lock_res_t *lock_res = drc_get_local_resx(lockid);
+    CM_ASSERT(lock_res != NULL);
+
+    if (req_mode != DMS_LOCK_SHARE || lock_res->latch_stat.stat != LATCH_STATUS_S) {
+        lock_res->releasing = CM_TRUE;
+    }
+
     while (CM_TRUE) {
         drc_lock_local_resx(lock_res);
-        if (!lock_res->is_locked) {
+        if (!lock_res->is_locked ||
+            (req_mode == DMS_LOCK_SHARE && lock_res->latch_stat.stat == LATCH_STATUS_S)) {
             break;
         }
         drc_unlock_local_resx(lock_res);
@@ -80,7 +94,7 @@ int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint32
     dms_drid_t *lockid = (dms_drid_t*)resid;
     LOG_DEBUG_INF("[DLS] dls_invld_lock_ownership(%s) try:%u", cm_display_lockid(lockid), (uint32)is_try);
 
-    drc_local_lock_res_t *lock_res = dls_get_lock_res_4_release(lockid, is_try);
+    drc_local_lock_res_t *lock_res = dls_get_lock_res_4_release(lockid, is_try, req_mode);
     if (lock_res == NULL) {
         LOG_DEBUG_INF("[DLS] try release lock(%s) failed", cm_display_lockid(lockid));
         DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED);
