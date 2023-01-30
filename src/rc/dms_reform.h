@@ -325,17 +325,14 @@ typedef struct st_reform_context {
         1. handle_judge&sess_judge used in thread<dms_reform_judgement_thread>
         2. handle_proc&sess_proc used in thread<dms_reform_proc_thread> while step before RECOVERY, include RECOVERY
            it will set buf_res->in_recovery True when access page
-        3. handle_reform&sess_reform used in thread<dms_reform_proc_thread> while step after RECOVERY
-           it will not set buf_res->in_recovery True when access page
-        If there is no operation to access pages, the effect of using handle_proc or handle_reform is the SAME
     */
     void                *handle_judge;          // used in reform judgment
     void                *handle_proc;           // used in reform, and set recovery flag in buf_res
-    void                *handle_reform;         // used in reform, but not set recovery flag in buf_res
+    void                *handle_normal;
     void                *handle_health;
     uint32              sess_judge;             // used to send message in reform judgment
     uint32              sess_proc;              // used to send message in reform proc
-    uint32              sess_reform;
+    uint32              sess_normal;
     uint32              sess_health;
     reformer_ctrl_t     reformer_ctrl;
     reform_info_t       reform_info;
