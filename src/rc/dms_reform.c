@@ -381,14 +381,14 @@ int dms_wait_reform_phase(unsigned char reform_phase)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    LOG_RUN_INF("[DMS REORM] wait reform phase %s start", dms_reform_phase_desc(reform_phase));
+    LOG_RUN_INF("[DMS REFORM] wait reform phase %s start", dms_reform_phase_desc(reform_phase));
     while (CM_TRUE) {
         if (reform_info->last_fail) {
-            LOG_RUN_ERR("[DMS REORM] wait reform phase %s error", dms_reform_phase_desc(reform_phase));
+            LOG_RUN_ERR("[DMS REFORM] wait reform phase %s error", dms_reform_phase_desc(reform_phase));
             return CM_FALSE;
         }
         if (reform_info->reform_phase >= reform_phase) {
-            LOG_RUN_INF("[DMS REORM] wait reform phase %s finish", dms_reform_phase_desc(reform_phase));
+            LOG_RUN_INF("[DMS REFORM] wait reform phase %s finish", dms_reform_phase_desc(reform_phase));
             return CM_TRUE;
         }
         DMS_REFORM_LONG_SLEEP;
