@@ -753,20 +753,27 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
         cm_display_pageid(buf_res->data),
         cm_display_pageid(dms_ctx->resid));
 
-    bool ctrl_matches_cvt = false;
-    bool first_time_req = false;
     drc_request_info_t *req_info = &buf_res->converting.req_info;
     if (req_info->inst_id != CM_INVALID_ID8) {
         /*
-         * If lock modes unmatch, then either cvt matches ctrl, or cvt satisfies first time read
+         * If lock modes unmatch, then either cvt matches ctrl, or cvt satisfies first time read,
+         * or curr node was just promoted to primary with local buf and converting info unmatched.
          * If lock modes match, then the ack message of cvt request must be lost,
          * no need to check connverting info.
          */
         if (ctrl->lock_mode != buf_res->lock_mode) {
-            ctrl_matches_cvt = req_info->req_mode == ctrl->lock_mode;
-            first_time_req = req_info->req_mode == DMS_LOCK_SHARE &&
+            share_info_t *share_info = DMS_SHARE_INFO;
+            bool ctrl_matches_cvt = req_info->req_mode == ctrl->lock_mode;
+            bool first_time_req = req_info->req_mode == DMS_LOCK_SHARE &&
                 ctrl->lock_mode == DMS_LOCK_EXCLUSIVE && buf_res->lock_mode == DMS_LOCK_NULL;
-            cm_panic_log(ctrl_matches_cvt || first_time_req, 
+            /*
+             * Old priamry S->X, claim msg lost, current node promoted and remastered,
+             * therefore current new primary has DRC=S, cvt=X and local ctrl NULL.
+             */
+            bool new_primary = share_info->promote_id == g_dms.inst_id &&
+                req_info->req_mode == DMS_LOCK_EXCLUSIVE &&
+                ctrl->lock_mode == DMS_LOCK_NULL && buf_res->lock_mode == DMS_LOCK_SHARE;
+            cm_panic_log(ctrl_matches_cvt || first_time_req || new_primary,
                 "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
                 cm_display_pageid(dms_ctx->resid), buf_res->lock_mode,
                 ctrl->lock_mode, req_info->req_mode);
@@ -776,8 +783,8 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
          * Otherwise version would not refresh after page transferred, therefore ver must match.
          */
         if (buf_res->ver != ctrl->ver) {
-            ctrl_matches_cvt = req_info->ver == buf_res->ver; /* only ctrl ver is different */
-            cm_panic_log(ctrl_matches_cvt && ctrl->lock_mode == DMS_LOCK_EXCLUSIVE,
+            bool drc_matches_cvt = req_info->ver == buf_res->ver; /* only ctrl ver is different */
+            cm_panic_log(drc_matches_cvt && ctrl->lock_mode == DMS_LOCK_EXCLUSIVE,
                 "[DRC validate][%s]version unmatch with converting info(DRC:%u, buf:%u, cvt;%u)",
                 cm_display_pageid(dms_ctx->resid), buf_res->ver, ctrl->ver, req_info->ver);
         }
