@@ -347,6 +347,7 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHANNEL_CHECK:
         case MSG_REQ_MAP_INFO:
+        case MSG_REQ_CHECK_REFORM_DONE:
             return MES_TASK_GROUP_ONE;      // group one is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
