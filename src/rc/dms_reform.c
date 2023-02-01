@@ -256,8 +256,8 @@ int dms_reform_init(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_reform = g_dms.callback.get_db_handle(&reform_context->sess_reform);
-    if (reform_context->handle_reform == NULL) {
+    reform_context->handle_normal = g_dms.callback.get_db_handle(&reform_context->sess_normal);
+    if (reform_context->handle_normal == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
@@ -413,8 +413,6 @@ int dms_is_recovery_session(unsigned int sid)
 
     if (reform_context->sess_proc == sid) {
         return (int)DMS_SESSION_RECOVER;
-    } else if (reform_context->sess_reform == sid) {
-        return (int)DMS_SESSION_REFORM;
     } else {
         return (int)DMS_SESSION_NORMAL;
     }

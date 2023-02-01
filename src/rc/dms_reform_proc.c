@@ -1268,7 +1268,7 @@ static int dms_reform_switchover_demote(void)
         return DMS_SUCCESS;
     }
 
-    ret = g_dms.callback.switchover_demote(g_dms.reform_ctx.handle_proc);
+    ret = g_dms.callback.switchover_demote(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -1291,7 +1291,7 @@ static int dms_reform_switchover_promote(void)
         return DMS_SUCCESS;
     }
 
-    ret = g_dms.callback.switchover_promote(g_dms.reform_ctx.handle_proc);
+    ret = g_dms.callback.switchover_promote(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -1464,7 +1464,7 @@ static int dms_reform_txn_deposit(void)
 static int dms_reform_undo_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
-        if (g_dms.callback.undo_init(g_dms.reform_ctx.handle_reform, list->inst_id_list[i]) != DMS_SUCCESS) {
+        if (g_dms.callback.undo_init(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
             return ERRNO_DMS_CALLBACK_RC_UNDO_INIT;
         }
     }
@@ -1474,7 +1474,7 @@ static int dms_reform_undo_init(instance_list_t *list)
 static int dms_reform_tx_area_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
-        if (g_dms.callback.tx_area_init(g_dms.reform_ctx.handle_reform, list->inst_id_list[i]) != DMS_SUCCESS) {
+        if (g_dms.callback.tx_area_init(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
             return ERRNO_DMS_CALLBACK_RC_TX_AREA_INIT;
         }
     }
@@ -1484,7 +1484,7 @@ static int dms_reform_tx_area_init(instance_list_t *list)
 static int dms_reform_tx_area_load(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
-        if (g_dms.callback.tx_area_load(g_dms.reform_ctx.handle_reform, list->inst_id_list[i]) != DMS_SUCCESS) {
+        if (g_dms.callback.tx_area_load(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
             return ERRNO_DMS_CALLBACK_RC_TX_AREA_LOAD;
         }
     }
