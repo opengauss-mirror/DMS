@@ -1036,11 +1036,13 @@ void dms_reform_proc_channel_check(dms_process_context_t *process_ctx, mes_messa
 void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
-    reform_info_t *reform_info = DMS_REFORM_INFO;
 
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     dms_reform_ack_common_t ack_common;
+
     mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_COMMON, sizeof(dms_reform_ack_common_t),
                       process_ctx->sess_id);
+    mfc_release_message_buf(receive_msg);
 
     if (!reform_info->reform_done) {
         ack_common.result = ERRNO_DMS_REFORM_NOT_FINISHED;
@@ -1173,11 +1175,12 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, mes_messag
 
     dms_reform_ack_map_t ack_map;
     remaster_info_t *remaster_info = &ack_map.remaster_info;
-    mes_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
-        process_ctx->sess_id);
-
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
+
+    mes_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
+        process_ctx->sess_id);
+    mfc_release_message_buf(receive_msg);
 
     uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
     errno_t err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
