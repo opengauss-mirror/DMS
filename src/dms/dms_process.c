@@ -583,9 +583,14 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
 static void dms_init_log(dms_profile_t *dms_profile)
 {
     cm_log_param_instance()->log_write = (usr_cb_log_output_t)dms_profile->callback.log_output;
-    cm_log_param_instance()->log_level = MAX_LOG_LEVEL;
+    cm_log_param_instance()->log_level = dms_profile->log_level;
 }
 #endif
+
+void dms_set_log_level(unsigned int log_level)
+{
+    cm_log_param_instance()->log_level = log_level;
+}
 
 static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, char *file_name, uint32 file_name_len)
 {

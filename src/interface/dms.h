@@ -765,6 +765,12 @@ DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
 */
 DMS_DECLARE int dms_query_page_owner(dms_context_t *dms_ctx, unsigned char *owner_id);
 
+/*
+* @brief set log level
+* @[in]param log_level -  db log level.
+*/
+DMS_DECLARE void dms_set_log_level(unsigned int log_level);
+
 #ifdef __cplusplus
 }
 #endif
