@@ -263,8 +263,13 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
     instance_list_t *list_unknown)
 {
     cm_res_mgr_t *cm_res_mgr = &g_dms.cm_res_mgr;
-    cm_res_stat_ptr_t res_stat = cm_res_get_stat(cm_res_mgr);
+    cm_res_mem_ctx_t res_mem_ctx;
+    if (cm_res_init_memctx(&res_mem_ctx) != CM_SUCCESS) {
+        return ERRNO_DMS_FAIL_GET_STAT_LIST;
+    }
+    cm_res_stat_ptr_t res_stat = cm_res_get_stat(cm_res_mgr, &res_mem_ctx);
     if (res_stat == NULL) {
+        cm_res_uninit_memctx(&res_mem_ctx);
         return ERRNO_DMS_FAIL_GET_STAT_LIST;
     }
 
@@ -294,6 +299,7 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
         }
     }
     cm_res_free_stat(cm_res_mgr, res_stat);
+    cm_res_uninit_memctx(&res_mem_ctx);
 
     return DMS_SUCCESS;
 }
