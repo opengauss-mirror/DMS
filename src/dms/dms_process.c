@@ -336,9 +336,8 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
 static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
 {
     switch (cmd) {
-        case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_SYNC_STEP:
-        case MSG_REQ_REFORM_PREPARE:
+
         case MSG_REQ_SYNC_NEXT_STEP:
         case MES_REQ_MGRT_MASTER_DATA:
         case MSG_REQ_BUF_RES_DRC_REBUILD:
@@ -346,14 +345,16 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHANNEL_CHECK:
-        case MSG_REQ_MAP_INFO:
         case MSG_REQ_CHECK_REFORM_DONE:
             return MES_TASK_GROUP_ONE;      // group one is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
             return MES_TASK_GROUP_TWO;      // group two is used for ddl sync
+        case MSG_REQ_MAP_INFO:
+        case MSG_REQ_REFORM_PREPARE:
+        case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_DMS_STATUS:
-            return MES_TASK_GROUP_THREE;    // only for request dms status
+            return MES_TASK_GROUP_THREE;    // only for judgement
         default:
             return MES_TASK_GROUP_ZERO;
     }
