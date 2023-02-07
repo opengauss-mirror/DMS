@@ -218,7 +218,7 @@ typedef struct st_dms_res_req_info {
     bool8 is_try;
     uint16 req_sid;
     dms_session_e sess_type;
-    uint32 req_rsn;
+    uint64 req_rsn;
     uint32 len;
     uint32 ver;
     dms_lock_mode_t req_mode;
@@ -309,7 +309,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
         }                                                                \
     } while (0)
 
-static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint32 rsn,
+static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 rsn,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, dms_session_e sess_type, uint32 ver)
 {
     req_info->rsn = rsn;
@@ -322,7 +322,7 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->ver = ver;
 }
 
-void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint32 dst_rsn, int32 ret);
+void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 ret);
 int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 ver);
 int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode,

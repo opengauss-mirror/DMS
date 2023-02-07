@@ -89,7 +89,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
     return;
 }
 
-void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint32 dst_rsn, int32 ret)
+void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 ret)
 {
     msg_error_t msg_error;
     const char *errmsg = NULL;
@@ -198,7 +198,7 @@ int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
 
     ret = mfc_send_data(&request.head);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, rsn=%u",
+        LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, rsn=%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(request.head.cmd),
             (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
             (uint32)request.head.dst_sid, (bool32)request.has_edp, request.head.rsn);
@@ -206,7 +206,7 @@ int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
-    LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, rsn=%u",
+    LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, rsn=%llu",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(request.head.cmd),
         (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
         (uint32)request.head.dst_sid, (bool32)request.has_edp, request.head.rsn);
@@ -214,7 +214,7 @@ int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
 }
 
 static int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 sess_id, uint32 ver, uint32 rsn,
+    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 sess_id, uint32 ver, uint64 rsn,
     dms_session_e sess_type)
 {
     claim_info->new_id   = ownerid;
@@ -696,7 +696,7 @@ static int dms_notify_owner_for_res(dms_process_context_t *ctx, dms_res_req_info
     // this instance is owner, transfer local page, and requester must be on another instance
     int ret = dms_transfer_res_owner(ctx, req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        LOG_DEBUG_ERR("[DMS][%s][owner transfer page]: failed, dst_id=%u, dst_sid=%u, dst_rsn=%u, mode=%u",
+        LOG_DEBUG_ERR("[DMS][%s][owner transfer page]: failed, dst_id=%u, dst_sid=%u, dst_rsn=%llu, mode=%u",
             cm_display_resid(req_info->resid, req_info->res_type),
             (uint32)req_info->req_id, (uint32)req_info->req_sid, req_info->req_rsn, (uint32)req_info->req_mode);
     }
@@ -824,7 +824,7 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *
     }
 
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: started, owner_id=%u, req_id=%u, "
-        "req_sid=%u, req_rsn=%u, mode=%u, has_share_copy=%u",
+        "req_sid=%u, req_rsn=%llu, mode=%u, has_share_copy=%u",
         cm_display_resid(req.resid, req.res_type), (uint32)proc_ctx->inst_id, (uint32)req.head.src_inst,
         (uint32)req.head.src_sid, req.head.rsn, (uint32)req.req_mode, (uint32)req.has_share_copy);
 
@@ -846,7 +846,7 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *
     ret = dms_transfer_res_owner(proc_ctx, &req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_ERR("[DMS][%s][owner transfer page]: failed, owner_id=%u, req_id=%u, req_sid=%u, "
-            "req_rsn=%u, mode=%u", cm_display_resid(req.resid, req.res_type), (uint32)req_info.owner_id,
+            "req_rsn=%llu, mode=%u", cm_display_resid(req.resid, req.res_type), (uint32)req_info.owner_id,
             (uint32)req_info.req_id, (uint32)req_info.req_sid, req_info.req_rsn, (uint32)req_info.req_mode);
     }
 }
@@ -910,7 +910,7 @@ static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *
     ret = dms_notify_owner_for_res(ctx, &req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_ERR("[DMS][%s][notify owner transfer page]: failed, owner_id=%u, req_id=%u, "
-            "req_sid=%u, req_rsn=%u, req_mode=%u, curr_mode=%u",
+            "req_sid=%u, req_rsn=%llu, req_mode=%u, curr_mode=%u",
             cm_display_resid(req_info.resid, req_info.res_type), (uint32)req_info.owner_id, (uint32)req_info.req_id,
             (uint32)req_info.req_sid, req_info.req_rsn, (uint32)req_info.req_mode, (uint32)req_info.curr_mode);
     }
@@ -1314,7 +1314,7 @@ static void dms_smon_confirm_converting(res_id_t *res_id)
     drc_request_info_t cvt_req = buf_res->converting.req_info;
     drc_leave_buf_res(buf_res);
 
-    LOG_DEBUG_WAR("[DMS][%s] start confirm converting [inst:%u sid:%u rsn:%u req_mode:%u]",
+    LOG_DEBUG_WAR("[DMS][%s] start confirm converting [inst:%u sid:%u rsn:%llu req_mode:%u]",
         cm_display_resid(res_id->data, res_id->type), (uint32)cvt_req.inst_id,
         (uint32)cvt_req.sess_id, cvt_req.rsn, (uint32)cvt_req.req_mode);
 
