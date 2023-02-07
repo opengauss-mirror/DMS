@@ -651,13 +651,14 @@ void dms_reform_proc_req_rebuild_buf_res(dms_process_context_t *ctx, mes_message
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
+    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_buf_ctrl_t) + sizeof(uint64) + sizeof(bool8);
     char pageid[DMS_PAGEID_SIZE];
     dms_buf_ctrl_t *ctrl;
     uint64 lsn;
     bool8 is_dirty;
     int ret;
 
-    while (offset < req_rebuild->offset) {
+    while (offset + unit_len <= req_rebuild->offset) {
         ret = memcpy_s(pageid, DMS_PAGEID_SIZE, (uint8 *)req_rebuild + offset, DMS_PAGEID_SIZE);
         DMS_SECUREC_CHECK(ret);
         offset += DMS_PAGEID_SIZE;
@@ -726,7 +727,7 @@ void dms_reform_proc_req_rebuild_lock(dms_process_context_t *ctx, mes_message_t 
     drc_local_lock_res_t *lock_res;
     int ret;
 
-    while (offset < req_rebuild->offset) {
+    while (offset + sizeof(drc_local_lock_res_t) <= req_rebuild->offset) {
         lock_res = (drc_local_lock_res_t *)((uint8 *)req_rebuild + offset);
         offset += (uint32)sizeof(drc_local_lock_res_t);
         ret = dms_reform_rebuild_lock_l(lock_res, inst_id);
