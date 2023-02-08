@@ -194,6 +194,7 @@ void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, mes_message_t *receive_
             dcs_proc_smon_get_rowid(ctx, receive_msg);
             break;
         default:
+            mfc_release_message_buf(receive_msg);
             CM_THROW_ERROR(ERRNO_DMS_CAPABILITY_NOT_SUPPORT, "dlock msg type");
             LOG_RUN_ERR("invalid dlock msg type");
             break;
@@ -553,7 +554,13 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
     }
 
     CM_CHK_RECV_MSG_SIZE(&recv_msg, (uint32)(sizeof(mes_message_head_t) + rsp_size), CM_TRUE, CM_FALSE);
-    MEMS_RETURN_IFERR(memcpy_s((char *)rsp_content, rsp_size, recv_msg.buffer + sizeof(mes_message_head_t), rsp_size));
+    errno_t err = memcpy_s((char *)rsp_content, rsp_size, recv_msg.buffer + sizeof(mes_message_head_t), rsp_size);
+    if (err != EOK) {
+        mfc_release_message_buf(&recv_msg);
+        LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        return ERRNO_DMS_SECUREC_CHECK_FAIL;
+    }
     mfc_release_message_buf(&recv_msg);
     LOG_DEBUG_INF("[SMON] request dead lock message to instance(%u), type(%u) rmid(%u)", (uint32)dst_inst, (uint32)type,
         (uint32)rmid);
@@ -613,8 +620,13 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     CM_ASSERT(ilock_len >= DMS_SMON_ILOCK_MSG_MAX_LEN);
     CM_CHK_RECV_MSG_SIZE(&recv_msg,
         (uint32)(sizeof(mes_message_head_t) + DMS_SMON_ILOCK_MSG_MAX_LEN), CM_TRUE, CM_FALSE);
-    MEMS_RETURN_IFERR(
-        memcpy_s((char *)ilock, ilock_len, recv_msg.buffer + sizeof(mes_message_head_t), DMS_SMON_ILOCK_MSG_MAX_LEN));
+    errno_t err = memcpy_s((char *)ilock, ilock_len, recv_msg.buffer + sizeof(mes_message_head_t), DMS_SMON_ILOCK_MSG_MAX_LEN);
+    if (err != EOK) {
+        mfc_release_message_buf(&recv_msg);
+        LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        return ERRNO_DMS_SECUREC_CHECK_FAIL;
+    }
     mfc_release_message_buf(&recv_msg);
     LOG_DEBUG_INF("[SMON] request itl lock message to instance(%u)", (uint32)dst_inst);
     return CM_SUCCESS;
@@ -672,8 +684,13 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
     if (len != 0) {
         CM_CHK_RECV_MSG_SIZE(&recv_msg, (uint32)(sizeof(mes_message_head_t) + sizeof(uint32) + len), CM_TRUE, CM_FALSE);
         CM_ASSERT(sql_str_len >= len);
-        MEMS_RETURN_IFERR(
-            memcpy_s(sql_str, sql_str_len, recv_msg.buffer + sizeof(mes_message_head_t) + sizeof(uint32), len));
+        errno_t err = memcpy_s(sql_str, sql_str_len, recv_msg.buffer + sizeof(mes_message_head_t) + sizeof(uint32), len);
+        if (err != EOK) {
+            mfc_release_message_buf(&recv_msg);
+            LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
+            DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+            return ERRNO_DMS_SECUREC_CHECK_FAIL;
+        }
     }
 
     mfc_release_message_buf(&recv_msg);
@@ -797,8 +814,14 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
         uint32 len = (uint32)(sizeof(mes_message_head_t) + sizeof(uint32) + (*tlock_cnt) * DMS_SMON_TLOCK_MSG_MAX_LEN);
         CM_CHK_RECV_MSG_SIZE(&recv_msg, len, CM_TRUE, CM_FALSE);
         CM_ASSERT(rsp_len >= (*tlock_cnt) * DMS_SMON_TLOCK_MSG_MAX_LEN);
-        MEMS_RETURN_IFERR(memcpy_s(rsp, rsp_len, recv_msg.buffer + sizeof(mes_message_head_t) + sizeof(uint32),
-            (*tlock_cnt) * DMS_SMON_TLOCK_MSG_MAX_LEN));
+        errno_t err = memcpy_s(rsp, rsp_len, recv_msg.buffer + sizeof(mes_message_head_t) + sizeof(uint32),
+            (*tlock_cnt) * DMS_SMON_TLOCK_MSG_MAX_LEN);
+        if (err != EOK) {
+            mfc_release_message_buf(&recv_msg);
+            LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
+            DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+            return ERRNO_DMS_SECUREC_CHECK_FAIL;
+        }
     }
     mfc_release_message_buf(&recv_msg);
     return CM_SUCCESS;
@@ -857,8 +880,13 @@ int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_
     CM_CHK_RECV_MSG_SIZE(&recv_msg,
         (uint32)(sizeof(mes_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN), CM_TRUE, CM_FALSE);
     CM_ASSERT(tlock_len >= DMS_SMON_TLOCK_MSG_MAX_LEN);
-    MEMS_RETURN_IFERR(
-        memcpy_s((char *)tlock, tlock_len, recv_msg.buffer + sizeof(mes_message_head_t), DMS_SMON_TLOCK_MSG_MAX_LEN));
+    errno_t err = memcpy_s((char *)tlock, tlock_len, recv_msg.buffer + sizeof(mes_message_head_t), DMS_SMON_TLOCK_MSG_MAX_LEN);
+    if (err != EOK) {
+        mfc_release_message_buf(&recv_msg);
+        LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        return ERRNO_DMS_SECUREC_CHECK_FAIL;
+    }
     mfc_release_message_buf(&recv_msg);
     return CM_SUCCESS;
 }
