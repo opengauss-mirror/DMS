@@ -36,6 +36,7 @@ extern "C" {
 
 void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     cm_latch_s(&reform_info->bcast_latch, process_ctx->sess_id, CM_FALSE, NULL);
