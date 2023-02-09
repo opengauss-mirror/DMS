@@ -53,7 +53,7 @@ int dms_request_opengauss_lock_buffer(dms_context_t *dms_ctx, int buffer, unsign
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] send message to instance(%hhu) failed, cmd(%d) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%hhu) failed, cmd(%d) rsn(%llu) errcode(%d)",
             xid_ctx->inst_id, MSG_REQ_OPENGAUSS_LOCK_BUFFER, head->rsn, ret);
         return ret;
     }
@@ -61,7 +61,7 @@ int dms_request_opengauss_lock_buffer(dms_context_t *dms_ctx, int buffer, unsign
     ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%hhu) failed, cmd(%d) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%hhu) failed, cmd(%d) rsn(%llu) errcode(%d)",
             xid_ctx->inst_id, MSG_REQ_OPENGAUSS_LOCK_BUFFER, head->rsn, ret);
         return ret;
     }
@@ -102,7 +102,7 @@ int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char reque
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%u)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%u)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_OPENGAUSS_TXN_STATUS, head->rsn, (uint32)ret);
         return ret;
     }
@@ -110,7 +110,7 @@ int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char reque
     ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%u)",
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%u)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_OPENGAUSS_TXN_STATUS, head->rsn, (uint32)ret);
         return ret;
     }
@@ -177,7 +177,7 @@ int dms_request_opengauss_update_xid(dms_context_t *dms_ctx, unsigned short t_in
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%u)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%u)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, head->rsn, (uint32)ret);
         return ret;
     }
@@ -185,7 +185,7 @@ int dms_request_opengauss_update_xid(dms_context_t *dms_ctx, unsigned short t_in
     ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%u)",
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%u)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, head->rsn, (uint32)ret);
         return ret;
     }
@@ -250,7 +250,7 @@ int dms_request_opengauss_xid_csn(dms_context_t *dms_ctx, dms_opengauss_xid_csn_
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
 
-        LOG_DEBUG_ERR("[TXN] send message to instance(%hhu) failed, cmd(%d) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%hhu) failed, cmd(%d) rsn(%llu) errcode(%d)",
             xid_ctx->inst_id, MSG_REQ_OPENGAUSS_XID_CSN, head->rsn, ret);
         return ret;
     }
@@ -259,7 +259,7 @@ int dms_request_opengauss_xid_csn(dms_context_t *dms_ctx, dms_opengauss_xid_csn_
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
 
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%hhu) failed, cmd(%d) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%hhu) failed, cmd(%d) rsn(%llu) errcode(%d)",
             xid_ctx->inst_id, MSG_REQ_OPENGAUSS_XID_CSN, head->rsn, ret);
         return ret;
     }
@@ -364,7 +364,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
 
-        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->rsn, ret);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_TXN_INFO, xid_ctx->inst_id);
         return ERRNO_DMS_SEND_MSG_FAILED;
@@ -374,7 +374,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
 
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->rsn, ret);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
@@ -465,7 +465,7 @@ int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx, dms_opengauss_txn
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
 
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)", xmap_ctx->dest_id,
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)", xmap_ctx->dest_id,
             (uint32)MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, req.head.rsn, ret);
         return ret;
     }
@@ -513,7 +513,7 @@ int dms_request_txn_snapshot(dms_context_t *dms_ctx, dms_txn_snapshot_t *dms_txn
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
 
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)", xmap_ctx->dest_id,
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)", xmap_ctx->dest_id,
             (uint32)MSG_REQ_TXN_SNAPSHOT, req.head.rsn, ret);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
@@ -606,7 +606,7 @@ static int32 dms_send_awake_txn_msg(dms_context_t *dms_ctx, uint32 dest_id)
 
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_AWAKE_TXN, head->rsn, ret);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, head->cmd, head->dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
@@ -665,7 +665,7 @@ int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
 
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_WAIT_TXN, head->rsn, ret);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_WAIT_TXN, xid_ctx->inst_id);
         return ERRNO_DMS_SEND_MSG_FAILED;
@@ -673,7 +673,7 @@ int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
 
     ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%u) errcode(%d)",
+        LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->rsn, ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_WAIT_TXN, xid_ctx->inst_id);
         return ERRNO_DMS_RECV_MSG_FAILED;

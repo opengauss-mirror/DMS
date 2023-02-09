@@ -371,7 +371,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
             int ret = g_dms.callback.log_flush(ctx->db_handle, &page_ack.lsn);
             dms_end_stat(ctx->sess_id);
             if (ret != DMS_SUCCESS) {
-                LOG_DEBUG_ERR("[DCS][%s][transfer owner]flush failed: dest_id=%d, dest_sid=%d, dest_rsn=%u, mode=%u",
+                LOG_DEBUG_ERR("[DCS][%s][transfer owner]flush failed: dest_id=%d, dest_sid=%d, dest_rsn=%llu, mode=%u",
                     cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid, req_info->req_rsn,
                     req_info->req_mode);
                 return ret;
@@ -396,7 +396,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
             page_ack.edp_map = ctrl->edp_map;
         }
 
-        LOG_DEBUG_INF("[DCS][%s][transfer owner]: dest_id=%d, dest_sid=%d, dest_rsn=%u, mode=%u",
+        LOG_DEBUG_INF("[DCS][%s][transfer owner]: dest_id=%d, dest_sid=%d, dest_rsn=%llu, mode=%u",
             cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid, req_info->req_rsn,
             req_info->req_mode);
     } else {
@@ -404,7 +404,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
         // owner doesn't need to maintain any info. Just send page.
         page_ack.head.flags |= MSG_FLAG_SHARED_PAGE;
 
-        LOG_DEBUG_INF("[DCS][%s][transfer share copy]: dest_id=%d, dest_sid=%d, dest_rsn=%u, mode=%u",
+        LOG_DEBUG_INF("[DCS][%s][transfer share copy]: dest_id=%d, dest_sid=%d, dest_rsn=%llu, mode=%u",
             cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid, req_info->req_rsn,
             req_info->req_mode);
     }
@@ -560,7 +560,7 @@ static int dcs_notify_remote_for_edp(dms_process_context_t *ctx, dms_res_req_inf
     // this instance is owner, transfer local page, and requester must be on another instance
     int ret = dcs_owner_transfer_edp(ctx, req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: failed, dest_id=%d, dest_sid=%d, dest_rsn=%u, mode=%u",
+        LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: failed, dest_id=%d, dest_sid=%d, dest_rsn=%llu, mode=%u",
             cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid,
             req_info->req_rsn, req_info->req_mode);
     }
@@ -633,7 +633,7 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
     }
 
     if (req_info->ver != ctrl->ver) {
-        LOG_DEBUG_WAR("[DCS][%s]:invalid transfer req, src_id=%d, src_sid=%d, req_mode=%u, rsn=%d, req_ver=%u," \
+        LOG_DEBUG_WAR("[DCS][%s]:invalid transfer req, src_id=%d, src_sid=%d, req_mode=%u, rsn=%llu, req_ver=%u," \
             "ctrl_ver=%u", cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid,
             req_info->req_mode, req_info->req_rsn, req_info->ver, ctrl->ver);
         g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
@@ -976,13 +976,13 @@ static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id)
 
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DCS][%s][send release own req]:src_sid=%u, dest_id=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%u",
+        LOG_DEBUG_ERR("[DCS][%s][send release own req]:src_sid=%u, dest_id=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu",
             cm_display_pageid(dms_ctx->resid), dms_ctx->sess_id, master_id, req.owner_lsn, req.owner_scn,
             req.head.rsn);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, req.head.cmd, req.head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
-    LOG_DEBUG_INF("[DCS][%s][send release own req]:src_sid=%u, dest_id=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%u",
+    LOG_DEBUG_INF("[DCS][%s][send release own req]:src_sid=%u, dest_id=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu",
         cm_display_pageid(dms_ctx->resid), dms_ctx->sess_id, master_id, req.owner_lsn, req.owner_scn,
         req.head.rsn);
     return ret;
@@ -1042,7 +1042,7 @@ static int dcs_send_rls_owner_ack(dms_process_context_t *ctx, msg_rls_owner_req_
     mfc_init_ack_head(&req->head, &ack.head, MSG_ACK_RELEASE_PAGE_OWNER, sizeof(msg_rls_owner_ack_t), ctx->inst_id);
     ack.released = released;
     int ret = mfc_send_data(&ack.head);
-    LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%u, "
+    LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu, "
         "released =%d", cm_display_pageid(req->pageid), req->head.src_inst, req->head.src_sid, req->owner_lsn,
         req->owner_scn, req->head.rsn, ack.released);
     if (ret != DMS_SUCCESS) {
@@ -1056,7 +1056,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(msg_rls_owner_req_t), CM_TRUE, CM_TRUE);
     msg_rls_owner_req_t *req = (msg_rls_owner_req_t *)(receive_msg->buffer);
-    LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%u",
+    LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu",
         cm_display_pageid(req->pageid), req->head.src_inst, req->head.src_sid, req->owner_lsn, req->owner_scn,
         req->head.rsn);
 
@@ -1125,7 +1125,7 @@ void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, mes_message_t *rece
     mfc_release_message_buf(receive_msg);
 
     LOG_DEBUG_INF("[DCS][%s][dcs_proc_ask_remote_for_edp]: started, owner_id=%d, req_id=%d, "
-        "req_sid=%d, req_rsn=%u, mode=%u, has_share_copy=%d",
+        "req_sid=%d, req_rsn=%llu, mode=%u, has_share_copy=%d",
         cm_display_pageid(page_req.resid), ctx->inst_id, page_req.head.src_inst, page_req.head.src_sid,
         page_req.head.rsn, page_req.req_mode, page_req.has_share_copy);
 
@@ -1143,7 +1143,7 @@ void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, mes_message_t *rece
 
     ret = dcs_owner_transfer_edp(ctx, &req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: failed, owner_id=%d, req_id=%d, req_sid=%d, req_rsn=%u, "
+        LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: failed, owner_id=%d, req_id=%d, req_sid=%d, req_rsn=%llu, "
             "mode=%u",
             cm_display_pageid(req_info.resid), req_info.owner_id, req_info.req_id, req_info.req_sid, req_info.req_rsn,
             req_info.req_mode);

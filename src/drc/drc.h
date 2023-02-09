@@ -114,7 +114,7 @@ typedef struct st_drc_request_info {
     uint8   req_mode;           /* the expected lock mode that request instance wants */
     uint8   is_try;             /* if is try request */
     dms_session_e sess_type;    /* session type */
-    uint32  rsn;                /* request packet serial number */
+    uint64  rsn;                /* request packet serial number */
     uint32  ver;                /* local ver of request */
     uint16  sess_id;            /* the session id that the request comes from */
 } drc_request_info_t;
@@ -269,7 +269,7 @@ typedef struct st_cvt_info {
     uint8   unused;
     uint16  len;
     char    resid[DMS_RESID_SIZE];
-    uint32  req_rsn;
+    uint64  req_rsn;
     uint32  req_sid;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
@@ -290,7 +290,7 @@ typedef struct st_claim_info {
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
     dms_session_e sess_type;
-    uint32  rsn;
+    uint64  rsn;
 } claim_info_t;
 
 typedef struct st_edp_info {
@@ -325,7 +325,7 @@ static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
     converting->begin_time = 0;
     converting->req_info.inst_id = CM_INVALID_ID8;
     converting->req_info.sess_id = CM_INVALID_ID16;
-    converting->req_info.rsn = CM_INVALID_ID32;
+    converting->req_info.rsn = CM_INVALID_ID64;
     converting->req_info.curr_mode = DMS_LOCK_NULL;
     converting->req_info.req_mode = DMS_LOCK_NULL;
     converting->req_info.is_try = 0;
