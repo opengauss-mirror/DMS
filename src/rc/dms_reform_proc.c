@@ -2072,7 +2072,7 @@ static int dms_reform_startup_opengauss(void)
 
     // for failover: startup thread will init in promote pharse
     if (bitmap64_exist(&share_info->bitmap_recovery, self_id)) {
-        if (DMS_IS_SHARE_REFORMER && dms_reform_type_is(DMS_REFORM_TYPE_FOR_OPENGAUSS)) {
+        if (DMS_IS_SHARE_REFORMER && dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS)) {
             LOG_DEBUG_INF("[DMS REFORM] init startup");
             ret = g_dms.callback.opengauss_startup(g_dms.reform_ctx.handle_proc);
         } else if (DMS_IS_SHARE_PARTNER) {

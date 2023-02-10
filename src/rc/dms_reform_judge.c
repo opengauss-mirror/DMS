@@ -927,7 +927,7 @@ static char *dms_reform_get_type_desc(void)
     share_info_t *share_info = DMS_SHARE_INFO;
 
     switch (share_info->reform_type) {
-        case DMS_REFORM_TYPE_FOR_OPENGAUSS:
+        case DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS:
             return "OPENGAUSS_NORMAL";
 
         case DMS_REFORM_TYPE_FOR_NORMAL:
@@ -1195,9 +1195,9 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_drc_validate(true); /* maintain drc inaccess as failover not finished */
     dms_reform_judgement_drc_access();
     dms_reform_judgement_flush_copy();
-    dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_failover_promote_opengauss();
     dms_reform_judgement_recovery_opengauss(inst_lists);
+    dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
     dms_reform_judgement_success();
@@ -1540,7 +1540,7 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
         return;
     }
 
-    share_info->reform_type = DMS_REFORM_TYPE_FOR_OPENGAUSS;
+    share_info->reform_type = DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS;
 }
 #else
 static void dms_reform_judgement_reform_type(instance_list_t *list)
@@ -1608,7 +1608,7 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc[DMS_REFORM_TYPE_COUNT
     dms_reform_judgement_failover,
     dms_reform_judgement_failover_print },
 
-    [DMS_REFORM_TYPE_FOR_OPENGAUSS] = {
+    [DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS] = {
     dms_reform_judgement_opengauss_check,
     dms_reform_judgement_opengauss,
     dms_reform_judgement_opengauss_print },
@@ -1705,6 +1705,26 @@ static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *in
     return dms_reform_map_info_req_wait();
 }
 
+#ifdef OPENGAUSS
+static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS) {
+        uint32 primary_id;
+        g_dms.callback.get_db_primary_id(g_dms.reform_ctx.handle_judge, &primary_id);
+        if (bitmap64_exist(&share_info->bitmap_online, (uint8)primary_id)) {
+            uint8 inst_tmp[1] = {(uint8)primary_id};
+            uint64 bitmap_tmp = bitmap64_create(inst_tmp, 1);
+            bitmap64_minus(&share_info->bitmap_online, bitmap_tmp);
+            dms_reform_bitmap_to_list(&share_info->list_online, share_info->bitmap_online);
+            uint32 len = (uint32)(sizeof(instance_list_t) * INST_LIST_TYPE_COUNT);
+            memset_s(inst_lists, len, 0, len);
+            dms_reform_judgement_list_collect(inst_lists, online_status);
+        }
+    }
+}
+#endif
+
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
@@ -1747,6 +1767,9 @@ static bool32 dms_reform_judgement(uint8 *online_status)
         return CM_FALSE;
     }
 
+#ifdef OPENGAUSS
+    dms_reform_adjust(inst_lists, online_status);
+#endif
     cm_spin_lock(&reform_context->share_info_lock, NULL);
     share_info->version_num++;
     cm_spin_unlock(&reform_context->share_info_lock);
