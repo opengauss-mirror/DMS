@@ -305,7 +305,7 @@ typedef struct st_reform_scrlock_context {
     bool8 sleep_mode;
     uint8 server_bind_core_start;
     uint8 server_bind_core_end;
-    bool8 enable_ssl_param;
+    bool8 enable_ssl;
     bool8 is_server;
     uint8 recovery_node_num;
 } reform_scrlock_context_t;
