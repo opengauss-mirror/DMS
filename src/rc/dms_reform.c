@@ -236,6 +236,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
         reform_context->scrlock_reinit_ctx.sleep_mode = dms_profile->enable_scrlock_server_sleep_mode;
         reform_context->scrlock_reinit_ctx.server_bind_core_start = dms_profile->scrlock_server_bind_core_start;
         reform_context->scrlock_reinit_ctx.server_bind_core_end = dms_profile->scrlock_server_bind_core_end;
+        reform_context->scrlock_reinit_ctx.enable_ssl = dms_profile->enable_ssl;
     }
 
     reform_context->catalog_centralized = (bool8)dms_profile->resource_catalog_centralized;

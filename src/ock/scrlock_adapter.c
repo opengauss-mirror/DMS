@@ -171,7 +171,7 @@ static int scrlock_init(dms_profile_t *dms_profile)
     options.serverAddr.port = dms_profile->scrlock_server_port;
     ret = memcpy_s(options.clientAddr.ip, SCRLOCK_MAX_IP_LEN, dms_profile->inst_net_addr[dms_profile->inst_id].ip, DMS_MAX_IP_LEN);
     DMS_SECUREC_CHECK(ret);
-    options.sslCfg.enable = dms_profile->enable_scrlock_secure_mode;
+    options.sslCfg.enable = dms_profile->enable_ssl;
     ret = scrlock_get_ssl_param(&options);
     if (ret != DMS_SUCCESS) {
         return DMS_ERROR;
@@ -240,7 +240,7 @@ unsigned char dms_scrlock_reinit()
     scrlock_options.serverAddr.port = scrlock_ctx->scrlock_server_port;
     ret = memcpy_s(scrlock_options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, MES_GLOBAL_INST_MSG.profile.inst_net_addr[scrlock_ctx->scrlock_server_id].ip, MES_MAX_IP_LEN);
     DMS_SECUREC_CHECK(ret);
-    scrlock_options.sslCfg.enable = scrlock_ctx->enable_ssl_param;
+    scrlock_options.sslCfg.enable = scrlock_ctx->enable_ssl;
     ret = scrlock_get_ssl_param(&scrlock_options);
     if (ret != DMS_SUCCESS) {
         return DMS_ERROR;
