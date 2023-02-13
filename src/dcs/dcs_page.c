@@ -112,7 +112,7 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 remote_id, dms_lock_mode_t req_mode)
 {
     dms_ask_res_req_t page_req;
-    MES_INIT_MESSAGE_HEAD(&page_req.head,
+    DMS_INIT_MESSAGE_HEAD(&page_req.head,
         MSG_REQ_ASK_EDP_REMOTE, 0, dms_ctx->inst_id, remote_id, dms_ctx->sess_id, CM_INVALID_ID16);
     page_req.head.rsn  = mes_get_rsn(dms_ctx->sess_id);
     page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
@@ -340,7 +340,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
 {
     dms_ask_res_ack_t page_ack;
 
-    MES_INIT_MESSAGE_HEAD(&page_ack.head, cmd, 0, req_info->owner_id,
+    DMS_INIT_MESSAGE_HEAD(&page_ack.head, cmd, 0, req_info->owner_id,
         req_info->req_id, ctx->sess_id, req_info->req_sid);
     page_ack.head.rsn = req_info->req_rsn;
 
@@ -461,7 +461,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
 static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_info_t *req)
 {
     dms_ask_res_ack_ld_t ack;
-    MES_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER, 0, req->owner_id, req->req_id, ctx->sess_id, req->req_sid);
+    DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER, 0, req->owner_id, req->req_id, ctx->sess_id, req->req_sid);
     ack.head.rsn  = req->req_rsn;
     ack.head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
 #ifndef OPENGAUSS
@@ -509,7 +509,7 @@ static int dcs_notify_remote_for_edp_r(dms_process_context_t *ctx, dms_res_req_i
 
     if (req_info->owner_id != req_info->req_id) {
         dms_ask_res_req_t page_req;
-        MES_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_ASK_EDP_REMOTE, 0, req_info->req_id, req_info->owner_id,
+        DMS_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_ASK_EDP_REMOTE, 0, req_info->req_id, req_info->owner_id,
             req_info->req_sid, CM_INVALID_ID16);
         page_req.req_mode = req_info->req_mode;
         page_req.curr_mode = req_info->curr_mode;
@@ -537,7 +537,7 @@ static int dcs_notify_remote_for_edp_r(dms_process_context_t *ctx, dms_res_req_i
 
     // asker is already owner, just notify requester(owner) page is ready
     dms_ask_res_ack_ld_t ack;
-    MES_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_EDP_LOCAL, 0, ctx->inst_id, req_info->req_id,
+    DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_EDP_LOCAL, 0, ctx->inst_id, req_info->req_id,
         ctx->sess_id, req_info->req_sid);
     ack.head.rsn = req_info->req_rsn;
     ack.head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
@@ -681,6 +681,7 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, mes_m
 
     mes_message_head_t ack_head;
     ack_head.rsn = page_req.head.rsn;
+    ack_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
 
     if (result.type == DRC_REQ_OWNER_GRANTED) {
         // this page_req not in memory of other instance, notify requester to load from disk
@@ -756,7 +757,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     uint8 master_id, uint8 *owner_id)
 {
     dms_ask_res_req_t page_req;
-    MES_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, 0, dms_ctx->inst_id, master_id,
+    DMS_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, 0, dms_ctx->inst_id, master_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
 
     dcs_set_page_req_parameter(dms_ctx, ctrl, req_mode, &page_req);
@@ -894,7 +895,7 @@ void dcs_proc_query_page_owner(dms_process_context_t *ctx, mes_message_t *receiv
 int dms_query_page_owner_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id)
 {
     dms_query_owner_req_t req;
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_QUERY_PAGE_ONWER, 0, dms_ctx->inst_id, master_id,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_QUERY_PAGE_ONWER, 0, dms_ctx->inst_id, master_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     req.head.size = sizeof(dms_query_owner_req_t);
@@ -972,7 +973,7 @@ int dms_query_page_owner(dms_context_t *dms_ctx, uint8 *owner_id)
 static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id)
 {
     msg_rls_owner_req_t req;
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_RELEASE_OWNER, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_RELEASE_OWNER, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id,
         CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(msg_rls_owner_req_t);
     req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
@@ -1167,7 +1168,7 @@ static int32 dcs_send_page_batch_cmd(dms_context_t *dms_ctx, uint8 dest_id, char
 {
     msg_page_batch_op_t req;
 
-    MES_INIT_MESSAGE_HEAD(&req.head, cmd, 0, dms_ctx->inst_id, dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&req.head, cmd, 0, dms_ctx->inst_id, dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)(sizeof(msg_page_batch_op_t) + count * DMS_PAGEID_SIZE);
     req.count = count;
     unsigned long long lsn = g_dms.callback.get_global_lsn(dms_ctx->db_handle);

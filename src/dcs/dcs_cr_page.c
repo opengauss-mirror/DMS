@@ -434,7 +434,7 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
     msg_pcr_request_t request;
     int ret;
 
-    MES_INIT_MESSAGE_HEAD(&request.head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
+    DMS_INIT_MESSAGE_HEAD(&request.head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     request.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     request.head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
@@ -497,7 +497,7 @@ static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
     msg_pcr_request_t *request = &msg.pcr_request;
     int ret = DMS_SUCCESS;
 
-    MES_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
+    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     request->head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     request->head.size = (uint16)(sizeof(msg_index_pcr_request_t) + g_dms.page_size);
@@ -573,7 +573,7 @@ static void dcs_send_grant_owner(dms_process_context_t *ctx, mes_message_t *msg)
 
 static void dcs_route_pcr_request_owner(dms_process_context_t *ctx, msg_pcr_request_t *request, uint8 owner_id)
 {
-    MES_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_OWNER_FOR_CR_PAGE, 0, request->head.src_inst, owner_id,
+    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_OWNER_FOR_CR_PAGE, 0, request->head.src_inst, owner_id,
         request->head.src_sid, CM_INVALID_ID16);
 
     request->head.dst_inst = owner_id;
@@ -597,7 +597,7 @@ static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_req
         return DMS_SUCCESS;
     }
 
-    MES_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.src_inst, master_id,
+    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.src_inst, master_id,
         request->head.src_sid, CM_INVALID_ID16);
 
     LOG_DEBUG_INF("[PCR][%s][reroute request] cr_type %u query_scn %llu query_ssn %u "
@@ -765,7 +765,7 @@ static int dcs_send_check_visible_ack(dms_process_context_t *ctx, msg_cr_check_t
 {
     msg_cr_check_ack_t msg;
 
-    MES_INIT_MESSAGE_HEAD(&msg.head, MSG_ACK_CHECK_VISIBLE, 0, ctx->inst_id, check->head.src_inst,
+    DMS_INIT_MESSAGE_HEAD(&msg.head, MSG_ACK_CHECK_VISIBLE, 0, ctx->inst_id, check->head.src_inst,
         ctx->sess_id, check->head.src_sid);
     msg.head.rsn = check->head.rsn;
     msg.head.size = (uint16)sizeof(msg_cr_check_ack_t);
@@ -903,7 +903,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
 
     dcs_get_msg_cmd_by_cr_status(*cr_status, &msg_cmd, &log_info);
 
-    MES_INIT_MESSAGE_HEAD(&request.head, msg_cmd, 0, dms_ctx->inst_id, dst_inst_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&request.head, msg_cmd, 0, dms_ctx->inst_id, dst_inst_id, dms_ctx->sess_id, CM_INVALID_ID16);
     request.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     request.head.size = (uint16)sizeof(msg_pcr_request_t);
     ret = dcs_init_pcr_request(&request, dms_ctx, dms_cr, CR_TYPE_HEAP);
@@ -1016,7 +1016,7 @@ static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, mes_message_t *msg, 
 
 static inline void dcs_init_msg_cr_check(msg_cr_check_t *check, dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id)
 {
-    MES_INIT_MESSAGE_HEAD(&check->head, MSG_REQ_CHECK_VISIBLE, 0, dms_ctx->inst_id, dst_id,
+    DMS_INIT_MESSAGE_HEAD(&check->head, MSG_REQ_CHECK_VISIBLE, 0, dms_ctx->inst_id, dst_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     check->head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     check->head.size = (uint16)(sizeof(msg_cr_check_t) + g_dms.page_size);

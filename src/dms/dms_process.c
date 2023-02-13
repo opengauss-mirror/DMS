@@ -114,8 +114,10 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_CHECK_REFORM_DONE,      dms_reform_proc_reform_done_req, CM_TRUE, CM_TRUE,  "dms reform check reform done"},
     { MSG_REQ_MAP_INFO,               dms_reform_proc_map_info_req,    CM_TRUE, CM_TRUE,  "dms ask map from IN instance"},
     { MSG_REQ_DDL_SYNC,               dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
-    { MSG_REQ_QUERY_PAGE_ONWER, dcs_proc_query_page_owner,
+    { MSG_REQ_QUERY_PAGE_ONWER,       dcs_proc_query_page_owner,
         CM_TRUE, CM_FALSE, "ask master for page owner id" },
+    { MSG_REQ_REFORM_GCV_SYNC,        dms_reform_proc_req_gcv_sync,
+        CM_TRUE, CM_TRUE, "ask partner to sync gcv" },
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -156,9 +158,12 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_LOCK_BUFFER,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss lock buffer" },
     { MSG_ACK_EDP_LOCAL,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp local" },
     { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
-    { MSG_ACK_COMMON,                       dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for request used in dms reform" },
+    { MSG_ACK_REFORM_COMMON,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for reform requests only" },
     { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
-    { MSG_ACK_QUERY_PAGE_ONWER, dms_proc_msg_ack,       CM_FALSE, CM_TRUE, "ask owner id info from master" },
+    { MSG_ACK_QUERY_PAGE_ONWER,             dms_proc_msg_ack,
+        CM_FALSE, CM_TRUE, "ask owner id info from master" },
+    { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,
+        CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -195,6 +200,43 @@ static bool32 dms_same_txn(char *res, const char *res_id, uint32 len)
     return CM_FALSE;
 }
 
+/* Reform-related messages are exempt from GCV check or instance lock. */
+static bool32 dms_msg_skip_gcv_check(unsigned char cmd)
+{
+    switch (cmd) {
+        case MSG_REQ_REFORM_GCV_SYNC:
+        case MSG_ACK_REFORM_GCV_SYNC:
+        case MSG_REQ_REFORM_PREPARE:
+        case MSG_REQ_SYNC_STEP:
+        case MSG_REQ_SYNC_NEXT_STEP:
+        case MSG_REQ_SYNC_SHARE_INFO:
+        case MSG_REQ_DMS_STATUS:
+        case MSG_REQ_MAP_INFO:
+        case MSG_ACK_MAP_INFO:
+        case MSG_ACK_REFORM_COMMON:
+            return CM_TRUE;
+        default:
+            break;
+    }
+    return CM_FALSE;
+}
+
+static void dms_lock_instance_s(unsigned char cmd)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (!dms_msg_skip_gcv_check(cmd)) {
+        cm_latch_s(&reform_info->instance_lock, 0, CM_FALSE, NULL);
+    }
+}
+
+static void dms_unlock_instance_s(unsigned char cmd)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (!dms_msg_skip_gcv_check(cmd)) {
+        cm_unlatch(&reform_info->instance_lock, NULL);
+    }
+}
+
 static void dms_process_message(uint32 work_idx, mes_message_t *msg)
 {
     if (work_idx >= g_dms.proc_ctx_cnt) {
@@ -208,6 +250,8 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
         return;
     }
 
+    dms_lock_instance_s(head->cmd);
+
     dms_processor_t *processor = &g_dms.processors[head->cmd];
     mfc_add_tickets(&g_dms.mfc.recv_tickets[head->src_inst], 1);
 
@@ -216,11 +260,13 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
 #else
     bool32 enable_proc = CM_TRUE;
 #endif
-    if (!enable_proc) {
-        LOG_DEBUG_INF("[DMS] msg was discarded，cmd:%u, src_inst:%u, dst_inst:%u, src_sid:%u, dest_sid:%u",
-            (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst, (uint32)head->src_sid,
-            (uint32)head->dst_sid);
+    bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || dms_msg_skip_gcv_check(head->cmd);
+    if (!enable_proc || !gcv_approved) {
+        LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, local_gcv=%u, recv_gcv=%u, "
+            "src_sid:%u, dest_sid:%u", (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
+            DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid, (uint32)head->dst_sid);
         mfc_release_message_buf(msg);
+        dms_unlock_instance_s(head->cmd);
         return;
     }
     dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
@@ -235,6 +281,8 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
     if (g_dms.callback.mem_reset != NULL) {
         g_dms.callback.mem_reset(ctx->db_handle);
     }
+
+    dms_unlock_instance_s(head->cmd);
 }
 
 // add function
@@ -354,6 +402,7 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_REFORM_PREPARE:
         case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_DMS_STATUS:
+        case MSG_REQ_REFORM_GCV_SYNC:
             return MES_TASK_GROUP_THREE;    // only for judgement
         default:
             return MES_TASK_GROUP_ZERO;

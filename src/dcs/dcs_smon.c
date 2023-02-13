@@ -53,7 +53,7 @@ static void dcs_proc_smon_get_sid(dms_process_context_t *ctx, mes_message_t *rec
     }
     head = (mes_message_head_t *)send_msg;
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -102,7 +102,7 @@ static void dcs_proc_smon_get_txn_dlock(dms_process_context_t *ctx, mes_message_
 
     head = (mes_message_head_t *)send_msg;
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -151,7 +151,7 @@ static void dcs_proc_smon_get_rowid(dms_process_context_t *ctx, mes_message_t *r
 
     head = (mes_message_head_t *)send_msg;
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -222,7 +222,7 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, mes_message_t *re
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_ITL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_ITL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -282,7 +282,7 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, mes_message_t *recei
 
     head = (mes_message_head_t *)send_msg;
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_SQL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_SQL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -351,7 +351,7 @@ void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, mes_message_t 
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_CHECK_STATUS, 0, receive_msg->head->dst_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_CHECK_STATUS, 0, receive_msg->head->dst_inst,
         receive_msg->head->src_inst, ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -412,7 +412,7 @@ void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, mes_message_t *
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, 0, receive_msg->head->dst_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, 0, receive_msg->head->dst_inst,
         receive_msg->head->src_inst, ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -480,7 +480,7 @@ void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, mes_message_t *r
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM, 0, receive_msg->head->dst_inst,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM, 0, receive_msg->head->dst_inst,
         receive_msg->head->src_inst, ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)mes_size;
     head->rsn = receive_msg->head->rsn;
@@ -521,7 +521,7 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DLOCK_INFO, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DLOCK_INFO, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id, CM_INVALID_ID16);
     *((uint32 *)(send_msg + sizeof(mes_message_head_t))) = (uint32)type;
     *((uint16 *)(send_msg + sizeof(mes_message_head_t) + sizeof(uint32))) = rmid;
 
@@ -582,7 +582,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_ITL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_ITL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     char *dest = (char *)(send_msg + sizeof(mes_message_head_t));
     int32 retMemcpy = memcpy_s(dest, DMS_XID_SIZE, xid, DMS_XID_SIZE);
@@ -648,7 +648,7 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_SQL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_SQL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     *((uint16 *)(send_msg + sizeof(mes_message_head_t))) = sid;
     head->size = msg_size;
@@ -715,7 +715,7 @@ int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, 
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_CHECK_STATUS, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_CHECK_STATUS, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     head->size = msg_size;
     head->rsn = mes_get_rsn(dms_ctx->sess_id);
@@ -775,7 +775,7 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
 
     *((uint32 *)(send_msg + sizeof(mes_message_head_t))) = (uint32)type;
@@ -843,7 +843,7 @@ int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_
     }
 
     head = (mes_message_head_t *)send_msg;
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     head->size = msg_size;
     head->rsn = mes_get_rsn(dms_ctx->sess_id);

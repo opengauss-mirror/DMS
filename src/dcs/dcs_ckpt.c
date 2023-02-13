@@ -37,7 +37,7 @@ static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint8 cmd, dms_
 {
     int32 ret;
     mes_message_head_t head;
-    MES_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     uint32 left_cnt = count;
     uint32 max_send_cnt = (uint32)(((MES_MESSAGE_BUFFER_SIZE - sizeof(mes_message_head_t)) - sizeof(unsigned int)) /
         sizeof(dms_edp_info_t));

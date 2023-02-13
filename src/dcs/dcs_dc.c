@@ -118,7 +118,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     mes_message_head_t head;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    MES_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(mes_message_head_t) + len);
     head.rsn = mfc_get_rsn(dms_ctx->sess_id);
 
@@ -212,7 +212,7 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
     dcs_boc_req_t boc_req;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    MES_INIT_MESSAGE_HEAD(&boc_req.head, MSG_REQ_BOC, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&boc_req.head, MSG_REQ_BOC, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     boc_req.head.size = (uint16)sizeof(dcs_boc_req_t);
     boc_req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     boc_req.commit_scn = commit_scn;
@@ -247,7 +247,7 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
     mes_message_head_t head;
     uint16 size = (uint16)(sizeof(mes_message_head_t) + len);
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    MES_INIT_MESSAGE_HEAD(&head, MSG_REQ_OPENGAUSS_DDLLOCK, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_OPENGAUSS_DDLLOCK, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
 
     head.size = size;
     head.rsn = mfc_get_rsn(dms_ctx->sess_id);

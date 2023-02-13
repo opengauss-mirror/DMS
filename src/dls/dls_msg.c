@@ -128,7 +128,7 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
     }
 
     dms_ask_res_ack_t page_ack;
-    MES_INIT_MESSAGE_HEAD(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
+    DMS_INIT_MESSAGE_HEAD(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
         req_info->req_id, proc_ctx->sess_id, req_info->req_sid);
     page_ack.head.rsn = req_info->req_rsn;
     page_ack.head.flags |= MSG_FLAG_NO_PAGE;

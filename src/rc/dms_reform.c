@@ -211,6 +211,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
     int ret = DMS_SUCCESS;
+    g_dms.cluster_ver = 0;
 
 #ifdef OPENGAUSS
     if (!dms_profile->enable_reform) {

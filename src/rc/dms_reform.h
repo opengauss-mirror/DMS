@@ -134,6 +134,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_UPDATE_SCN,
     DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
     DMS_REFORM_STEP_DRC_VALIDATE,
+    DMS_REFORM_STEP_LOCK_INSTANCE,                  // get X mode instance lock for reform
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
@@ -282,6 +283,7 @@ typedef struct st_reform_info {
     bool8               bcast_unable;
     bool8               ddl_unable;
     bool8               parallel_enable;        // dms reform proc parallel enable
+    latch_t             instance_lock;          // latch to avoid concurrent modifications on db buf and dms drc
     uint8               unused[3];
 } reform_info_t;
 

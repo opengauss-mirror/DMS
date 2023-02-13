@@ -362,6 +362,82 @@ static int dms_reform_check_remote(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_sync_cluster_version_inner(uint8 dst_id, bool8 *local_updated, bool8 pushing)
+{
+    dms_reform_req_gcv_sync_t req;
+    int ret = DMS_SUCCESS;
+
+    dms_reform_init_req_gcv_sync(&req, dst_id, pushing);
+    ret = mfc_send_data(&req.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][GCV SYNC]dms_reform_sync_cluster_version_inner "
+            "SEND error: %d, dst_id: %d", ret, dst_id);
+        return ret;
+    }
+
+    ret = dms_reform_req_gcv_sync_wait(local_updated, pushing);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][GCV SYNC]dms_reform_sync_cluster_version_inner "
+            "WAIT error: %d, dst_id: %d", ret, dst_id);
+        return ret;
+    }
+
+    return DMS_SUCCESS;
+}
+
+/*
+ * calc and sync appropriate cluster version before any reform msg passed around
+ */
+int dms_reform_sync_cluster_version(bool8 pushing)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    instance_list_t *list_online = &share_info->list_online;
+    uint8 dst_id = CM_INVALID_ID8;
+    int ret = DMS_SUCCESS;
+    bool8 local_updated = CM_FALSE; /* whether reformer had to update */
+
+    LOG_DEBUG_INF("[DMS REFORM][GCV %s]dms_reform_sync_cluster_version 1st round",
+        pushing ? "PUSH" : "SYNC");
+    for (uint8 i = 0; i < list_online->inst_id_count; i++) {
+        dst_id = list_online->inst_id_list[i];
+        if (dms_dst_id_is_self(dst_id)) {
+            continue;
+        }
+        ret = dms_reform_sync_cluster_version_inner(dst_id, &local_updated, pushing);
+        if (ret != DMS_SUCCESS) {
+            return ret;
+        }
+    }
+    cm_panic_log(!(pushing && local_updated), "[DMS REFORM][GCV SYNC]fatal: reformer gcv < partner:%u",
+        DMS_GLOBAL_CLUSTER_VER);
+
+    /* sync again when some partner has the biggest GCV that reformer has just learnt */
+    while (local_updated && !pushing) {
+        local_updated = CM_FALSE;
+        LOG_DEBUG_INF("[DMS REFORM][GCV SYNC]dms_reform_sync_cluster_version 2nd round");
+        for (uint8 i = 0; i < list_online->inst_id_count; i++) {
+            dst_id = list_online->inst_id_list[i];
+            if (dms_dst_id_is_self(dst_id)) {
+                continue;
+            }
+            ret = dms_reform_sync_cluster_version_inner(dst_id, &local_updated, pushing);
+            if (ret != DMS_SUCCESS) {
+                return ret;
+            }
+        }
+        if (local_updated) {
+            LOG_DEBUG_ERR("[DMS REFORM][GCV SYNC]fatal: reformer local updated again, GCV:%u",
+                DMS_GLOBAL_CLUSTER_VER);
+        }
+    }
+
+    LOG_DEBUG_INF("[DMS REFORM][GCV %s]dms_reform_sync_cluster_version success, gcv=%u",
+        pushing ? "PUSH" : "SYNC", DMS_GLOBAL_CLUSTER_VER);
+
+    LOG_DEBUG_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 static void dms_reform_add_step(reform_step_t step)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -905,6 +981,13 @@ static void dms_reform_judgement_drc_validate(bool set_inaccess)
 #endif
 }
 
+/* SYNC_WAIT before and after pushing GCV to ensure consistency */
+static void dms_reform_judgement_lock_instance(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_LOCK_INSTANCE);
+}
+
 static void dms_reform_judgement_success(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
@@ -1077,6 +1160,7 @@ static void dms_reform_judgement_wait_ckpt(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_WAIT_CKPT);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
 }
 
 static void dms_reform_judgement_bcast_enable(void)
@@ -1092,6 +1176,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_reconnect(inst_lists);
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
@@ -1122,6 +1207,7 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_start();
     dms_reform_judgement_switchover_demote(inst_lists);
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_drc_access();
@@ -1139,6 +1225,7 @@ static void dms_reform_judgement_switchover_opengauss(instance_list_t *inst_list
     dms_reform_judgement_drc_validate(false);
     dms_reform_judgement_switchover_demote(inst_lists);
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_drc_access();
@@ -1157,6 +1244,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_reconnect(inst_lists);
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
@@ -1188,6 +1276,7 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_reconnect(inst_lists);
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
@@ -1211,6 +1300,7 @@ static void dms_reform_judgement_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_reconnect(inst_lists);
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
@@ -1230,6 +1320,7 @@ static void dms_reform_judgement_build(instance_list_t *inst_lists)
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
@@ -1247,6 +1338,7 @@ static void dms_reform_judgement_full_clean(instance_list_t *inst_lists)
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
@@ -1759,6 +1851,12 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
     if (!reform_judgement_proc.check_proc(inst_lists)) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No need to reform");
+        return CM_FALSE;
+    }
+
+    /* this check must be first in judgement reform */
+    if (dms_reform_sync_cluster_version(CM_FALSE) != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, failed to sync cluster_ver");
         return CM_FALSE;
     }
 
