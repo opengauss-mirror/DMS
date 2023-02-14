@@ -180,6 +180,10 @@ typedef struct st_dms_ask_res_ack {
     uint64 scn;
     uint64 edp_map;
     uint32 ver;
+#ifdef OPENGAUSS
+    uint8 seg_fileno;
+    uint32 seg_blockno;
+#endif
 } dms_ask_res_ack_t;
 
 typedef struct st_dms_claim_owner_req {
