@@ -874,6 +874,7 @@ void dcs_proc_query_page_owner(dms_process_context_t *ctx, mes_message_t *receiv
     MES_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_QUERY_PAGE_ONWER, 0, ctx->inst_id, req->head.src_inst,
         ctx->sess_id, req->head.src_sid);
     ack.owner_id = owner_id;
+    ack.head.size = sizeof(dms_query_owner_ack_t);
 
     ret = mfc_send_data(&ack.head);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -887,6 +888,7 @@ int dms_query_page_owner_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner
     dms_query_owner_req_t req;
     MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_QUERY_PAGE_ONWER, 0, dms_ctx->inst_id, master_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
+    req.head.size = sizeof(dms_query_owner_req_t);
     int ret = memcpy_sp(req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(dms_ctx->resid));
