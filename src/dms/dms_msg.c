@@ -1135,7 +1135,7 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *re
     if (ret != DMS_SUCCESS) {
         ack.result = CONFIRM_NONE;
     } else {
-        ack.result = (lock_mode >= req.cvt_mode) ? CONFIRM_READY : CONFIRM_CANCEL;
+        ack.result = (lock_mode == req.cvt_mode) ? CONFIRM_READY : CONFIRM_CANCEL;
     }
 
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
