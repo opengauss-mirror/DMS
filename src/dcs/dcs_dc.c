@@ -194,6 +194,11 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, mes_message_t *receive_msg
 #else
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dcs_boc_req_t), CM_TRUE, CM_TRUE);
     dcs_boc_req_t *boc_req = (dcs_boc_req_t *)(receive_msg->buffer);
+    if (boc_req->inst_id >= DMS_MAX_INSTANCES) {
+        mfc_release_message_buf(receive_msg);
+        LOG_DEBUG_ERR("[DCS]%s instance id %u is invalid", __FUNCTION__, boc_req->inst_id);
+        return;
+    }
     g_dms.callback.update_global_scn(process_ctx->db_handle, boc_req->commit_scn);
     (void)cm_atomic_set((atomic_t *)&(g_dms.min_scn[boc_req->inst_id]), (int64)boc_req->min_scn);
     cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BOC, DMS_SUCCESS);
