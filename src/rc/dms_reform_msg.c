@@ -646,8 +646,7 @@ void dms_reform_proc_req_rebuild_buf_res(dms_process_context_t *ctx, mes_message
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg,
-        (uint32)(sizeof(dms_reform_req_rebuild_t) + req_rebuild->offset), CM_TRUE, CM_TRUE);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
@@ -719,8 +718,7 @@ void dms_reform_proc_req_rebuild_lock(dms_process_context_t *ctx, mes_message_t 
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg,
-        (uint32)(sizeof(dms_reform_req_rebuild_t) + req_rebuild->offset), CM_TRUE, CM_TRUE);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
