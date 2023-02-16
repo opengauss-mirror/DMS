@@ -210,6 +210,10 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
 
     if (ack->head.cmd == MSG_ACK_PAGE_READY && !(ack->head.flags & MSG_FLAG_NO_PAGE)) {
         CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
+#ifdef OPENGAUSS
+        ctrl->seg_fileno = ack->seg_fileno;
+        ctrl->seg_blockno = ack->seg_blockno;
+#endif
         if (g_dms.callback.verify_page != NULL) {
             g_dms.callback.verify_page(ctrl, msg->buffer + sizeof(dms_ask_res_ack_t));
         }
@@ -347,6 +351,11 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     } else {
         page_ack.head.size = (uint16)(g_dms.page_size + sizeof(dms_ask_res_ack_t));
     }
+
+#ifdef OPENGAUSS
+    page_ack.seg_fileno = ctrl->seg_fileno;
+    page_ack.seg_blockno = ctrl->seg_blockno;
+#endif
     page_ack.lsn = 0;
 #ifndef OPENGAUSS
     page_ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
