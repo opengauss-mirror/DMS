@@ -72,27 +72,9 @@ static int32 check_conflict_with_x_lock(drc_buf_res_t *buf_res, drc_request_info
     return DMS_SUCCESS;
 }
 
-static int32 check_conflict_request(drc_buf_res_t *buf_res, drc_request_info_t *req_info)
+static int32 drc_verify_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t *req_info)
 {
     drc_cvt_item_t *converting = &buf_res->converting;
-
-    // inst1 session1 & session2 ask master for res at the same time or timeout retry
-    // master grant res to session1, and session1 claim ownership
-    // master process session2's request after processing session1's claim request
-    if ((buf_res->claimed_owner == req_info->inst_id ||
-        bitmap64_exist(&buf_res->copy_insts, req_info->inst_id)) && buf_res->ver != req_info->ver) {
-        LOG_DEBUG_ERR("[DRC][%s][invalid request] buf_res: mode=%u owner=%u copy_insts=%llu "
-            "req: inst_id=%u sid=%u rsn=%llu curr_mode=%u req_mode=%u",
-            cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->lock_mode,
-            (uint32)buf_res->claimed_owner, buf_res->copy_insts, (uint32)req_info->inst_id,
-            (uint32)req_info->sess_id, req_info->rsn, (uint32)req_info->curr_mode, (uint32)req_info->req_mode);
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
-        return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
-    }
-
-    if (converting->req_info.inst_id == CM_INVALID_ID8) {
-        return DMS_SUCCESS;
-    }
 
     if (buf_res->claimed_owner == converting->req_info.inst_id &&
         bitmap64_exist(&buf_res->copy_insts, req_info->inst_id)) {
@@ -106,7 +88,6 @@ static int32 check_conflict_request(drc_buf_res_t *buf_res, drc_request_info_t *
     }
 
     if (buf_res->claimed_owner == req_info->inst_id) {
-        // s->x
         LOG_DEBUG_INF("[DRC][%s]:conflicted with other, [buf_res:owner=%u, mode=%u], "
             "[req:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u]",
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
@@ -123,6 +104,49 @@ static int32 check_conflict_request(drc_buf_res_t *buf_res, drc_request_info_t *
     return DMS_SUCCESS;
 }
 
+static int32 drc_verify_4_valid(drc_buf_res_t *buf_res, drc_request_info_t *req)
+{
+    if (buf_res->claimed_owner == req->inst_id || bitmap64_exist(&buf_res->copy_insts, req->inst_id)) {
+        // inst1 session1 & session2 ask master for res at the same time or timeout retry
+        // master grant res to session1, and session1 claim ownership
+        // master process session2's request after processing session1's claim request
+        if(buf_res->ver != req->ver) {
+            LOG_DEBUG_ERR("[DRC][%s][invalid request1] buf_res: mode=%u owner=%u copy_insts=%llu ver=%u "
+                "req: inst_id=%u sid=%u rsn=%llu curr_mode=%u req_mode=%u ver=%u",
+                cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->lock_mode,
+                (uint32)buf_res->claimed_owner, buf_res->copy_insts, buf_res->ver, (uint32)req->inst_id,
+                (uint32)req->sess_id, req->rsn, (uint32)req->curr_mode, (uint32)req->req_mode, req->ver);
+            DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
+            return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
+        }
+        // lock can not check, because its drc may be inconsistency such as:
+        // 1)requester ask master for x
+        // 2)master notify owner to transfer ownership
+        // 3)owner transfer ownership, and change lock_mode to null
+        // 4)requester wait timeout and cancel request
+        // 5)old owner ask lock again
+        if (buf_res->type == DRC_RES_PAGE_TYPE && !(buf_res->lock_mode == DMS_LOCK_SHARE &&
+            req->curr_mode == DMS_LOCK_SHARE && req->req_mode == DMS_LOCK_EXCLUSIVE)) {
+                LOG_DEBUG_ERR("[DRC][%s][invalid request2] buf_res: mode=%u owner=%u copy_insts=%llu ver=%u "
+                    "req: inst_id=%u sid=%u rsn=%llu curr_mode=%u req_mode=%u ver=%u",
+                    cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->lock_mode,
+                    (uint32)buf_res->claimed_owner, buf_res->copy_insts, buf_res->ver, (uint32)req->inst_id,
+                    (uint32)req->sess_id, req->rsn, (uint32)req->curr_mode, (uint32)req->req_mode, req->ver);
+                DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
+                return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
+            }
+    }
+    return DMS_SUCCESS;
+}
+
+static inline int32 drc_verify_request(drc_buf_res_t *buf_res, drc_request_info_t *req)
+{
+    if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
+        return drc_verify_4_valid(buf_res, req);
+    }
+    return drc_verify_4_conflict(buf_res, req);
+}
+
 static inline bool32 is_the_same_req_4_res(drc_request_info_t* req1, drc_request_info_t* req2, bool32 *valid_retry)
 {
     if (req2->inst_id != req1->inst_id || req2->curr_mode != req1->curr_mode || req2->req_mode > req1->req_mode) {
@@ -134,7 +158,7 @@ static inline bool32 is_the_same_req_4_res(drc_request_info_t* req1, drc_request
     return CM_TRUE;
 }
 
-static bool32 check_if_the_retry_req(drc_buf_res_t* buf_res, drc_request_info_t* req, bool32 *converting)
+static bool32 check_if_retry_req(drc_buf_res_t* buf_res, drc_request_info_t* req, bool32 *converting)
 {
     bool32 valid_retry = CM_FALSE;
     drc_request_info_t *cvt_req = &buf_res->converting.req_info;
@@ -171,13 +195,13 @@ static bool32 check_if_the_retry_req(drc_buf_res_t* buf_res, drc_request_info_t*
 
 static int32 drc_enq_req_item(drc_buf_res_t *buf_res, drc_request_info_t *req_info, bool32 *converting)
 {
-    if (check_if_the_retry_req(buf_res, req_info, converting)) {
+    if (check_if_retry_req(buf_res, req_info, converting)) {
         LOG_DEBUG_INF("[DRC][%s][drc_enq_req_item] find the same req, is retry:%u",
             cm_display_resid(buf_res->data, buf_res->type), *converting);
         return DMS_SUCCESS;
     }
 
-    int32 ret = check_conflict_request(buf_res, req_info);
+    int32 ret = drc_verify_request(buf_res, req_info);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -251,10 +275,12 @@ static void drc_get_page_no_owner(drc_req_owner_result_t *result, drc_buf_res_t 
 
 static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
 {
-    if (!if_cvt_need_confirm(buf_res)) {
+    drc_request_info_t *cvt_req = &buf_res->converting.req_info;
+    
+    if (!if_cvt_need_confirm(buf_res) || cvt_req->inst_id == CM_INVALID_ID8) {
         return;
     }
-    drc_request_info_t *cvt_req = &buf_res->converting.req_info;
+    
     res_id_t res_id;
     res_id.type = buf_res->type;
     res_id.len = buf_res->len;
@@ -289,34 +315,14 @@ static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *bu
         result->curr_owner_id = buf_res->claimed_owner;
 
         if (buf_res->claimed_owner == req_info->inst_id) {
-            // lock can not check, because its drc may be inconsistency such as:
-            // 1)requester ask master for x
-            // 2)master notify owner to transfer ownership
-            // 3)owner transfer ownership, and change lock_mode to null
-            // 4)requester wait timeout and cancel request
-            // 5)old owner ask lock again
-            if (buf_res->type == DRC_RES_PAGE_TYPE) {
-                cm_panic_log(buf_res->lock_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE,
-                    "[DRC][%s] buf res status error, curr mode = %u, req mode = %u",
-                    cm_display_resid(buf_res->data, buf_res->type),
-                    (uint32)buf_res->lock_mode, (uint32)req_info->req_mode);
-                result->has_share_copy = CM_TRUE;
-            }
             if (req_info->curr_mode == DMS_LOCK_SHARE) {
                 result->type = DRC_REQ_OWNER_ALREADY_OWNER;
             } else {
                 result->type = DRC_REQ_OWNER_GRANTED;
             }
+            result->has_share_copy = CM_TRUE;
         } else if (bitmap64_exist(&buf_res->copy_insts, req_info->inst_id)) {
-            // share copy to X, lock can not check, may see above for reasons
-            if (buf_res->type == DRC_RES_PAGE_TYPE) {
-                cm_panic_log(req_info->curr_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE &&
-                    buf_res->lock_mode == DMS_LOCK_SHARE,
-                    "[DRC][%s] buf res status error, buf curr mode = %u, req curr mode = %u, req mode = %u",
-                    cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->lock_mode,
-                    (uint32)req_info->curr_mode, (uint32)req_info->req_mode);
-                result->has_share_copy = CM_TRUE;
-            }
+            result->has_share_copy = CM_TRUE;
             result->type = DRC_REQ_OWNER_CONVERTING;
         } else {
             result->type = DRC_REQ_OWNER_CONVERTING;

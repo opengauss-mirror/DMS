@@ -157,8 +157,6 @@ static inline void dcs_buf_clean_ctrl_edp(dms_context_t *dms_ctx, dms_buf_ctrl_t
 
 static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl)
 {
-    g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
-
 #ifndef OPENGAUSS
     if (ctrl->is_edp) {
         /* incase owner node clean edp info and recycle buffer before cleaning edp on this node */
@@ -169,6 +167,7 @@ static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *
     // first load of this page, give X mode directly
     ctrl->lock_mode = DMS_LOCK_EXCLUSIVE;
     ctrl->ver = cm_random(CM_INVALID_ID32);
+    g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
 }
 
 int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
