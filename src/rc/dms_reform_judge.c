@@ -1740,6 +1740,11 @@ static bool32 dms_reform_judgement(uint8 *online_status)
         return CM_FALSE;
     }
 
+    if (dms_reform_check_remote() != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to check remote");
+        return CM_FALSE;
+    }
+
     int ret = memset_s(inst_lists, len, 0, len);
     if (ret != EOK) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, Secure C lib has thrown an error %d", ret);
@@ -1754,11 +1759,6 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
     if (!reform_judgement_proc.check_proc(inst_lists)) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No need to reform");
-        return CM_FALSE;
-    }
-
-    if (dms_reform_check_remote() != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to check remote");
         return CM_FALSE;
     }
 

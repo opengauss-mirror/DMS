@@ -233,6 +233,7 @@ void dms_reform_health_thread(thread_t *thread)
         }
         if (health_info->thread_status == DMS_THREAD_STATUS_RUNNING) {
             dms_reform_health_check();
+            DMS_REFORM_LONG_SLEEP;
         }
     }
 }
