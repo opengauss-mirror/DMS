@@ -259,6 +259,7 @@ typedef struct st_dms_confirm_cvt_ack {
     uint64 lsn;
     uint64 edp_map;
     uint32 ver;
+    uint8 lock_mode;
 }dms_confirm_cvt_ack_t;
 
 typedef struct st_dms_query_owner_req  {
