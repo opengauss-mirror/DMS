@@ -864,30 +864,30 @@ int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t 
 
 void dcs_proc_query_page_owner(dms_process_context_t *ctx, mes_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
-    dms_query_owner_req_t *req = (dms_query_owner_req_t *)(receive_msg->buffer);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_query_owner_req_t), CM_TRUE, CM_TRUE);
+    dms_query_owner_req_t req = *(dms_query_owner_req_t *)(receive_msg->buffer);
     mfc_release_message_buf(receive_msg);
 
     uint8 owner_id = CM_INVALID_ID8;
-    int ret = drc_get_page_owner_id(CM_INVALID_ID8, req->resid, DMS_SESSION_NORMAL, &owner_id);
+    int ret = drc_get_page_owner_id(CM_INVALID_ID8, req.resid, DMS_SESSION_NORMAL, &owner_id);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DCS][%s][dcs query page owner]: failed to get page owner", cm_display_pageid(req->resid));
-        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req->head.src_inst, req->head.src_sid,
-            req->head.rsn, ERRNO_DMS_DCS_PAGE_MASTER_ID);
+        LOG_DEBUG_ERR("[DCS][%s][dcs query page owner]: failed to get page owner", cm_display_pageid(req.resid));
+        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req.head.src_inst, req.head.src_sid,
+            req.head.rsn, ERRNO_DMS_DCS_PAGE_MASTER_ID);
         return;
     }
     LOG_DEBUG_INF("[DCS][%s][dcs query page owner]: success to get page owner %u",
-        cm_display_pageid(req->resid), (uint32)owner_id);
+        cm_display_pageid(req.resid), (uint32)owner_id);
+ 
     dms_query_owner_ack_t ack;
-    MES_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_QUERY_PAGE_ONWER, 0, ctx->inst_id, req->head.src_inst,
-        ctx->sess_id, req->head.src_sid);
+    mfc_init_ack_head(&req.head, &ack.head, MSG_ACK_QUERY_PAGE_ONWER, sizeof(dms_query_owner_ack_t),
+        ctx->inst_id);
     ack.owner_id = owner_id;
-    ack.head.size = sizeof(dms_query_owner_ack_t);
 
     ret = mfc_send_data(&ack.head);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_INF("[DCS][%s][dcs query page owner]: failed, dest_id=%d, src_id=%u, src_sid=%d",
-            cm_display_pageid(req->resid), req->head.dst_inst, req->head.src_inst, req->head.src_sid);
+            cm_display_pageid(req.resid), req.head.dst_inst, req.head.src_inst, req.head.src_sid);
     }
 }
 
@@ -896,7 +896,9 @@ int dms_query_page_owner_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner
     dms_query_owner_req_t req;
     MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_QUERY_PAGE_ONWER, 0, dms_ctx->inst_id, master_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
+    req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     req.head.size = sizeof(dms_query_owner_req_t);
+ 
     int ret = memcpy_sp(req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(dms_ctx->resid));
