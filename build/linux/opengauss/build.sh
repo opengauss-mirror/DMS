@@ -104,6 +104,7 @@ export DMS_LIBRARYS=$(pwd)/../../../library
 [ -d "${DMS_LIBRARYS}" ] && rm -rf ${DMS_LIBRARYS}
 mkdir -p $DMS_LIBRARYS/huawei_security
 mkdir -p $DMS_LIBRARYS/openssl
+mkdir -p $DMS_LIBRARYS/zlib
 mkdir -p $DMS_LIBRARYS/cbb
 
 export LIB_PATH=$binarylib_dir/kernel/dependency
@@ -112,9 +113,11 @@ COPT_LIB_PATH=${binarylib_dir}/kernel/component
 
 cp -r $P_LIB_PATH/Huawei_Secure_C/comm/lib     $DMS_LIBRARYS/huawei_security/lib
 cp -r $LIB_PATH/openssl/comm/lib               $DMS_LIBRARYS/openssl/lib
+cp -r $LIB_PATH/zlib1.2.11/comm/lib              $DMS_LIBRARYS/zlib/lib
 
 cp -r $P_LIB_PATH/Huawei_Secure_C/comm/include    $DMS_LIBRARYS/huawei_security/include
 cp -r $LIB_PATH/openssl/comm/include              $DMS_LIBRARYS/openssl/include
+cp -r $LIB_PATH/zlib1.2.11/comm/include              $DMS_LIBRARYS/zlib/include
 
 cp -r $COPT_LIB_PATH/cbb/include                  $DMS_LIBRARYS/cbb/include
 cp -r $COPT_LIB_PATH/cbb/lib                      $DMS_LIBRARYS/cbb/lib

@@ -6,6 +6,7 @@ endif (ENABLE_FUZZASAN)
 ## other dependency include 
 include_directories(${DMS_SECUREC_INC_PATH})
 include_directories(${DMS_OPENSSL_PATH})
+include_directories(${ZLIB_INC_PATH})
 include_directories(${DMS_CBB_PATH})
 
 ## source
