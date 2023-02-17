@@ -1135,7 +1135,8 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *re
     if (ret != DMS_SUCCESS) {
         ack.result = CONFIRM_NONE;
     } else {
-        ack.result = (lock_mode == req.cvt_mode) ? CONFIRM_READY : CONFIRM_CANCEL;
+        ack.lock_mode = lock_mode;
+        ack.result = (lock_mode >= req.cvt_mode) ? CONFIRM_READY : CONFIRM_CANCEL;
     }
 
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
@@ -1193,7 +1194,7 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
     }
     claim_info_t claim_info;
     (void)dms_set_claim_info(&claim_info, buf_res->data, buf_res->len, buf_res->type, cvt_req->inst_id,
-        cvt_req->req_mode, (bool8)has_edp, ack->lsn, cvt_req->sess_id, ack->ver, cvt_req->rsn, DMS_SESSION_NORMAL);
+        ack->lock_mode, (bool8)has_edp, ack->lsn, cvt_req->sess_id, ack->ver, cvt_req->rsn, DMS_SESSION_NORMAL);
 
     cvt_info_t cvt_info;
     if (drc_convert_page_owner(buf_res, &claim_info, &cvt_info) != DMS_SUCCESS) {
