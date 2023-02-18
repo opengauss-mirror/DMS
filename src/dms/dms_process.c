@@ -622,6 +622,7 @@ static int32 init_single_logger(log_param_t *log_param, log_type_t log_id)
     char file_name[CM_FILE_NAME_BUFFER_SIZE] = {'\0'};
     CM_RETURN_IFERR(init_single_logger_core(log_param, log_id, file_name, CM_FILE_NAME_BUFFER_SIZE));
     (void)cm_log_init(log_id, (const char *)file_name);
+    cm_log_open_compress(log_id, true);
     return DMS_SUCCESS;
 }
 
@@ -658,6 +659,11 @@ int32 dms_init_logger(logger_param_t *param_def)
     log_param->audit_backup_file_count = param_def->log_backup_file_count;
     log_param->max_log_file_size = param_def->log_max_file_size;
     log_param->max_audit_file_size = param_def->log_max_file_size;
+    log_param->log_compressed = true;
+    log_param->log_compress_buf = malloc(CM_LOG_COMPRESS_BUFSIZE);
+    if (log_param->log_compress_buf == NULL) {
+        return ERRNO_DMS_INIT_LOG_FAILED;
+    }
     cm_log_set_file_permissions(600);
     cm_log_set_path_permissions(700);
     (void)cm_set_log_module_name("DMS", sizeof("DMS"));
@@ -822,6 +828,7 @@ void dms_uninit(void)
     drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
+    CM_FREE_PTR(cm_log_param_instance()->log_compress_buf);
     CM_FREE_PTR(g_dms.proc_ctx);
 }
 
