@@ -65,6 +65,8 @@ typedef struct st_dms_instance {
     mfc_t mfc;
     uint64 min_scn[DMS_MAX_INSTANCES];
     uint8 enable_reform;
+    uint8 gdb_in_progress;
+    uint8 unused[2];
     cm_res_mgr_t cm_res_mgr;
     uint32 cluster_ver;
 } dms_instance_t;

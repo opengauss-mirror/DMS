@@ -81,7 +81,7 @@ void dms_reformer_preempt_thread(thread_t *thread)
         ret = dms_reform_cm_res_get_lock_owner(&reform_id);
         if (ret != DMS_SUCCESS) {
             time_now = g_timer()->now;
-            if (time_now - time_success > DMS_MAX_FAIL_TIME * MICROSECS_PER_SECOND) {
+            if (time_now - time_success > DMS_MAX_FAIL_TIME * MICROSECS_PER_SECOND && !g_dms.gdb_in_progress) {
                 LOG_RUN_ERR("[DMS REFORM]fail to get lock owner for %d seconds, exit", DMS_MAX_FAIL_TIME);
                 cm_exit(0);
             }
