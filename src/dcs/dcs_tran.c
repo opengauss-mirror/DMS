@@ -39,7 +39,7 @@ int dms_request_opengauss_lock_buffer(dms_context_t *dms_ctx, int buffer, unsign
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
     mes_message_t receive_msg = { 0 };
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_LOCK_BUFFER, 0, (uint8)dms_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_LOCK_BUFFER, 0, (uint8)dms_ctx->inst_id,
         (uint8)xid_ctx->inst_id, (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     lock_ctx.buffer = buffer;
     lock_ctx.lock_mode = mode;
@@ -88,7 +88,7 @@ int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char reque
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
     mes_message_t receive_msg = { 0 };
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_TXN_STATUS, 0, dms_ctx->inst_id, xid_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_TXN_STATUS, 0, dms_ctx->inst_id, xid_ctx->inst_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     status_req.xid = xid_ctx->xid;
     status_req.request_type = request;
@@ -142,7 +142,7 @@ void dcs_proc_opengauss_txn_status_req(dms_process_context_t *process_ctx, mes_m
         return;
     }
 
-    MES_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_TXN_STATUS, 0, req_head->dst_inst, req_head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_TXN_STATUS, 0, req_head->dst_inst, req_head->src_inst,
         process_ctx->sess_id, req_head->src_sid);
     ack_head.size = (uint16)(sizeof(uint64) + sizeof(mes_message_head_t));
     ack_head.rsn = req_head->rsn;
@@ -162,7 +162,7 @@ int dms_request_opengauss_update_xid(dms_context_t *dms_ctx, unsigned short t_in
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
     mes_message_t receive_msg = { 0 };
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, 0, dms_ctx->inst_id, xid_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, 0, dms_ctx->inst_id, xid_ctx->inst_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     uxid_req.xid = xid_ctx->xid;
     uxid_req.t_infomask = t_infomask;
@@ -218,7 +218,7 @@ void dcs_proc_opengauss_update_xid_req(dms_process_context_t *process_ctx, mes_m
         return;
     }
 
-    MES_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_TXN_UPDATE_XID, 0, req_head->dst_inst, req_head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_TXN_UPDATE_XID, 0, req_head->dst_inst, req_head->src_inst,
         process_ctx->sess_id, req_head->src_sid);
     ack_head.size = (uint16)(sizeof(uint64) + sizeof(mes_message_head_t));
     ack_head.rsn = req_head->rsn;
@@ -238,7 +238,7 @@ int dms_request_opengauss_xid_csn(dms_context_t *dms_ctx, dms_opengauss_xid_csn_
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
     mes_message_t receive_msg = { 0 };
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_XID_CSN, 0, (uint8)dms_ctx->inst_id, (uint8)xid_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_XID_CSN, 0, (uint8)dms_ctx->inst_id, (uint8)xid_ctx->inst_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     xid_csn_req.xid_csn_ctx = *dms_txn_info;
     head->size = (uint16)sizeof(msg_opengauss_xid_csn_request_t);
@@ -298,7 +298,7 @@ void dcs_proc_opengauss_xid_csn_req(dms_process_context_t *process_ctx, mes_mess
         return;
     }
 
-    MES_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_XID_CSN, 0, req_head->dst_inst, req_head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_XID_CSN, 0, req_head->dst_inst, req_head->src_inst,
         process_ctx->sess_id, req_head->src_sid);
     ack_head.size = (uint16)(sizeof(dms_opengauss_xid_csn_t) + sizeof(mes_message_head_t));
     ack_head.rsn = req_head->rsn;
@@ -331,7 +331,7 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, mes_message_t *re
         return;
     }
 
-    MES_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_TXN_INFO, 0, req_head->dst_inst, req_head->src_inst, process_ctx->sess_id,
+    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_TXN_INFO, 0, req_head->dst_inst, req_head->src_inst, process_ctx->sess_id,
         req_head->src_sid);
     ack_head.size = (uint16)(sizeof(dms_txn_info_t) + sizeof(mes_message_head_t));
     ack_head.rsn = req_head->rsn;
@@ -351,7 +351,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
     mes_message_t receive_msg = { 0 };
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_TXN_INFO, 0, dms_ctx->inst_id, xid_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_TXN_INFO, 0, dms_ctx->inst_id, xid_ctx->inst_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     txn_info_req.xid = xid_ctx->xid;
     txn_info_req.is_scan = xid_ctx->is_scan;
@@ -403,7 +403,7 @@ void dcs_proc_opengauss_txn_snapshot_req(dms_process_context_t *process_ctx, mes
     dms_opengauss_txn_snapshot_t txn_snapshot;
     int32 ret = g_dms.callback.get_opengauss_txn_snapshot(process_ctx->db_handle, &txn_snapshot);
     if (ret == DMS_SUCCESS) {
-        MES_INIT_MESSAGE_HEAD(&ack, MSG_ACK_OPENGAUSS_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst,
+        DMS_INIT_MESSAGE_HEAD(&ack, MSG_ACK_OPENGAUSS_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst,
             receive_msg->head->src_inst, process_ctx->sess_id, receive_msg->head->src_sid);
         ack.rsn = receive_msg->head->rsn;
         ack.size = (uint16)(sizeof(mes_message_head_t) + sizeof(dms_opengauss_txn_snapshot_t));
@@ -427,7 +427,7 @@ void dcs_proc_txn_snapshot_req(dms_process_context_t *process_ctx, mes_message_t
     uint32 xmap = req->xmap;
     int32 ret = g_dms.callback.get_txn_snapshot(process_ctx->db_handle, xmap, &txn_snapshot);
     if (ret == DMS_SUCCESS) {
-        MES_INIT_MESSAGE_HEAD(&ack, MSG_ACK_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+        DMS_INIT_MESSAGE_HEAD(&ack, MSG_ACK_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
             process_ctx->sess_id, receive_msg->head->src_sid);
         ack.rsn = receive_msg->head->rsn;
         ack.size = (uint16)(sizeof(mes_message_head_t) + sizeof(dms_txn_snapshot_t));
@@ -445,7 +445,7 @@ int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx, dms_opengauss_txn
     msg_opengauss_txn_snapshot_t req;
     dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
 
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, 0, dms_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, 0, dms_ctx->inst_id,
         xmap_ctx->dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     req.head.size = (uint16)sizeof(msg_opengauss_txn_snapshot_t);
@@ -491,7 +491,7 @@ int dms_request_txn_snapshot(dms_context_t *dms_ctx, dms_txn_snapshot_t *dms_txn
     msg_txn_snapshot_t req;
     dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
 
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_TXN_SNAPSHOT, 0, dms_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_TXN_SNAPSHOT, 0, dms_ctx->inst_id,
         xmap_ctx->dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     req.head.size = (uint16)sizeof(msg_txn_snapshot_t);
@@ -560,7 +560,7 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, mes_message_t *re
         ret = DMS_REMOTE_TXN_WAIT;
     }
 
-    MES_INIT_MESSAGE_HEAD(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, receive_msg->head->dst_inst,
+    DMS_INIT_MESSAGE_HEAD(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, receive_msg->head->dst_inst,
         receive_msg->head->src_inst, process_ctx->sess_id, receive_msg->head->src_sid);
     txn_wait_ack.head.size = (uint16)sizeof(msg_txn_wait_ack_t);
     txn_wait_ack.head.rsn = receive_msg->head->rsn;
@@ -597,7 +597,7 @@ static int32 dms_send_awake_txn_msg(dms_context_t *dms_ctx, uint32 dest_id)
     mes_message_head_t *head = &txn_awake_req.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_AWAKE_TXN, 0, dms_ctx->inst_id, dest_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_AWAKE_TXN, 0, dms_ctx->inst_id, dest_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     txn_awake_req.xid = xid_ctx->xid;
     txn_awake_req.scn = xid_ctx->scn;
@@ -657,7 +657,7 @@ int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
     mes_message_t receive_msg = { 0 };
 
-    MES_INIT_MESSAGE_HEAD(head, MSG_REQ_WAIT_TXN, 0, dms_ctx->inst_id, xid_ctx->inst_id,
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_WAIT_TXN, 0, dms_ctx->inst_id, xid_ctx->inst_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     txn_wait_req.xid = xid_ctx->xid;
     head->size = (uint16)sizeof(txn_wait_req);

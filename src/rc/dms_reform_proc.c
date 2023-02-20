@@ -2090,6 +2090,47 @@ static int dms_reform_startup_opengauss(void)
     return DMS_SUCCESS;
 }
 
+/*
+ * Put X on instance lock to push GCV. Partner needs lock too, to prevent concurrent iusses
+ * such as DRC rebuild and invalidate msg happens at the same time. The timed lock
+ * waits 1s since we need preserve reform RTO. Usually it latches instantly.
+ */
+static int dms_reform_lock_instance(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    int timeout = 100;
+    int count = 0;
+    uint32 sess_pid = g_dms.reform_ctx.sess_proc;
+
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance try lock, gcv:%d",
+        DMS_GLOBAL_CLUSTER_VER);
+    while (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, 1, NULL) == CM_FALSE) {
+        count++;
+        DMS_REFORM_SHORT_SLEEP;
+        if (count >= timeout) {
+            LOG_DEBUG_ERR("[DMS REFORM][GCV PUSH]dms_reform_lock_instance timeout error, inst:%d exits now",
+                g_dms.inst_id);
+            cm_exit(0);
+        }
+    }
+    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
+
+    /* push reform version here; if wrapped, reset to zero */
+    if (DMS_GLOBAL_CLUSTER_VER == CM_INVALID_ID32) {
+        g_dms.cluster_ver = 0;
+    }
+    g_dms.cluster_ver++;
+    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]GCV++:%u, inst_id:%u",
+            DMS_GLOBAL_CLUSTER_VER, g_dms.inst_id);
+
+    cm_unlatch(&reform_info->instance_lock, NULL);
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL },
     [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL },
@@ -2128,6 +2169,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL },
     [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL },
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL },
+    [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
 };
 
 static void dms_reform_inner(void)

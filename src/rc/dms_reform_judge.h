@@ -36,6 +36,7 @@ void dms_reform_judgement_thread(thread_t *thread);
 void dms_reform_update_reformer_version(uint64 start_time, uint8 inst_id);
 int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline);
 int dms_reform_get_online_status(uint8 *online_status, uint64 *online_times, uint32 sess_id);
+int dms_reform_sync_cluster_version(bool8 pushing);
 
 typedef bool32(*dms_reform_judgement_check_proc)(instance_list_t *list);
 typedef void(*dms_reform_judgement_proc)(instance_list_t *list);

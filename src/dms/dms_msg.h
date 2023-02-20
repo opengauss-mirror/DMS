@@ -42,6 +42,8 @@ extern "C" {
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
 #define DMS_MSG_CONFIRM_TIMES   (10)
 
+#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
+
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
     MSG_REQ_ASK_MASTER_FOR_PAGE = MSG_REQ_BEGIN,
@@ -95,6 +97,7 @@ typedef enum en_msg_command {
     MSG_REQ_MAP_INFO = 48,
     MSG_REQ_DDL_SYNC = 49,
     MSG_REQ_QUERY_PAGE_ONWER = 50,
+    MSG_REQ_REFORM_GCV_SYNC = 51,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -134,10 +137,11 @@ typedef enum en_msg_command {
     MSG_ACK_OPENGAUSS_LOCK_BUFFER = 161,
     MSG_ACK_EDP_LOCAL = 162,
     MSG_ACK_EDP_READY = 163,
-    MSG_ACK_COMMON = 164,
+    MSG_ACK_REFORM_COMMON = 164,
     MSG_ACK_CONFIRM_CVT = 165,
     MSG_ACK_MAP_INFO = 166,
     MSG_ACK_QUERY_PAGE_ONWER = 167,
+    MSG_ACK_REFORM_GCV_SYNC = 168,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -312,6 +316,12 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
             }                                                            \
             return;                                                      \
         }                                                                \
+    } while (0)
+
+#define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)  \
+    do {                                                                                           \
+        MES_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid); \
+        (head)->cluster_ver = (uint32)(DMS_GLOBAL_CLUSTER_VER);                                    \
     } while (0)
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 rsn,

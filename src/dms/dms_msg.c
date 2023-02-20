@@ -55,7 +55,7 @@ void cm_ack_result_msg(dms_process_context_t *process_ctx, mes_message_t *receiv
     uint8 *send_msg = (uint8 *)ack_buf;
     mes_message_head_t *head = (mes_message_head_t *)send_msg;
 
-    MES_INIT_MESSAGE_HEAD(head, cmd, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, cmd, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         process_ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)(sizeof(mes_message_head_t) + sizeof(int32));
     head->rsn = receive_msg->head->rsn;
@@ -75,7 +75,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
     uint8 *send_msg = (uint8 *)ack_buf;
     mes_message_head_t *head = (mes_message_head_t *)ack_buf;
 
-    MES_INIT_MESSAGE_HEAD(head, cmd, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+    DMS_INIT_MESSAGE_HEAD(head, cmd, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
         process_ctx->sess_id, receive_msg->head->src_sid);
     head->size = (uint16)(sizeof(mes_message_head_t) + len);
     head->rsn = receive_msg->head->rsn;
@@ -95,7 +95,7 @@ void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 d
     const char *errmsg = NULL;
     cm_get_error(&ret, &errmsg);
 
-    MES_INIT_MESSAGE_HEAD(&msg_error.head, MSG_ACK_ERROR, 0, src_inst, dst_inst, src_sid, dst_sid);
+    DMS_INIT_MESSAGE_HEAD(&msg_error.head, MSG_ACK_ERROR, 0, src_inst, dst_inst, src_sid, dst_sid);
     msg_error.code      = ret;
     msg_error.head.rsn  = dst_rsn;
     msg_error.head.size = (uint16)(sizeof(msg_error_t) + strlen(errmsg) + 1);
@@ -151,7 +151,7 @@ static int32 dms_invalidate_share_copy(uint32 inst_id, uint32 sess_id, char *res
 {
     uint64 succ_insts = 0;
     dms_invld_req_t req;
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALIDATE_SHARE_COPY, 0, inst_id, 0, sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALIDATE_SHARE_COPY, 0, inst_id, 0, sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_invld_req_t);
     req.head.rsn  = mfc_get_rsn(sess_id);
     req.len       = len;
@@ -177,7 +177,7 @@ int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 ver)
 {
     dms_claim_owner_req_t request;
-    MES_INIT_MESSAGE_HEAD(&request.head,
+    DMS_INIT_MESSAGE_HEAD(&request.head,
         MSG_REQ_CLAIM_OWNER, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
     request.head.size = (uint16)sizeof(dms_claim_owner_req_t);
     request.head.rsn  = mfc_get_rsn(dms_ctx->sess_id);
@@ -286,7 +286,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, drc_req_owner_result_t *result)
 {
     dms_ask_res_req_t req;
-    MES_INIT_MESSAGE_HEAD(&req.head,
+    DMS_INIT_MESSAGE_HEAD(&req.head,
         MSG_REQ_ASK_OWNER_FOR_PAGE, 0, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.rsn  = mfc_get_rsn(dms_ctx->sess_id);
     req.head.size = (uint16)sizeof(dms_ask_res_req_t);
@@ -504,7 +504,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint32 ver)
 {
     dms_ask_res_req_t req;
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_MASTER_FOR_PAGE,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_MASTER_FOR_PAGE,
         0, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
 
     req.head.rsn  = mfc_get_rsn(dms_ctx->sess_id);
@@ -618,7 +618,7 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
 
     if (req_info->owner_id != req_info->req_id) {
         dms_ask_res_req_t req;
-        MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_OWNER_FOR_PAGE, 0,
+        DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_OWNER_FOR_PAGE, 0,
             req_info->req_id, req_info->owner_id, req_info->req_sid, CM_INVALID_ID16);
         req.req_mode  = req_info->req_mode;
         req.curr_mode = req_info->curr_mode;
@@ -642,7 +642,8 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
                 cm_display_resid(req_info->resid, req_info->res_type), "ASK OWNER",
                 (uint32)req.head.dst_inst, (uint32)req.head.dst_sid, (uint32)req.req_mode);
             DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, req.head.cmd, req.head.dst_inst);
-            dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid, req_info->req_rsn, ret);
+            dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid,
+                req_info->req_rsn, ret);
             return ERRNO_DMS_SEND_MSG_FAILED;
         }
 
@@ -654,7 +655,7 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
 
     // asker is already owner, just notify requester(owner) page is ready
     mes_message_head_t head;
-    MES_INIT_MESSAGE_HEAD(&head, MSG_ACK_ALREADY_OWNER, 0, ctx->inst_id, req_info->req_id,
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_ACK_ALREADY_OWNER, 0, ctx->inst_id, req_info->req_id,
         ctx->sess_id, req_info->req_sid);
     head.rsn = req_info->req_rsn;
     head.size = (uint16)sizeof(mes_message_head_t);
@@ -920,7 +921,7 @@ static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *
 static int32 dms_notify_already_owner(dms_process_context_t *ctx, cvt_info_t *cvt_info)
 {
     mes_message_head_t head;
-    MES_INIT_MESSAGE_HEAD(&head, MSG_ACK_ALREADY_OWNER,
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_ACK_ALREADY_OWNER,
         0, ctx->inst_id, cvt_info->req_id, ctx->sess_id, cvt_info->req_sid);
     head.rsn = cvt_info->req_rsn;
     head.size = sizeof(mes_message_head_t);
@@ -941,7 +942,7 @@ static int32 dms_notify_granted_directly(dms_process_context_t *ctx, cvt_info_t 
 {
     // this page not in memory of other instance, notify requester to load from disk
     dms_ask_res_ack_ld_t ack;
-    MES_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER,
+    DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER,
         0, ctx->inst_id, cvt_info->req_id, ctx->sess_id, cvt_info->req_sid);
     ack.head.rsn  = cvt_info->req_rsn;
     ack.head.size = sizeof(dms_ask_res_ack_ld_t);
@@ -1049,7 +1050,7 @@ void dms_cancel_request_res(dms_context_t *dms_ctx)
     }
 
     dms_cancel_request_res_t req;
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CANCEL_REQUEST_RES, 0,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CANCEL_REQUEST_RES, 0,
         dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_cancel_request_res_t);
     req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
@@ -1153,7 +1154,7 @@ static int32 dms_smon_send_confirm_req(res_id_t *res_id, drc_request_info_t *cvt
     dms_confirm_cvt_req_t req;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
 
-    MES_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CONFIRM_CVT, 0,
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CONFIRM_CVT, 0,
         g_dms.inst_id, cvt_req->inst_id, ctx->smon_sid, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_confirm_cvt_req_t);
     req.head.rsn = mes_get_rsn(ctx->smon_sid);

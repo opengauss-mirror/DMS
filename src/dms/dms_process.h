@@ -66,6 +66,7 @@ typedef struct st_dms_instance {
     uint64 min_scn[DMS_MAX_INSTANCES];
     uint8 enable_reform;
     cm_res_mgr_t cm_res_mgr;
+    uint32 cluster_ver;
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)

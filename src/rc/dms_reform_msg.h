@@ -87,6 +87,19 @@ void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id);
 int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform);
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
+typedef struct st_dms_reform_req_gcv_sync {
+    mes_message_head_t  head;
+    bool8               pushing;
+} dms_reform_req_gcv_sync_t;
+
+typedef struct st_dms_reform_ack_gcv_sync {
+    mes_message_head_t  head;
+    bool8               updated;
+} dms_reform_ack_gcv_sync_t;
+void dms_reform_init_req_gcv_sync(dms_reform_req_gcv_sync_t *req, uint8 dst_id, bool8 pushing);
+int dms_reform_req_gcv_sync_wait(bool8 *updated, bool8 pushing);
+void dms_reform_proc_req_gcv_sync(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+
 typedef struct st_dms_reform_req_migrate {
     mes_message_head_t head;
     uint32 part_id;
