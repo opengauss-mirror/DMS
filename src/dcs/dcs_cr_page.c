@@ -932,7 +932,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
 
         dms_end_stat(dms_ctx->sess_id);
         session_stat_t *stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
-        stat->stat[DMS_STAT_NET_TIME] += stat->wait.usecs;
+        stat->stat[DMS_STAT_NET_TIME] += stat->wait[stat->level].usecs;
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message, cr_status, &is_empty_txn_list, &exist_waiting_txn);
         if (ret != DMS_SUCCESS) {

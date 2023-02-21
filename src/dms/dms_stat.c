@@ -34,50 +34,55 @@ dms_stat_t g_dms_stat;
 void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
-    if (stat->wait.is_waiting && event == stat->wait.event) {
+    uint32 curr_level = stat->level++;
+    if (stat->level > DMS_STAT_MAX_LEVEL) {
+        LOG_RUN_WAR("[DMS][dms_begin_stat]: stat level exceeds the upper limit");
         return;
     }
 
-    stat->wait.is_waiting = CM_TRUE;
-    stat->wait.event = event;
-    stat->wait.usecs = 0;
-    stat->wait.pre_spin_usecs = cm_total_spin_usecs();
-    stat->wait.immediate = immediate;
+    stat->wait[curr_level].is_waiting = CM_TRUE;
+    stat->wait[curr_level].event = event;
+    stat->wait[curr_level].usecs = 0;
+    stat->wait[curr_level].pre_spin_usecs = cm_total_spin_usecs();
+    stat->wait[curr_level].immediate = immediate;
 
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
     }
 
-    (void)cm_gettimeofday(&stat->wait.begin_tv);
+    (void)cm_gettimeofday(&stat->wait[curr_level].begin_tv);
 }
 
 void dms_end_stat(uint32    sid)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
-    dms_end_stat_ex(sid, stat->wait.event);
+    dms_end_stat_ex(sid, stat->wait[stat->level - 1].event);
 }
 
 void dms_end_stat_ex(uint32    sid, dms_wait_event_t event)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
 
-    if (!stat->wait.is_waiting) {
+    uint32 curr_level = stat->level--;
+    if (curr_level > DMS_STAT_MAX_LEVEL || stat->level < 0) {
+        LOG_RUN_WAR("[DMS][dms_end_stat_ex]: use end of stat more or less");
         return;
     }
 
+
     timeval_t tv_end;
 
-    if (stat->wait.immediate && g_dms_stat.time_stat_enabled) {
+    if (stat->wait[stat->level].immediate && g_dms_stat.time_stat_enabled) {
         (void)cm_gettimeofday(&tv_end);
-        stat->wait.usecs = (uint64)TIMEVAL_DIFF_US(&stat->wait.begin_tv, &tv_end);
+        stat->wait[stat->level].usecs = (uint64)TIMEVAL_DIFF_US(&stat->wait[stat->level].begin_tv, &tv_end);
     } else {
-        stat->wait.usecs = cm_total_spin_usecs() - stat->wait.pre_spin_usecs;
+        stat->wait[stat->level].usecs = cm_total_spin_usecs() - stat->wait[stat->level].pre_spin_usecs;
     }
 
-    stat->wait_time[event] += stat->wait.usecs;
+    stat->wait_time[event] += stat->wait[stat->level].usecs;
     stat->wait_count[event]++;
 
-    stat->wait.is_waiting = CM_FALSE;
+    stat->wait[stat->level].is_waiting = CM_FALSE;
 }
 
 DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *event_cnt,
