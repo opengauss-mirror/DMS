@@ -799,7 +799,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     dms_end_stat(dms_ctx->sess_id);
 
     session_stat_t *sess_stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
-    sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait.usecs;
+    sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait[sess_stat->level].usecs;
 
     if (SECUREC_UNLIKELY(msg.head->cmd == MSG_ACK_GRANT_OWNER)) {
         *owner_id = (uint8)dms_ctx->inst_id;
@@ -930,7 +930,7 @@ int dms_query_page_owner_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner
     dms_end_stat(dms_ctx->sess_id);
 
     session_stat_t *sess_stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
-    sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait.usecs;
+    sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait[sess_stat->level].usecs;
 
     CM_CHK_RECV_MSG_SIZE(&msg, (uint32)(sizeof(dms_query_owner_ack_t)), CM_TRUE, CM_FALSE);
     dms_query_owner_ack_t *ack = (dms_query_owner_ack_t *)&msg;

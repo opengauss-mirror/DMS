@@ -31,6 +31,8 @@
 extern "C" {
 #endif
 
+#define DMS_STAT_MAX_LEVEL 5
+
 typedef struct st_session_wait {
     bool32 is_waiting;
     dms_wait_event_t event;
@@ -46,7 +48,8 @@ typedef struct st_session_stat {
     uint64 wait_time[DMS_EVT_COUNT];
     uint64 wait_count[DMS_EVT_COUNT];
 
-    session_wait_t wait;
+    session_wait_t wait[DMS_STAT_MAX_LEVEL];
+    uint32 level;
 } session_stat_t;
 
 typedef struct st_dms_stat {
@@ -77,6 +80,7 @@ extern dms_stat_t g_dms_stat;
 
 #define DMS_GET_SESSION_STAT(sess_id) (g_dms_stat.sess_stats + (sess_id))
 
+// add wait stack, then event can be nested, paramter of nested max is DMS_STAT_MAX_LEVEL
 void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate);
 
 // the event is still the same as specified by dms_begin_stat().
