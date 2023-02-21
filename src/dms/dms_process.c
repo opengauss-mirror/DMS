@@ -763,6 +763,7 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.inst_map = dms_profile->inst_map;
     g_dms.enable_reform = dms_profile->enable_reform;
     g_dms.scrlock_ctx.enable = dms_profile->enable_scrlock;
+    g_dms.gdb_in_progress = CM_FALSE;
 }
 
 static void dms_init_mfc(dms_profile_t *dms_profile)
