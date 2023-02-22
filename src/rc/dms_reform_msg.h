@@ -107,7 +107,7 @@ typedef struct st_dms_reform_req_migrate {
     bool8  is_part_end;
     uint8  res_type;
 } dms_reform_req_migrate_t;
-int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type);
+int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *handle, uint32 sess_id);
 void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_rebuild {
@@ -116,7 +116,10 @@ typedef struct st_dms_reform_req_rebuild {
 } dms_reform_req_rebuild_t;
 int dms_reform_req_rebuild_buf_res(dms_context_t *dms_ctx, const dms_buf_ctrl_t *ctrl, uint64 lsn, bool8 is_dirty,
     uint8 master_id);
+int dms_reform_req_rebuild_buf_res_parallel(dms_context_t *dms_ctx, const dms_buf_ctrl_t *ctrl, uint64 lsn,
+    bool8 is_dirty, uint8 master_id, uint8 thread_index);
 int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 master_id);
+int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, uint8 master_id, uint8 thread_index);
 void dms_reform_proc_req_rebuild_lock(dms_process_context_t *ctx, mes_message_t *receive_msg);
 void dms_reform_proc_req_rebuild_buf_res(dms_process_context_t *ctx, mes_message_t *receive_msg);
 
@@ -133,11 +136,12 @@ typedef struct st_dms_reform_req_res {
     char resid[DMS_RESID_SIZE];
     uint8 res_type;
 } dms_reform_req_res_t;
-void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action);
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 *ver);
+void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
+    uint32 sess_id);
+int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 *ver, uint32 sess_id);
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
-int dms_reform_send_data(mes_message_head_t *msg_head);
+int dms_reform_send_data(mes_message_head_t *msg_head, uint32 sess_id);
 
 typedef struct st_dms_reform_req_switchover {
     mes_message_head_t head;

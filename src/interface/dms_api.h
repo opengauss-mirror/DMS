@@ -566,6 +566,7 @@ typedef char *(*dms_display_pageid)(char *display_buf, unsigned int count, char 
 typedef char *(*dms_display_xid)(char *display_buf, unsigned int count, char *xid);
 typedef char *(*dms_display_rowid)(char *display_buf, unsigned int count, char *rowid);
 typedef int (*dms_drc_buf_res_rebuild)(void *db_handle);
+typedef int (*dms_drc_buf_res_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
 typedef int (*dms_db_is_primary)(void *db_handle);
@@ -624,6 +625,7 @@ typedef struct st_dms_callback {
     dms_tx_rollback_finish tx_rollback_finish;
     dms_recovery_in_progress recovery_in_progress;
     dms_drc_buf_res_rebuild dms_reform_rebuild_buf_res;
+    dms_drc_buf_res_rebuild_parallel dms_reform_rebuild_parallel;
     dms_check_if_build_complete check_if_build_complete;
 
     // used in reform for opengauss
@@ -773,6 +775,7 @@ typedef struct st_dms_profile {
     unsigned char enable_scrlock_server_sleep_mode;
     unsigned char scrlock_server_bind_core_start;
     unsigned char scrlock_server_bind_core_end;
+    unsigned char parallel_thread_num;
 } dms_profile_t;
 
 typedef struct st_logger_param {
@@ -790,7 +793,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           50
+#define DMS_LOCAL_VERSION           51
 
 #ifdef __cplusplus
 }
