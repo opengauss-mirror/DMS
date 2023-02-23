@@ -1575,6 +1575,9 @@ static void dms_reform_end(void)
     dms_reform_health_set_pause();
     dms_reform_proc_set_pause();
 
+#ifdef OPENGAUSS
+    dms_reform_handle_fail_in_special_scenario();
+#endif
     int ret = memset_s(&share_info, sizeof(share_info_t), 0, sizeof(share_info_t));
     DMS_SECUREC_CHECK(ret);
 
