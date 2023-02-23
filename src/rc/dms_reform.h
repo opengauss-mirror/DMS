@@ -121,6 +121,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_REFORM_FAIL,                    // cause by notification from reformer
     DMS_REFORM_STEP_SYNC_WAIT,                      // tips: can not use before reconnect
     DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
+    DMS_REFORM_STEP_DW_RECOVERY,                    // recovery the dw area
     DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
@@ -237,6 +238,7 @@ typedef struct st_share_info {
     uint8               last_reformer;          // last reformer
     uint8               unused[2];
     uint64              version_num;
+    dw_recovery_info_t  dw_recovery_info;
 } share_info_t;
 
 typedef struct st_rebuild_info {
