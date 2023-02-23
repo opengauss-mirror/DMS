@@ -34,6 +34,9 @@ extern "C" {
 void dms_reform_health_thread(thread_t *thread);
 void dms_reform_health_set_running(void);
 void dms_reform_health_set_pause(void);
+#ifdef OPENGAUSS
+void dms_reform_handle_fail_in_special_scenario(void);
+#endif
 
 #ifdef __cplusplus
 }
