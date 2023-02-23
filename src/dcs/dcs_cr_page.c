@@ -1065,10 +1065,7 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
         "src_inst %u src_sid %u dst_inst %u",
         cm_display_rowid(check.rowid), check.query_scn, check.ssn, (uint32)check.head.src_inst,
         (uint32)check.head.src_sid, (uint32)dst_inst_id);
-
-    cm_sleep(DMS_MSG_RETRY_TIME);
-
-    return DMS_SUCCESS;
+    return DMS_ERROR;
 }
 
 #ifdef __cplusplus
