@@ -741,7 +741,6 @@ void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
         node = BINODE_NEXT(node);
         bucket = drc_res_map_get_bucket(res_map, buf_res->data, buf_res->len);
         cm_spin_lock(&bucket->lock, NULL);
-        dms_reform_display_buf(buf_res, "full_clean");
         drc_release_buf_res(buf_res, res_map, bucket);
         cm_spin_unlock(&bucket->lock);
     }

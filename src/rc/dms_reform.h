@@ -51,6 +51,7 @@ extern "C" {
 #define DMS_REBUILD_INFO                (&g_dms.reform_ctx.reform_info.rebuild_info)
 #define DMS_SWITCHOVER_INFO             (&g_dms.reform_ctx.switchover_info)
 #define DMS_HEALTH_INFO                 (&g_dms.reform_ctx.health_info)
+#define DMS_PARALLEL_INFO               (&g_dms.reform_ctx.parallel_info)
 #define DRC_PART_REMASTER_ID(part_id)   (g_dms.reform_ctx.share_info.remaster_info.part_map[(part_id)].inst_id)
 #define DMS_CATALOG_IS_CENTRALIZED      (g_dms.reform_ctx.catalog_centralized)
 #define DMS_CATALOG_IS_PRIMARY_STANDBY  (g_dms.reform_ctx.primary_standby)
@@ -318,6 +319,48 @@ typedef struct st_health_info {
     dms_thread_status_t thread_status;
 } health_info_t;
 
+#define DMS_PARALLEL_MAX_THREAD         64
+#define DMS_PARALLEL_MAX_RESOURCE       (CM_MES_MAX_CHANNEL_NUM * DMS_MAX_INSTANCES / 2)
+
+typedef union st_resource_id {
+    uint32          resource_id;
+    struct {
+        uint16      part_id;                    // for drc part
+    };
+    struct {
+        uint8       node_id;                    // for reconnect
+        uint8       channel_index;
+    };
+    migrate_task_t  migrate_task;               // for migrate
+    struct {
+        uint8       thread_index;               // for rebuild
+        uint8       thread_num;
+    };
+} resource_id_t;
+
+typedef struct st_parallel_thread {
+    thread_t            thread;
+    dms_thread_status_t thread_status;
+    void                *handle;
+    uint32              sess_id;
+    uint32              index;
+    int                 res_num;                            // assigned resource num
+    resource_id_t       res_id[DMS_PARALLEL_MAX_RESOURCE];  // assigned resource id
+    void                *data[DMS_MAX_INSTANCES];           // if need send message in parallel proc
+} parallel_thread_t;
+
+typedef void(*dms_assign_proc)(void);
+typedef int(*dms_parallel_proc)(resource_id_t *res_id, parallel_thread_t *parallel);
+
+typedef struct st_parallel_info {
+    parallel_thread_t   parallel[DMS_PARALLEL_MAX_THREAD];
+    dms_parallel_proc   parallel_proc;          // parallel callback function
+    uint32              parallel_num;           // parallel thread total num
+    atomic32_t          parallel_active;        // parallel thread active num
+    atomic32_t          parallel_fail;          // parallel thread proc fail num
+    uint32              parallel_res_num;       // parallel total res num
+} parallel_info_t;
+
 typedef struct st_reform_context {
     thread_t            thread_judgement;       // dms_reform_judgement_thread
     thread_t            thread_reformer;        // dms_reformer_thread
@@ -344,6 +387,7 @@ typedef struct st_reform_context {
     share_info_t        last_share_info;        // for debug
     switchover_info_t   switchover_info;
     health_info_t       health_info;
+    parallel_info_t     parallel_info;
     uint32              channel_cnt;            // used for channel check
     bool8               catalog_centralized;    // centralized or distributed
     bool8               primary_standby;        // primary_standby or not

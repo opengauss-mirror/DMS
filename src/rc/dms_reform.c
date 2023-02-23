@@ -30,6 +30,7 @@
 #include "dms_log.h"
 #include "cm_timer.h"
 #include "dms_reform_health.h"
+#include "dms_reform_proc_parallel.h"
 #ifndef WIN32
 #include "config.h"
 #endif
@@ -293,6 +294,9 @@ int dms_reform_init(dms_profile_t *dms_profile)
     reform_context->ignore_offline = CM_TRUE;
     share_info->version_num = 0;
 
+    ret = dms_reform_parallel_thread_init(dms_profile);
+    DMS_RETURN_IF_ERROR(ret);
+
     ret = dms_reform_init_thread();
     DMS_RETURN_IF_ERROR(ret);
     dms_reform_init_for_maintain();
@@ -317,6 +321,7 @@ void dms_reform_uninit(void)
     cm_close_thread(&reform_context->thread_reformer);
     cm_close_thread(&reform_context->thread_reform);
     cm_close_thread(&reform_context->thread_health);
+    dms_reform_parallel_thread_deinit();
     reform_context->init_success = CM_FALSE;
 }
 
