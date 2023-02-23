@@ -261,10 +261,11 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
     bool32 enable_proc = CM_TRUE;
 #endif
     bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || dms_msg_skip_gcv_check(head->cmd);
-    if (!enable_proc || !gcv_approved) {
+    if (!enable_proc || !gcv_approved || !g_dms.dms_init_finish) {
         LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, local_gcv=%u, recv_gcv=%u, "
-            "src_sid:%u, dest_sid:%u", (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
-            DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid, (uint32)head->dst_sid);
+            "src_sid:%u, dest_sid:%u, finish dms init:%u", 
+            (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst, DMS_GLOBAL_CLUSTER_VER, 
+            head->cluster_ver, (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
         mfc_release_message_buf(msg);
         dms_unlock_instance_s(head->cmd);
         return;
@@ -854,6 +855,7 @@ int dms_init(dms_profile_t *dms_profile)
     dms_show_version(dms_version);
     LOG_RUN_INF("[DMS]%s", dms_version);
 #endif
+    g_dms.dms_init_finish = CM_TRUE;
     return DMS_SUCCESS;
 }
 
