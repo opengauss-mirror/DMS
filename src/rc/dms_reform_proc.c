@@ -52,11 +52,6 @@ void dms_reform_next_step(void)
 static int dms_reform_prepare(void)
 {
     LOG_RUN_FUNC_ENTER;
-#ifdef OPENGAUSS
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    share_info_t* share_info = DMS_SHARE_INFO;
-    g_dms.callback.reform_start_notify(g_dms.reform_ctx.handle_proc, reform_info->dms_role, share_info->reform_type);
-#endif
     dms_scrlock_stop_server();
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
@@ -71,6 +66,10 @@ static int dms_reform_start(void)
     }
     reform_info_t *reform_info = DMS_REFORM_INFO;
     reform_info->true_start = CM_TRUE;
+#ifdef OPENGAUSS
+    share_info_t* share_info = DMS_SHARE_INFO;
+    g_dms.callback.reform_start_notify(g_dms.reform_ctx.handle_proc, reform_info->dms_role, share_info->reform_type);
+#endif
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -1007,7 +1006,7 @@ static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res)
     }
 
     bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
-    if (buf_res->type == DRC_RES_PAGE_TYPE) {
+    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN) && buf_res->type == DRC_RES_PAGE_TYPE) {
         buf_res->copy_promote = CM_TRUE;
     }
     LOG_DEBUG_INF("[DMS REFORM][%s]dms_reform_repair_with_copy_insts, owner: %d, copy_inst: %llu",
