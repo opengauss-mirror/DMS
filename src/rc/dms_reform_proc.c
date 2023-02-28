@@ -1300,6 +1300,9 @@ static int dms_reform_switch_lock(void)
     if ((dms_dst_id_is_self(share_info->promote_id) && DMS_IS_REFORMER) ||
         (!dms_dst_id_is_self(share_info->promote_id) && DMS_IS_PARTNER)) {
         share_info->reformer_id = share_info->promote_id;
+#ifdef OPENGAUSS
+        g_dms.callback.reform_set_dms_role(g_dms.reform_ctx.handle_normal, share_info->promote_id);
+#endif
         LOG_RUN_FUNC_SUCCESS;
         dms_reform_next_step();
         return DMS_SUCCESS;
