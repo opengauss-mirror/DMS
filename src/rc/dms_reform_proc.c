@@ -372,6 +372,7 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     share_info_t *share_info = DMS_SHARE_INFO;
     int ret = DMS_SUCCESS;
 
+    DRC_DISPLAY(buf_res, "clean");
     dms_reform_clean_buf_res_fault_inst_info_inner(buf_res);
     if (buf_res->claimed_owner == CM_INVALID_ID8) {
         return DMS_SUCCESS;
@@ -1024,7 +1025,7 @@ static int dms_reform_repair_with_last_edp(drc_buf_res_t *buf_res, void *handle)
     DMS_RETURN_IF_ERROR(ret);
 
     if (disk_lsn >= buf_res->lsn) {
-        buf_res->last_edp = 0;
+        buf_res->last_edp = CM_INVALID_ID8;
         buf_res->lsn = 0;
         buf_res->edp_map = 0;
     }
@@ -1095,6 +1096,8 @@ static int dms_reform_repair_with_edp_map(drc_buf_res_t *buf_res, void *handle, 
 
 static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle, uint32 sess_id)
 {
+    DRC_DISPLAY(buf_res, "repair");
+
     if (buf_res->claimed_owner != CM_INVALID_ID8) {
         return DMS_SUCCESS;
     }
@@ -1268,6 +1271,7 @@ static int dms_reform_dw_recovery_inner(void)
 
 static void dms_reform_recovery_set_flag_by_part_inner(drc_buf_res_t *buf_res)
 {
+    DRC_DISPLAY(buf_res, "rcy_clean");
     buf_res->in_recovery = CM_FALSE;
 }
 
@@ -1611,31 +1615,6 @@ static void dms_reform_proc_set_pause(void)
     reform_info->thread_status = DMS_THREAD_STATUS_PAUSING;
 }
 
-static void dms_reform_end(void)
-{
-    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    share_info_t share_info;
-
-    // health check should pause before clear share info
-    dms_reform_health_set_pause();
-    dms_reform_proc_set_pause();
-
-#ifdef OPENGAUSS
-    dms_reform_handle_fail_in_special_scenario();
-#endif
-    int ret = memset_s(&share_info, sizeof(share_info_t), 0, sizeof(share_info_t));
-    DMS_SECUREC_CHECK(ret);
-
-    reform_ctx->last_reform_info = reform_ctx->reform_info;
-    reform_ctx->last_share_info = reform_ctx->share_info;
-    reform_ctx->share_info = share_info;
-    reform_info->ddl_unable = CM_FALSE;
-    reform_info->bcast_unable = CM_FALSE;
-    reform_info->reform_done = CM_TRUE;
-    reform_info->reform_fail =  CM_FALSE;
-}
-
 static void dms_reform_set_switchover_result(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -1656,6 +1635,32 @@ static void dms_reform_set_switchover_result(void)
     }
 }
 
+static void dms_reform_end(void)
+{
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    share_info_t share_info;
+
+    dms_reform_set_switchover_result();
+    // health check should pause before clear share info
+    dms_reform_health_set_pause();
+    dms_reform_proc_set_pause();
+
+#ifdef OPENGAUSS
+    dms_reform_handle_fail_in_special_scenario();
+#endif
+    int ret = memset_s(&share_info, sizeof(share_info_t), 0, sizeof(share_info_t));
+    DMS_SECUREC_CHECK(ret);
+
+    reform_ctx->last_reform_info = reform_ctx->reform_info;
+    reform_ctx->last_share_info = reform_ctx->share_info;
+    reform_ctx->share_info = share_info;
+    reform_info->ddl_unable = CM_FALSE;
+    reform_info->bcast_unable = CM_FALSE;
+    reform_info->reform_done = CM_TRUE;
+    reform_info->reform_fail =  CM_FALSE;
+}
+
 static int dms_reform_done(void)
 {
     int ret = DMS_SUCCESS;
@@ -1671,7 +1676,6 @@ static int dms_reform_done(void)
         LOG_RUN_ERR("[DMS REFORM]list_stable fail to save in ctrl");
         return ERRNO_DMS_REFORM_SAVE_LIST_STABLE_FAILED;
     }
-    dms_reform_set_switchover_result();
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -1891,7 +1895,6 @@ static int dms_reform_self_fail(void)
         (void)dms_reform_sync_step_send();
     }
     dms_reform_set_last_fail();
-    dms_reform_set_switchover_result();
     dms_reform_end();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -1905,7 +1908,6 @@ static int dms_reform_fail(void)
         dms_reform_remote_fail();
     }
     dms_reform_set_last_fail();
-    dms_reform_set_switchover_result();
     dms_reform_end();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;

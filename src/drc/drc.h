@@ -422,6 +422,16 @@ static inline bool32 bitmap64_exist_ex(uint64 bitmap1, uint64 bitmap2)
 
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
 
+// [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
+#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu-%u, CVT:%d-%d-%d-%d-%d-%llu-%u-%d, "        \
+    "EDP:%d-%llu-%llu, FLAG:%d-%d-%d", desc, cm_display_resid((drc)->data, (drc)->type),                            \
+    (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts, (drc)->ver,                                          \
+    (drc)->converting.req_info.inst_id, (drc)->converting.req_info.curr_mode, (drc)->converting.req_info.req_mode,  \
+    (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.rsn,        \
+    (drc)->converting.req_info.ver, (drc)->converting.req_info.sess_id,                                             \
+    (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                                                    \
+    (drc)->in_recovery, (drc)->copy_promote, (drc)->recovery_skip)
+
 #ifdef __cplusplus
 }
 #endif
