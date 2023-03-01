@@ -23,6 +23,7 @@
  */
 
 #include "dms_stat.h"
+#include "dms_process.h"
 #include "dms.h"
 
 #ifdef __cplusplus
@@ -64,7 +65,7 @@ void dms_end_stat_ex(uint32    sid, dms_wait_event_t event)
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
 
     uint32 curr_level = stat->level--;
-    if (curr_level > DMS_STAT_MAX_LEVEL || stat->level < 0) {
+    if (curr_level > DMS_STAT_MAX_LEVEL) {
         LOG_RUN_WAR("[DMS][dms_end_stat_ex]: use end of stat more or less");
         return;
     }
@@ -90,6 +91,18 @@ DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *
 {
     unsigned long long cnt = 0;
     unsigned long long time = 0;
+
+    SCRLockEvent event = dms_scrlock_events_adapt(event_type);
+    if (g_dms.scrlock_ctx.enable && event != CM_INVALID_ID32) {
+        dms_scrlock_get_event(event, &cnt, &time);
+        if (event_cnt) {
+            *event_cnt = cnt;
+        }
+        if (event_time) {
+            *event_time = time;
+        }
+        return;
+    }
 
     uint32 sess_cnt = g_dms_stat.sess_cnt;
     for (uint32 i = 0; i < sess_cnt; ++i) {

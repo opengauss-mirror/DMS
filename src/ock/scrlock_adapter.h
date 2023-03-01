@@ -83,4 +83,20 @@ unsigned char dms_scrlock_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch,
  */
 void dms_scrlock_unlock(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 
+/*
+ * @brief distributed scrlock event stat.
+ * @param event_type - SCRLockEvent enum.
+ * @param event_cnt - get scrlock event count.
+ * @param event_time - get scrlock event total time.
+ * @return
+ */
+void dms_scrlock_get_event(SCRLockEvent event_type, unsigned long long *event_cnt, unsigned long long *event_time);
+
+/*
+ * @brief distributed scrlock event stat adapt dms event stat.
+ * @param event - dms_wait_event_t  dms event stat.
+ * @return SCRLockEvent - scrlock event stat.
+ */
+SCRLockEvent dms_scrlock_events_adapt(dms_wait_event_t event);
+
 #endif
