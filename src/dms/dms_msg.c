@@ -449,7 +449,7 @@ static int32 dms_handle_local_req_result(dms_context_t *dms_ctx, void *res,
             LOG_DEBUG_INF("[DMS][%s][ask edp remote]: dst_id=%u, req_mode=%u, curr_mode=%u, ret=%d",
                 cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)result->curr_owner_id,
                 (uint32)req_mode, (uint32)curr_mode, ret);
-            return DMS_SUCCESS;
+            return ret;
 
         default:
             dms_end_stat(dms_ctx->sess_id);
