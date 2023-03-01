@@ -41,7 +41,8 @@ typedef struct {
     SCRLockReinit reinit;
     SCRLockUninit uninit;
     SCRTrylock trylock;
-    SCRUnlock unlock;    
+    SCRUnlock unlock;
+    SCRLGetEvent getevent;    
 } dms_scrlock_func_t;
 
 dms_scrlock_func_t g_scrlock_func;
@@ -52,7 +53,8 @@ dms_scrlock_func_t g_scrlock_func;
     ACTION(reinit, SCRLockReinit)           \
     ACTION(uninit, SCRLockUninit)           \
     ACTION(trylock, SCRTrylock)             \
-    ACTION(unlock, SCRUnlock)
+    ACTION(unlock, SCRUnlock)               \
+    ACTION(getevent, SCRLGetEvent)
 
 #define SCRLOCK_HANDLE_GET_SYM(op, name)                                                                \
     do {                                                                                                \
@@ -339,4 +341,22 @@ void dms_scrlock_unlock(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     SCRLockId lock_id = {.pDesc = (const char *)(&dlatch->drid), .len = sizeof(dlatch->drid)};
     g_scrlock_func.unlock(&lock_id, FAIR_RW);
     return;
+}
+
+void dms_scrlock_get_event(SCRLockEvent event_type, unsigned long long *event_cnt, unsigned long long *event_time)
+{
+    g_scrlock_func.getevent(event_type, event_cnt, event_time);
+    return;
+}
+
+SCRLockEvent dms_scrlock_events_adapt(dms_wait_event_t event)
+{
+    switch (event) {
+        case DMS_EVT_LATCH_X_REMOTE:
+            return SCRL_DLOCK_TRYLOCK_X;
+        case DMS_EVT_LATCH_S_REMOTE:
+            return SCRL_DLOCK_TRYLOCK_S;
+        default:
+            return CM_INVALID_ID32;
+    }
 }

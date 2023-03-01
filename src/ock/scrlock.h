@@ -85,6 +85,13 @@ typedef struct {
     SCRLockServerOptions *server;  // server == nullptr means this node does not contain server
 } SCRLockOptions;
 
+typedef enum SCRLockEvent {
+    SCRL_DLOCK_TRYLOCK_X = 0,
+    SCRL_DLOCK_TRYLOCK_S,
+
+    SCRL_EVENT_COUNT,
+} SCRLockEvent;
+
 enum SCRLockType { ATOMIC = 0, FAIR_RW = 1, ATOMIC_REENTRANT = 2, LOCK_TYPE_BUTT };
 
 enum SCRLockMode { LOCK_SHARED = 0, LOCK_EXCLUSIVE = 1, LOCK_OPS_BUTT };
@@ -102,5 +109,7 @@ typedef void (*SCRLockUninit)();
 typedef bool (*SCRTrylock)(SCRLockId *lockId, unsigned int lockType, unsigned int lockOp);
 
 typedef void (*SCRUnlock)(SCRLockId *lockId, unsigned int lockType);
+
+typedef void (*SCRLGetEvent)(SCRLockEvent eventType, unsigned long long *eventCnt, unsigned long long *eventTime);
 
 #endif
