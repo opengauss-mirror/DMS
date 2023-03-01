@@ -547,6 +547,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 
     for (uint32 i = 0; i < res_list->count; i++) {
         buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
+        DRC_DISPLAY(buf_res, "migrate");
         ret = dms_reform_req_migrate_add_buf_res(buf_res, req, &offset, sess_id);
         if (ret != DMS_SUCCESS) {
             g_dms.callback.mem_free(handle, req);
