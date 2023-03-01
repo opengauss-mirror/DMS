@@ -153,6 +153,28 @@ static void dms_reform_parallel_assign_channels(void)
     }
 }
 
+static void dms_reform_parallel_assign_parts_for_clean(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
+    drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
+    uint16 part_id = inst_part->first;
+    resource_id_t res_id = { 0 };
+
+    if (share_info->full_clean) {
+        for (part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
+            res_id.part_id = part_id;
+            dms_reform_parallel_assign_resource(res_id);
+        }
+    } else {
+        for (uint8 i = 0; i < inst_part->count; i++) {
+            res_id.part_id = part_id;
+            dms_reform_parallel_assign_resource(res_id);
+            part_id = part_mngr->part_map[part_id].next;
+        }
+    }
+}
+
 static void dms_reform_parallel_assign_parts(void)
 {
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
@@ -283,7 +305,7 @@ dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
     [DMS_REFORM_PARALLEL_RECONNECT] = { "dms_reform_reconnect_parallel", dms_reform_parallel_assign_channels,
     dms_reform_reconnect_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_DRC_CLEAN] = { "dms_reform_drc_clean_parallel", dms_reform_parallel_assign_parts,
+    [DMS_REFORM_PARALLEL_DRC_CLEAN] = { "dms_reform_drc_clean_parallel", dms_reform_parallel_assign_parts_for_clean,
     dms_reform_drc_clean_parallel_proc },
 
     [DMS_REFORM_PARALLEL_MIGRATE] = { "dms_reform_migrate_parallel", dms_reform_parallel_assign_migrate_task,
