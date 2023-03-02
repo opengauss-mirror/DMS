@@ -242,11 +242,17 @@ void dms_reform_health_thread(thread_t *thread)
 #ifdef OPENGAUSS
 void dms_reform_handle_fail_in_special_scenario(void)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (!reform_info->reform_fail) {
+        return;
+    }
+
     share_info_t *share_info = DMS_SHARE_INFO;
     if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type) && share_info->demote_id == g_dms.inst_id &&
         share_info->reformer_id != g_dms.inst_id) {
-        LOG_RUN_ERR("[DMS REFORM]reform fail during switchover, old primary node need restart"
-                    "after reformer lock transfered");
+        LOG_RUN_ERR("[DMS REFORM]reform fail during switchover, old primary node need restart "
+                    "after reformer lock transfered, demote id:%u, reformer id:%u",
+                    (uint32)share_info->demote_id, (uint32)share_info->reformer_id);
         cm_exit(0);
     }
 }
