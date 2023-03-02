@@ -386,8 +386,6 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
 {
     switch (cmd) {
         case MSG_REQ_SYNC_STEP:
-
-        case MSG_REQ_SYNC_NEXT_STEP:
         case MES_REQ_MGRT_MASTER_DATA:
         case MSG_REQ_BUF_RES_DRC_REBUILD:
         case MSG_REQ_LOCK_RES_DRC_REBUILD:
@@ -399,6 +397,7 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
             return MES_TASK_GROUP_TWO;      // group two is used for ddl sync
+        case MSG_REQ_SYNC_NEXT_STEP:        // next step may sync last reform fail
         case MSG_REQ_MAP_INFO:
         case MSG_REQ_REFORM_PREPARE:
         case MSG_REQ_SYNC_SHARE_INFO:

@@ -106,6 +106,7 @@ void dms_reform_set_start(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     LOG_RUN_INF("[DMS REFORM]dms_reform_set_start");
+    reform_info->reform_fail = CM_FALSE;
     reform_info->true_start = CM_FALSE;
     reform_info->reform_done = CM_FALSE;
     reform_info->err_code = DMS_SUCCESS;
