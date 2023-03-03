@@ -1303,9 +1303,9 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_validate(true); /* maintain drc inaccess as failover not finished */
     dms_reform_judgement_drc_access();
-    dms_reform_judgement_flush_copy();
     dms_reform_judgement_failover_promote_opengauss();
     dms_refrom_judgement_startup_opengauss();
+    dms_reform_judgement_flush_copy();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
@@ -1313,7 +1313,7 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_done();
 }
 
-static void dms_reform_judgement_opengauss(instance_list_t *inst_lists)
+static void dms_reform_judgement_normal_opengauss(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
     dms_reform_judgement_disconnect(inst_lists);
@@ -1326,8 +1326,8 @@ static void dms_reform_judgement_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_access();
-    dms_reform_judgement_flush_copy();
     dms_refrom_judgement_startup_opengauss();
+    dms_reform_judgement_flush_copy();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
@@ -1508,7 +1508,7 @@ static bool32 dms_reform_judgement_failover_check(instance_list_t *inst_lists)
     return CM_TRUE;
 }
 
-static bool32 dms_reform_judgement_failover_check_opengauss(instance_list_t *inst_lists)
+static bool32 dms_reform_judgement_failover_opengauss_check(instance_list_t *inst_lists)
 {
     // there are instances which status is out or reform, no need reform.
     if (inst_lists[INST_LIST_OLD_OUT].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REFORM].inst_id_count != 0 ||
@@ -1533,7 +1533,7 @@ static bool32 dms_reform_judgement_build_check(instance_list_t *inst_lists)
     return CM_TRUE;
 }
 
-static bool32 dms_reform_judgement_opengauss_check(instance_list_t *inst_lists)
+static bool32 dms_reform_judgement_normal_opengauss_check(instance_list_t *inst_lists)
 {
     // there are instances which status is out or reform, no need reform.
     if (inst_lists[INST_LIST_OLD_OUT].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REFORM].inst_id_count != 0 ||
@@ -1599,13 +1599,13 @@ static void dms_reform_judgement_failover_print(instance_list_t *inst_lists)
     dms_reform_judgement_step_log();
 }
 
-static void dms_reform_judgement_opengauss_print(instance_list_t *inst_lists)
+static void dms_reform_judgement_normal_opengauss_print(instance_list_t *inst_lists)
 {
     dms_reform_instance_lists_log(inst_lists);
     dms_reform_judgement_step_log();
 }
 
-static void dms_reform_judgement_failover_print_opengauss(instance_list_t *inst_lists)
+static void dms_reform_judgement_failover_opengauss_print(instance_list_t *inst_lists)
 {
     dms_reform_instance_lists_log(inst_lists);
     dms_reform_judgement_step_log();
@@ -1721,14 +1721,14 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc[DMS_REFORM_TYPE_COUNT
     dms_reform_judgement_failover_print },
 
     [DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS] = {
-    dms_reform_judgement_opengauss_check,
-    dms_reform_judgement_opengauss,
-    dms_reform_judgement_opengauss_print },
+    dms_reform_judgement_normal_opengauss_check,
+    dms_reform_judgement_normal_opengauss,
+    dms_reform_judgement_normal_opengauss_print },
 
     [DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS] = {
-    dms_reform_judgement_failover_check_opengauss,
+    dms_reform_judgement_failover_opengauss_check,
     dms_reform_judgement_failover_opengauss,
-    dms_reform_judgement_failover_print_opengauss },
+    dms_reform_judgement_failover_opengauss_print },
 
     [DMS_REFORM_TYPE_FOR_BUILD] = {
     dms_reform_judgement_build_check,
