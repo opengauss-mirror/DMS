@@ -438,17 +438,13 @@ static int dms_reform_drc_clean_fault_inst(void)
 static int dms_reform_drc_clean_full(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
-    drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
     bilist_t *part_list = NULL;
-    uint16 part_id = inst_part->first;
 
-    for (uint8 i = 0; i < inst_part->count; i++) {
+    for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
         part_list = &ctx->global_lock_res.res_parts[part_id];
         drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
         part_list = &ctx->global_buf_res.res_parts[part_id];
         drc_release_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE);
-        part_id = part_mngr->part_map[part_id].next;
     }
 
     return DMS_SUCCESS;

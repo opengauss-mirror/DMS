@@ -601,7 +601,7 @@ static void dms_reform_part_collect_inner(drc_inst_part_t *inst_part, uint16 *pa
 
     while (inst_part->count > inst_part->expected_num) {
         part_id = inst_part->first;
-        CM_ASSERT(part_id < DRC_MAX_PART_NUM);
+        cm_panic(part_id < DRC_MAX_PART_NUM);
         part_map = &remaster_info->part_map[part_id];
         inst_part->first = part_map->next;
         inst_part->count--;
