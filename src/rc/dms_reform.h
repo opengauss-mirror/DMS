@@ -93,7 +93,7 @@ typedef enum en_inst_list_type {
 } inst_list_type_t;
 
 // The steps will be repeated, DMS_REFORM_STEP_TOTAL_COUNT > DMS_REFORM_STEP_COUNT
-#define DMS_REFORM_STEP_TOTAL_COUNT     64
+#define DMS_REFORM_STEP_TOTAL_COUNT     128
 #define DMS_REFORM_PHASE_TOTAL_COUNT    8
 
 // Notice: every step should not be dependent on its Value, Value is only used for distinguish different step

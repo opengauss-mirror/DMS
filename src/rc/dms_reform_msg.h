@@ -114,14 +114,14 @@ typedef struct st_dms_reform_req_rebuild {
     mes_message_head_t head;
     uint32 offset;
 } dms_reform_req_rebuild_t;
-int dms_reform_req_rebuild_buf_res(dms_context_t *dms_ctx, const dms_buf_ctrl_t *ctrl, uint64 lsn, bool8 is_dirty,
-    uint8 master_id);
-int dms_reform_req_rebuild_buf_res_parallel(dms_context_t *dms_ctx, const dms_buf_ctrl_t *ctrl, uint64 lsn,
-    bool8 is_dirty, uint8 master_id, uint8 thread_index);
+int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, bool8 rebuild);
+int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
+    uint8 thread_index, bool8 rebuild);
 int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 master_id);
 int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, uint8 master_id, uint8 thread_index);
-void dms_reform_proc_req_rebuild_lock(dms_process_context_t *ctx, mes_message_t *receive_msg);
-void dms_reform_proc_req_rebuild_buf_res(dms_process_context_t *ctx, mes_message_t *receive_msg);
+void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, mes_message_t *receive_msg);
+void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, mes_message_t *receive_msg);
+void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, mes_message_t *receive_msg);
 
 enum dms_reform_req_page_action {
     DMS_REQ_CONFIRM_OWNER,

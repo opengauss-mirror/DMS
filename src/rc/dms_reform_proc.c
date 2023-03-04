@@ -629,8 +629,79 @@ static void drc_rebuild_set_owner(drc_buf_res_t *buf_res, uint8 owner_id, bool8 
     }
 }
 
-int dms_reform_rebuild_buf_res_l(char *resid, dms_buf_ctrl_t *ctrl, uint64 lsn, bool8 is_dirty, uint8 inst_id)
+int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
+    dms_buf_ctrl_t *ctrl = &ctrl_info->ctrl;
+    uint64 lsn = ctrl_info->lsn;
+    bool8 matched = CM_TRUE;
+
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_FALSE);
+    int ret = drc_enter_buf_res(resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    if (ret != DMS_SUCCESS || buf_res == NULL) {
+        LOG_DEBUG_WAR("[DRC validate][%s]node: %d, fail to get drc, ret: %d", cm_display_pageid(resid), inst_id, ret);
+        cm_panic(CM_FALSE);
+        return DMS_SUCCESS;
+    }
+
+    if (ctrl->lock_mode != DMS_LOCK_NULL && ctrl->ver != buf_res->ver) {
+        LOG_DEBUG_WAR("[DRC validate][%s]node: %d, ver not matched, %u:%u", cm_display_pageid(resid), inst_id,
+            ctrl->ver, buf_res->ver);
+        matched = CM_FALSE;
+    }
+
+    if (ctrl->lock_mode == DMS_LOCK_NULL) {
+        if (!ctrl->is_edp) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, ctrl is not edp, edp map: %llu", cm_display_pageid(resid),
+                inst_id, buf_res->edp_map);
+            matched = CM_FALSE;
+        }
+        if (!bitmap64_exist(&buf_res->edp_map, inst_id)) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, edp not matched, edp map: %llu", cm_display_pageid(resid),
+                inst_id, buf_res->edp_map);
+            matched = CM_FALSE;
+        }
+        if (buf_res->last_edp == inst_id && buf_res->lsn != lsn) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, edp lsn not matched, %llu:%llu", cm_display_pageid(resid),
+                inst_id, lsn, buf_res->lsn);
+            matched = CM_FALSE;
+        }
+    } else if (ctrl->lock_mode == DMS_LOCK_SHARE) {
+        if (buf_res->lock_mode != DMS_LOCK_SHARE) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, lock not matched, %d:%d", cm_display_pageid(resid), inst_id,
+                ctrl->lock_mode, buf_res->lock_mode);
+            matched = CM_FALSE;
+        }
+        if (buf_res->claimed_owner != inst_id && !bitmap64_exist(&buf_res->copy_insts, inst_id)) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, owner not matched, owner: %d, copy_insts: %llu",
+                cm_display_pageid(resid), inst_id, buf_res->claimed_owner, buf_res->copy_insts);
+            matched = CM_FALSE;
+        }
+    } else {
+        if (buf_res->lock_mode != DMS_LOCK_EXCLUSIVE) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, lock not matched, %d:%d", cm_display_pageid(resid), inst_id,
+                ctrl->lock_mode, buf_res->lock_mode);
+            matched = CM_FALSE;
+        }
+        if (buf_res->claimed_owner != inst_id) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, owner not matched, owner: %d, copy_insts: %llu",
+                cm_display_pageid(resid), inst_id, buf_res->claimed_owner, buf_res->copy_insts);
+            matched = CM_FALSE;
+        }
+    }
+    if (!matched) {
+        DRC_DISPLAY(buf_res, "validate");
+    }
+    drc_leave_buf_res(buf_res);
+    return DMS_SUCCESS;
+}
+
+int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
+{
+    dms_buf_ctrl_t *ctrl = &ctrl_info->ctrl;
+    uint64 lsn = ctrl_info->lsn;
+    bool8 is_dirty = ctrl_info->is_dirty;
+
     if (SECUREC_UNLIKELY(ctrl->lock_mode >= DMS_LOCK_MODE_MAX ||
         ctrl->is_edp > 1 || ctrl->need_flush > 1)) {
         LOG_DEBUG_ERR("[DRC rebuild] invalid request message, is_edp=%u, need_flush=%u",
@@ -677,15 +748,20 @@ int dms_reform_rebuild_buf_res_l(char *resid, dms_buf_ctrl_t *ctrl, uint64 lsn, 
     return DMS_SUCCESS;
 }
 
-int dms_reform_rebuild_buf_res_inner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, uint64 lsn, bool8 is_dirty,
-    uint8 master_id, uint8 thread_index)
+// for rebuild: used for discriminate rebuild and validate
+int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
+    uint8 thread_index, bool8 for_rebuild)
 {
     if (master_id == g_dms.inst_id) {
-        return dms_reform_rebuild_buf_res_l(dms_ctx->resid, ctrl, lsn, is_dirty, master_id);
+        if (for_rebuild) {
+            return dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
+        } else {
+            return dms_reform_proc_page_validate(dms_ctx->resid, ctrl_info, master_id);
+        }
     } else if (thread_index == CM_INVALID_ID8) {
-        return dms_reform_req_rebuild_buf_res(dms_ctx, ctrl, lsn, is_dirty, master_id);
+        return dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id, for_rebuild);
     } else {
-        return dms_reform_req_rebuild_buf_res_parallel(dms_ctx, ctrl, lsn, is_dirty, master_id, thread_index);
+        return dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index, for_rebuild);
     }
 }
 
@@ -728,12 +804,12 @@ static int dms_reform_rebuild_send_rest(uint32 sess_id, uint8 thread_index)
     return DMS_SUCCESS;
 }
 
-int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num)
+int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num, bool8 for_rebuild)
 {
 #ifdef OPENGAUSS
     int ret = g_dms.callback.dms_reform_rebuild_buf_res(handle);
 #else
-    int ret = g_dms.callback.dms_reform_rebuild_parallel(handle, thread_index, thread_num);
+    int ret = g_dms.callback.dms_reform_rebuild_parallel(handle, thread_index, thread_num, for_rebuild);
 #endif
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -818,7 +894,7 @@ static void drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id)
     *master_id = DRC_PART_REMASTER_ID(part_id);
 }
 
-int dms_reform_rebuild_lock_l(drc_local_lock_res_t *lock_res, uint8 src_inst)
+int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
 {
     if (SECUREC_UNLIKELY(lock_res->latch_stat.lock_mode >= DMS_LOCK_MODE_MAX)) {
         LOG_DEBUG_ERR("[DRC][lock rebuild] invalid lock_mode: %u", lock_res->latch_stat.lock_mode);
@@ -842,14 +918,26 @@ int dms_reform_rebuild_lock_l(drc_local_lock_res_t *lock_res, uint8 src_inst)
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
 
-    buf_res->lock_mode = lock_res->latch_stat.lock_mode;
+    cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == lock_res->latch_stat.lock_mode,
+        "lock mode not matched, drc: %d, lock_res: %d", buf_res->lock_mode, lock_res->latch_stat.lock_mode);
 
-    if (buf_res->claimed_owner == CM_INVALID_ID8 || lock_res->latch_stat.lock_mode == DMS_LOCK_EXCLUSIVE) {
+    if (lock_res->latch_stat.lock_mode == DMS_LOCK_EXCLUSIVE) {
+        cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_EXCLUSIVE,
+            "lock X not matched");
+        cm_panic_log(buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == src_inst,
+            "lock owner(%d) not matched %d", buf_res->claimed_owner, src_inst);
         buf_res->claimed_owner = src_inst;
+        buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
     } else {
-        bitmap64_set(&buf_res->copy_insts, src_inst);
+        cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_SHARE,
+            "lock S not matched");
+        if (buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == src_inst) {
+            buf_res->claimed_owner = src_inst;
+        } else {
+            bitmap64_set(&buf_res->copy_insts, src_inst);
+        }
+        buf_res->lock_mode = DMS_LOCK_SHARE;
     }
-    
     buf_res->ver = lock_res->ver;
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
@@ -858,7 +946,7 @@ int dms_reform_rebuild_lock_l(drc_local_lock_res_t *lock_res, uint8 src_inst)
 static int dms_reform_rebuild_lock_inner(drc_local_lock_res_t *lock_res, uint8 new_master, uint8 thread_index)
 {
     if (new_master == g_dms.inst_id) {
-        return dms_reform_rebuild_lock_l(lock_res, new_master);
+        return dms_reform_proc_lock_rebuild(lock_res, new_master);
     } else if (thread_index == CM_INVALID_ID8) {
         return dms_reform_req_rebuild_lock(lock_res, new_master);
     } else {
@@ -974,7 +1062,8 @@ static int dms_reform_rebuild(void)
     LOG_RUN_FUNC_ENTER;
 
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
-    ret = dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
+    ret = dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8,
+        CM_TRUE);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
@@ -2098,7 +2187,16 @@ static int dms_reform_drc_inaccess(void)
 
 static int dms_reform_drc_validate()
 {
+    LOG_RUN_FUNC_ENTER;
+#ifdef OPENGAUSS
     g_dms.callback.drc_validate(g_dms.reform_ctx.handle_proc);
+#else
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
+    (void)dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8,
+        CM_FALSE);
+    dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
+#endif
 
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
@@ -2239,7 +2337,11 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_BCAST_UNABLE] = { "BCAST_UNABLE", dms_reform_bcast_unable, NULL },
     [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL },
     [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL },
+#ifdef OPENGAUSS
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL },
+#else
+    [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, dms_reform_validate_parallel },
+#endif
     [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
 };
 

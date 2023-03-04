@@ -87,8 +87,8 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
         CM_TRUE, CM_FALSE, "smon req tlock msg" },
     { MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, dcs_proc_smon_table_lock_by_rm,
         CM_TRUE, CM_FALSE, "smon req rm" },
-    { MSG_REQ_BUF_RES_DRC_REBUILD,    dms_reform_proc_req_rebuild_buf_res, CM_TRUE, CM_TRUE,  "buf res drc rebuild" },
-    { MSG_REQ_LOCK_RES_DRC_REBUILD,   dms_reform_proc_req_rebuild_lock,    CM_TRUE, CM_TRUE,  "lock res drc rebuild" },
+    { MSG_REQ_PAGE_REBUILD,           dms_reform_proc_req_page_rebuild, CM_TRUE, CM_TRUE,  "page rebuild" },
+    { MSG_REQ_LOCK_REBUILD,           dms_reform_proc_req_lock_rebuild, CM_TRUE, CM_TRUE,  "lock rebuild" },
     { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,   CM_TRUE, CM_FALSE, "req opengauss txn status" },
     { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, dcs_proc_opengauss_txn_snapshot_req,
         CM_TRUE, CM_FALSE,  "req opengauss txn snapshot" },
@@ -118,6 +118,7 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
         CM_TRUE, CM_FALSE, "ask master for page owner id" },
     { MSG_REQ_REFORM_GCV_SYNC,        dms_reform_proc_req_gcv_sync,
         CM_TRUE, CM_TRUE, "ask partner to sync gcv" },
+    { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE,  "page validate" },
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -387,8 +388,8 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
     switch (cmd) {
         case MSG_REQ_SYNC_STEP:
         case MES_REQ_MGRT_MASTER_DATA:
-        case MSG_REQ_BUF_RES_DRC_REBUILD:
-        case MSG_REQ_LOCK_RES_DRC_REBUILD:
+        case MSG_REQ_PAGE_REBUILD:
+        case MSG_REQ_LOCK_REBUILD:
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHANNEL_CHECK:

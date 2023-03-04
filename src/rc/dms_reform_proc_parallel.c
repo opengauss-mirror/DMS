@@ -289,7 +289,7 @@ static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thre
 
     dms_reform_rebuild_buffer_init((uint8)parallel->index);
     ret = dms_reform_rebuild_buf_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
-        (uint8)parallel_info->parallel_num);
+        (uint8)parallel_info->parallel_num, CM_TRUE);
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
     DMS_RETURN_IF_ERROR(ret);
 
@@ -297,6 +297,18 @@ static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thre
     ret = dms_reform_rebuild_lock(parallel->sess_id, (uint8)parallel->index, (uint8)parallel_info->parallel_num);
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
     DMS_RETURN_IF_ERROR(ret);
+
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_validate_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
+{
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+
+    dms_reform_rebuild_buffer_init((uint8)parallel->index);
+    (void)dms_reform_rebuild_buf_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
+        (uint8)parallel_info->parallel_num, CM_FALSE);
+    dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
 
     return DMS_SUCCESS;
 }
@@ -322,6 +334,9 @@ dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
 
     [DMS_REFORM_PARALLEL_REBUILD] = { "dms_reform_rebuild_parallel", dms_reform_parallel_assign_rebuild,
     dms_reform_rebuild_parallel_proc },
+
+    [DMS_REFORM_PARALLEL_VALIDATE] = { "dms_reform_validate_parallel", dms_reform_parallel_assign_rebuild,
+    dms_reform_validate_parallel_proc },
 };
 
 static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
@@ -435,4 +450,9 @@ int dms_reform_flush_copy_parallel(void)
 int dms_reform_rebuild_parallel(void)
 {
     return dms_reform_parallel(DMS_REFORM_PARALLEL_REBUILD);
+}
+
+int dms_reform_validate_parallel(void)
+{
+    return dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE);
 }
