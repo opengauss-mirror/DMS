@@ -265,6 +265,7 @@ typedef struct st_reform_info {
     spinlock_t          status_lock;
     int32               err_code;
     dms_thread_status_t thread_status;
+    latch_t             instance_lock;          // latch to avoid concurrent modifications on db buf and dms drc
     uint8               dms_role;
     uint8               reformer_id;            // who hold dms_reformer_lock, it is realtime
     bool8               last_fail;              // record last round reform result
@@ -286,8 +287,8 @@ typedef struct st_reform_info {
     bool8               bcast_unable;
     bool8               ddl_unable;
     bool8               parallel_enable;        // dms reform proc parallel enable
-    latch_t             instance_lock;          // latch to avoid concurrent modifications on db buf and dms drc
-    uint8               unused[3];
+    bool8               use_default_map;        // if use default part_map in this judgement
+    uint8               unused[2];
 } reform_info_t;
 
 typedef struct st_switchover_info {
