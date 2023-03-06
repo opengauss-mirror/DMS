@@ -1105,6 +1105,7 @@ int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned cha
 int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
     unsigned char is_dirty)
 {
+    dms_ctrl_info_t ctrl_info = { 0 };
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
@@ -1124,12 +1125,15 @@ int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsign
         return ret;
     }
 
+    ctrl_info.ctrl = *ctrl;
+    ctrl_info.lsn = lsn;
+    ctrl_info.is_dirty = is_dirty;
     LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, remaster(%d)", cm_display_pageid(dms_ctx->resid), master_id);
-    return dms_reform_rebuild_buf_res_inner(dms_ctx, ctrl, lsn, is_dirty, master_id, CM_INVALID_ID8);
+    return dms_reform_send_ctrl_info(dms_ctx, &ctrl_info, master_id, CM_INVALID_ID8, CM_TRUE);
 }
 
-int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
-    unsigned char is_dirty, unsigned char thread_index)
+int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, unsigned char thread_index,
+    unsigned char for_rebuild)
 {
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
@@ -1140,18 +1144,22 @@ int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctr
         return ret;
     }
 
-    if (!dms_reform_res_need_rebuild(master_id)) {
-        return DMS_SUCCESS;
-    }
+    // page validate no need to get remaster id
+    if (for_rebuild) {
+        if (!dms_reform_res_need_rebuild(master_id)) {
+            return DMS_SUCCESS;
+        }
 
-    ret = drc_get_page_remaster_id(dms_ctx->resid, &master_id);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, fail to get remaster id", cm_display_pageid(dms_ctx->resid));
-        return ret;
+        ret = drc_get_page_remaster_id(dms_ctx->resid, &master_id);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, fail to get remaster id",
+                cm_display_pageid(dms_ctx->resid));
+            return ret;
+        }
     }
 
     LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, remaster(%d)", cm_display_pageid(dms_ctx->resid), master_id);
-    return dms_reform_rebuild_buf_res_inner(dms_ctx, ctrl, lsn, is_dirty, master_id, thread_index);
+    return dms_reform_send_ctrl_info(dms_ctx, ctrl_info, master_id, thread_index, for_rebuild);
 }
 
 void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, mes_message_t *receive_msg)
