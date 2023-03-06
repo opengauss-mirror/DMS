@@ -492,6 +492,7 @@ typedef int(*dms_confirm_converting)(void *db_handle, char *pageid, unsigned cha
 typedef int(*dms_confirm_owner)(void *db_handle, char *pageid, unsigned char *lock_mode, unsigned char *is_edp,
     unsigned long long *lsn);
 typedef int(*dms_flush_copy)(void *db_handle, char *pageid);
+typedef int(*dms_need_flush)(void *db_handle, char *pageid);
 typedef int(*dms_edp_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int is_reformer);
@@ -629,6 +630,7 @@ typedef struct st_dms_callback {
     dms_confirm_owner confirm_owner;
     dms_confirm_converting confirm_converting;
     dms_flush_copy flush_copy;
+    dms_need_flush need_flush;
     dms_edp_lsn edp_lsn;
     dms_disk_lsn disk_lsn;
     dms_recovery recovery;
@@ -810,7 +812,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           53
+#define DMS_LOCAL_VERSION           54
 
 #ifdef __cplusplus
 }

@@ -604,6 +604,7 @@ static void dcs_change_lock_mode_after_transfer(dms_process_context_t *ctx, dms_
         g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_LOAD_FAILED);
         ctrl->is_remote_dirty = 0;
         ctrl->edp_map = 0;
+        ctrl->need_flush = 0;
 
         if (g_dms.callback.page_is_dirty(ctrl)) {
             ctrl->is_edp = CM_TRUE;
