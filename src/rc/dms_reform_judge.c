@@ -520,16 +520,27 @@ static void dms_reform_judgement_drc_clean(instance_list_t *inst_lists)
 
 static void dms_reform_part_copy(void)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
+    uint32 size;
+    errno_t err;
 
-    uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
-    errno_t err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
-    DMS_SECUREC_CHECK(err);
-
-    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
-    err = memcpy_s(remaster_info->part_map, size, part_mngr->part_map, size);
-    DMS_SECUREC_CHECK(err);
+    if (reform_info->use_default_map) {
+        size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
+        err = memset_s(remaster_info->inst_part_tbl, size, 0, size);
+        DMS_SECUREC_CHECK(err);
+        size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
+        err = memset_s(remaster_info->part_map, size, 0, size);
+        DMS_SECUREC_CHECK(err);
+    } else {
+        size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
+        err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
+        DMS_SECUREC_CHECK(err);
+        size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
+        err = memcpy_s(remaster_info->part_map, size, part_mngr->part_map, size);
+        DMS_SECUREC_CHECK(err);
+    }
 }
 
 static void dms_reform_part_recalc_for_distribute(instance_list_t *inst_lists)
@@ -606,16 +617,18 @@ static void dms_reform_part_collect_inner(drc_inst_part_t *inst_part, uint16 *pa
         inst_part->first = part_map->next;
         inst_part->count--;
         parts[(*part_num)++] = part_id;
+        cm_panic_log((*part_num) <= DRC_MAX_PART_NUM, "dms_reform_part_collect part_num error: %d", *part_num);
     }
 }
 
 static void dms_reform_part_collect(uint16 *parts, uint8 *part_num)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
     drc_inst_part_t *inst_part = NULL;
 
-    // reformer has not finished the first reform, all parts should be assigned
-    if (!DMS_FIRST_REFORM_FINISH) {
+    // part map not exists in all instances, should assign all parts
+    if (reform_info->use_default_map) {
         for (uint16 i = 0; i < DRC_MAX_PART_NUM; i++) {
             parts[i] = i;
         }
@@ -627,7 +640,6 @@ static void dms_reform_part_collect(uint16 *parts, uint8 *part_num)
         inst_part = &remaster_info->inst_part_tbl[i];
         dms_reform_part_collect_inner(inst_part, parts, part_num);
     }
-    CM_ASSERT(*part_num > 0);
 }
 
 static void dms_reform_part_assign_inner(drc_inst_part_t *inst_part, uint8 inst_id, uint16 *parts, uint8 *part_num)
@@ -694,7 +706,7 @@ static void dms_reform_judgement_remaster(instance_list_t *inst_lists)
         return;
     }
 
-    // old join, part info is empty, should copy from reformer
+    // old join, part info is empty, should copy from reformer. reformer first reform has finished
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0) {
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_REMASTER);
@@ -1796,16 +1808,21 @@ static int dms_reform_sync_share_info(void)
 
 static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *inst_lists)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
     // reformer status is IN, part info and txn deposit map is valid
     if (online_status[g_dms.inst_id] == (uint8)DMS_STATUS_IN) {
+        reform_info->use_default_map = CM_FALSE;
         return DMS_SUCCESS;
     }
 
     // no instance is IN, use the default value
     if (inst_lists[INST_LIST_OLD_IN].inst_id_count == 0) {
+        reform_info->use_default_map = CM_TRUE;
         return DMS_SUCCESS;
     }
 
+    reform_info->use_default_map = CM_FALSE;
     // get part info and txn deposit map from instance which status is IN
     mes_message_head_t head;
     dms_reform_init_map_info_req(&head, inst_lists[INST_LIST_OLD_IN].inst_id_list[0]);
