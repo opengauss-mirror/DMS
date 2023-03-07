@@ -774,7 +774,7 @@ void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, mes_message_t
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_buf_ctrl_t) + sizeof(uint64) + sizeof(bool8);
+    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t);
     char pageid[DMS_PAGEID_SIZE];
     dms_ctrl_info_t *ctrl_info = NULL;
     int ret;
@@ -797,7 +797,7 @@ void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, mes_message_t
     mfc_release_message_buf(receive_msg);
 }
 
-void dms_reform_proc_req_rebuild_buf_res(dms_process_context_t *ctx, mes_message_t *receive_msg)
+void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, mes_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
@@ -805,7 +805,7 @@ void dms_reform_proc_req_rebuild_buf_res(dms_process_context_t *ctx, mes_message
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_buf_ctrl_t) + sizeof(uint64) + sizeof(bool8);
+    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t);
     char pageid[DMS_PAGEID_SIZE];
     dms_ctrl_info_t *ctrl_info = NULL;
     int ret;
