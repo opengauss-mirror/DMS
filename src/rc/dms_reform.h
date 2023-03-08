@@ -77,6 +77,14 @@ extern "C" {
 
 #define DMS_MAX_FAIL_TIME               30
 
+#define DMS_RELEASE_DB_HANDLE(handle)                                               \
+    do {                                                                            \
+        if (handle != NULL && g_dms.callback.release_db_handle != NULL) {           \
+            g_dms.callback.release_db_handle(handle);                               \
+            handle = NULL;                                                          \
+        }                                                                           \
+    } while (CM_FALSE)
+
 typedef enum en_inst_list_type {
     INST_LIST_OLD_BASE = 0,
     INST_LIST_OLD_OUT = INST_LIST_OLD_BASE + DMS_ONLINE_STATUS_OUT,
@@ -395,9 +403,7 @@ typedef struct st_reform_context {
     bool8               catalog_centralized;    // centralized or distributed
     bool8               primary_standby;        // primary_standby or not
     bool8               ignore_offline;         // treat old off-line as old remove
-    bool8               init_success;
     bool8               mes_has_init;
-    uint8               unused[3];
     reform_scrlock_context_t scrlock_reinit_ctx;
 } reform_context_t;
 
