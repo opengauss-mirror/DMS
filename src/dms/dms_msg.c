@@ -814,6 +814,7 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, mes_message_t 
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
     dms_ask_res_req_t req = *(dms_ask_res_req_t *)(receive_msg->buffer);
     mfc_release_message_buf(receive_msg);
 
@@ -821,6 +822,14 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *
         req.curr_mode >= DMS_LOCK_MODE_MAX ||
         req.req_mode >= DMS_LOCK_MODE_MAX)) {
         LOG_DEBUG_ERR("[DMS][dms_proc_ask_owner_for_res]: invalid req message");
+        return;
+    }
+
+    if (ctx->global_buf_res.data_access == CM_FALSE && req.sess_type == DMS_SESSION_NORMAL) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
+            "req_sid=%u, req_rsn=%llu, mode=%u, has_share_copy=%u",
+            cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid,
+            req.head.rsn, (uint32)req.req_mode, (uint32)req.has_share_copy);
         return;
     }
 
