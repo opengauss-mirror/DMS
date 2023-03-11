@@ -71,6 +71,8 @@ add_compile_options(-pipe)
 add_compile_options(-Wl,-Bsymbolic)
 add_compile_options(-rdynamic)
 
+add_compile_options(-Werror)
+
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 message(STATUS "ENABLE_GCOV = ${ENABLE_GCOV}")
 IF (ENABLE_GCOV AND NOT WIN32 AND NOT APPLE)

@@ -1106,7 +1106,7 @@ int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned cha
 int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
     unsigned char is_dirty)
 {
-    dms_ctrl_info_t ctrl_info = { 0 };
+    dms_ctrl_info_t ctrl_info;
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
