@@ -272,7 +272,13 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
         return;
     }
     dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
+#ifdef OPENGAUSS  
+    (void)g_dms.callback.cache_msg(ctx->db_handle, (char*)msg->head);
+#endif
     processor->proc(ctx, msg);
+#ifdef OPENGAUSS  
+    (void)g_dms.callback.db_check_lock(ctx->db_handle);
+#endif   
 
     /*
      * Now DMS use memory manager functions provided by DB,
