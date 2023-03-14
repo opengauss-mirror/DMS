@@ -207,6 +207,22 @@ static void dms_reform_init_for_maintain(void)
     }
 }
 
+void dms_reform_db_handle_deinit(void)
+{
+    reform_context_t *reform_context = DMS_REFORM_CONTEXT;
+    DMS_RELEASE_DB_HANDLE(reform_context->handle_proc);
+    DMS_RELEASE_DB_HANDLE(reform_context->handle_judge);
+    DMS_RELEASE_DB_HANDLE(reform_context->handle_normal);
+    DMS_RELEASE_DB_HANDLE(reform_context->handle_health);
+
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    parallel_thread_t *parallel = NULL;
+    for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
+        parallel = &parallel_info->parallel[i];
+        DMS_RELEASE_DB_HANDLE(parallel->handle);
+    }
+}
+
 int dms_reform_init(dms_profile_t *dms_profile)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
@@ -302,7 +318,6 @@ int dms_reform_init(dms_profile_t *dms_profile)
     DMS_RETURN_IF_ERROR(ret);
     dms_reform_init_for_maintain();
 
-    reform_context->init_success = CM_TRUE;
     g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_OUT);
     LOG_RUN_INF("[DMS REFORM] dms reform init success. time: %llu", reform_info->start_time);
     return DMS_SUCCESS;
@@ -311,9 +326,6 @@ int dms_reform_init(dms_profile_t *dms_profile)
 void dms_reform_uninit(void)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
-    if (!reform_context->init_success) {
-        return;
-    }
 
 #ifdef DMS_TEST
     dms_reform_cm_simulation_uninit();
@@ -323,7 +335,7 @@ void dms_reform_uninit(void)
     cm_close_thread(&reform_context->thread_reform);
     cm_close_thread(&reform_context->thread_health);
     dms_reform_parallel_thread_deinit();
-    reform_context->init_success = CM_FALSE;
+    dms_reform_db_handle_deinit();
 }
 
 int dms_wait_reform(unsigned int *has_offline)

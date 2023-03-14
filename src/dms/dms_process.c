@@ -838,6 +838,7 @@ int dms_init(dms_profile_t *dms_profile)
 
     ret = dms_reform_init(dms_profile);
     if (ret != DMS_SUCCESS) {
+        dms_reform_uninit();
         drc_destroy();
         CM_FREE_PTR(g_dms.proc_ctx);
         return ret;
