@@ -761,14 +761,6 @@ DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
     unsigned long long lsn, unsigned char is_dirty);
 
 /*
-* @brief query page owner
-* @[in]param dms_ctx -  Obtains the context information required by the page.
-* @[out]param owner_id -  page owner id.
-* @return DMS_SUCCESS - success;otherwise: failed
-*/
-DMS_DECLARE int dms_query_page_owner(dms_context_t *dms_ctx, unsigned char *owner_id);
-
-/*
 * @brief set log level
 * @[in]param log_level -  db log level.
 */
