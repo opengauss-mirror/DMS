@@ -114,8 +114,6 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_CHECK_REFORM_DONE,      dms_reform_proc_reform_done_req, CM_TRUE, CM_TRUE,  "dms reform check reform done"},
     { MSG_REQ_MAP_INFO,               dms_reform_proc_map_info_req,    CM_TRUE, CM_TRUE,  "dms ask map from IN instance"},
     { MSG_REQ_DDL_SYNC,               dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
-    { MSG_REQ_QUERY_PAGE_ONWER,       dcs_proc_query_page_owner,
-        CM_TRUE, CM_FALSE, "ask master for page owner id" },
     { MSG_REQ_REFORM_GCV_SYNC,        dms_reform_proc_req_gcv_sync,
         CM_TRUE, CM_TRUE, "ask partner to sync gcv" },
     { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE,  "page validate" },
@@ -161,8 +159,6 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
     { MSG_ACK_REFORM_COMMON,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for reform requests only" },
     { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
-    { MSG_ACK_QUERY_PAGE_ONWER,             dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, "ask owner id info from master" },
     { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,
         CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
 };
