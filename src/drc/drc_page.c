@@ -27,7 +27,7 @@
 #include "drc.h"
 #include "drc_res_mgr.h"
 #include "dms_cm.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dms_msg.h"
 #include "dcs_page.h"
 #include "dms_reform_proc.h"
@@ -59,12 +59,14 @@ static bool32 is_conflict_request(char *resid, uint8 type, drc_request_info_t *c
 static int32 check_conflict_with_x_lock(drc_buf_res_t *buf_res, drc_request_info_t *req_info)
 {
     if (is_conflict_request(buf_res->data, buf_res->type, &buf_res->converting.req_info, req_info)) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
 
     drc_lock_item_t *tmp = (drc_lock_item_t *)cm_bilist_head(&buf_res->convert_q);
     while (tmp != NULL) {
         if (is_conflict_request(buf_res->data, buf_res->type, &tmp->req_info, req_info)) {
+            DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
             return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
         }
         tmp = (drc_lock_item_t*)tmp->node.next;
@@ -348,6 +350,7 @@ static int drc_request_page_owner_internal(char *resid, uint8 type,
 {
     if (req_info->sess_type == DMS_SESSION_NORMAL && buf_res->in_recovery) {
         LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE);
         return ERRNO_DMS_DRC_RECOVERY_PAGE;
     }
 
@@ -384,6 +387,7 @@ int32 drc_request_page_owner(char* resid, uint16 len, uint8 res_type,
     }
     if (buf_res == NULL) {
         LOG_DEBUG_ERR("[DMS][%s]alloc buf res failed", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
     ret = drc_request_page_owner_internal(resid, res_type, req_info, result, buf_res);
@@ -473,6 +477,7 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->converting.req_info.inst_id,
             (uint32)buf_res->converting.req_info.sess_id, buf_res->converting.req_info.rsn,
             (uint32)claim_info->new_id, claim_info->sess_id, claim_info->rsn);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_CLAIM_REQUEST);
         return ERRNO_DMS_DRC_INVALID_CLAIM_REQUEST;
     }
     // X mode or first owner
@@ -524,6 +529,7 @@ int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
     }
     if (buf_res == NULL) {
         LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL", cm_display_pageid(claim_info->resid));
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_NOT_FOUND, cm_display_pageid(claim_info->resid));
         return ERRNO_DMS_DRC_PAGE_NOT_FOUND;
     }
     ret = drc_convert_page_owner(buf_res, claim_info, cvt_info);
@@ -749,6 +755,7 @@ void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
 
 int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip)
 {
+    dms_reset_error();
     drc_buf_res_t *buf_res = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);

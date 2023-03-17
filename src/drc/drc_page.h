@@ -26,7 +26,7 @@
 
 #include "drc.h"
 #include "dms.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "cm_date.h"
 #include "cm_timer.h"
 #include "drc_res_mgr.h"

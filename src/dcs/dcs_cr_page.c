@@ -26,7 +26,7 @@
 #include "dcs_page.h"
 #include "dcs_msg.h"
 #include "drc_res_mgr.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dms_msg.h"
 #include "dms_stat.h"
 
@@ -175,6 +175,7 @@ static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reques
     void *cr_page = (void *)((char *)request + sizeof(msg_pcr_request_t));
     if (request->head.size > sizeof(msg_pcr_request_t) + g_dms.page_size) {
         if (request->head.size < sizeof(msg_pcr_request_t) + 2 * g_dms.page_size) {
+            DMS_THROW_ERROR(ERRNO_DMS_MES_INVALID_MSG);
             return ERRNO_DMS_MES_INVALID_MSG;
         }
         fb_mark = (bool8 *)((char *)request + sizeof(msg_pcr_request_t) + g_dms.page_size);
@@ -452,6 +453,7 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
 
 int dms_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr)
 {
+    dms_reset_error();
     uint8 inst_id;
     bool8 is_empty_txn_list;
     bool8 exist_waiting_txn;
@@ -515,6 +517,7 @@ static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
 
 int dms_construct_index_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr)
 {
+    dms_reset_error();
     uint8 inst_id;
     bool8 is_empty_txn_list;
     bool8 exist_waiting_txn;
@@ -893,6 +896,7 @@ static inline void dcs_get_msg_cmd_by_cr_status(dms_cr_status_t cr_status, msg_c
 int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id,
     dms_cr_status_t *cr_status)
 {
+    dms_reset_error();
     msg_pcr_request_t request;
     mes_message_t message;
     int ret;
@@ -957,6 +961,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
 
 int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_cr_status_t *cr_status)
 {
+    dms_reset_error();
     uint8 master_id, owner_id;
 
     CM_ASSERT(*cr_status == DMS_CR_CHECK_MASTER);
@@ -1029,6 +1034,7 @@ static inline void dcs_init_msg_cr_check(msg_cr_check_t *check, dms_context_t *d
 int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id,
     unsigned char *is_empty_itl, unsigned char *is_found)
 {
+    dms_reset_error();
     msg_cr_check_t check;
     mes_message_t message;
     int ret;

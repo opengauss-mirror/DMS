@@ -22,10 +22,9 @@
  * -------------------------------------------------------------------------
  */
 
-#include "dms_log.h"
 #include "dms_process.h"
 #include "dms_cm.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "drc_page.h"
 #include "dls_msg.h"
 #include "dcs_page.h"
@@ -279,6 +278,7 @@ static int32 dms_handle_ask_owner_ack(dms_context_t *dms_ctx, void *res,
         return error_ack.code;
     }
     LOG_DEBUG_ERR("[DMS][dms_handle_ask_owner_ack]recieve unexpected message,cmd:%u", (uint32)msg->head->cmd);
+    DMS_THROW_ERROR(ERRNO_DMS_MES_INVALID_MSG);
     return ERRNO_DMS_MES_INVALID_MSG;
 }
 

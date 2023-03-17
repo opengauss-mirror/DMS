@@ -28,7 +28,7 @@
 #include "drc_res_mgr.h"
 #include "dms_stat.h"
 #include "dms_cm.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "drc_page.h"
 #include "dms_reform_proc.h"
 #include "cm_encrypt.h"
@@ -105,6 +105,7 @@ static inline int32 dcs_handle_ask_edp_ack(dms_context_t *dms_ctx,
         return dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, msg, mode);
     }
     LOG_DEBUG_ERR("[DCS][dcs_handle_ask_edp_ack]recieve unexpected message");
+    DMS_THROW_ERROR(ERRNO_DMS_MES_INVALID_MSG);
     return ERRNO_DMS_MES_INVALID_MSG;
 }
 
@@ -295,6 +296,7 @@ int32 dcs_handle_ack_edp_local(dms_context_t *dms_ctx,
 
 int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode)
 {
+    dms_reset_error();
     if (dms_ctx == NULL || ctrl == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
         return ERRNO_DMS_PARAM_NULL;
@@ -492,6 +494,7 @@ static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t
     dms_end_stat(ctx->sess_id);
 
     if (ret != DMS_SUCCESS) {
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
@@ -634,6 +637,7 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
     dms_end_stat(ctx->sess_id);
 
     if (ret != DMS_SUCCESS) {
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
@@ -646,6 +650,7 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
             "ctrl_ver=%u", cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid,
             req_info->req_mode, req_info->req_rsn, req_info->ver, ctrl->ver);
         g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
+        DMS_THROW_ERROR(ERRNO_DMS_RES_INVALID_VERSION);
         return ERRNO_DMS_RES_INVALID_VERSION;
     }
     ret = dcs_owner_transfer_page_ack(ctx, ctrl, req_info, MSG_ACK_PAGE_READY);
@@ -848,6 +853,7 @@ static int dms_try_ask_master_for_page_owner_id_internal(dms_context_t *dms_ctx,
 int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
     unsigned char *owner_id)
 {
+    dms_reset_error();
     int ret;
 
     LOG_DEBUG_INF("[DCS][%s][dcs ask master for page owner id]: enter", cm_display_pageid(dms_ctx->resid));
@@ -947,6 +953,7 @@ int dms_query_page_owner_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner
 
 int dms_query_page_owner(dms_context_t *dms_ctx, uint8 *owner_id)
 {
+    dms_reset_error();
     LOG_DEBUG_INF("[DCS][%s][dms query page owner]: enter", cm_display_pageid(dms_ctx->resid));
     uint8 master_id = CM_INVALID_ID8;
     int ret = drc_get_page_master_id(dms_ctx->resid, &master_id);
@@ -1088,6 +1095,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
 
 int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned char *released)
 {
+    dms_reset_error();
     int ret = DMS_SUCCESS;
 
     if (DMS_BUF_CTRL_IS_OWNER(ctrl)) {
@@ -1106,6 +1114,7 @@ int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned cha
 int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
     unsigned char is_dirty)
 {
+    dms_reset_error();
     dms_ctrl_info_t ctrl_info;
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
@@ -1136,6 +1145,7 @@ int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsign
 int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, unsigned char thread_index,
     unsigned char for_rebuild)
 {
+    dms_reset_error();
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
@@ -1288,6 +1298,7 @@ static inline int32 dcs_release_owner_batch(dms_context_t *dms_ctx, dcs_batch_bu
 
 int dms_release_page_batch(dms_context_t *dms_ctx, dcs_batch_buf_t *owner_map, unsigned int *owner_count)
 {
+    dms_reset_error();
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         if (owner_map->count[i] != 0) {
             int ret = dcs_release_owner_batch(dms_ctx, owner_map, i);

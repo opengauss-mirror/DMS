@@ -30,7 +30,7 @@
 #include "dcs_cr_page.h"
 #include "dcs_tran.h"
 #include "dls_msg.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dms_msg.h"
 #include "drc_lock.h"
 #include "drc_res_mgr.h"
@@ -670,7 +670,12 @@ static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, 
             break;
     }
 
-    return (ret != -1) ? DMS_SUCCESS : ERRNO_DMS_INIT_LOG_FAILED;
+    if (ret != -1) {
+        return DMS_SUCCESS;
+    }
+
+    DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
+    return ERRNO_DMS_INIT_LOG_FAILED;
 }
 
 static int32 init_single_logger(log_param_t *log_param, log_type_t log_id)
@@ -703,10 +708,12 @@ void dms_refresh_logger(char *log_field, unsigned long long *value)
 
 int32 dms_init_logger(logger_param_t *param_def)
 {
+    dms_reset_error();
     errno_t ret;
     log_param_t *log_param = cm_log_param_instance();
     ret = memset_s(log_param, sizeof(log_param_t), 0, sizeof(log_param_t));
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
         return ERRNO_DMS_INIT_LOG_FAILED;
     }
 
@@ -718,6 +725,7 @@ int32 dms_init_logger(logger_param_t *param_def)
     log_param->log_compressed = true;
     log_param->log_compress_buf = malloc(CM_LOG_COMPRESS_BUFSIZE);
     if (log_param->log_compress_buf == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
         return ERRNO_DMS_INIT_LOG_FAILED;
     }
     cm_log_set_file_permissions(600);
@@ -725,11 +733,13 @@ int32 dms_init_logger(logger_param_t *param_def)
     (void)cm_set_log_module_name("DMS", sizeof("DMS"));
     ret = strcpy_sp(log_param->instance_name, CM_MAX_NAME_LEN, "DMS");
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
         return ERRNO_DMS_INIT_LOG_FAILED;
     }
 
     ret = strcpy_sp(log_param->log_home, CM_MAX_LOG_HOME_LEN, param_def->log_home);
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
         return ERRNO_DMS_INIT_LOG_FAILED;
     }
 
@@ -796,10 +806,6 @@ int dms_init(dms_profile_t *dms_profile)
         return ret;
     }
 
-    ret = dms_init_error_desc();
-    if (ret != DMS_SUCCESS) {
-        return ret;
-    }
     if (dms_profile == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
         return ERRNO_DMS_PARAM_NULL;
@@ -817,6 +823,7 @@ int dms_init(dms_profile_t *dms_profile)
         return ret;
     }
 
+    cm_init_error_handler(cm_set_log_error);
     ret = dms_register_proc();
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -883,7 +890,6 @@ void dms_uninit(void)
         free(g_dms_stat.sess_stats);
         g_dms_stat.sess_stats = NULL;
     }
-    dms_uninit_error_desc();
     drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
@@ -915,11 +921,13 @@ void dms_set_min_scn(unsigned char inst_id, unsigned long long min_scn)
 
 int dms_register_thread_init(dms_thread_init_t thrd_init)
 {
+    dms_reset_error();
     return set_mes_worker_init_cb(thrd_init);
 }
 
 int dms_register_ssl_decrypt_pwd(dms_decrypt_pwd_t cb_func)
 {
+    dms_reset_error();
     int ret;
     ret = mfc_register_decrypt_pwd(cb_func);
     if (ret != CM_SUCCESS) {
@@ -931,6 +939,7 @@ int dms_register_ssl_decrypt_pwd(dms_decrypt_pwd_t cb_func)
 
 int dms_set_ssl_param(const char* param_name, const char* param_value)
 {
+    dms_reset_error();
     cbb_param_t param_type;
     param_value_t out_value;
     int ret;
@@ -957,6 +966,7 @@ int dms_set_ssl_param(const char* param_name, const char* param_value)
 
 int dms_get_ssl_param(const char *param_name, char *param_value, unsigned int size)
 {
+    dms_reset_error();
     int ret;
     if (param_name == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);

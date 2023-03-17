@@ -26,7 +26,7 @@
 #include "dms_reform_proc.h"
 #include "dms_reform_judge.h"
 #include "drc_res_mgr.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "dms_mfc.h"
 #include "dcs_page.h"
 
@@ -529,6 +529,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 
     req = (dms_reform_req_migrate_t *)g_dms.callback.mem_alloc(handle, DMS_REFORM_MSG_MAX_LENGTH);
     if (req == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_STACK_PUSH);
         return ERRNO_DMS_CALLBACK_STACK_PUSH;
     }
     dms_reform_req_migrate_init(req, migrate_task, type, sess_id);
@@ -582,6 +583,7 @@ static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, dr
         return ret;
     }
     if (buf_res == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH;
     }
     init_drc_cvt_item(&buf_res->converting);
@@ -621,9 +623,8 @@ static int dms_reform_proc_req_migrate_res(dms_process_context_t *process_ctx, m
         CM_ASSERT(offset <= req->head.size);
         res_msg = (drc_buf_res_msg_t *)((uint8 *)receive_msg->buffer + offset);
         if (SECUREC_UNLIKELY(res_msg->len > DMS_RESID_SIZE)) {
-            ret = ERRNO_DMS_RC_GET_RES_DATA_FAILED;
-            LOG_DEBUG_FUNC_FAIL;
-            return ret;
+            DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "res_msg len");
+            return ERRNO_DMS_PARAM_INVALID;
         }
         
         ret = dms_reform_migrate_add_buf_res(process_ctx, res_msg, req->res_type);
@@ -689,6 +690,7 @@ int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t
         req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(parallel->handle,
             DMS_REFORM_MSG_MAX_LENGTH);
         if (req_rebuild == NULL) {
+            DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
             return ERRNO_DMS_ALLOC_FAILED;
         }
         parallel->data[master_id] = req_rebuild;
@@ -727,6 +729,7 @@ int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_in
         req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
             DMS_REFORM_MSG_MAX_LENGTH);
         if (req_rebuild == NULL) {
+            DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
             return ERRNO_DMS_ALLOC_FAILED;
         }
         rebuild_info->rebuild_data[master_id] = req_rebuild;
@@ -841,6 +844,7 @@ int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 mast
         req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
             DMS_REFORM_MSG_MAX_LENGTH);
         if (req_rebuild == NULL) {
+            DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
             return ERRNO_DMS_ALLOC_FAILED;
         }
         rebuild_info->rebuild_data[master_id] = req_rebuild;
@@ -874,6 +878,7 @@ int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, u
         req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(parallel->handle,
             DMS_REFORM_MSG_MAX_LENGTH);
         if (req_rebuild == NULL) {
+            DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
             return ERRNO_DMS_ALLOC_FAILED;
         }
         parallel->data[master_id] = req_rebuild;
@@ -1140,7 +1145,7 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
     dms_reform_req_switchover_t *req = (dms_reform_req_switchover_t *)receive_msg->head;
 
     if (!DMS_IS_REFORMER) {
-        dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_SWITCHOVER_NOT_REFORMER);
+        dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
         mfc_release_message_buf(receive_msg);
         return;
     }
@@ -1168,7 +1173,7 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
     }
 
     cm_spin_unlock(&switchover_info->lock);
-    dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_SWITCHOVER_NOT_FINISHED);
+    dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
     mfc_release_message_buf(receive_msg);
 }
 

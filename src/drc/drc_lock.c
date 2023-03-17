@@ -27,7 +27,7 @@
 #include "drc_res_mgr.h"
 #include "dls_msg.h"
 #include "cm_debug.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dms.h"
 #include "cm_timer.h"
 

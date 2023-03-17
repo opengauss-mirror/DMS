@@ -25,7 +25,7 @@
 #include "drc_tran.h"
 #include "drc.h"
 #include "cm_thread.h"
-#include "dms_log.h"
+#include "dms_error.h"
 
 #define TX_WAIT_INTERVAL      5  // in milliseconds
 

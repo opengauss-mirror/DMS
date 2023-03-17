@@ -26,7 +26,7 @@
 #include "cm_defs.h"
 #include "dms.h"
 #include "dms_cm.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dms_msg.h"
 #include "drc.h"
 #include "drc_res_mgr.h"
@@ -198,6 +198,7 @@ static int32 dcs_master_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, 
 
 int dms_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int count)
 {
+    dms_reset_error();
     return dcs_notify_process_edp(dms_ctx, pages, count,
         dcs_get_page_master_id, dcs_master_ckpt_edp, dcs_send_edp_to_master_ckpt);
 }
@@ -305,6 +306,7 @@ static int32 dcs_master_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages,
 
 int dms_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int count)
 {
+    dms_reset_error();
     return dcs_notify_process_edp(dms_ctx, pages, count,
         dcs_get_page_master_id, dcs_master_clean_edp, dcs_send_edp_to_master_clean);
 }

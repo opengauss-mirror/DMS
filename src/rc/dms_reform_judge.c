@@ -24,7 +24,7 @@
 
 #include "dms_reform_judge.h"
 #include "dms_reform_msg.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 
 extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
 
@@ -130,11 +130,13 @@ int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *l
     // if there is unknown instance, finish current judgement
     if (list_unknown.inst_id_count != 0) {
         LOG_DEBUG_WAR("[DMS REFORM]dms_reform_get_list_online, unknown inst count: %d", list_unknown.inst_id_count);
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "there is unknown instance");
         return ERRNO_DMS_REFORM_FAIL;
     }
 
     if (!dms_reform_list_exist(list_online, (uint8)g_dms.inst_id)) {
         LOG_DEBUG_WAR("[DMS REFORM]dms_reform_get_list_online, instance(%u) not in list_online", g_dms.inst_id);
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "current instance is not in online list");
         return ERRNO_DMS_REFORM_FAIL;
     }
 
@@ -320,6 +322,7 @@ static int dms_reform_check_remote_inner(uint8 dst_id)
 
     if (in_reform) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_remote_inner in reform, dst_id: %d", dst_id);
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
