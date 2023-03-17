@@ -29,11 +29,12 @@
 #include "drc.h"
 #include "drc_tran.h"
 #include "dms_stat.h"
-#include "dms_log.h"
+#include "dms_error.h"
 
 int dms_request_opengauss_lock_buffer(dms_context_t *dms_ctx, int buffer, unsigned char mode,
     unsigned char *lw_lock_mode)
 {
+    dms_reset_error();
     msg_opengauss_lock_buffer_ctx_t lock_ctx;
     mes_message_head_t *head = &lock_ctx.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
@@ -83,6 +84,7 @@ void dcs_proc_opengauss_lock_buffer_req(dms_process_context_t *process_ctx, mes_
 
 int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char request, unsigned char *result)
 {
+    dms_reset_error();
     msg_opengauss_txn_status_request_t status_req;
     mes_message_head_t *head = &status_req.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
@@ -157,6 +159,7 @@ void dcs_proc_opengauss_txn_status_req(dms_process_context_t *process_ctx, mes_m
 int dms_request_opengauss_update_xid(dms_context_t *dms_ctx, unsigned short t_infomask,
     unsigned short t_infomask2, unsigned long long *uxid)
 {
+    dms_reset_error();
     msg_opengauss_update_xid_request_t uxid_req;
     mes_message_head_t *head = &uxid_req.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
@@ -233,6 +236,7 @@ void dcs_proc_opengauss_update_xid_req(dms_process_context_t *process_ctx, mes_m
 int dms_request_opengauss_xid_csn(dms_context_t *dms_ctx, dms_opengauss_xid_csn_t *dms_txn_info,
     dms_opengauss_csn_result_t *xid_csn_result)
 {
+    dms_reset_error();
     msg_opengauss_xid_csn_request_t xid_csn_req;
     mes_message_head_t *head = &xid_csn_req.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
@@ -346,6 +350,7 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, mes_message_t *re
 
 int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
 {
+    dms_reset_error();
     msg_txn_info_request_t txn_info_req;
     mes_message_head_t *head = &txn_info_req.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
@@ -441,6 +446,7 @@ void dcs_proc_txn_snapshot_req(dms_process_context_t *process_ctx, mes_message_t
 
 int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx, dms_opengauss_txn_snapshot_t *dms_txn_snapshot)
 {
+    dms_reset_error();
     mes_message_t message;
     msg_opengauss_txn_snapshot_t req;
     dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
@@ -487,6 +493,7 @@ int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx, dms_opengauss_txn
 
 int dms_request_txn_snapshot(dms_context_t *dms_ctx, dms_txn_snapshot_t *dms_txn_snapshot)
 {
+    dms_reset_error();
     mes_message_t message;
     msg_txn_snapshot_t req;
     dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
@@ -652,6 +659,7 @@ void dms_recycle_txn_cond(dms_context_t *dms_ctx)
 
 int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
 {
+    dms_reset_error();
     msg_txn_wait_request_t txn_wait_req;
     mes_message_head_t *head = &txn_wait_req.head;
     dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
@@ -692,6 +700,7 @@ int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
 
 unsigned char dms_wait_txn_cond(dms_context_t *dms_ctx)
 {
+    dms_reset_error();
     uint64 *xid = &dms_ctx->xid_ctx.xid;
     return drc_local_txn_wait(xid);
 }

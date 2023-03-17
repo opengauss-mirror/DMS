@@ -25,7 +25,7 @@
 #include "drc_res_mgr.h"
 #include <stdlib.h>
 #include "securec.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dcs_page.h"
 
 /* some global struct definition */
@@ -51,6 +51,7 @@ uint8 drc_get_deposit_id(uint8 instance_id)
 
 unsigned char dms_get_deposit_id(unsigned char inst_id)
 {
+    dms_reset_error();
     return drc_get_deposit_id(inst_id);
 }
 
@@ -354,6 +355,7 @@ static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
 
     if (!cm_latch_timed_s(&res_map->res_latch, 1, CM_FALSE, NULL)) {
         LOG_DEBUG_WAR("[%s][drc_buf_res_latch]fail to latch s", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
@@ -361,11 +363,13 @@ static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
         if (!res_map->drc_access) {
             LOG_DEBUG_WAR("[%s][drc_buf_res_latch]drc is inaccessible", cm_display_resid(resid, res_type));
             cm_unlatch(&res_map->res_latch, NULL);
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
             return ERRNO_DMS_REFORM_IN_PROCESS;
         }
         if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) && !res_map->data_access) {
             LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
             cm_unlatch(&res_map->res_latch, NULL);
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
             return ERRNO_DMS_REFORM_IN_PROCESS;
         }
     }
@@ -378,6 +382,7 @@ static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
 
         LOG_DEBUG_WAR("[%s][drc_buf_res_latch]master is changed to %d", cm_display_resid(resid, res_type), master_id);
         cm_unlatch(&res_map->res_latch, NULL);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_INVALID;
     }
 
@@ -518,6 +523,7 @@ int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_se
 
 int32 drc_get_page_master_id(char *pageid, unsigned char *master_id)
 {
+    dms_reset_error();
     uint8  inst_id;
     uint32 part_id;
 

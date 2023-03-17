@@ -24,7 +24,7 @@
 
 #include "dms_mfc.h"
 #include "dms_process.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "mes_func.h"
 
 #ifdef __cplusplus
@@ -66,6 +66,7 @@ static inline bool32 mfc_msg_is_req(mes_message_head_t *head)
 static inline int32 mfc_send_data_req(mes_message_head_t *msg)
 {
     if (!mfc_try_get_ticket(msg->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
@@ -103,6 +104,7 @@ int32 mfc_send_data(mes_message_head_t *msg)
 static inline int32 mfc_send_data2_req(const mes_message_head_t *head, const void *body)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
@@ -140,6 +142,7 @@ int32 mfc_send_data2(mes_message_head_t *head, const void *body)
 static inline int32 mfc_send_data3_req(mes_message_head_t *head, uint32 head_size, const void *body)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
@@ -178,6 +181,7 @@ static inline int32 mfc_send_data4_req(mes_message_head_t *head, uint32 head_siz
     const void *body1, uint32 len1, const void *body2, uint32 len2)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
