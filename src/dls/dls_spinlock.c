@@ -25,7 +25,7 @@
 #include "cm_spinlock.h"
 #include "dcs_msg.h"
 #include "dls_msg.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "drc_lock.h"
 #include "dms_msg.h"
 
@@ -137,6 +137,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     if (is_locked) {
         LOG_DEBUG_INF("[DLS] try add spinlock(%s), owner(%u) is locked",
             cm_display_lockid(&dlock->drid), (uint32)is_owner);
+        DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED);
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
 
@@ -158,11 +159,14 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         lock_res->latch_stat.sid = dms_ctx->sess_id;
         return DMS_SUCCESS;
     }
+
+    DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED);
     return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
 }
 
 unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 {
+    dms_reset_error();
     if (SECUREC_UNLIKELY(dlock->drid.type == DMS_DR_TYPE_INVALID || dlock->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(0, "[DLS] add spinlock(%s) failed, because lock not initialized", cm_display_lockid(&dlock->drid));
     }
@@ -193,6 +197,7 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 
 unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, unsigned int timeout_ticks)
 {
+    dms_reset_error();
     uint32 spin_times = 0;
     uint32 wait_ticks = 0;
     if (SECUREC_UNLIKELY(dlock->drid.type == DMS_DR_TYPE_INVALID || dlock->drid.type >= DMS_DR_TYPE_MAX)) {
@@ -224,6 +229,7 @@ unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, u
 
 unsigned char dms_spin_lock_by_self(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 {
+    dms_reset_error();
     bool8 is_locked;
     bool8 is_owner;
     drc_local_lock_res_t *lock_res = NULL;

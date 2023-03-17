@@ -27,7 +27,7 @@
 #include "dms_reform_judge.h"
 #include "dms_reform_preempt.h"
 #include "dms_reform_msg.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "cm_timer.h"
 #include "dms_reform_health.h"
 #include "dms_reform_proc_parallel.h"
@@ -340,6 +340,7 @@ void dms_reform_uninit(void)
 
 int dms_wait_reform(unsigned int *has_offline)
 {
+    dms_reset_error();
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
 #ifndef OPENGAUSS
@@ -440,6 +441,7 @@ int dms_is_recovery_session(unsigned int sid)
 
 int dms_switchover(unsigned int sess_id)
 {
+    dms_reset_error();
     dms_reform_req_switchover_t req;
     int ret = DMS_SUCCESS;
 

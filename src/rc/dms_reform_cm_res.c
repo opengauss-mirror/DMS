@@ -25,7 +25,7 @@
 #include "dms_reform_cm_res.h"
 #include "dms_reform.h"
 #include "dms_process.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #ifdef DMS_TEST
 #include "cm_num.h"
 #endif
@@ -265,12 +265,14 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
     cm_res_mgr_t *cm_res_mgr = &g_dms.cm_res_mgr;
     cm_res_mem_ctx_t res_mem_ctx;
     if (cm_res_init_memctx(&res_mem_ctx) != CM_SUCCESS) {
-        return ERRNO_DMS_FAIL_GET_STAT_LIST;
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST);
+        return ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST;
     }
     cm_res_stat_ptr_t res_stat = cm_res_get_stat(cm_res_mgr, &res_mem_ctx);
     if (res_stat == NULL) {
         cm_res_uninit_memctx(&res_mem_ctx);
-        return ERRNO_DMS_FAIL_GET_STAT_LIST;
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST);
+        return ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST;
     }
 
     int res_count = cm_res_get_instance_count(cm_res_mgr, res_stat);
@@ -324,7 +326,8 @@ int dms_reform_cm_res_get_lock_owner(uint8 *owner_id)
 
     ret = cm_res_get_lock_owner(cm_res_mgr, DMS_REFORMER_LOCK, &temp_id);
     if (ret == CM_RES_TIMEOUT) {
-        return ERRNO_DMS_RECV_MSG_FAILED;
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_GET_LOCK_FAILED);
+        return ERRNO_DMS_REFORM_GET_LOCK_FAILED;
     } else if (ret == CM_RES_SUCCESS) {
         *owner_id = (uint8)(temp_id - DMS_RESOURCE_ID_BASE);
     } else {

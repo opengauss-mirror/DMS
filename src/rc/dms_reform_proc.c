@@ -25,7 +25,7 @@
 #include "dms_reform_proc.h"
 #include "dms_reform_msg.h"
 #include "drc_res_mgr.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "drc_page.h"
 #include "dms_reform_judge.h"
 #include "dcs_page.h"
@@ -83,6 +83,7 @@ int dms_reform_reconnect_channel(uint8 inst_id, uint32 index, uint32 sess_id)
 
     while (CM_TRUE) {
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -222,6 +223,7 @@ static int dms_reform_confirm_owner_inner(drc_buf_res_t *buf_res, uint32 sess_id
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_CONFIRM_OWNER, sess_id);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -314,6 +316,7 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_CONFIRM_CONVERTING, sess_id);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -368,6 +371,7 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_FLUSH_COPY, sess_id);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -414,6 +418,7 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id)
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_NEED_FLUSH, sess_id);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -716,7 +721,7 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
     bool8 matched = CM_TRUE;
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_FALSE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_FALSE);
     int ret = drc_enter_buf_res(resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS || buf_res == NULL) {
         LOG_DEBUG_WAR("[DRC validate][%s]node: %d, fail to get drc, ret: %d", cm_display_pageid(resid), inst_id, ret);
@@ -786,7 +791,8 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         ctrl->is_edp > 1 || ctrl->need_flush > 1)) {
         LOG_DEBUG_ERR("[DRC rebuild] invalid request message, is_edp=%u, need_flush=%u",
             (uint32)ctrl->is_edp, (uint32)ctrl->need_flush);
-        return ERRNO_DMS_RC_GET_RES_DATA_FAILED;
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "ctrl_info");
+        return ERRNO_DMS_PARAM_INVALID;
     }
 
     LOG_DEBUG_INF("[DRC rebuild][%s]remote_ditry: %d, lock_mode: %d, is_edp: %d, inst_id: %d, lsn: %llu, is_dirty: %d",
@@ -799,6 +805,7 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         return ret;
     }
     if (buf_res == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
     if (ctrl->lock_mode == DMS_LOCK_EXCLUSIVE) {
@@ -905,7 +912,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
 
     int ret = drc_enter_buf_res(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS || buf_res == NULL) {
-        CM_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return;
     }
     if (buf_res->claimed_owner != g_dms.inst_id) {
@@ -978,6 +985,7 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
 {
     if (SECUREC_UNLIKELY(lock_res->latch_stat.lock_mode >= DMS_LOCK_MODE_MAX)) {
         LOG_DEBUG_ERR("[DRC][lock rebuild] invalid lock_mode: %u", lock_res->latch_stat.lock_mode);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_LOCK_STATUS_FAIL);
         return ERRNO_DMS_DRC_LOCK_STATUS_FAIL;
     }
 
@@ -995,6 +1003,7 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
         return ret;
     }
     if (buf_res == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
 
@@ -1212,6 +1221,7 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, inst_id, DMS_REQ_EDP_LSN, sess_id);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -1678,6 +1688,7 @@ static int dms_reform_txn_deposit(void)
 
     int ret = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info->deposit_map, DMS_MAX_INSTANCES);
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
         return ERRNO_DMS_SECUREC_CHECK_FAIL;
     }
 
@@ -1690,6 +1701,7 @@ static int dms_reform_undo_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
         if (g_dms.callback.undo_init(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
+            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_RC_UNDO_INIT);
             return ERRNO_DMS_CALLBACK_RC_UNDO_INIT;
         }
     }
@@ -1700,6 +1712,7 @@ static int dms_reform_tx_area_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
         if (g_dms.callback.tx_area_init(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
+            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_RC_TX_AREA_INIT);
             return ERRNO_DMS_CALLBACK_RC_TX_AREA_INIT;
         }
     }
@@ -1710,6 +1723,7 @@ static int dms_reform_tx_area_load(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
         if (g_dms.callback.tx_area_load(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
+            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_RC_TX_AREA_LOAD);
             return ERRNO_DMS_CALLBACK_RC_TX_AREA_LOAD;
         }
     }
@@ -1842,6 +1856,7 @@ static int dms_reform_done(void)
         share_info->reformer_id, save_ctrl);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DMS REFORM]list_stable fail to save in ctrl");
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_SAVE_LIST_STABLE_FAILED);
         return ERRNO_DMS_REFORM_SAVE_LIST_STABLE_FAILED;
     }
     dms_reform_next_step();
@@ -1991,6 +2006,7 @@ static int dms_reform_sync_step_send(void)
     while (CM_TRUE) {
         dms_reform_init_req_sync_step(&req);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -2090,6 +2106,7 @@ static int dms_reform_sync_next_step_r(uint8 dst_id)
     while (CM_TRUE) {
         dms_reform_init_req_sync_next_step(&req, dst_id);
         if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
@@ -2151,6 +2168,7 @@ static int dms_reform_sync_wait_reformer(void)
         }
         if (reformer_ctrl->instance_fail[dst_id]) {
             LOG_RUN_INF("[DMS REFORM]dms_reform_sync_wait_reformer receive partner(%d) fail", dst_id);
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "receive fail reform partner");
             return ERRNO_DMS_REFORM_FAIL;
         }
     }

@@ -25,7 +25,7 @@
 #include "dcs_dc.h"
 #include "dcs_msg.h"
 #include "dms_msg.h"
-#include "dms_log.h"
+#include "dms_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -130,7 +130,11 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     mfc_broadcast2(dms_ctx->sess_id, all_inst, &head, (const void *)data, &succ_inst);
     if (!handle_msg) {
         (void)mfc_wait_acks2(dms_ctx->sess_id, timeout, &succ_inst);
-        return all_inst == succ_inst ? DMS_SUCCESS : ERRNO_DMS_DCS_BROADCAST_FAILED;
+        if (all_inst == succ_inst) {
+            return DMS_SUCCESS;
+        }
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
+        return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
 
     char *recv_msg[CM_MAX_INSTANCES] = { 0 };
@@ -139,6 +143,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
         if (ret == DMS_SUCCESS) {
             dcs_release_broadcast_msg(dms_ctx, succ_inst, recv_msg);
         }
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
     ret = dcs_handle_broadcast_msg(dms_ctx, succ_inst, recv_msg);
@@ -156,6 +161,7 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
     if (reform_info->bcast_unable) {
         cm_unlatch(&reform_info->bcast_latch, NULL);
         LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
@@ -176,6 +182,7 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
         if (reform_info->bcast_unable) {
             cm_unlatch(&reform_info->bcast_latch, NULL);
             LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
             return ERRNO_DMS_REFORM_IN_PROCESS;
         }
     }
@@ -184,6 +191,7 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
 int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
     unsigned char handle_recv_msg, unsigned int timeout)
 {
+    dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST);
 }
 
@@ -209,6 +217,7 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, mes_message_t *receive_msg
 int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
     unsigned long long *success_inst)
 {
+    dms_reset_error();
     dcs_boc_req_t boc_req;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
@@ -236,12 +245,14 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
 
 int dms_wait_boc(unsigned int sid, unsigned int timeout, unsigned long long success_inst)
 {
+    dms_reset_error();
     return mfc_wait_acks(sid, timeout, success_inst);
 }
 
 int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned int len,
     unsigned char handle_recv_msg, unsigned int timeout, unsigned char lock_req_type)
 {
+    dms_reset_error();
     int32 ret = DMS_SUCCESS;
     uint64 succ_inst = 0;
     mes_message_head_t head;
@@ -297,6 +308,7 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
 int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
     unsigned int timeout)
 {
+    dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC);
 }
 

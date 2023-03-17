@@ -23,8 +23,7 @@
  */
 
 #include "dcs_smon.h"
-#include "dms_errno.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "dms_mfc.h"
 
 #ifndef OPENGAUSS
@@ -508,6 +507,7 @@ void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, mes_message_t *r
 int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short rmid,
     dms_smon_req_type_t type, char *rsp_content, unsigned int rsp_size)
 {
+    dms_reset_error();
     int ret;
     uint8 *send_msg = NULL;
     uint16 msg_size = (uint16)(sizeof(mes_message_head_t) + sizeof(uint32) + sizeof(uint16));
@@ -570,6 +570,7 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
 int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char xid[DMS_XID_SIZE], char *ilock,
     unsigned int ilock_len)
 {
+    dms_reset_error();
     int ret;
     uint8 *send_msg = NULL;
     uint16 msg_size = (uint16)(sizeof(mes_message_head_t) + DMS_XID_SIZE);
@@ -635,6 +636,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
 int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short sid, char *sql_str,
     unsigned int sql_str_len)
 {
+    dms_reset_error();
     int ret;
     uint8 *send_msg = NULL;
     uint16 msg_size = (uint16)(sizeof(mes_message_head_t) + sizeof(uint16));
@@ -702,6 +704,7 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
 int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short sid,
     unsigned long long table_id, dms_smon_check_tlock_type_t type, unsigned int *in_use)
 {
+    dms_reset_error();
     int ret;
     uint8 *send_msg = NULL;
     uint16 msg_size = (uint16)(sizeof(mes_message_head_t) + sizeof(dcs_check_tlock_status_t));
@@ -761,6 +764,7 @@ int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, 
 int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned long long table_id,
     dms_smon_req_tlock_type_t type, char *rsp, unsigned int rsp_len, unsigned int *tlock_cnt)
 {
+    dms_reset_error();
     int ret;
     uint8 *send_msg = NULL;
     mes_message_head_t *head = NULL;
@@ -830,6 +834,7 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
 int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short sid,
     unsigned short rmid, dms_smon_req_rm_type_t type, char *tlock, unsigned int tlock_len)
 {
+    dms_reset_error();
     int ret;
     uint8 *send_msg = NULL;
     mes_message_head_t *head = NULL;

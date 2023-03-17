@@ -22,7 +22,7 @@
  * -------------------------------------------------------------------------
  */
 
-#include "dms_log.h"
+#include "dms_error.h"
 #include "mes_type.h"
 #include "dms_stat.h"
 #include "dcs_msg.h"
@@ -105,6 +105,7 @@ int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try, uint32
         LOG_DEBUG_WAR("[DLS] dls_invld_lock_ownership(%s) invalid req, req_ver:%u res_ver:%u",
             cm_display_lockid(lockid), ver, lock_res->ver);
         drc_unlock_local_resx(lock_res);
+        DMS_THROW_ERROR(ERRNO_DMS_RES_INVALID_VERSION);
         return ERRNO_DMS_RES_INVALID_VERSION;
     }
 
