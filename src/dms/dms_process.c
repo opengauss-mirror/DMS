@@ -483,6 +483,9 @@ int dms_init_mes(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
+    // save g_cbb_mes address
+    g_dms.mes_ptr = mes_get_global_inst();
+
     return ret;
 }
 
