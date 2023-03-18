@@ -70,6 +70,7 @@ typedef struct st_dms_instance {
     uint8 unused;
     cm_res_mgr_t cm_res_mgr;
     uint32 cluster_ver;
+    void* mes_ptr;
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
