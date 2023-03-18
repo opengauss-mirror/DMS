@@ -140,8 +140,7 @@ typedef enum en_msg_command {
     MSG_ACK_REFORM_COMMON = 164,
     MSG_ACK_CONFIRM_CVT = 165,
     MSG_ACK_MAP_INFO = 166,
-    MSG_ACK_QUERY_PAGE_ONWER = 167,
-    MSG_ACK_REFORM_GCV_SYNC = 168,
+    MSG_ACK_REFORM_GCV_SYNC = 167,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
