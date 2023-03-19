@@ -26,7 +26,7 @@
 #include "dcs_msg.h"
 #include "dls_msg.h"
 #include "dms.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "drc_lock.h"
 #include "dms_msg.h"
 #include "dms_stat.h"
@@ -207,6 +207,7 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
 
 bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks, unsigned char is_force)
 {
+    dms_reset_error();
 #ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
@@ -481,6 +482,7 @@ static bool8 dms_latch_timed_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t
 
 bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
 {
+    dms_reset_error();
 #ifndef OPENGAUSS
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(
@@ -655,6 +657,7 @@ static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     drc_lock_local_resx(lock_res);
     if (lock_res->releasing) {
         drc_unlock_local_resx(lock_res);
+        DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_LOCK_FAILED);
         return ERRNO_DMS_DLS_TRY_LOCK_FAILED;
     }
 
@@ -682,11 +685,13 @@ static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     }
     drc_unlock_local_resx(lock_res);
     LOG_DEBUG_INF("[DLS] add latch_s finished, result:failed");
+    DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_LOCK_FAILED);
     return ERRNO_DMS_DLS_TRY_LOCK_FAILED;
 }
 
 unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 {
+    dms_reset_error();
     uint32 spin_times = 0;
 
     for (;;) {

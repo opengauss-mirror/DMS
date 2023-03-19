@@ -24,7 +24,7 @@
 
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "dms_process.h"
 #include "drc_page.h"
 
@@ -85,6 +85,7 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
 
     if (dms_profile->parallel_thread_num > DMS_PARALLEL_MAX_THREAD) {
         LOG_RUN_ERR("[DMS REFORM]invalid parameter, parallel_thread_num: %d", dms_profile->parallel_thread_num);
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "parallel_thread_num");
         return ERRNO_DMS_PARAM_INVALID;
     }
 
@@ -362,6 +363,7 @@ static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
 
     // check fail num
     if (parallel_info->parallel_fail != 0) {
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "parallel fail");
         return ERRNO_DMS_REFORM_FAIL;
     }
 

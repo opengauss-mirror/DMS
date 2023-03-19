@@ -25,7 +25,7 @@
 #include "dms_reform_preempt.h"
 #include "dms_reform.h"
 #include "dms_process.h"
-#include "dms_errno.h"
+#include "dms_error.h"
 #include "cm_timer.h"
 
 // Database has not been created, should not get lock from CMS

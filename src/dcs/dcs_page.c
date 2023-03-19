@@ -28,7 +28,7 @@
 #include "drc_res_mgr.h"
 #include "dms_stat.h"
 #include "dms_cm.h"
-#include "dms_log.h"
+#include "dms_error.h"
 #include "drc_page.h"
 #include "dms_reform_proc.h"
 #include "cm_encrypt.h"
@@ -105,6 +105,7 @@ static inline int32 dcs_handle_ask_edp_ack(dms_context_t *dms_ctx,
         return dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, msg, mode);
     }
     LOG_DEBUG_ERR("[DCS][dcs_handle_ask_edp_ack]recieve unexpected message");
+    DMS_THROW_ERROR(ERRNO_DMS_MES_INVALID_MSG);
     return ERRNO_DMS_MES_INVALID_MSG;
 }
 
@@ -295,6 +296,7 @@ int32 dcs_handle_ack_edp_local(dms_context_t *dms_ctx,
 
 int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode)
 {
+    dms_reset_error();
     if (dms_ctx == NULL || ctrl == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
         return ERRNO_DMS_PARAM_NULL;
@@ -492,6 +494,7 @@ static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t
     dms_end_stat(ctx->sess_id);
 
     if (ret != DMS_SUCCESS) {
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
@@ -634,6 +637,7 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
     dms_end_stat(ctx->sess_id);
 
     if (ret != DMS_SUCCESS) {
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
@@ -646,6 +650,7 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
             "ctrl_ver=%u", cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid,
             req_info->req_mode, req_info->req_rsn, req_info->ver, ctrl->ver);
         g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
+        DMS_THROW_ERROR(ERRNO_DMS_RES_INVALID_VERSION);
         return ERRNO_DMS_RES_INVALID_VERSION;
     }
     ret = dcs_owner_transfer_page_ack(ctx, ctrl, req_info, MSG_ACK_PAGE_READY);
@@ -848,6 +853,7 @@ static int dms_try_ask_master_for_page_owner_id_internal(dms_context_t *dms_ctx,
 int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
     unsigned char *owner_id)
 {
+    dms_reset_error();
     int ret;
 
     LOG_DEBUG_INF("[DCS][%s][dcs ask master for page owner id]: enter", cm_display_pageid(dms_ctx->resid));
@@ -862,113 +868,6 @@ int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     } while (CM_TRUE);
 
     return ret;
-}
-
-void dcs_proc_query_page_owner(dms_process_context_t *ctx, mes_message_t *receive_msg)
-{
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_query_owner_req_t), CM_TRUE, CM_TRUE);
-    dms_query_owner_req_t req = *(dms_query_owner_req_t *)(receive_msg->buffer);
-    mfc_release_message_buf(receive_msg);
-
-    uint8 owner_id = CM_INVALID_ID8;
-    int ret = drc_get_page_owner_id(CM_INVALID_ID8, req.resid, DMS_SESSION_NORMAL, &owner_id);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DCS][%s][dcs query page owner]: failed to get page owner", cm_display_pageid(req.resid));
-        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req.head.src_inst, req.head.src_sid,
-            req.head.rsn, ERRNO_DMS_DCS_PAGE_MASTER_ID);
-        return;
-    }
-    LOG_DEBUG_INF("[DCS][%s][dcs query page owner]: success to get page owner %u",
-        cm_display_pageid(req.resid), (uint32)owner_id);
- 
-    dms_query_owner_ack_t ack;
-    mfc_init_ack_head(&req.head, &ack.head, MSG_ACK_QUERY_PAGE_ONWER, sizeof(dms_query_owner_ack_t),
-        ctx->inst_id);
-    ack.owner_id = owner_id;
-
-    ret = mfc_send_data(&ack.head);
-    if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        LOG_DEBUG_INF("[DCS][%s][dcs query page owner]: failed, dest_id=%d, src_id=%u, src_sid=%d",
-            cm_display_pageid(req.resid), req.head.dst_inst, req.head.src_inst, req.head.src_sid);
-    }
-}
-
-int dms_query_page_owner_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id)
-{
-    dms_query_owner_req_t req;
-    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_QUERY_PAGE_ONWER, 0, dms_ctx->inst_id, master_id,
-        dms_ctx->sess_id, CM_INVALID_ID16);
-    req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    req.head.size = sizeof(dms_query_owner_req_t);
- 
-    int ret = memcpy_sp(req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
-    if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(dms_ctx->resid));
-        return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
-    }
-
-    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID, CM_TRUE);
-    ret = mfc_send_data(&req.head);
-    if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[DCS][%s][dms query page owner from remote]: "
-            "failed to send req msg, src_id=%d, src_sid=%d, dest_id=%d",
-            cm_display_pageid(req.resid), req.head.src_inst, req.head.src_sid, req.head.dst_inst);
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_QUERY_PAGE_ONWER, req.head.dst_inst);
-        return ERRNO_DMS_SEND_MSG_FAILED;
-    }
-
-    mes_message_t msg;
-    ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &msg, DMS_WAIT_MAX_TIME);
-    if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[DCS][%s][dms query page owner from remote]: "
-            "failed to get ack msg, src_id=%d, src_sid=%d, dest_id=%d",
-            cm_display_pageid(req.resid), req.head.src_inst, req.head.src_sid, req.head.dst_inst);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
-        return ERRNO_DMS_COMMON_CBB_FAILED;
-    }
-    dms_end_stat(dms_ctx->sess_id);
-
-    session_stat_t *sess_stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
-    sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait[sess_stat->level].usecs;
-
-    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)(sizeof(dms_query_owner_ack_t)), CM_TRUE, CM_FALSE);
-    dms_query_owner_ack_t *ack = (dms_query_owner_ack_t *)&msg;
-    *owner_id = ack->owner_id;
-    
-    LOG_DEBUG_INF("[DCS][%s][dms query page owner from remote]: "
-        "success to query owner id, src_id=%d, src_sid=%d, dest_id=%d, owner_id=%u",
-        cm_display_pageid(req.resid), req.head.src_inst, req.head.src_sid, req.head.dst_inst, (uint32)*owner_id);
-  
-    mfc_release_message_buf(&msg);
-    return ret;
-}
-
-int dms_query_page_owner(dms_context_t *dms_ctx, uint8 *owner_id)
-{
-    LOG_DEBUG_INF("[DCS][%s][dms query page owner]: enter", cm_display_pageid(dms_ctx->resid));
-    uint8 master_id = CM_INVALID_ID8;
-    int ret = drc_get_page_master_id(dms_ctx->resid, &master_id);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DCS][%s][dms query page internal]: can not find master", cm_display_pageid(dms_ctx->resid));
-        return ret;
-    }
-    LOG_DEBUG_INF("[DCS][%s][dms query page owner internal]: query from master %u",
-        cm_display_pageid(dms_ctx->resid), (uint32)master_id);
-    if (dms_dst_id_is_self(master_id)) {
-        ret = drc_get_page_owner_id(CM_INVALID_ID8, dms_ctx->resid, DMS_SESSION_NORMAL, owner_id);
-    } else {
-        ret = dms_query_page_owner_r(dms_ctx, master_id, owner_id);
-    }
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DCS][%s][dcs query page owner]: failed to get page owner from master %u",
-            cm_display_pageid(dms_ctx->resid), (uint32)master_id);
-        return ret;
-    }
-    LOG_DEBUG_INF("[DCS][%s][dcs query page owner]: leave, success to get page owner from master %u",
-        cm_display_pageid(dms_ctx->resid), (uint32)master_id);
-    return DMS_SUCCESS;
 }
 
 static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id)
@@ -1088,6 +987,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
 
 int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned char *released)
 {
+    dms_reset_error();
     int ret = DMS_SUCCESS;
 
     if (DMS_BUF_CTRL_IS_OWNER(ctrl)) {
@@ -1106,6 +1006,7 @@ int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned cha
 int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
     unsigned char is_dirty)
 {
+    dms_reset_error();
     dms_ctrl_info_t ctrl_info;
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
@@ -1136,6 +1037,7 @@ int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsign
 int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, unsigned char thread_index,
     unsigned char for_rebuild)
 {
+    dms_reset_error();
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
@@ -1288,6 +1190,7 @@ static inline int32 dcs_release_owner_batch(dms_context_t *dms_ctx, dcs_batch_bu
 
 int dms_release_page_batch(dms_context_t *dms_ctx, dcs_batch_buf_t *owner_map, unsigned int *owner_count)
 {
+    dms_reset_error();
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         if (owner_map->count[i] != 0) {
             int ret = dcs_release_owner_batch(dms_ctx, owner_map, i);
