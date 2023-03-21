@@ -387,10 +387,10 @@ char *dms_reform_phase_desc(uint8 reform_phase)
             return "DRC ACCESS";
         case DMS_PHASE_AFTER_RECOVERY:
             return "RECOVERY";
-        case DMS_PHASE_BEFORE_DC_INIT:
-            return "BEFORE DC INIT";
+        case DMS_PHASE_AFTER_TXN_DEPOSIT:
+            return "AFTER TXN DEPOSIT";
         case DMS_PHASE_BEFORE_ROLLBACK:
-            return "REFORE ROLLBACK";
+            return "BEFORE ROLLBACK";
         case DMS_PHASE_END:
             return "END";
         default:
