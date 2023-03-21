@@ -556,9 +556,12 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, mes_message_t *re
     uint64 xid = txn_wait_req->xid;
     uint64 scn = 0;
     dms_txn_info_t txn_info;
-    int ret;
+    int ret = g_dms.callback.get_txn_info(process_ctx->db_handle, xid, CM_FALSE, &txn_info);
+    if (ret != DMS_SUCCESS) {
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
 
-    (void)g_dms.callback.get_txn_info(process_ctx->db_handle, xid, CM_FALSE, &txn_info);
     if (txn_info.status == DMS_XACT_END) {
         ret = DMS_REMOTE_TXN_END;
         scn = txn_info.scn;
