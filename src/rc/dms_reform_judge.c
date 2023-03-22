@@ -1235,7 +1235,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
-    dms_reform_judgement_set_phase(DMS_PHASE_BEFORE_DC_INIT);
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
@@ -1307,7 +1307,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
-    dms_reform_judgement_set_phase(DMS_PHASE_BEFORE_DC_INIT);
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
@@ -1373,7 +1373,7 @@ static void dms_reform_judgement_build(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
-    dms_reform_judgement_set_phase(DMS_PHASE_BEFORE_DC_INIT);
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
@@ -1408,7 +1408,7 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
-    dms_reform_judgement_set_phase(DMS_PHASE_BEFORE_DC_INIT);
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
