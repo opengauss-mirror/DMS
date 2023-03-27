@@ -79,9 +79,9 @@ extern "C" {
 
 #define DMS_RELEASE_DB_HANDLE(handle)                                               \
     do {                                                                            \
-        if (handle != NULL && g_dms.callback.release_db_handle != NULL) {           \
-            g_dms.callback.release_db_handle(handle);                               \
-            handle = NULL;                                                          \
+        if ((handle) != NULL && g_dms.callback.release_db_handle != NULL) {         \
+            g_dms.callback.release_db_handle((handle));                             \
+            (handle) = NULL;                                                        \
         }                                                                           \
     } while (CM_FALSE)
 
