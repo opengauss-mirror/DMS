@@ -269,16 +269,6 @@ function build_source_prepare() {
     else
         build_cbb_mode="debug"
     fi
-    #Changing the name of the mes global variable
-    sed -i 's/extern mes_instance_t g_cbb_mes/extern mes_instance_t g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.h
-    sed -i 's/MES_GLOBAL_INST_MSG g_cbb_mes/MES_GLOBAL_INST_MSG g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.h
-    sed -i 's/mes_instance_t g_cbb_mes/mes_instance_t g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.c
-    sed -i 's/g_cbb_mes/g_dms_mes/g'  ${DMS_MES_DIR}/mes_func.c
-    sed -i 's/g_mes_stat/g_dms_mes_stat/g'  ${DMS_MES_DIR}/mes_func.h
-    sed -i 's/g_mes_stat/g_dms_mes_stat/g'  ${DMS_MES_DIR}/mes_func.c
-    sed -i 's/g_mes_stat/g_dms_mes_stat/g'  ${DMS_MES_DIR}/mes_msg_pool.c
-    sed -i 's/g_mes_elapsed_stat/g_dms_mes_elapsed_stat/g'  ${DMS_MES_DIR}/mes_func.c
-    sed -i 's/g_mes_elapsed_stat/g_dms_mes_elapsed_stat/g'  ${DMS_MES_DIR}/mes_func.h
 
     sed -i "s/openssl;make;make install/openssl;make -j8;make install/g" "${PLATFORM_DIR}"/CBB/build/linux/compile_opensource.sh
     
