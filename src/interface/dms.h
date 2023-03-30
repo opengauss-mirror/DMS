@@ -706,10 +706,11 @@ DMS_DECLARE int dms_reform_failed(void);
 /*
  * @brief request primary for switchover
  * @[in] sess_id
+ * @[out] reformer_id
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
 DMS_DECLARE int dms_switchover(unsigned int sess_id);
-
+DMS_DECLARE int dms_switchover_ex(unsigned int sess_id, unsigned char* reformer_id);
 /*
  * @brief check drc if accessible or not
  * @* @return TRUE - accessible; FALSE - inaccessible
