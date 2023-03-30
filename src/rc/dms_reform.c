@@ -442,11 +442,40 @@ int dms_is_recovery_session(unsigned int sid)
 int dms_switchover(unsigned int sess_id)
 {
     dms_reset_error();
+    reform_info_t* reform_info = DMS_REFORM_INFO;
     dms_reform_req_switchover_t req;
     int ret = DMS_SUCCESS;
 
     while (CM_TRUE) {
-        dms_reform_init_req_switchover(&req, (uint16)sess_id);
+        dms_reform_init_req_switchover(&req, reform_info->reformer_id, (uint16)sess_id);
+        ret = mfc_send_data(&req.head);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            return ret;
+        }
+
+        ret = dms_reform_req_switchover_wait((uint16)sess_id);
+        if (ret == ERR_MES_WAIT_OVERTIME) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else {
+            break;
+        }
+    }
+
+    return ret;
+}
+
+int dms_switchover_ex(unsigned int sess_id, unsigned char *reformer_id)
+{
+    dms_reset_error();
+    reform_info_t* reform_info = DMS_REFORM_INFO;
+    dms_reform_req_switchover_t req;
+    int ret = DMS_SUCCESS;
+    *reformer_id = reform_info->reformer_id;
+
+    while (CM_TRUE) {
+        dms_reform_init_req_switchover(&req, *reformer_id, (uint16)sess_id);
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);

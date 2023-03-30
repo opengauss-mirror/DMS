@@ -1803,17 +1803,31 @@ static void dms_reform_set_switchover_result(void)
     switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
 
+    // if current reform is SWITCHOVER,should set switchover result for the new primary
+    // clean switchover request in the original primary
+    // if current reform is OTHERS, should set switchover result for the session which has request switchover
     if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
         LOG_RUN_INF("[DMS REFORM]dms_reform_set_switchover_result, reform_type: %u, promote_id: %d, current_id: %u",
             share_info->reform_type, share_info->promote_id, g_dms.inst_id);
         if (dms_dst_id_is_self(share_info->promote_id)) {
             g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, reform_info->err_code);
+        } else if (dms_dst_id_is_self(share_info->demote_id)) {
+            // only clean switchover request in the original primary,
+            // because the new primary may have receive new switchover request
+            cm_spin_lock(&switchover_info->lock, NULL);
+            switchover_info->switch_req = CM_FALSE;
+            switchover_info->inst_id = CM_INVALID_ID8;
+            switchover_info->sess_id = CM_INVALID_ID16;
+            cm_spin_unlock(&switchover_info->lock);
         }
-        cm_spin_lock(&switchover_info->lock, NULL);
-        switchover_info->switch_req = CM_FALSE;
-        switchover_info->inst_id = CM_INVALID_ID8;
-        switchover_info->sess_id = CM_INVALID_ID16;
-        cm_spin_unlock(&switchover_info->lock);
+    } else {
+        // there may be session request switchover before reformer abort
+        // if reformer abort after ack switchover request, we should notify error to the session in next reform
+        // otherwise, the session will fall into a dead cycle to wait switchover result
+        if (g_dms.callback.set_switchover_result_ex != NULL) {
+            g_dms.callback.set_switchover_result_ex(g_dms.reform_ctx.handle_proc, share_info->bitmap_in,
+                ERRNO_DMS_REFORM_FAIL);
+        }
     }
 }
 

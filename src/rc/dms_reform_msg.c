@@ -23,6 +23,7 @@
  */
 
 #include "dms_reform_msg.h"
+#include "dms_reform.h"
 #include "dms_reform_proc.h"
 #include "dms_reform_judge.h"
 #include "drc_res_mgr.h"
@@ -1113,13 +1114,11 @@ int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint6
     return ret;
 }
 
-void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint16 sess_id)
+void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 reformer_id, uint16 sess_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_SWITCHOVER, 0, g_dms.inst_id, reform_info->reformer_id, sess_id,
-        CM_INVALID_ID16);
-
+    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_SWITCHOVER, 0, g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
     req->head.size = (uint16)sizeof(dms_reform_req_switchover_t);
     req->head.rsn = mes_get_rsn(sess_id);
     req->start_time = reform_info->start_time;
@@ -1146,6 +1145,12 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
 
     if (!DMS_IS_REFORMER) {
         dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
+    if (!DMS_FIRST_REFORM_FINISH) {
+        dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_NOT_FINISHED);
         mfc_release_message_buf(receive_msg);
         return;
     }

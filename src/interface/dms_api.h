@@ -587,6 +587,7 @@ typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
 typedef int (*dms_db_is_primary)(void *db_handle);
 typedef void (*dms_set_switchover_result)(void *db_handle, int result);
+typedef void (*dms_set_switchover_result_ex)(void *db_handle, unsigned long long old_in, int result);
 typedef void (*dms_set_db_standby)(void *db_handle);
 typedef int (*dms_mount_to_recovery)(void *db_handle, unsigned int *has_offline);
 typedef int(*dms_get_open_status)(void *db_handle);
@@ -739,6 +740,7 @@ typedef struct st_dms_callback {
     dms_switchover_promote_opengauss switchover_promote_opengauss;
     dms_failover_promote_opengauss failover_promote_opengauss;
     dms_set_switchover_result set_switchover_result;
+    dms_set_switchover_result_ex set_switchover_result_ex;
     dms_set_db_standby set_db_standby;
     dms_mount_to_recovery mount_to_recovery;
 
@@ -818,7 +820,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           58
+#define DMS_LOCAL_VERSION           59
 
 #ifdef __cplusplus
 }
