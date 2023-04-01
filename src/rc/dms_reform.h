@@ -300,11 +300,15 @@ typedef struct st_reform_info {
 } reform_info_t;
 
 typedef struct st_switchover_info {
+    // var below used for origin primary
     uint64              start_time;             // start lsn
     spinlock_t          lock;
     bool8               switch_req;             // concurrency control & used in dms_reform_judgement
     uint8               inst_id;                // instance id of initiator
     uint16              sess_id;                // session id of initiator, use for message reentry
+    // var below used for origin standby
+    version_info_t      reformer_version;       // for origin standby record, if version changed, stop request session
+    bool8               switch_start;           // if current node request switchover
 } switchover_info_t;
 
 typedef struct st_reform_scrlock_context {
