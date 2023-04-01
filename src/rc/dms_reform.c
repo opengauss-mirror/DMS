@@ -443,18 +443,21 @@ int dms_switchover(unsigned int sess_id)
 {
     dms_reset_error();
     reform_info_t* reform_info = DMS_REFORM_INFO;
+    switchover_info_t* switchover_info = DMS_SWITCHOVER_INFO;
     dms_reform_req_switchover_t req;
+    uint8 reformer_id = reform_info->reformer_id;
+    uint64 start_time = 0;
     int ret = DMS_SUCCESS;
 
     while (CM_TRUE) {
-        dms_reform_init_req_switchover(&req, reform_info->reformer_id, (uint16)sess_id);
+        dms_reform_init_req_switchover(&req, reformer_id, (uint16)sess_id);
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
             return ret;
         }
 
-        ret = dms_reform_req_switchover_wait((uint16)sess_id);
+        ret = dms_reform_req_switchover_wait((uint16)sess_id, &start_time);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.dst_inst);
             continue;
@@ -462,36 +465,16 @@ int dms_switchover(unsigned int sess_id)
             break;
         }
     }
+    DMS_RETURN_IF_ERROR(ret);
 
-    return ret;
-}
+    cm_spin_lock(&switchover_info->lock, NULL);
+    // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    switchover_info->reformer_version.inst_id = reformer_id;
+    switchover_info->reformer_version.start_time = start_time;
+    switchover_info->switch_start = CM_TRUE;
+    cm_spin_unlock(&switchover_info->lock);
 
-int dms_switchover_ex(unsigned int sess_id, unsigned char *reformer_id)
-{
-    dms_reset_error();
-    reform_info_t* reform_info = DMS_REFORM_INFO;
-    dms_reform_req_switchover_t req;
-    int ret = DMS_SUCCESS;
-    *reformer_id = reform_info->reformer_id;
-
-    while (CM_TRUE) {
-        dms_reform_init_req_switchover(&req, *reformer_id, (uint16)sess_id);
-        ret = mfc_send_data(&req.head);
-        if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
-            return ret;
-        }
-
-        ret = dms_reform_req_switchover_wait((uint16)sess_id);
-        if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.dst_inst);
-            continue;
-        } else {
-            break;
-        }
-    }
-
-    return ret;
+    return DMS_SUCCESS;
 }
 
 int dms_get_version(void)

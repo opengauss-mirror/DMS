@@ -149,7 +149,7 @@ typedef struct st_dms_reform_req_switchover {
     uint64 start_time;
 } dms_reform_req_switchover_t;
 void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 reformer_id, uint16 sess_id);
-int dms_reform_req_switchover_wait(uint16 sess_id);
+int dms_reform_req_switchover_wait(uint16 sess_id, uint64 *start_time);
 void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 void dms_reform_init_channel_check(mes_message_head_t *head, uint8 inst_id, uint32 index, uint16 sess_id);

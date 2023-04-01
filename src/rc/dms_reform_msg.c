@@ -1126,12 +1126,14 @@ void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 refo
 
 static void dms_reform_ack_switchover(dms_process_context_t *process_ctx, mes_message_t *receive_msg, int result)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
     mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = result;
+    ack_common.start_time = reform_info->start_time;
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
@@ -1145,12 +1147,6 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
 
     if (!DMS_IS_REFORMER) {
         dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
-        mfc_release_message_buf(receive_msg);
-        return;
-    }
-
-    if (!DMS_FIRST_REFORM_FINISH) {
-        dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_NOT_FINISHED);
         mfc_release_message_buf(receive_msg);
         return;
     }
@@ -1182,7 +1178,7 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
     mfc_release_message_buf(receive_msg);
 }
 
-int dms_reform_req_switchover_wait(uint16 sess_id)
+int dms_reform_req_switchover_wait(uint16 sess_id, uint64 *start_time)
 {
     mes_message_t res;
     int result = DMS_SUCCESS;
@@ -1196,6 +1192,7 @@ int dms_reform_req_switchover_wait(uint16 sess_id)
 
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     result = ack_common->result;
+    *start_time = ack_common->start_time;
     mfc_release_message_buf(&res);
     return result;
 }
