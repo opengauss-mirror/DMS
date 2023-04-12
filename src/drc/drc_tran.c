@@ -125,7 +125,6 @@ bool8 drc_local_txn_wait(uint64 *xid)
 
     bool8 ret = (bool8)cm_wait_cond(&txn_res->cond, TX_WAIT_INTERVAL);
     if (ret != CM_TRUE) {
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return CM_FALSE;
     }
     return CM_TRUE;

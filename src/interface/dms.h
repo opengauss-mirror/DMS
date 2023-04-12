@@ -657,15 +657,6 @@ DMS_DECLARE int dms_is_recovery_session(unsigned int sid);
 DMS_DECLARE int drc_get_page_master_id(char pageid[DMS_PAGEID_SIZE], unsigned char *master_id);
 
 /*
- * @brief release page by batch
- * @[in]param dms_ctx - dms_context_t structure
- * @[in]param owner_map - page batch from owner
- * @[out]param owner_count - page released number
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_release_page_batch(dms_context_t *dms_ctx, dcs_batch_buf_t *owner_map, unsigned int *owner_count);
-
-/*
  * @brief register ssl decrypt func
  * @[in] cb_func -ssl decrypt func.
  * @* @return DMS_SUCCESS - success;otherwise: failed

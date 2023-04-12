@@ -213,7 +213,7 @@ static void dms_reform_clean_buf_res_fault_inst_info_inner(drc_buf_res_t *buf_re
 }
 
 static int dms_reform_confirm_owner_inner(drc_buf_res_t *buf_res, uint32 sess_id, uint8 dst_id, uint8 *lock_mode,
-    bool8 *is_edp, uint64 *lsn, uint32 *ver)
+    bool8 *is_edp, uint64 *lsn)
 {
     dms_reform_req_res_t req;
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -233,7 +233,7 @@ static int dms_reform_confirm_owner_inner(drc_buf_res_t *buf_res, uint32 sess_id
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, lock_mode, is_edp, lsn, ver, sess_id);
+        ret = dms_reform_req_page_wait(&result, lock_mode, is_edp, lsn, sess_id);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_confirm_owner_inner WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -255,7 +255,6 @@ static int dms_reform_confirm_owner(drc_buf_res_t *buf_res, uint32 sess_id)
     uint8 lock_mode = 0;
     bool8 is_edp = 0;
     uint64 lsn = 0;
-    uint32 ver = 0;
     uint8 dst_id = buf_res->claimed_owner;
 
     if (buf_res->lock_mode == DMS_LOCK_SHARE && buf_res->converting.req_info.req_mode == DMS_LOCK_SHARE) {
@@ -263,7 +262,7 @@ static int dms_reform_confirm_owner(drc_buf_res_t *buf_res, uint32 sess_id)
         return DMS_SUCCESS;
     }
 
-    int ret = dms_reform_confirm_owner_inner(buf_res, sess_id, dst_id, &lock_mode, &is_edp, &lsn, &ver);
+    int ret = dms_reform_confirm_owner_inner(buf_res, sess_id, dst_id, &lock_mode, &is_edp, &lsn);
     DMS_RETURN_IF_ERROR(ret);
 
     if (lock_mode != DMS_LOCK_NULL) {
@@ -284,14 +283,13 @@ static int dms_reform_confirm_copy(drc_buf_res_t *buf_res, uint32 sess_id)
     uint8 lock_mode = 0;
     bool8 is_edp = 0;
     uint64 lsn = 0;
-    uint32 ver = 0;
     int ret = DMS_SUCCESS;
 
     for (uint8 dst_id = 0; dst_id < DMS_MAX_INSTANCES; dst_id++) {
         if (!bitmap64_exist(&buf_res->copy_insts, dst_id) || dst_id == buf_res->converting.req_info.inst_id) {
             continue;
         }
-        ret = dms_reform_confirm_owner_inner(buf_res, sess_id, dst_id, &lock_mode, &is_edp, &lsn, &ver);
+        ret = dms_reform_confirm_owner_inner(buf_res, sess_id, dst_id, &lock_mode, &is_edp, &lsn);
         DMS_RETURN_IF_ERROR(ret);
         if (lock_mode == DMS_LOCK_NULL) {
             bitmap64_clear(&buf_res->copy_insts, dst_id);
@@ -310,7 +308,6 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint32 ver;
     uint8 dst_id = buf_res->converting.req_info.inst_id;
 
     while (CM_TRUE) {
@@ -326,7 +323,7 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, &ver, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_confirm_converting WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -347,7 +344,6 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
     if (lock_mode != DMS_LOCK_NULL) {
         buf_res->claimed_owner = buf_res->converting.req_info.inst_id;
         buf_res->lock_mode = lock_mode;
-        buf_res->ver = ver;
     } else {
         buf_res->claimed_owner = CM_INVALID_ID8;
     }
@@ -365,7 +361,6 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint32 ver = buf_res->ver;
     uint8 dst_id = buf_res->claimed_owner;
 
     while (CM_TRUE) {
@@ -381,7 +376,7 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, &ver, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_flush_copy_page WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -399,7 +394,7 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
 }
 #endif
 
-static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id)
+static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uint8 dst_id)
 {
     dms_reform_req_res_t req;
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -408,10 +403,8 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id)
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint32 ver = buf_res->ver;
-    uint8 dst_id = buf_res->claimed_owner;
 
-    if (buf_res->type != DRC_RES_PAGE_TYPE || !bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {
+    if (buf_res->type != DRC_RES_PAGE_TYPE) {
         return DMS_SUCCESS;
     }
 
@@ -428,7 +421,7 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id)
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, &ver, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_may_need_flush WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -729,12 +722,6 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
         return DMS_SUCCESS;
     }
 
-    if (ctrl->lock_mode != DMS_LOCK_NULL && ctrl->ver != buf_res->ver) {
-        LOG_DEBUG_WAR("[DRC validate][%s]node: %d, ver not matched, %u:%u", cm_display_pageid(resid), inst_id,
-            ctrl->ver, buf_res->ver);
-        matched = CM_FALSE;
-    }
-
     if (ctrl->lock_mode == DMS_LOCK_NULL) {
         if (!ctrl->is_edp) {
             LOG_DEBUG_WAR("[DRC validate][%s]node: %d, ctrl is not edp, edp map: %llu", cm_display_pageid(resid),
@@ -830,7 +817,6 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         drc_add_edp_map(buf_res, inst_id, lsn);
     }
 
-    buf_res->ver = ctrl->ver;
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
 }
@@ -947,20 +933,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
                 cm_display_pageid(dms_ctx->resid), buf_res->lock_mode,
                 ctrl->lock_mode, req_info->req_mode);
         }
-        /*
-         * If versions unmatch, must be local X request on S, or first time X read.
-         * Otherwise version would not refresh after page transferred, therefore ver must match.
-         */
-        if (buf_res->ver != ctrl->ver) {
-            bool drc_matches_cvt = req_info->ver == buf_res->ver; /* only ctrl ver is different */
-            cm_panic_log(drc_matches_cvt && ctrl->lock_mode == DMS_LOCK_EXCLUSIVE,
-                "[DRC validate][%s]version unmatch with converting info(DRC:%u, buf:%u, cvt;%u)",
-                cm_display_pageid(dms_ctx->resid), buf_res->ver, ctrl->ver, req_info->ver);
-        }
     } else {
-        cm_panic_log(buf_res->ver == ctrl->ver, "[DRC validate][%s]version unmatch(DRC:%u, buf:%u)",
-            cm_display_pageid(dms_ctx->resid), buf_res->ver, ctrl->ver);
-
         cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,
             "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
             cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
@@ -1023,7 +996,6 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
         }
         buf_res->lock_mode = DMS_LOCK_SHARE;
     }
-    buf_res->ver = lock_res->ver;
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
 }
@@ -1168,22 +1140,48 @@ static int dms_reform_rebuild(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess_id)
+static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess_id, bool32 *exists_owner)
 {
-    if (bitmap64_exist(&buf_res->copy_insts, (uint8)g_dms.inst_id)) {
-        buf_res->claimed_owner = (uint8)g_dms.inst_id;
-    } else {
-        buf_res->claimed_owner = drc_lookup_owner_id(&buf_res->copy_insts);
+    int32 ret;
+    uint64 edp_copyinsts = bitmap64_intersect(buf_res->copy_insts, buf_res->edp_map);
+    if (edp_copyinsts != 0) {
+        *exists_owner = CM_TRUE;
+        uint8 new_owner = drc_lookup_owner_id(&edp_copyinsts);
+        ret = dms_reform_may_need_flush(buf_res, sess_id, new_owner);
+        if (ret != DMS_SUCCESS) {
+            return ret;
+        }
+        buf_res->claimed_owner = new_owner;
+        bitmap64_clear(&buf_res->copy_insts, new_owner);
+        return DMS_SUCCESS;
     }
 
-    bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
-    // if new owner is edp, it is already in ckpt queue, no need to flush copy, should set need flush flag
-    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN) && buf_res->type == DRC_RES_PAGE_TYPE &&
-        !bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {
+    for (uint8 i = 0; i < CM_MAX_INSTANCES; ++i) {
+        if (!bitmap64_exist(&buf_res->copy_insts, i)) {
+            continue;
+        }
+        ret = dms_reform_may_need_flush(buf_res, sess_id, i);
+        if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_INVALID) {
+            return ret;
+        }
+        if (ret == DMS_SUCCESS) {
+            buf_res->claimed_owner = i;
+            break;
+        }
+        bitmap64_clear(&buf_res->copy_insts, i);
+    }
+
+    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        return DMS_SUCCESS;
+    }
+
+    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN) && buf_res->type == DRC_RES_PAGE_TYPE) {
         buf_res->copy_promote = CM_TRUE;
     }
 
-    return dms_reform_may_need_flush(buf_res, sess_id);
+    *exists_owner = CM_TRUE;
+    bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
+    return DMS_SUCCESS;
 }
 
 static int dms_reform_repair_with_last_edp(drc_buf_res_t *buf_res, void *handle)
@@ -1212,7 +1210,6 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
     uint8 lock_mode;
     bool8 is_edp;
     uint64 lsn;
-    uint32 ver = buf_res->ver;
 
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, inst_id, DMS_REQ_EDP_LSN, sess_id);
@@ -1227,7 +1224,7 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, &ver, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_repair_with_edp_map_inner WAIT timeout, dst_id: %d", inst_id);
             continue;
@@ -1270,11 +1267,18 @@ static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle,
     DRC_DISPLAY(buf_res, "repair");
 
     if (buf_res->claimed_owner != CM_INVALID_ID8) {
-        return dms_reform_may_need_flush(buf_res, sess_id);
+        if (bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {
+            return dms_reform_may_need_flush(buf_res, sess_id, buf_res->claimed_owner);
+        }
+        return DMS_SUCCESS;
     }
 
     if (buf_res->copy_insts != 0) {
-        return dms_reform_repair_with_copy_insts(buf_res, sess_id);
+        bool32 exists_owner = CM_FALSE;
+        int32 ret = dms_reform_repair_with_copy_insts(buf_res, sess_id, &exists_owner);
+        if (ret != DMS_SUCCESS || exists_owner) {
+            return ret;
+        }
     }
 
     if (buf_res->last_edp != CM_INVALID_ID8) {

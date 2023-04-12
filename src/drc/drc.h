@@ -34,6 +34,7 @@
 #include "cm_chan.h"
 #include "cm_thread.h"
 #include "cm_latch.h"
+#include "cm_date.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,8 +116,8 @@ typedef struct st_drc_request_info {
     uint8   is_try;             /* if is try request */
     dms_session_e sess_type;    /* session type */
     uint64  rsn;                /* request packet serial number */
-    uint32  ver;                /* local ver of request */
     uint16  sess_id;            /* the session id that the request comes from */
+    date_t  req_time;
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -147,10 +148,9 @@ typedef struct st_drc_buf_res {
     bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
     uint64          lsn;                /* the newest edp LSN of current page in the cluster */
-    uint32          ver;
     uint16          len;                /* the length of data below */
     uint8           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
-    uint8           unused;
+    bool8           recycling;
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
     bilist_t        convert_q;          /* current page's requester queue */
     char            data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
@@ -166,7 +166,6 @@ typedef struct st_drc_buf_res_msg {
     uint64 copy_insts;
     uint64 edp_map;
     drc_request_info_t converting;
-    uint32 ver;
 } drc_buf_res_msg_t;
 
 typedef struct st_drc_global_res_map {
@@ -255,15 +254,12 @@ typedef enum en_drc_req_owner_result_type {
 typedef struct st_drc_req_owner_result {
     drc_req_owner_result_type_t type;
     uint8 curr_owner_id;
-    bool8 has_share_copy;
     uint64 invld_insts;  // share copies to be invalidated.
-    uint32 ver;
 } drc_req_owner_result_t;
 
 typedef struct st_cvt_info {
     uint8   owner_id;
     uint8   req_id;
-    bool8   has_share_copy;
     bool8   is_try;
     uint8   res_type;
     uint8   unused;
@@ -274,7 +270,6 @@ typedef struct st_cvt_info {
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     uint64  invld_insts;
-    uint32  ver;
     drc_req_owner_result_type_t type;
 } cvt_info_t;
 
@@ -286,7 +281,6 @@ typedef struct st_claim_info {
     uint32  len;
     uint64  lsn;
     uint32  sess_id;
-    uint32  ver;
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
     dms_session_e sess_type;
@@ -420,16 +414,21 @@ static inline bool32 bitmap64_exist_ex(uint64 bitmap1, uint64 bitmap2)
     return (bitmap1 & bitmap2) != 0;
 }
 
+static inline uint64 bitmap64_intersect(uint64 bitmap1, uint64 bitmap2)
+{
+    uint64 bitmap = bitmap1 & bitmap2;
+    return bitmap;
+}
+
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
 
 // [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
-#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu-%u, CVT:%d-%d-%d-%d-%d-%llu-%u-%d, "        \
+#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, "        \
     "EDP:%d-%llu-%llu, FLAG:%d-%d-%d", desc, cm_display_resid((drc)->data, (drc)->type),                            \
-    (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts, (drc)->ver,                                          \
+    (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts,                                                      \
     (drc)->converting.req_info.inst_id, (drc)->converting.req_info.curr_mode, (drc)->converting.req_info.req_mode,  \
     (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.rsn,        \
-    (drc)->converting.req_info.ver, (drc)->converting.req_info.sess_id,                                             \
-    (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                                                    \
+    (drc)->converting.req_info.sess_id, (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                \
     (drc)->in_recovery, (drc)->copy_promote, (drc)->recovery_skip)
 
 #ifdef __cplusplus

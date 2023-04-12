@@ -92,8 +92,6 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,   CM_TRUE, CM_FALSE, "req opengauss txn status" },
     { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, dcs_proc_opengauss_txn_snapshot_req,
         CM_TRUE, CM_FALSE,  "req opengauss txn snapshot" },
-    { MES_REQ_RELEASE_OWNER_BATCH,    dcs_proc_release_owner_batch_req,
-        CM_TRUE, CM_FALSE,  "release page owner batch req"},
     { MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, dcs_proc_opengauss_update_xid_req,
         CM_TRUE, CM_FALSE,  "req opengauss update xid" },
     { MSG_REQ_OPENGAUSS_XID_CSN,      dcs_proc_opengauss_xid_csn_req,  CM_TRUE, CM_FALSE, "req opengauss txn csn" },
@@ -115,6 +113,7 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_REFORM_GCV_SYNC,        dms_reform_proc_req_gcv_sync,
         CM_TRUE, CM_TRUE, "ask partner to sync gcv" },
     { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE,  "page validate" },
+    { MSG_REQ_INVALID_OWNER,          dms_proc_invld_req,              CM_TRUE, CM_TRUE,  "invalid owner" },
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -139,7 +138,7 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "error msg" },
     { MSG_ACK_RELEASE_PAGE_OWNER,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "release page owner ack" },
     { MSG_ACK_CONFIRM_CVT,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "confirm converting ack" },
-    { MSG_ACK_INVLD_OWNER,                  dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "relase lock owner ack" },
+    { MSG_ACK_INVLDT_SHARE_COPY,            dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "relase lock owner ack" },
     { MSG_ACK_BOC,                          dms_proc_broadcast_ack,  CM_FALSE, CM_TRUE, "commit scn broadcast ack" },
     { MSG_ACK_SMON_DLOCK_INFO,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req dead lock msg" },
     { MSG_ACK_SMON_DEADLOCK_SQL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req sql" },
@@ -157,8 +156,8 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
     { MSG_ACK_REFORM_COMMON,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for reform requests only" },
     { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
-    { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
+    { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,     CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
+    { MSG_ACK_INVLD_OWNER,                  dms_proc_msg_ack,     CM_FALSE, CM_TRUE, "ack for invalid owner" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)

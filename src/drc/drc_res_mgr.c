@@ -283,7 +283,7 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     buf_res->type = res_type;
     buf_res->len = len;
     buf_res->count = 0;
-    buf_res->ver = 0;
+    buf_res->recycling = CM_FALSE;
     cm_bilist_init(&buf_res->convert_q);
     init_drc_cvt_item(&buf_res->converting);
     errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
@@ -318,7 +318,7 @@ bool32 drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     return CM_TRUE;
 }
 
-static drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
+drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;
