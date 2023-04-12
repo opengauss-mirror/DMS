@@ -53,8 +53,6 @@ static drc_local_lock_res_t *drc_create_local_lock_res(drc_res_bucket_t *bucket,
     lock_res->latch_stat.sid = 0;
     lock_res->latch_stat.sid_sum = 0;
     lock_res->releasing = CM_FALSE;
-    lock_res->ver = 0;
-
     drc_res_map_add_res(bucket, (char *)lock_res);
     return lock_res;
 }
@@ -135,7 +133,7 @@ int drc_confirm_owner(char* resid, uint8 *lock_mode)
     return DMS_SUCCESS;
 }
 
-int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint32 *ver)
+int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode)
 {
     bool32 is_locked = CM_FALSE;
     drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);
@@ -149,7 +147,6 @@ int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint32
         DMS_REFORM_SHORT_SLEEP;
     }
     if (is_locked) {
-        *ver = lock_res->ver;
         *lock_mode = lock_res->latch_stat.lock_mode;
         drc_unlock_local_resx(lock_res);
         return DMS_SUCCESS;
@@ -158,7 +155,6 @@ int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint32
         return CM_TIMEDOUT;
     }
 
-    *ver = lock_res->ver;
     *lock_mode = lock_res->latch_stat.lock_mode;
     return DMS_SUCCESS;
 }

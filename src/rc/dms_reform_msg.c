@@ -516,7 +516,6 @@ static int dms_reform_req_migrate_add_buf_res(drc_buf_res_t *buf_res, dms_reform
     res_msg->edp_map = buf_res->edp_map;
     res_msg->len = buf_res->len;
     res_msg->converting = buf_res->converting.req_info;
-    res_msg->ver = buf_res->ver;
     ret = memcpy_s(res_msg->resid, DMS_RESID_SIZE, buf_res->data, buf_res->len);
     DMS_SECUREC_CHECK(ret);
     *offset += len;
@@ -597,7 +596,6 @@ static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, dr
     buf_res->len  = res_msg->len;
     buf_res->converting.req_info = res_msg->converting;
     buf_res->type = type;
-    buf_res->ver  = res_msg->ver;
     errno_t err = memcpy_s(buf_res->data, DMS_RESID_SIZE, res_msg->resid, res_msg->len);
     DMS_SECUREC_CHECK(err);
     cm_bilist_init(&buf_res->convert_q);
@@ -975,13 +973,12 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
     uint8 lock_mode = DMS_LOCK_NULL;
     int ret = DMS_SUCCESS;
     uint64 edp_map, lsn;
-    uint32 ver;
 
     if (req->res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(process_ctx->db_handle,
-            req->resid, CM_FALSE, &lock_mode, &edp_map, &lsn, &ver);
+            req->resid, CM_FALSE, &lock_mode, &edp_map, &lsn);
     } else {
-        ret = drc_confirm_converting(req->resid, CM_FALSE, &lock_mode, &ver);
+        ret = drc_confirm_converting(req->resid, CM_FALSE, &lock_mode);
     }
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]confirm_converting fail, error: %d",
@@ -992,7 +989,6 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
         process_ctx->sess_id);
     ack_common.result = ret;
     ack_common.lock_mode = lock_mode;
-    ack_common.ver = ver;
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]dms_reform_proc_req_page_confirm_converting ack fail, error: %d",
@@ -1052,7 +1048,7 @@ static void dms_reform_proc_req_need_flush(dms_process_context_t *process_ctx, m
 
     mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
-    ack_common.result = ret;
+    ack_common.result = (ret != DMS_SUCCESS ? ERRNO_DMS_DRC_INVALID : DMS_SUCCESS);
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]need_flush ack fail, error: %d", cm_display_pageid(req->resid), ret);
@@ -1090,7 +1086,7 @@ void dms_reform_proc_req_page(dms_process_context_t *process_ctx, mes_message_t 
     mfc_release_message_buf(receive_msg);
 }
 
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 *ver, uint32 sess_id)
+int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 sess_id)
 {
     mes_message_t res;
     dms_reform_ack_common_t *ack_common = NULL;
@@ -1108,8 +1104,6 @@ int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint6
     *lock_mode = ack_common->lock_mode;
     *is_edp = ack_common->is_edp;
     *lsn = ack_common->lsn;
-    *ver = ack_common->ver;
-
     mfc_release_message_buf(&res);
     return ret;
 }

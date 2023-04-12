@@ -47,7 +47,7 @@ static bool8 dls_request_spin_lock(dms_context_t *dms_ctx, drc_local_lock_res_t 
 #endif
         spin_times++;
         if (SECUREC_UNLIKELY(spin_times == DLS_SPIN_COUNT)) {
-            cm_sleep(DMS_MSG_RETRY_TIME);
+            cm_spin_sleep();
             spin_times = 0;
             wait_ticks++;
         }
@@ -87,7 +87,6 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 
         if (!is_owner && !dls_request_spin_lock(dms_ctx, lock_res, 1)) {
             drc_unlock_local_resx(lock_res);
-            cm_sleep(DMS_MSG_SLEEP_TIME);
             continue;
         }
 
@@ -137,7 +136,6 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     if (is_locked) {
         LOG_DEBUG_INF("[DLS] try add spinlock(%s), owner(%u) is locked",
             cm_display_lockid(&dlock->drid), (uint32)is_owner);
-        DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED);
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
 
@@ -160,7 +158,6 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         return DMS_SUCCESS;
     }
 
-    DMS_THROW_ERROR(ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED);
     return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
 }
 
