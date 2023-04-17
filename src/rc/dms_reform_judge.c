@@ -834,7 +834,20 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
         return;
     }
-
+#ifdef OPENGAUSS
+    // 1) primary restart 2) failover need rebuild phase
+    dms_reform_list_init(&share_info->list_rebuild);
+    uint32 primary_id;
+    g_dms.callback.get_db_primary_id(g_dms.reform_ctx.handle_judge, &primary_id);
+    if ((dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS) && 
+        dms_reform_list_exist(&inst_lists[INST_LIST_OLD_JOIN], (uint8)primary_id))
+        || dms_reform_type_is(DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS)) {
+            dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_JOIN]);
+            dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_REMOVE]);
+            dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+            dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
+    }
+#else
     dms_reform_list_init(&share_info->list_rebuild);
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
         dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_JOIN]);
@@ -842,6 +855,7 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
     }
+#endif
 }
 
 // Notice: REPAIR and FLUSH_COPY must be used in pairs

@@ -893,11 +893,7 @@ static int dms_reform_rebuild_send_rest(uint32 sess_id, uint8 thread_index)
 
 int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num, bool8 for_rebuild)
 {
-#ifdef OPENGAUSS
-    int ret = g_dms.callback.dms_reform_rebuild_buf_res(handle);
-#else
     int ret = g_dms.callback.dms_reform_rebuild_parallel(handle, thread_index, thread_num, for_rebuild);
-#endif
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -2419,11 +2415,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, dms_reform_reconnect_parallel },
     [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, dms_reform_drc_clean_parallel },
     [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel },
-#ifdef OPENGAUSS
-    [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, NULL },
-#else
     [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel },
-#endif
     [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL },
     [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel },
     [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL },
