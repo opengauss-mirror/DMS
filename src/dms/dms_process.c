@@ -97,8 +97,6 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, dcs_proc_opengauss_update_xid_req,
         CM_TRUE, CM_FALSE,  "req opengauss update xid" },
     { MSG_REQ_OPENGAUSS_XID_CSN,      dcs_proc_opengauss_xid_csn_req,  CM_TRUE, CM_FALSE, "req opengauss txn csn" },
-    { MSG_REQ_OPENGAUSS_LOCK_BUFFER,  dcs_proc_opengauss_lock_buffer_req,
-        CM_TRUE, CM_FALSE,  "req opengauss lock buffer" },
     { MSG_REQ_ASK_EDP_REMOTE,         dcs_proc_ask_remote_for_edp,     CM_TRUE, CM_TRUE,  "ask remote for edp" },
     { MSG_REQ_SYNC_STEP,              dms_reform_proc_sync_step,       CM_TRUE, CM_TRUE,  "dms reform sync step" },
     { MSG_REQ_SYNC_SHARE_INFO,        dms_reform_proc_sync_share_info, CM_TRUE, CM_TRUE,  "dms reform sync share info" },
