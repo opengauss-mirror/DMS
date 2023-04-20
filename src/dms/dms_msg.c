@@ -663,6 +663,7 @@ static void dms_send_requester_granted(dms_process_context_t *ctx, dms_ask_res_r
     dms_ask_res_ack_ld_t ack;
     mfc_init_ack_head(&req->head, &ack.head, MSG_ACK_GRANT_OWNER, sizeof(dms_ask_res_ack_ld_t), ctx->sess_id);
     ack.head.rsn = req->head.rsn;
+    ack.master_grant = CM_TRUE; /* master may grant first-time request X, since there's no sharer */
 #ifndef OPENGAUSS
     if (req->res_type == DRC_RES_PAGE_TYPE) {
         ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
@@ -1031,6 +1032,7 @@ static int32 dms_notify_granted_directly(dms_process_context_t *ctx, cvt_info_t 
         0, ctx->inst_id, cvt_info->req_id, ctx->sess_id, cvt_info->req_sid);
     ack.head.rsn  = cvt_info->req_rsn;
     ack.head.size = sizeof(dms_ask_res_ack_ld_t);
+    ack.master_grant = CM_TRUE; /* master grants first-time request X, since there's no sharer */
 
 #ifndef OPENGAUSS
     if (cvt_info->res_type == DRC_RES_PAGE_TYPE) {
@@ -1433,6 +1435,8 @@ void dms_smon_entry(thread_t *thread)
     res_id_t res_id;
 
     while (!thread->closed) {
+        drc_recycle_buf_res_on_demand();
+
         if (cm_chan_recv_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_MSG_SLEEP_TIME) != CM_SUCCESS) {
             continue;
         }

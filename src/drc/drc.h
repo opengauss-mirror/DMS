@@ -55,6 +55,9 @@ extern "C" {
 #define DRC_LOCK_RES_POOL (&g_drc_res_ctx.global_lock_res.res_map.res_pool)
 #define DRC_GLOBAL_RES_MAP(res_type) ((res_type) == (uint8)DRC_RES_PAGE_TYPE ? &g_drc_res_ctx.global_buf_res : \
     &g_drc_res_ctx.global_lock_res)
+#define DRC_RECYCLE_THRESHOLD 0.8 /* hardcoded to 80% res pool usage */
+#define DRC_RECYCLE_GREEDY_CNT 0 /* recycle as many as possible */
+#define DRC_RECYCLE_ONE_CNT 1
 
 typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,
@@ -73,6 +76,7 @@ typedef struct st_drc_res_pool {
     uint32      extend_step;
     uint32      extend_num;
     char*       addr[DRC_RES_EXTEND_MAX_NUM];
+    bool32      res_depleted;
 } drc_res_pool_t;
 
 int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 res_size, uint32 res_num);

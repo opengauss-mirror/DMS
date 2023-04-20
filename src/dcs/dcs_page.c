@@ -39,20 +39,20 @@ extern "C" {
 
 static inline int32 dcs_set_ctrl4already_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode)
 {
-    // 1.has processed x-mode historical transfer request,
-    //  buf page does not swap out and in, so it is the latest in memory
-    // 2.page is already owned by requester, S->X req_mode, no need to load from disk
+    /* owner has no edp */
+    ctrl->lock_mode = mode;
+    ctrl->is_edp = 0;
+
+    /* 
+     * 1. has processed x-mode historical transfer request,
+     *  buf page does not swap out and in, so it is the latest in memory
+     * 2. page is already owned by requester, S->X req_mode, no need to load from disk
+     */
     if (ctrl->been_loaded) {
-        ctrl->lock_mode = mode;
-        ctrl->is_edp = 0;
         return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
     }
-    // 3.page swap out and in, but buf res not be recycled, need to load from disk
-    if (mode == DMS_LOCK_EXCLUSIVE) {
-        ctrl->lock_mode = DMS_LOCK_EXCLUSIVE;
-        ctrl->is_edp = 0;
-    }
-    return g_dms.callback.remove_buf_load_status(ctrl, DMS_BUF_NEED_TRANSFER);
+    /* 3.page swap out and in, but buf res not be recycled, need to load from disk */
+    return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
 }
 
 static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode)
@@ -161,7 +161,7 @@ static inline void dcs_buf_clean_ctrl_edp(dms_context_t *dms_ctx, dms_buf_ctrl_t
     g_dms.callback.clean_ctrl_edp(dms_ctx->db_handle, ctrl);
 }
 
-static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl)
+static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t granted_mode)
 {
 #ifndef OPENGAUSS
     if (ctrl->is_edp) {
@@ -170,26 +170,36 @@ static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *
         dcs_buf_clean_ctrl_edp(dms_ctx, ctrl);
     }
 #endif
-    // first load of this page, give X mode directly
-    ctrl->lock_mode = DMS_LOCK_EXCLUSIVE;
+    /* if no owner exists, master grants X; if owner exists on DRC but local ctrl null, grant S */
+    ctrl->lock_mode = granted_mode;
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
 }
 
 int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
 {
-#ifndef OPENGAUSS
+    dms_ask_res_ack_ld_t *ack = NULL;
     if (msg != NULL) {
         CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_ld_t), CM_FALSE, CM_FALSE);
-        dms_ask_res_ack_ld_t *ack = (dms_ask_res_ack_ld_t *)msg->buffer;
+        ack = (dms_ask_res_ack_ld_t *)msg->buffer;
+#ifndef OPENGAUSS
         // load page from disk, need to sync scn/lsn with master
         g_dms.callback.update_global_lsn(dms_ctx->db_handle, ack->master_lsn);
         g_dms.callback.update_global_scn(dms_ctx->db_handle, ack->scn);
-    }
 #endif
-    dcs_set_ctrl4granted(dms_ctx, ctrl);
-    // first load of this page, give X mode directly
-    dms_claim_ownership(dms_ctx, master_id, DMS_LOCK_EXCLUSIVE, CM_FALSE, CM_INVALID_ID64);
+    }
+
+    dms_lock_mode_t granted_mode = mode;
+    /*
+     * if no existing owner, master grants to requestor locally/remotely, grant X;
+     * if owner acks and grants owner, meaning sharer exists potentially, grant S.
+     */
+    if (ack == NULL || (ack != NULL && ack->master_grant == CM_TRUE)) {
+        granted_mode = DMS_LOCK_EXCLUSIVE;
+    }
+
+    dcs_set_ctrl4granted(dms_ctx, ctrl, granted_mode);
+    dms_claim_ownership(dms_ctx, master_id, granted_mode, CM_FALSE, CM_INVALID_ID64);
     return DMS_SUCCESS;
 }
 
@@ -465,6 +475,7 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
     DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER, 0, req->owner_id, req->req_id, ctx->sess_id, req->req_sid);
     ack.head.rsn  = req->req_rsn;
     ack.head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
+    ack.master_grant = CM_FALSE; /* owner has not loaded page, sharer might exist, grant requested mode only */
 #ifndef OPENGAUSS
     ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
     ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
@@ -934,11 +945,8 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
 #endif
 
     bool8 released = CM_FALSE;
-    bool8 can_recycle = drc_chk_4_rlse_owner(req.pageid, DMS_PAGEID_SIZE, req.head.src_inst, &released);
+    (void)drc_chk_4_rlse_owner(req.pageid, DMS_PAGEID_SIZE, req.head.src_inst, CM_FALSE, &released);
     (void)dcs_send_rls_owner_ack(ctx, &req, released);
-    if (can_recycle) {
-        drc_recycle_buf_res(ctx, req.sess_type, req.pageid, DMS_PAGEID_SIZE);
-    }
 }
 
 int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned char *released)
