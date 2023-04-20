@@ -31,57 +31,6 @@
 #include "dms_stat.h"
 #include "dms_error.h"
 
-int dms_request_opengauss_lock_buffer(dms_context_t *dms_ctx, int buffer, unsigned char mode,
-    unsigned char *lw_lock_mode)
-{
-    dms_reset_error();
-    msg_opengauss_lock_buffer_ctx_t lock_ctx;
-    mes_message_head_t *head = &lock_ctx.head;
-    dms_xid_ctx_t *xid_ctx = &dms_ctx->xid_ctx;
-    mes_message_t receive_msg = { 0 };
-
-    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_LOCK_BUFFER, 0, (uint8)dms_ctx->inst_id,
-        (uint8)xid_ctx->inst_id, (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
-    lock_ctx.buffer = buffer;
-    lock_ctx.lock_mode = mode;
-
-    head->size = (uint16)sizeof(msg_opengauss_lock_buffer_ctx_t);
-    head->rsn = mfc_get_rsn(dms_ctx->sess_id);
-
-    // openGauss has not adapted stats yet
-    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_TXN_REQ_INFO, CM_TRUE);
-
-    int32 ret = mfc_send_data(head);
-    if (ret != CM_SUCCESS) {
-        dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] send message to instance(%hhu) failed, cmd(%d) rsn(%llu) errcode(%d)",
-            xid_ctx->inst_id, MSG_REQ_OPENGAUSS_LOCK_BUFFER, head->rsn, ret);
-        return ret;
-    }
-
-    ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
-    if (ret != CM_SUCCESS) {
-        dms_end_stat(dms_ctx->sess_id);
-        LOG_DEBUG_ERR("[TXN] receive message to instance(%hhu) failed, cmd(%d) rsn(%llu) errcode(%d)",
-            xid_ctx->inst_id, MSG_REQ_OPENGAUSS_LOCK_BUFFER, head->rsn, ret);
-        return ret;
-    }
-
-    dms_end_stat(dms_ctx->sess_id);
-
-    if (lw_lock_mode != NULL) {
-        CM_CHK_RECV_MSG_SIZE(&receive_msg, (uint32)(sizeof(mes_message_head_t) + sizeof(bool8)), CM_TRUE, CM_FALSE);
-        *lw_lock_mode = *(unsigned char *)(receive_msg.buffer + sizeof(mes_message_head_t));
-    }
-    mfc_release_message_buf(&receive_msg);
-    return DMS_SUCCESS;
-}
-
-void dcs_proc_opengauss_lock_buffer_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
-{
-    mfc_release_message_buf(receive_msg);
-}
-
 int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char request, unsigned char *result)
 {
     dms_reset_error();
