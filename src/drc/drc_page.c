@@ -586,7 +586,7 @@ static inline bool32 buf_res_is_recyclable(drc_buf_res_t* buf_res)
     return CM_TRUE;
 }
 
-bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 *released)
+bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 do_recycle, bool8 *released)
 {
     drc_buf_res_t *buf_res = NULL;
     uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
@@ -609,12 +609,12 @@ bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 *releas
 
     // owner
     *released = buf_res_is_recyclable(buf_res);
-    buf_res->recycling = (*released);
+    buf_res->recycling = do_recycle && (*released);
     drc_leave_buf_res(buf_res);
     return (*released);
 }
 
-void drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len)
+int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len)
 {
     uint64 succ_insts = 0;
     int32 ret = DMS_SUCCESS;
@@ -622,8 +622,9 @@ void drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, ch
     drc_buf_res_t* buf_res = drc_get_buf_res(resid, len, DRC_RES_PAGE_TYPE, DRC_RES_NORMAL);
     if (buf_res == NULL) {
         LOG_RUN_WAR("[DRC][%s][drc_recycle_buf_res]: buf_res has already been recycled", cm_display_pageid(resid));
-        return;
+        return DMS_SUCCESS;
     }
+
     if (buf_res->copy_insts > 0) {
         ret = dms_notify_invld_share_copy(ctx->inst_id, ctx->sess_id, resid, len, DRC_RES_PAGE_TYPE,
             buf_res->copy_insts, sess_type, &succ_insts);
@@ -634,11 +635,11 @@ void drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, ch
 
     cm_spin_lock(&buf_res->lock, NULL);
     if (ret != DMS_SUCCESS) {
-        LOG_RUN_WAR("[DRC][%s][drc_recycle_buf_res]: invalid owner or copy insts failed", cm_display_pageid(resid));
+        LOG_DEBUG_WAR("[DRC][%s][drc_recycle_buf_res]: invalid owner or copy insts failed", cm_display_pageid(resid));
         buf_res->recycling = CM_FALSE;
         drc_dec_buf_res_ref(buf_res);
         cm_spin_unlock(&buf_res->lock);
-        return;
+        return ret;
     }
 
     drc_res_bucket_t* bucket = drc_res_map_get_bucket(DRC_BUF_RES_MAP, resid, len);
@@ -654,6 +655,96 @@ void drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, ch
     drc_release_buf_res(buf_res, DRC_BUF_RES_MAP, bucket);
     cm_spin_unlock(&bucket->lock);
     LOG_DEBUG_INF("[DRC][%s][drc_recycle_buf_res]:success", cm_display_pageid(resid));
+    return ret;
+}
+
+/* 
+ * Calc recycle target count for smon. It's healthy to maintain DRC usage below threshold,
+ * hence greedy recycle is not currently adopted.
+ */
+static int32 dms_calc_buf_res_recycle_cnt(bool32* greedy)
+{
+    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(DRC_RES_PAGE_TYPE);
+    drc_res_map_t *res_map = &global_res_map->res_map;
+    drc_res_pool_t *pool = &res_map->res_pool;
+    *greedy = CM_FALSE;
+
+    int32 res_shortage = (int32)(pool->used_num - pool->item_num * DRC_RECYCLE_THRESHOLD);
+    if (res_shortage > 0 || pool->res_depleted) {
+        LOG_DEBUG_WAR("[DRC][drc_recycle_buf_res_on_demand]: triggered,"
+            " usage:%u, thrshd:%u, shortage:%d, depleted:%u", pool->used_num,
+            (uint32)(pool->item_num * DRC_RECYCLE_THRESHOLD), res_shortage, (uint32)pool->res_depleted);
+        return (res_shortage > 0) ? res_shortage : DRC_RECYCLE_ONE_CNT;
+    }
+
+    return -1;
+}
+
+uint32 drc_recycle_buf_res_by_part(bilist_t* part_list, uint8 res_type, uint32 target_cnt, bool32 greedy)
+{
+    bilist_node_t *node = cm_bilist_head(part_list);
+    drc_buf_res_t *buf_res = NULL;
+    drc_res_ctx_t *resctx = DRC_RES_CTX;
+    dms_process_context_t ctx;
+    int32 ret = DMS_SUCCESS;
+    uint32 recycled_cnt = 0;
+
+    ctx.inst_id   = (uint8)g_dms.inst_id;
+    ctx.sess_id   = resctx->smon_sid;
+    ctx.db_handle = resctx->smon_handle;
+
+    while (node != NULL) {
+        buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
+        node = BINODE_NEXT(node);
+        bool8 released = CM_FALSE;
+        if (drc_chk_4_rlse_owner(buf_res->data, DMS_PAGEID_SIZE, buf_res->claimed_owner, CM_TRUE, &released)) {
+            ret = drc_recycle_buf_res(&ctx, DMS_SESSION_NORMAL, buf_res->data, DMS_PAGEID_SIZE);
+            if (ret == DMS_SUCCESS && ++recycled_cnt >= target_cnt && !greedy) {
+                break;
+            }
+        }
+    }
+    return recycled_cnt;
+}
+
+void drc_recycle_buf_res_on_demand()
+{
+    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(DRC_RES_PAGE_TYPE);
+    drc_res_map_t *res_map = &global_res_map->res_map;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    bilist_t *part_list = NULL;
+    uint32 part_recycled;
+    uint32 total_recycled = 0;
+    bool32 greedy;
+
+    int32 target_cnt = dms_calc_buf_res_recycle_cnt(&greedy);
+    if (target_cnt == -1) {
+        return;
+    }
+
+    for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
+        part_list = &ctx->global_buf_res.res_parts[part_id];
+        part_recycled = drc_recycle_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE, target_cnt, greedy);
+        target_cnt -= (target_cnt == DRC_RECYCLE_GREEDY_CNT) ? 0 : part_recycled;
+        total_recycled += part_recycled;
+        LOG_DEBUG_INF("[DRC][drc_recycle_buf_res_on_demand%d]: part:%u recycled:%u, remaining:%u",
+            (int32)(!greedy), (uint32)part_id, part_recycled, target_cnt);
+        if (!greedy && target_cnt <= 0) {
+            break;
+        }
+    }
+
+    if (!greedy && total_recycled == 0) {
+        /* triggered by res pool extension */
+        LOG_DEBUG_ERR("[DRC][drc_recycle_buf_res_on_demand]: failed, target:%d, recycled:%d",
+            target_cnt, total_recycled);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
+        return;
+    }
+
+    res_map->res_pool.res_depleted = CM_FALSE;
+    LOG_DEBUG_INF("[DRC][drc_recycle_buf_res_on_demand]: success, target:%d, recycled:%d",
+        target_cnt, total_recycled);
 }
 
 void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)

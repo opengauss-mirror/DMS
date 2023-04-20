@@ -51,8 +51,9 @@ void drc_add_edp_map(drc_buf_res_t *buf_res, uint8 inst_id, uint64 lsn);
 void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request_info_t *req, cvt_info_t* cvt_info);
 int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cvt_info_t* cvt_info);
 bool8 drc_cancel_converting(drc_buf_res_t *buf_res, drc_request_info_t *req, cvt_info_t* cvt_info);
-bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 *released);
-void drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len);
+bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 do_recycle, bool8 *released);
+int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len);
+void drc_recycle_buf_res_on_demand();
 #ifdef __cplusplus
 }
 #endif

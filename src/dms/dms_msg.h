@@ -174,6 +174,7 @@ typedef struct st_dms_ask_res_ack_load {
     mes_message_head_t head;
     uint64 master_lsn;
     uint64 scn;
+    bool8 master_grant;
 } dms_ask_res_ack_ld_t;
 
 typedef struct st_dms_ask_res_ack {

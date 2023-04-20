@@ -125,6 +125,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
 char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
 {
     if (pool->extend_num >= DRC_RES_EXTEND_MAX_NUM) {
+        pool->res_depleted = CM_TRUE;
         return NULL;
     }
 
@@ -146,9 +147,11 @@ char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
         drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
         drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
         pool->extend_num++;
+        pool->item_num += pool->extend_step;
     }
 
     if (cm_bilist_empty(&pool->free_list)) {
+        pool->res_depleted = CM_TRUE;
         return NULL;
     }
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
