@@ -214,6 +214,45 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, mes_message_t *receive_msg
     return;
 }
 
+int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigned long long *success_inst)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    mes_message_head_t head;
+
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_BROADCAST, 0, dms_ctx->inst_id, 0,  dms_ctx->sess_id, CM_INVALID_ID16);
+    head.size = (uint16)(sizeof(mes_message_head_t) + len);
+    head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    uint64 all_inst = reform_info->bitmap_connect;
+#ifdef OPENGAUSS
+    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
+#endif
+    all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
+    mfc_broadcast2(dms_ctx->sess_id, all_inst, &head, (const void *)data, success_inst);
+    if (*success_inst == all_inst) {
+        return DMS_SUCCESS;
+    }
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
+    return DMS_ERROR;
+}
+
+int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout, unsigned long long *success_inst)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    uint64 all_inst = reform_info->bitmap_connect;
+#ifdef OPENGAUSS
+    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
+#endif
+    all_inst = all_inst & (~((uint64)0x1 << inst_id));
+    (void)mfc_wait_acks2(sid, timeout, success_inst);
+    if (all_inst == *success_inst) {
+        return DMS_SUCCESS;
+    }
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
+    return DMS_ERROR;    
+}
+
 int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
     unsigned long long *success_inst)
 {
