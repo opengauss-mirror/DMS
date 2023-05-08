@@ -96,6 +96,7 @@ typedef enum en_msg_command {
     MSG_REQ_REFORM_GCV_SYNC = 47,
     MSG_REQ_PAGE_VALIDATE = 48,
     MSG_REQ_INVALID_OWNER = 49,
+    MSG_REQ_ASK_RES_OWNER_ID = 50,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -140,6 +141,7 @@ typedef enum en_msg_command {
     MSG_ACK_MAP_INFO = 166,
     MSG_ACK_REFORM_GCV_SYNC = 167,
     MSG_ACK_INVLD_OWNER = 168,
+    MSG_ACK_ASK_RES_OWNER_ID = 169,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -212,6 +214,22 @@ typedef struct st_dms_invld_ack {
     mes_message_head_t head;
     int32 err_code;
 } dms_invld_ack_t;
+
+typedef struct st_dms_ask_res_owner_id_req {
+    mes_message_head_t head;
+    dms_session_e sess_type;
+    uint16 len;
+    uint8 res_type;
+    uint8 unused;
+    uint64 lsn;
+    char resid[DMS_RESID_SIZE];
+} dms_ask_res_owner_id_req_t;
+
+typedef struct st_dms_ask_res_owner_id_ack {
+    mes_message_head_t head;
+    uint8 owner_id;
+    uint8 unused[3];
+} dms_ask_res_owner_id_ack_t;
 
 typedef struct st_dms_res_req_info {
     uint8 req_id;
@@ -345,6 +363,8 @@ int32 dms_notify_invld_share_copy(uint32 inst_id, uint32 sess_id, char* resid, u
     uint8 type, uint64 invld_insts, dms_session_e sess_type, uint64* succ_insts);
 int32 dms_notify_invld_owner(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id);
+int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
+void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, mes_message_t *receive_msg);
 #ifdef __cplusplus
 }
 #endif

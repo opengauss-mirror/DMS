@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2022 Huawei Technologies Co.,Ltd.
  *
  * DMS is licensed under Mulan PSL v2.
@@ -829,7 +829,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           65
+#define DMS_LOCAL_VERSION           66
 
 #ifdef __cplusplus
 }
