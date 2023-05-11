@@ -151,10 +151,6 @@ void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 refo
 int dms_reform_req_switchover_wait(uint16 sess_id, uint64 *start_time);
 void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
-void dms_reform_init_channel_check(mes_message_head_t *head, uint8 inst_id, uint32 index, uint16 sess_id);
-int dms_reform_channel_check_wait(uint16 sess_id);
-void dms_reform_proc_channel_check(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
-
 void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 int dms_reform_check_reform_done(void);
 

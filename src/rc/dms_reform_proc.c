@@ -75,84 +75,15 @@ static int dms_reform_start(void)
     return DMS_SUCCESS;
 }
 
-int dms_reform_reconnect_channel(uint8 inst_id, uint32 index, uint32 sess_id)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    mes_message_head_t head;
-    int ret = DMS_SUCCESS;
-
-    while (CM_TRUE) {
-        if (reform_info->reform_fail) {
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
-            return ERRNO_DMS_REFORM_FAIL;
-        }
-
-        dms_reform_init_channel_check(&head, inst_id, index, (uint16)sess_id);
-        ret = mfc_send_data(&head);
-        if (ret != DMS_SUCCESS) {
-            DMS_REFORM_SHORT_SLEEP;
-            continue;
-        }
-        LOG_DEBUG_INF("[DMS_REFORM]channel_check SEND, src_inst: %d, src_channel: %u", inst_id, index);
-
-        ret = dms_reform_channel_check_wait((uint16)sess_id);
-        if (ret != DMS_SUCCESS) {
-            DMS_REFORM_SHORT_SLEEP;
-            continue;
-        }
-
-        LOG_DEBUG_INF("[DMS_REFORM]channel_check SUCCESS, src_inst: %d, src_channel: %u", inst_id, index);
-        break;
-    }
-
-    return DMS_SUCCESS;
-}
-
-static int dms_reform_reconnect_node(uint8 inst_id)
-{
-    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
-    int ret = DMS_SUCCESS;
-
-    if (dms_dst_id_is_self(inst_id)) {
-        return DMS_SUCCESS;
-    }
-
-    for (uint32 i = 0; i < reform_ctx->channel_cnt; i++) {
-        ret = dms_reform_reconnect_channel(inst_id, i, reform_ctx->sess_proc);
-        if (ret != DMS_SUCCESS) {
-            return ret;
-        }
-    }
-
-    return DMS_SUCCESS;
-}
-
-/*
-  mes_connect_batch create mes_channel_entry. but recv_pipe&send_pipe may not connect.
-  There two pipes in every channel, such as:
-  channel in A: send_pipe -> channel in B: recv_pipe.
-  channel in A: recv_pipe <- channel in B: send_pipe.
-  Normally, all pipes is active.
-  But if B is abort and restart, the send_pipe of channel in A is still active until send message failed.
-  So we should send message to check whether send_pipe can work normally.
-  If send_pipe is broken, the pipe will be close after send message fail, then mes_channel_entry will reconnect.
-  Also, there may be channels between two nodes, we should check all channels.
-  Only send message to check channel and receive successfully, can we think the channel work normally
-*/
 static int dms_reform_reconnect_inner(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_online = &share_info->list_online;
-    int ret = DMS_SUCCESS;
-
-    for (uint8 i = 0; i < list_online->inst_id_count; i++) {
-        ret = dms_reform_reconnect_node(list_online->inst_id_list[i]);
-        if (ret != DMS_SUCCESS) {
-            return ret;
-        }
+    int ret = mes_connect_batch(list_online->inst_id_list, list_online->inst_id_count);
+    if (ret != DMS_SUCCESS) {
+        return ret;
     }
-
 #ifdef OPENGAUSS
     reform_info->bitmap_connect = share_info->bitmap_online;
 #else

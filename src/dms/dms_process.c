@@ -103,7 +103,6 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_SYNC_NEXT_STEP,         dms_reform_proc_sync_next_step,  CM_TRUE, CM_TRUE,  "dms reform sync next step" },
     { MSG_REQ_PAGE,                   dms_reform_proc_req_page,        CM_TRUE, CM_TRUE,  "dms reform request page info" },
     { MSG_REQ_SWITCHOVER,             dms_reform_proc_req_switchover,  CM_TRUE, CM_FALSE, "dms switchover" },
-    { MSG_REQ_CHANNEL_CHECK,          dms_reform_proc_channel_check,   CM_TRUE, CM_TRUE,  "dms check channel" },
     { MSG_REQ_CANCEL_REQUEST_RES,     dms_proc_cancel_request_res,     CM_TRUE, CM_TRUE,  "dms cancel request res" },
     { MSG_REQ_OPENGAUSS_DDLLOCK,      dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
     { MSG_REQ_CONFIRM_CVT,            dms_proc_confirm_cvt_req,        CM_TRUE, CM_FALSE, "dms proc confirm converting" },
@@ -391,7 +390,6 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_LOCK_REBUILD:
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
-        case MSG_REQ_CHANNEL_CHECK:
         case MSG_REQ_CHECK_REFORM_DONE:
             return MES_TASK_GROUP_ONE;      // group one is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
