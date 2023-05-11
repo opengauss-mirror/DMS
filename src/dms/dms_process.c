@@ -880,15 +880,11 @@ void dms_uninit(void)
     dms_scrlock_uninit();
     dms_reform_uninit();
 #endif
-    mfc_uninit();
-
-    if (g_dms_stat.sess_stats != NULL) {
-        free(g_dms_stat.sess_stats);
-        g_dms_stat.sess_stats = NULL;
-    }
     drc_destroy();
+    mfc_uninit();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
+    CM_FREE_PTR(g_dms_stat.sess_stats);
     CM_FREE_PTR(cm_log_param_instance()->log_compress_buf);
     CM_FREE_PTR(g_dms.proc_ctx);
 }
