@@ -125,6 +125,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
 char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
 {
     if (pool->extend_num >= DRC_RES_EXTEND_MAX_NUM) {
+        pool->res_depleted = CM_TRUE;
         return NULL;
     }
 
@@ -146,9 +147,11 @@ char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
         drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
         drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
         pool->extend_num++;
+        pool->item_num += pool->extend_step;
     }
 
     if (cm_bilist_empty(&pool->free_list)) {
+        pool->res_depleted = CM_TRUE;
         return NULL;
     }
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
@@ -283,7 +286,7 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     buf_res->type = res_type;
     buf_res->len = len;
     buf_res->count = 0;
-    buf_res->ver = 0;
+    buf_res->recycling = CM_FALSE;
     cm_bilist_init(&buf_res->convert_q);
     init_drc_cvt_item(&buf_res->converting);
     errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
@@ -318,7 +321,7 @@ bool32 drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     return CM_TRUE;
 }
 
-static drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
+drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;

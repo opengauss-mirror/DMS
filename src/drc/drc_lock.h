@@ -51,7 +51,6 @@ typedef struct st_drc_local_lock_res {
     uint16          count;
     spinlock_t      lockc;
     spinlock_t      lock;
-    uint32          ver;
     volatile bool8  releasing;  // align later
     drc_local_latch_t latch_stat;
 } drc_local_lock_res_t;
@@ -78,7 +77,7 @@ void drc_get_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 *is_locked, 
 void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked, bool8 is_owner);
 void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t **latch_stat);
 int drc_confirm_owner(char* resid, uint8 *lock_mode);
-int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode, uint32 *ver);
+int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode);
 #ifdef __cplusplus
 }
 #endif

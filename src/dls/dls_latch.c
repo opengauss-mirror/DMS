@@ -62,7 +62,7 @@ static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *loc
 #endif // !WIN32
         spin_times++;
         if (SECUREC_UNLIKELY(spin_times == DLS_SPIN_COUNT)) {
-            cm_sleep(DLS_MSG_RETRY_TIME);
+            cm_spin_sleep();
             spin_times = 0;
             wait_ticks++;
         }
@@ -157,7 +157,6 @@ void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is
             // if node already got S or X, can grant S directly
             if (!dms_latch_idle2s(dms_ctx, lock_res)) {
                 drc_unlock_local_resx(lock_res);
-                cm_sleep(DMS_MSG_SLEEP_TIME);
                 continue;
             }
 
@@ -431,7 +430,6 @@ void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
         if (latch_stat->stat == LATCH_STATUS_IDLE) {
             if (!dms_latch_idle2x(dms_ctx, lock_res, latch_stat)) {
                 drc_unlock_local_resx(lock_res);
-                cm_sleep(DMS_MSG_SLEEP_TIME);
                 continue;
             }
 
@@ -444,7 +442,6 @@ void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
             latch_stat->stat = LATCH_STATUS_IX;
             drc_unlock_local_resx(lock_res);
             if (!dls_latch_ix2x(dms_ctx, lock_res, latch_stat, dlatch->drid.type)) {
-                cm_sleep(DMS_MSG_SLEEP_TIME);
                 continue;
             }
 
