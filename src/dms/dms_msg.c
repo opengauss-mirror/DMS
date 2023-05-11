@@ -825,7 +825,8 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *
         return;
     }
 
-    if (ctx->global_buf_res.data_access == CM_FALSE && req.sess_type == DMS_SESSION_NORMAL) {
+    if (req.res_type == DRC_RES_PAGE_TYPE && ctx->global_buf_res.data_access == CM_FALSE &&
+        req.sess_type == DMS_SESSION_NORMAL) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
             "req_sid=%u, req_rsn=%llu, mode=%u, has_share_copy=%u",
             cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid,
