@@ -281,7 +281,7 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     buf_res->edp_map = 0;
     buf_res->lsn = 0;
     buf_res->in_recovery = CM_FALSE;
-    buf_res->copy_promote = CM_FALSE;
+    buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
     buf_res->recovery_skip = CM_FALSE;
     buf_res->type = res_type;
     buf_res->len = len;

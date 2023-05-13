@@ -188,7 +188,7 @@ static int32 drc_enq_req_item(drc_buf_res_t *buf_res, drc_request_info_t *req_in
     return DMS_SUCCESS;
 }
 
-inline uint8 drc_lookup_owner_id(uint64 *owner_map)
+uint8 drc_lookup_owner_id(uint64 *owner_map)
 {
     for (uint8 i = 0; i < CM_MAX_INSTANCES; ++i) {
         // currently, for multiple owners, return the owner with the smallest id
@@ -580,7 +580,7 @@ void drc_release_buf_res(drc_buf_res_t *buf_res, drc_res_map_t *buf_map, drc_res
 static inline bool32 buf_res_is_recyclable(drc_buf_res_t* buf_res)
 {
     if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
-        buf_res->edp_map != 0 || buf_res->copy_promote) {
+        buf_res->edp_map != 0 || buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
         return CM_FALSE;
     }
     return CM_TRUE;
