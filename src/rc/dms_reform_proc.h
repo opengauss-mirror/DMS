@@ -43,7 +43,6 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
 bool8 dms_reform_res_need_rebuild(uint8 master_id);
 bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2);
 void dms_reform_next_step(void);
-int dms_reform_reconnect_channel(uint8 inst_id, uint32 index, uint32 sess_id);
 int dms_reform_clean_buf_res_by_part(bilist_t *part_list, uint32 sess_id);
 void dms_reform_migrate_collect_local_task(migrate_info_t *local_migrate_info);
 int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 sess_id);

@@ -1191,50 +1191,6 @@ int dms_reform_req_switchover_wait(uint16 sess_id, uint64 *start_time)
     return result;
 }
 
-void dms_reform_init_channel_check(mes_message_head_t *head, uint8 inst_id, uint32 index, uint16 sess_id)
-{
-    // Notice: src_sid use for get all channels, dst_sid use for ack dst_sid
-    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_CHANNEL_CHECK, 0, g_dms.inst_id, inst_id, index, sess_id);
-    head->size = (uint16)sizeof(mes_message_head_t);
-    head->rsn = mfc_get_rsn(sess_id);
-}
-
-int dms_reform_channel_check_wait(uint16 sess_id)
-{
-    mes_message_t res;
-    int ret = DMS_SUCCESS;
-
-    ret = mfc_allocbuf_and_recv_data(sess_id, &res, DMS_REFORM_SHORT_TIMEOUT);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_FUNC_FAIL;
-        return ret;
-    }
-
-    mfc_release_message_buf(&res);
-    return ret;
-}
-
-static void dms_reform_ack_channel_check(mes_message_head_t *src_head)
-{
-    mes_message_head_t head;
-    int ret = DMS_SUCCESS;
-
-    mes_init_ack_head(src_head, &head, MSG_ACK_REFORM_COMMON, sizeof(mes_message_head_t), src_head->src_sid);
-    head.dst_sid = src_head->dst_sid; // for rsn check
-    ret = mfc_send_data(&head);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_FUNC_FAIL;
-    }
-}
-
-void dms_reform_proc_channel_check(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
-{
-    mes_message_head_t head = *receive_msg->head;
-    mfc_release_message_buf(receive_msg);
-    dms_reform_ack_channel_check(&head);
-    LOG_DEBUG_INF("[DMS_REFORM]channel_check RECV, src_inst: %d, src_channel: %d", head.src_inst, head.src_sid);
-}
-
 void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
