@@ -275,6 +275,7 @@ typedef struct st_dms_buf_ctrl {
     volatile unsigned char force_request;   // force to request page from remote
     volatile unsigned char need_flush;      // for recovery, owner is abort, copy instance should flush before release
     volatile unsigned char been_loaded;     // first alloc ctrl:FALSE, after successfully loaded: TRUE
+    volatile unsigned char in_rcy;          // if drc lost, we can rebuild in_recovery flag according buf_ctrl
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
@@ -584,6 +585,7 @@ typedef char *(*dms_display_rowid)(char *display_buf, unsigned int count, char *
 typedef int (*dms_drc_buf_res_rebuild)(void *db_handle);
 typedef int (*dms_drc_buf_res_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num,
     unsigned char for_rebuild);
+typedef int(*dms_ctl_rcy_clean_parallel_t)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
 typedef int (*dms_db_is_primary)(void *db_handle);
@@ -648,6 +650,7 @@ typedef struct st_dms_callback {
     dms_recovery_in_progress recovery_in_progress;
     dms_drc_buf_res_rebuild dms_reform_rebuild_buf_res;
     dms_drc_buf_res_rebuild_parallel dms_reform_rebuild_parallel;
+    dms_ctl_rcy_clean_parallel_t dms_ctl_rcy_clean_parallel;
     dms_check_if_build_complete check_if_build_complete;
 
     // used in reform for opengauss
@@ -819,7 +822,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           60
+#define DMS_LOCAL_VERSION           61
 
 #ifdef __cplusplus
 }
