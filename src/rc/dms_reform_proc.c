@@ -760,6 +760,11 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
                 cm_display_pageid(resid), inst_id, buf_res->claimed_owner, buf_res->copy_insts);
             matched = CM_FALSE;
         }
+        if (buf_res->in_recovery != ctrl->in_rcy) {
+            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, recovery not matched, %d: %d", cm_display_pageid(resid), inst_id,
+                ctrl->in_rcy, buf_res->in_recovery);
+            matched = CM_FALSE;
+        }
     }
     if (!matched) {
         DRC_DISPLAY(buf_res, "validate");
@@ -800,6 +805,7 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
             "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(resid), buf_res->lock_mode);
         buf_res->claimed_owner = inst_id;
         buf_res->lock_mode = ctrl->lock_mode;
+        buf_res->in_recovery = ctrl->in_rcy;
     } else if (ctrl->lock_mode == DMS_LOCK_SHARE) {
         cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_SHARE,
             "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(resid), buf_res->lock_mode);
@@ -1641,7 +1647,7 @@ static int dms_reform_recovery_opengauss(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_rcy_clean(void)
+static int dms_reform_drc_rcy_clean(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
@@ -1656,6 +1662,17 @@ static int dms_reform_rcy_clean(void)
         part_id = part_mngr->part_map[part_id].next;
     }
 
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_ctl_rcy_clean(void)
+{
+    reform_context_t* reform_ctx = DMS_REFORM_CONTEXT;
+
+    LOG_RUN_FUNC_ENTER;
+    g_dms.callback.dms_ctl_rcy_clean_parallel(reform_ctx->handle_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -2427,7 +2444,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL },
     [DMS_REFORM_STEP_RECOVERY] = { "RECOVERY", dms_reform_recovery, NULL },
     [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY", dms_reform_recovery_opengauss, NULL },
-    [DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN] = { "RCY_CLEAN", dms_reform_rcy_clean, dms_reform_rcy_clean_parallel },
+    [DMS_REFORM_STEP_DRC_RCY_CLEAN] = { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel },
+    [DMS_REFORM_STEP_CTL_RCY_CLEAN] = { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel },
     [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL },
     [DMS_REFORM_STEP_ROLLBACK] = { "ROLLBACK", dms_reform_rollback, NULL },
     [DMS_REFORM_STEP_SUCCESS] = { "SUCCESS", dms_reform_success, NULL },
