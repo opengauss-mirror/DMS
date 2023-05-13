@@ -310,7 +310,6 @@ typedef enum en_dms_page_latch_mode {
 #define DMS_ENTER_PAGE_LRU_STATS_SCAN (unsigned char)0x10 // add to stats LRU list
 #define DMS_ENTER_PAGE_LRU_HIGH_AGE   (unsigned char)0x20 // decrease possibility to be recycled of page
 #define DMS_ENTER_PAGE_LOCAL          (unsigned char)0x40 // check local page without redo log, use carefully
-#define DMS_ENTER_PAGE_REMOTE         (unsigned char)0x80 // remote access mode
 
 // pack read page parameters together
 typedef struct st_dms_read_page_assist {
@@ -822,7 +821,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           61
+#define DMS_LOCAL_VERSION           62
 
 #ifdef __cplusplus
 }

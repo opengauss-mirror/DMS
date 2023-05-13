@@ -1898,13 +1898,9 @@ static int dms_reform_bcast_enable(void)
     share_info_t *share_info = DMS_SHARE_INFO;
 
     LOG_RUN_FUNC_ENTER;
-    cm_latch_x(&reform_info->bcast_latch, g_dms.reform_ctx.sess_proc, NULL);
     reform_info->bitmap_connect = share_info->bitmap_online;
     reform_info->bcast_unable = CM_FALSE;
-    cm_unlatch(&reform_info->bcast_latch, NULL);
-    cm_latch_x(&reform_info->ddl_latch, g_dms.reform_ctx.sess_proc, NULL);
     reform_info->ddl_unable = CM_FALSE;
-    cm_unlatch(&reform_info->ddl_latch, NULL);
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
