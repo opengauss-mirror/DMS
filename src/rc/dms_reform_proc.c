@@ -1791,7 +1791,8 @@ static void dms_reform_set_switchover_result(void)
             switchover_info->switch_start = CM_FALSE;
             cm_spin_unlock(&switchover_info->lock);
             g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, reform_info->err_code);
-        } else if (dms_dst_id_is_self(share_info->demote_id)) {
+        }
+        if (dms_dst_id_is_self(share_info->demote_id)) {
             // only clean switchover request in the original primary,
             // because the new primary may have receive new switchover request
             cm_spin_lock(&switchover_info->lock, NULL);
