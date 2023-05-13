@@ -37,6 +37,11 @@
 extern "C" {
 #endif
 
+static inline void dcs_set_ctrl_in_rcy(dms_context_t* dms_ctx, dms_buf_ctrl_t* ctrl)
+{
+    ctrl->in_rcy = (dms_ctx->sess_type == DMS_SESSION_RECOVER);
+}
+
 static inline int32 dcs_set_ctrl4already_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode)
 {
     /* owner has no edp */
@@ -52,6 +57,7 @@ static inline int32 dcs_set_ctrl4already_owner(dms_context_t *dms_ctx, dms_buf_c
         return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
     }
     /* 3.page swap out and in, but buf res not be recycled, need to load from disk */
+    dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
 }
 
@@ -62,7 +68,7 @@ static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_
     CM_MFENCE;
     ctrl->is_edp = 0;
     ctrl->been_loaded = CM_TRUE;
-
+    dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 }
 
@@ -87,6 +93,7 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
     CM_MFENCE;
     ctrl->is_edp = 0;
     ctrl->been_loaded = CM_TRUE;
+    dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 
     LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"
@@ -172,6 +179,7 @@ static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *
 #endif
     /* if no owner exists, master grants X; if owner exists on DRC but local ctrl null, grant S */
     ctrl->lock_mode = granted_mode;
+    dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
 }
 
@@ -267,6 +275,7 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     ctrl->force_request = 0;
     ctrl->been_loaded = CM_TRUE;
     CM_MFENCE;
+    dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 
     LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"

@@ -893,7 +893,8 @@ static void dms_reform_judgement_recovery(instance_list_t *inst_lists)
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_RECOVERY);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN);
+    dms_reform_add_step(DMS_REFORM_STEP_DRC_RCY_CLEAN);
+    dms_reform_add_step(DMS_REFORM_STEP_CTL_RCY_CLEAN);
 }
 
 // Notice: must be used before DRC_ACCESS
@@ -926,7 +927,7 @@ static void dms_reform_judgement_recovery_opengauss(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_OPENGAUSS);
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN);
+        dms_reform_add_step(DMS_REFORM_STEP_DRC_RCY_CLEAN);
     }
 }
 
