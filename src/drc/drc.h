@@ -134,6 +134,12 @@ typedef struct st_drc_cvt_item {
     drc_request_info_t req_info;
 } drc_cvt_item_t;
 
+typedef enum en_dms_copy_promote {
+    DMS_COPY_PROMOTE_NONE = 0,
+    DMS_COPY_PROMOTE_NORMAL = 1,
+    DMS_COPY_PROMOTE_RDP = 2,
+} dms_copy_promote_t;
+
 /*
  * page buffer resource DRC management structure.
  */
@@ -147,7 +153,7 @@ typedef struct st_drc_buf_res {
     uint8           last_edp;           /* the newest edp instance id */
     uint8           type;               /* page or lock */
     bool8           in_recovery;        /* in recovery or not */
-    bool8           copy_promote;       /* copy promote to owner, can not release, may need flush */
+    uint8           copy_promote;       /* copy promote to owner, can not release, may need flush */
     uint16          part_id;            /* which partition id that current page belongs to */
     bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */

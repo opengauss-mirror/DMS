@@ -1198,10 +1198,12 @@ static void dms_reform_judgement_set_phase(reform_phase_t reform_phase)
     share_info->reform_phase[share_info->reform_phase_count++] = reform_phase;
 }
 
-static void dms_reform_judgement_bcast_unable(void)
+static void dms_reform_judgement_bcast_unable(instance_list_t *inst_lists)
 {
-    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_BCAST_UNABLE);
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0) {
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_BCAST_UNABLE);
+    }
 }
 
 static void dms_reform_judgement_update_scn(void)
@@ -1237,15 +1239,13 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
-    dms_reform_judgement_drc_validate(CM_TRUE);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
-    dms_reform_judgement_bcast_unable();
+    dms_reform_judgement_bcast_unable(inst_lists);
     dms_reform_judgement_update_scn();
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
@@ -1263,7 +1263,6 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_switchover_demote(inst_lists);
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_drc_inaccess();
     dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
@@ -1271,7 +1270,6 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
@@ -1309,15 +1307,13 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
-    dms_reform_judgement_drc_validate(CM_TRUE);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
-    dms_reform_judgement_bcast_unable();
+    dms_reform_judgement_bcast_unable(inst_lists);
     dms_reform_judgement_update_scn();
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);

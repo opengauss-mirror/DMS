@@ -622,16 +622,38 @@ static int dms_reform_migrate(void)
     return DMS_SUCCESS;
 }
 
-static void drc_rebuild_set_owner(drc_buf_res_t *buf_res, uint8 owner_id, bool8 cover)
+static void drc_rebuild_set_owner(drc_buf_res_t *buf_res, uint8 owner_id, bool8 is_edp)
 {
     if (buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == owner_id) {
         buf_res->claimed_owner = owner_id;
+        buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
         return;
     }
 
-    if (cover) {
+    // if page is not edp, it is considered to be owner as priority
+    // if last owner has set copy_promote, use current inst instead of last owner
+    if (!is_edp) {
         bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
         buf_res->claimed_owner = owner_id;
+        buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
+        bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
+    } else {
+        bitmap64_set(&buf_res->copy_insts, owner_id);
+    }
+}
+
+static void drc_rebuild_set_copy(drc_buf_res_t* buf_res, uint8 owner_id, bool8 is_rdp)
+{
+    if (buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == owner_id) {
+        buf_res->claimed_owner = owner_id;
+        buf_res->copy_promote = (is_rdp ? DMS_COPY_PROMOTE_RDP : DMS_COPY_PROMOTE_NORMAL);
+        return;
+    }
+
+    if (is_rdp) {
+        bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
+        buf_res->claimed_owner = owner_id;
+        buf_res->copy_promote = DMS_COPY_PROMOTE_RDP;
         bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
     } else {
         bitmap64_set(&buf_res->copy_insts, owner_id);
@@ -741,12 +763,10 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_SHARE,
             "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(resid), buf_res->lock_mode);
         buf_res->lock_mode = ctrl->lock_mode;
-        if (ctrl->is_remote_dirty || (is_dirty && !ctrl->is_edp)) { // must be owner
-            drc_rebuild_set_owner(buf_res, inst_id, CM_TRUE);
-        } else if (is_dirty) { // is dirty and is edp, can be owner
-            drc_rebuild_set_owner(buf_res, inst_id, CM_FALSE);
-        } else { // is not dirty and is not edp, can not be owner now. should flush
-            bitmap64_set(&buf_res->copy_insts, inst_id);
+        if (is_dirty) {
+            drc_rebuild_set_owner(buf_res, inst_id, ctrl->is_edp);
+        } else { // is not dirty, should notify to flush copy
+            drc_rebuild_set_copy(buf_res, inst_id, ctrl->is_remote_dirty);
         }
     }
 
@@ -1112,8 +1132,8 @@ static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess
         return DMS_SUCCESS;
     }
 
-    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN) && buf_res->type == DRC_RES_PAGE_TYPE) {
-        buf_res->copy_promote = CM_TRUE;
+    if (buf_res->type == DRC_RES_PAGE_TYPE) {
+        buf_res->copy_promote = DMS_COPY_PROMOTE_NORMAL;
     }
 
     *exists_owner = CM_TRUE;
@@ -1291,19 +1311,19 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res, void *han
     int ret = DMS_SUCCESS;
 
 #ifdef OPENGAUSS
-    if (buf_res->copy_promote) {
+    if (buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
         ret = g_dms.callback.flush_copy(handle, buf_res->data);
     }
-    buf_res->copy_promote = CM_FALSE;
+    buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
 #else
-    if (buf_res->copy_promote && buf_res->recovery_skip) {
+    if (buf_res->copy_promote != DMS_COPY_PROMOTE_NONE && buf_res->recovery_skip) {
         if (dms_dst_id_is_self(buf_res->claimed_owner)) {
             ret = g_dms.callback.flush_copy(handle, buf_res->data);
         } else {
             ret = dms_reform_flush_copy_page(buf_res, sess_id);
         }
     }
-    buf_res->copy_promote = CM_FALSE;
+    buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
     buf_res->recovery_skip = CM_FALSE;
 #endif
     return ret;
@@ -1898,13 +1918,9 @@ static int dms_reform_bcast_enable(void)
     share_info_t *share_info = DMS_SHARE_INFO;
 
     LOG_RUN_FUNC_ENTER;
-    cm_latch_x(&reform_info->bcast_latch, g_dms.reform_ctx.sess_proc, NULL);
     reform_info->bitmap_connect = share_info->bitmap_online;
     reform_info->bcast_unable = CM_FALSE;
-    cm_unlatch(&reform_info->bcast_latch, NULL);
-    cm_latch_x(&reform_info->ddl_latch, g_dms.reform_ctx.sess_proc, NULL);
     reform_info->ddl_unable = CM_FALSE;
-    cm_unlatch(&reform_info->ddl_latch, NULL);
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
