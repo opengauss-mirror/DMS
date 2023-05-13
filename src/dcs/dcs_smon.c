@@ -335,7 +335,7 @@ void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, mes_message_t 
     uint16 sid = check_tlock->sid;
     uint64 tableid = check_tlock->table_id;
 
-    if (SECUREC_UNLIKELY(sid >= CM_MAX_SESSIONS)) {
+    if (type == DMS_SMON_CHECK_WAIT_EVENT_STATUS_BY_SID && SECUREC_UNLIKELY(sid >= CM_MAX_SESSIONS)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid sid value");
         mfc_release_message_buf(receive_msg);
         LOG_RUN_ERR("[SMON] proc check tlock status, the sid %u is invalid", (uint32)sid);
