@@ -1146,6 +1146,13 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
         return;
     }
 
+    // if switchover request come from self, return error
+    if (dms_dst_id_is_self(req->head.src_inst)) {
+        dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
     switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
     cm_spin_lock(&switchover_info->lock, NULL);
     if (!switchover_info->switch_req) {
