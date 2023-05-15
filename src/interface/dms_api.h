@@ -589,7 +589,7 @@ typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
 typedef int (*dms_db_is_primary)(void *db_handle);
 typedef void (*dms_set_switchover_result)(void *db_handle, int result);
-typedef void (*dms_set_db_standby)(void *db_handle);
+typedef void (*dms_set_db_role)(void *db_handle, unsigned char is_primary);
 typedef int (*dms_mount_to_recovery)(void *db_handle, unsigned int *has_offline);
 typedef int(*dms_get_open_status)(void *db_handle);
 typedef void (*dms_reform_set_dms_role)(void *db_handle, unsigned int reformer_id);
@@ -742,7 +742,7 @@ typedef struct st_dms_callback {
     dms_switchover_promote_opengauss switchover_promote_opengauss;
     dms_failover_promote_opengauss failover_promote_opengauss;
     dms_set_switchover_result set_switchover_result;
-    dms_set_db_standby set_db_standby;
+    dms_set_db_role set_db_role;
     dms_mount_to_recovery mount_to_recovery;
 
     dms_reform_done_notify reform_done_notify;
@@ -821,7 +821,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           62
+#define DMS_LOCAL_VERSION           63
 
 #ifdef __cplusplus
 }
