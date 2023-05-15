@@ -1735,12 +1735,14 @@ static int dms_reform_rollback(void)
 }
 
 #ifndef OPENGAUSS
-static void dms_reform_set_dms_standby(void)
+static void dms_reform_set_db_role(void)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
 
     if (reform_context->primary_standby && DMS_IS_SHARE_PARTNER) {
-        g_dms.callback.set_db_standby(g_dms.reform_ctx.handle_proc);
+        g_dms.callback.set_db_role(g_dms.reform_ctx.handle_proc, CM_FALSE);
+    } else {
+        g_dms.callback.set_db_role(g_dms.reform_ctx.handle_proc, CM_TRUE);
     }
 }
 #endif
@@ -1750,7 +1752,7 @@ static int dms_reform_success(void)
 {
     LOG_RUN_FUNC_ENTER;
 #ifndef OPENGAUSS
-    dms_reform_set_dms_standby();
+    dms_reform_set_db_role();
 #endif
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
