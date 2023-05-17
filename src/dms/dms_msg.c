@@ -152,7 +152,7 @@ int32 dms_notify_invld_owner(dms_process_context_t *ctx, char* resid, uint16 len
         return g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_TRUE);
     }
     dms_invld_req_t req;
-    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALID_OWNER, 0, ctx->inst_id, 0, ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALID_OWNER, 0, ctx->inst_id, owner_id, ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_invld_req_t);
     req.head.rsn = mfc_get_rsn(ctx->sess_id);
     req.len = len;
