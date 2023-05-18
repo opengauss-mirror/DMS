@@ -2344,18 +2344,16 @@ static int dms_reform_startup_opengauss(void)
 static int dms_reform_lock_instance(void)
 {
     LOG_RUN_FUNC_ENTER;
-    int timeout = 100;
-    int count = 0;
+    date_t begin_time = g_timer()->now;
+    int ticks = 400; /* let each latch take ~0.1s, as each tick measures ~0.25ms on 72-core x86 */
     uint32 sess_pid = g_dms.reform_ctx.sess_proc;
 
     reform_info_t *reform_info = DMS_REFORM_INFO;
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance try lock, gcv:%d",
         DMS_GLOBAL_CLUSTER_VER);
-    while (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, 1, NULL) == CM_FALSE) {
-        count++;
-        DMS_REFORM_SHORT_SLEEP;
-        if (count >= timeout) {
-            LOG_DEBUG_ERR("[DMS REFORM][GCV PUSH]dms_reform_lock_instance timeout error, inst:%d exits now",
+    while (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, ticks, NULL) == CM_FALSE) {
+        if (g_timer()->now - begin_time >= DMS_REFORM_LOCK_INST_TIMEOUT) {
+            LOG_RUN_ERR("[DMS REFORM][GCV PUSH]dms_reform_lock_instance timeout error, inst:%d exits now",
                 g_dms.inst_id);
             cm_exit(0);
         }

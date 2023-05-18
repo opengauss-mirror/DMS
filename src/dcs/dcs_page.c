@@ -905,19 +905,34 @@ static int dcs_release_owner_r(dms_context_t *dms_ctx, uint8 master_id, unsigned
     return DMS_SUCCESS;
 }
 
+static inline int dcs_release_owner_l(dms_context_t *dms_ctx, unsigned char *released)
+{
+    (void)drc_chk_4_rlse_owner(dms_ctx->resid, DMS_PAGEID_SIZE, (uint8)dms_ctx->inst_id, CM_FALSE, released);
+
+    LOG_DEBUG_INF("[DCS][%s][local release owner]: src_id=%d, src_sid=%d, released=%d",
+        cm_display_pageid(dms_ctx->resid), dms_ctx->inst_id, dms_ctx->sess_id, (int32)*released);
+    return DMS_SUCCESS;
+}
+
 int dcs_release_owner(dms_context_t *dms_ctx, unsigned char *released)
 {
     LOG_DEBUG_INF("[DCS][%s][dcs_release_owner] entry", cm_display_pageid(dms_ctx->resid));
 
     unsigned char master_id;
+    int ret = DMS_SUCCESS;
     if (drc_get_page_master_id(dms_ctx->resid, &master_id) != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_PAGE_MASTER_ID);
         return ERRNO_DMS_DCS_PAGE_MASTER_ID;
     }
 
-    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_RELEASE_OWNER, CM_TRUE);
-    int ret = dcs_release_owner_r(dms_ctx, master_id, released);
-    dms_end_stat(dms_ctx->sess_id);
+    if (master_id == dms_ctx->inst_id) {
+        ret = dcs_release_owner_l(dms_ctx, released);
+    } else {
+        dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_RELEASE_OWNER, CM_TRUE);
+        ret = dcs_release_owner_r(dms_ctx, master_id, released);
+        dms_end_stat(dms_ctx->sess_id);
+    }
+
     return ret;
 }
 
