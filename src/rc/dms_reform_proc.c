@@ -1401,6 +1401,13 @@ static int dms_reform_dw_recovery_inner(void)
         (void *)&share_info->dw_recovery_info, DMS_IS_SHARE_REFORMER);
 }
 
+static int dms_reform_file_orglsn_recovery_inner(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    return g_dms.callback.file_orglsn_recovery(g_dms.reform_ctx.handle_proc,
+        (void *)&share_info->file_orglsn_recovery_info, DMS_IS_SHARE_REFORMER);
+}
+
 static void dms_reform_recovery_set_flag_by_part_inner(drc_buf_res_t *buf_res)
 {
     DRC_DISPLAY(buf_res, "rcy_clean");
@@ -2249,6 +2256,22 @@ static int dms_reform_dw_recovery(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_file_orglsn_recovery(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = dms_reform_file_orglsn_recovery_inner();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_drc_inaccess(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -2401,6 +2424,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SYNC_WAIT] = { "SYNC_WAIT", dms_reform_sync_wait, NULL },
     [DMS_REFORM_STEP_PAGE_ACCESS] = { "PAGE_ACCESS", dms_reform_page_access, NULL },
     [DMS_REFORM_STEP_DW_RECOVERY] = { "DW_RECOVERY", dms_reform_dw_recovery, NULL },
+    [DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY] = { "FILE_ORGLSN_RECOVERY", dms_reform_file_orglsn_recovery, NULL },
     [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL },
     [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL },
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] = { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL },
