@@ -1262,7 +1262,6 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
@@ -1276,6 +1275,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1331,7 +1331,6 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
@@ -1346,6 +1345,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1437,7 +1437,6 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_rollback(inst_lists);
@@ -1447,6 +1446,8 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
 
