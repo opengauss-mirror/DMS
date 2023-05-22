@@ -489,6 +489,7 @@ static status_t dms_global_res_init(drc_global_res_map_t *global_res, int32 res_
 
     for (i = 0; i < DRC_MAX_PART_NUM; i++) {
         cm_bilist_init(&global_res->res_parts[i]);
+        global_res->res_parts_lock[i] = 0;
     }
 
     return drc_res_map_init(&global_res->res_map, res_type, pool_size, item_size, res_cmp_func, get_hash_func);
