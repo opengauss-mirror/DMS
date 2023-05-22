@@ -743,6 +743,9 @@ DMS_DECLARE int dms_is_share_reformer(void);
 DMS_DECLARE void dms_ddl_enter(void);
 DMS_DECLARE void dms_ddl_leave(void);
 
+DMS_DECLARE void dms_file_enter(void);
+DMS_DECLARE void dms_file_leave(void);
+
 DMS_DECLARE int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
     unsigned long long *success_inst);
 DMS_DECLARE int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout,
