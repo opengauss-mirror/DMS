@@ -297,7 +297,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
     g_dms.callback.check_if_build_complete(g_dms.reform_ctx.handle_judge, &build_complete);
     reform_info->build_complete = (bool8)build_complete;
     reform_info->maintain = dms_reform_get_maintain();
-    reform_info->bcast_unable = CM_TRUE;
+    reform_info->file_unable = CM_FALSE;
 #endif
     if (reform_info->build_complete && !reform_info->maintain) {
         ret = dms_reform_cm_res_init();
@@ -535,4 +535,21 @@ void dms_ddl_leave(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     cm_unlatch(&reform_info->ddl_latch, NULL);
+}
+
+void dms_file_enter(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_latch_s(&reform_info->file_latch, 0, CM_FALSE, NULL);
+    while (reform_info->file_unable) {
+        cm_unlatch(&reform_info->file_latch, NULL);
+        DMS_REFORM_SHORT_SLEEP;
+        cm_latch_s(&reform_info->file_latch, 0, CM_FALSE, NULL);
+    }
+}
+
+void dms_file_leave(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_unlatch(&reform_info->file_latch, NULL);
 }

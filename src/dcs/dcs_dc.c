@@ -143,37 +143,18 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
     unsigned int timeout, msg_command_t cmd)
 {
-    reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
-
-    cm_latch_s(&reform_info->bcast_latch, dms_ctx->sess_id, CM_FALSE, NULL);
-    if (reform_info->bcast_unable) {
-        cm_unlatch(&reform_info->bcast_latch, NULL);
-        LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
-        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-        return ERRNO_DMS_REFORM_IN_PROCESS;
-    }
 
     if (timeout != CM_INFINITE_TIMEOUT) {
         ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd);
-        cm_unlatch(&reform_info->bcast_latch, NULL);
         return ret;
     }
 
     while (CM_TRUE) {
         if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd) == DMS_SUCCESS) {
-            cm_unlatch(&reform_info->bcast_latch, NULL);
             return DMS_SUCCESS;
         }
-        cm_unlatch(&reform_info->bcast_latch, NULL);
         cm_sleep(DMS_MSG_RETRY_TIME);
-        cm_latch_s(&reform_info->bcast_latch, dms_ctx->sess_id, CM_FALSE, NULL);
-        if (reform_info->bcast_unable) {
-            cm_unlatch(&reform_info->bcast_latch, NULL);
-            LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
     }
 }
 
