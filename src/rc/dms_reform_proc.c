@@ -1833,7 +1833,7 @@ static void dms_reform_end(void)
     reform_ctx->last_share_info = reform_ctx->share_info;
     reform_ctx->share_info = share_info;
     reform_info->ddl_unable = CM_FALSE;
-    reform_info->bcast_unable = CM_FALSE;
+    reform_info->file_unable = CM_FALSE;
     reform_info->reform_done = CM_TRUE;
     reform_info->reform_fail =  CM_FALSE;
 }
@@ -1928,8 +1928,8 @@ static int dms_reform_bcast_enable(void)
 
     LOG_RUN_FUNC_ENTER;
     reform_info->bitmap_connect = share_info->bitmap_online;
-    reform_info->bcast_unable = CM_FALSE;
     reform_info->ddl_unable = CM_FALSE;
+    reform_info->file_unable = CM_FALSE;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -1944,9 +1944,9 @@ static int dms_reform_bcast_unable(void)
     cm_latch_x(&reform_info->ddl_latch, g_dms.reform_ctx.sess_proc, NULL);
     reform_info->ddl_unable = CM_TRUE;
     cm_unlatch(&reform_info->ddl_latch, NULL);
-    cm_latch_x(&reform_info->bcast_latch, g_dms.reform_ctx.sess_proc, NULL);
-    reform_info->bcast_unable = CM_TRUE;
-    cm_unlatch(&reform_info->bcast_latch, NULL);
+    cm_latch_x(&reform_info->file_latch, g_dms.reform_ctx.sess_proc, NULL);
+    reform_info->file_unable = CM_TRUE;
+    cm_unlatch(&reform_info->file_latch, NULL);
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;

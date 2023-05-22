@@ -263,8 +263,8 @@ typedef struct st_reformer_ctrl {
 } reformer_ctrl_t;
 
 typedef struct st_reform_info {
-    latch_t             bcast_latch;
     latch_t             ddl_latch;
+    latch_t             file_latch;
     uint64              max_scn;
     spinlock_t          version_lock;
     spinlock_t          mes_lock;
@@ -296,8 +296,8 @@ typedef struct st_reform_info {
     uint8               reform_phase_index;
     uint8               reform_phase;           // set by reform_proc
     bool8               reform_pause;
-    bool8               bcast_unable;
     bool8               ddl_unable;
+    bool8               file_unable;
     bool8               parallel_enable;        // dms reform proc parallel enable
     bool8               use_default_map;        // if use default part_map in this judgement
     uint8               unused[2];
