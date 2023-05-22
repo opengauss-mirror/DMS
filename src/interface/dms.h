@@ -763,6 +763,15 @@ DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
 */
 DMS_DECLARE void dms_set_log_level(unsigned int log_level);
 
+/*
+ * @brief get latch owner id
+ * @[in]param dms_ctx - dms_context_t structure.
+ * @[in]param dlatch - dms_drlatch_t structure.
+ * @[out]param owner_id - owner id.
+ * @return DMS_SUCCESS - success;otherwise: failed.
+ */
+DMS_DECLARE int dms_get_latch_owner_id(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char *owner_id);
+
 #ifdef __cplusplus
 }
 #endif
