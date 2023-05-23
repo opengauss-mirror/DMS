@@ -443,6 +443,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_LATCH_S,
     DMS_EVT_LATCH_X_REMOTE,
     DMS_EVT_LATCH_S_REMOTE,
+    DMS_EVT_ONDEMAND_REDO,
 
 
     DMS_EVT_COUNT,
@@ -604,6 +605,7 @@ typedef void (*dms_reform_set_dms_role)(void *db_handle, unsigned int reformer_i
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
 typedef int (*dms_get_db_primary_id)(void *db_handle, unsigned int *primary_id);
+typedef int (*dms_opengauss_ondemand_redo_buffer)(void *block_key, int *redo_status);
 
 // for ssl
 typedef int(*dms_decrypt_pwd_t)(const char *cipher, unsigned int len, char *plain, unsigned int size);
@@ -666,6 +668,7 @@ typedef struct st_dms_callback {
     dms_opengauss_startup opengauss_startup;
     dms_opengauss_recovery_standby opengauss_recovery_standby;
     dms_opengauss_recovery_primary opengauss_recovery_primary;
+    dms_opengauss_ondemand_redo_buffer opengauss_ondemand_redo_buffer;
     dms_reform_start_notify reform_start_notify;
     dms_reform_set_dms_role reform_set_dms_role;
 
@@ -829,7 +832,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           66
+#define DMS_LOCAL_VERSION           67
 
 #ifdef __cplusplus
 }

@@ -114,6 +114,8 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE,  "page validate" },
     { MSG_REQ_INVALID_OWNER,          dms_proc_invld_req,              CM_TRUE, CM_TRUE,  "invalid owner" },
     { MSG_REQ_ASK_RES_OWNER_ID,       dms_proc_ask_res_owner_id,       CM_TRUE, CM_TRUE,  "ask res owner id" },
+    { MSG_REQ_OPENGAUSS_ONDEMAND_REDO, dms_reform_proc_opengauss_ondemand_redo_buffer,
+        CM_TRUE, CM_FALSE, "dms notify primary node ondemand-redo buffer"},
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -159,6 +161,7 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
     { MSG_ACK_INVLD_OWNER,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for invalid owner" },
     { MSG_ACK_ASK_RES_OWNER_ID,             dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for res owner id" },
+    { MSG_ACK_OPENGAUSS_ONDEMAND_REDO,      dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack on-demand redo request"},
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)

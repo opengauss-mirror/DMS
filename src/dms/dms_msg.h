@@ -97,6 +97,7 @@ typedef enum en_msg_command {
     MSG_REQ_PAGE_VALIDATE = 48,
     MSG_REQ_INVALID_OWNER = 49,
     MSG_REQ_ASK_RES_OWNER_ID = 50,
+    MSG_REQ_OPENGAUSS_ONDEMAND_REDO = 51,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -142,6 +143,7 @@ typedef enum en_msg_command {
     MSG_ACK_REFORM_GCV_SYNC = 167,
     MSG_ACK_INVLD_OWNER = 168,
     MSG_ACK_ASK_RES_OWNER_ID = 169,
+    MSG_ACK_OPENGAUSS_ONDEMAND_REDO = 170,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
