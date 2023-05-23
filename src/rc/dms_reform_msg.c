@@ -29,6 +29,7 @@
 #include "drc_res_mgr.h"
 #include "dms_error.h"
 #include "dms_mfc.h"
+#include "dms_stat.h"
 #include "dcs_page.h"
 
 static int dms_reform_req_common_wait(uint16 sid)
@@ -1354,5 +1355,75 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, mes_messag
     int ret = mfc_send_data(&ack_map.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
+    }
+}
+
+int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *block_key, unsigned int key_len,
+    int *redo_status)
+{
+    dms_reform_req_opengauss_ondemand_redo_t redo_req;
+    dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
+    mes_message_t message = { 0 };
+
+    DMS_INIT_MESSAGE_HEAD(&redo_req.head, MSG_REQ_OPENGAUSS_ONDEMAND_REDO, 0, dms_ctx->inst_id,
+        xmap_ctx->dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    redo_req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    redo_req.head.size = (uint16)(key_len + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
+    redo_req.len = (uint16)key_len;
+
+    // openGauss has not adapted stats yet
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_ONDEMAND_REDO, CM_TRUE);
+    int32 ret = mfc_send_data3(&redo_req.head, sizeof(dms_reform_req_opengauss_ondemand_redo_t), block_key);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_ERR("[On-demand][request openGauss on-demand redo failed] src_inst %u src_sid %u dst_inst %u",
+            dms_ctx->inst_id, dms_ctx->sess_id, xmap_ctx->dest_id);
+        return ret;
+    }
+
+    ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &message, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+
+        LOG_DEBUG_ERR("[On-demand] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
+            xmap_ctx->dest_id, (uint32)MSG_REQ_OPENGAUSS_ONDEMAND_REDO, redo_req.head.rsn, ret);
+        return ret;
+    }
+
+    dms_end_stat(dms_ctx->sess_id);
+
+    CM_CHK_RECV_MSG_SIZE(&message, (uint32)(sizeof(mes_message_head_t) + sizeof(int32)), CM_TRUE, CM_FALSE);
+    *redo_status = *(int *)(message.buffer + sizeof(mes_message_head_t));
+
+    mfc_release_message_buf(&message);
+    return DMS_SUCCESS;
+}
+
+void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+{
+    mes_message_head_t *req_head = receive_msg->head;
+    mes_message_head_t ack_head;
+    int32 redo_status;
+    void *block_key;
+
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_opengauss_ondemand_redo_t),
+        CM_TRUE, CM_TRUE);
+    dms_reform_req_opengauss_ondemand_redo_t *req = (dms_reform_req_opengauss_ondemand_redo_t *)(receive_msg->buffer);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)(sizeof(dms_reform_req_opengauss_ondemand_redo_t) + req->len),
+        CM_TRUE, CM_TRUE);
+
+    block_key = (void *)(receive_msg->buffer + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
+    g_dms.callback.opengauss_ondemand_redo_buffer(block_key, &redo_status);
+
+    mfc_init_ack_head(&ack_head, MSG_ACK_OPENGAUSS_ONDEMAND_REDO, 0, req_head->dst_inst, req_head->src_inst,
+        process_ctx->sess_id, req_head->src_sid);
+    ack_head.size = (uint16)(sizeof(int32) + sizeof(mes_message_head_t));
+    ack_head.rsn = req_head->rsn;
+
+    mfc_release_message_buf(receive_msg);
+    if (mfc_send_data2(&ack_head, &redo_status) != CM_SUCCESS) {
+        LOG_DEBUG_ERR(
+            "[On-demand] send openGauss on-demand redo status ack message failed, src_inst = %u, dst_inst = %u",
+            (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
     }
 }

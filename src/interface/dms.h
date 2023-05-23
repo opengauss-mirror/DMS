@@ -772,6 +772,17 @@ DMS_DECLARE void dms_set_log_level(unsigned int log_level);
  */
 DMS_DECLARE int dms_get_latch_owner_id(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char *owner_id);
 
+/*
+ * @brief request primary node redo page in on-demand recovery, only for openGauss
+ * @[in]param dms_ctx - obtains the context information required by the page.
+ * @[in]param block_key - page information.
+ * @[in]param key_len - len of page information.
+ * @[out]redo_status - redo result.
+ * @return DMS_SUCCESS - success;otherwise: failed.
+ */
+DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *block_key,
+    unsigned int key_len, int *redo_status);
+
 #ifdef __cplusplus
 }
 #endif
