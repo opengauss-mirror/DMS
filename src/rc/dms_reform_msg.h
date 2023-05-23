@@ -161,6 +161,12 @@ typedef struct st_dms_reform_ack_map {
 void dms_reform_init_map_info_req(mes_message_head_t *head, uint8 dst_id);
 int dms_reform_map_info_req_wait(void);
 void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+
+typedef struct st_dms_reform_req_opengauss_ondemand_redo {
+    mes_message_head_t head;
+    uint16 len;
+} dms_reform_req_opengauss_ondemand_redo_t;
+void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 #ifdef __cplusplus
 }
 #endif
