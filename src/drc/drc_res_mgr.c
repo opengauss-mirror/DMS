@@ -516,7 +516,6 @@ void drc_destroy(void)
     drc_res_map_destroy(&ctx->local_txn_map);
     ctx->part_lock = 0;
 
-    cm_close_thread(&ctx->smon_thread);
     if (ctx->chan != NULL) {
         cm_chan_free(ctx->chan);
         ctx->chan = NULL;
