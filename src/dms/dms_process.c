@@ -884,8 +884,10 @@ void dms_uninit(void)
     dms_scrlock_uninit();
     dms_reform_uninit();
 #endif
-    drc_destroy();
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    cm_close_thread(&ctx->smon_thread);
     mfc_uninit();
+    drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
     CM_FREE_PTR(g_dms_stat.sess_stats);
