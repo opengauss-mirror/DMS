@@ -186,7 +186,7 @@ static void dms_reform_health_handle_fail(void)
     if (time_now - reform_info->proc_time > DMS_MAX_FAIL_TIME * MICROSECS_PER_SECOND) {
         LOG_RUN_ERR("[DMS REFORM]dms_reform_proc is inactive for %d seconds, exit", DMS_MAX_FAIL_TIME);
         cm_exit(0);
-    } else {
+    } else if (!reform_info->reform_fail) {
         reform_info->reform_fail = CM_TRUE;
         LOG_RUN_INF("[DMS REFORM]set reform fail, health check");
     }

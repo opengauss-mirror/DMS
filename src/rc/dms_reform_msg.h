@@ -50,6 +50,7 @@ typedef struct st_dms_reform_ack_common {
 typedef struct st_dms_reform_req_sync_step {
     mes_message_head_t  head;
     uint64              scn;
+    uint64              start_time;
     uint8               last_step;
     uint8               curr_step;
     uint8               next_step;

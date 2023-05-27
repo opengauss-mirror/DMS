@@ -2029,24 +2029,8 @@ static int dms_reform_sync_step_send(void)
 static void dms_reform_sync_fail_r(uint8 dst_id)
 {
     dms_reform_req_sync_step_t req;
-    int ret = DMS_SUCCESS;
-
-    while (CM_TRUE) {
-        dms_reform_init_req_sync_next_step(&req, dst_id);
-        ret = mfc_send_data(&req.head);
-        if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DMS REFORM]dms_reform_sync_fail_r SEND error: %d, dst_id: %d", ret, dst_id);
-            break;
-        }
-
-        ret = dms_reform_req_sync_next_step_wait();
-        if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_step WAIT timeout, dst_id: %d", dst_id);
-            continue;
-        } else {
-            break;
-        }
-    }
+    dms_reform_init_req_sync_next_step(&req, dst_id);
+    (void)mfc_send_data(&req.head); // try to notify partner set reform fail
 }
 
 static void dms_reform_remote_fail(void)
