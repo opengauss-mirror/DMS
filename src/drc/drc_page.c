@@ -580,7 +580,7 @@ void drc_release_buf_res(drc_buf_res_t *buf_res, drc_res_map_t *buf_map, drc_res
 static inline bool32 buf_res_is_recyclable(drc_buf_res_t* buf_res)
 {
     if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
-        buf_res->edp_map != 0 || buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
+        buf_res->edp_map != 0 || buf_res->recovery_skip) {
         return CM_FALSE;
     }
     return CM_TRUE;

@@ -160,7 +160,7 @@ typedef struct st_drc_buf_res {
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
     uint64          lsn;                /* the newest edp LSN of current page in the cluster */
     uint16          len;                /* the length of data below */
-    uint8           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
+    bool8           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
     bool8           recycling;
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
     bilist_t        convert_q;          /* current page's requester queue */
