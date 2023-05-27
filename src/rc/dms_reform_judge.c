@@ -848,6 +848,12 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
             dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
     }
 #else
+    // primary_standby and centralized no need to rebuild
+    if (DMS_CATALOG_IS_CENTRALIZED && DMS_CATALOG_IS_PRIMARY_STANDBY &&
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
+        return;
+    }
+
     dms_reform_list_init(&share_info->list_rebuild);
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
         dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_JOIN]);
