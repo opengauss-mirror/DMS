@@ -133,6 +133,8 @@ enum dms_reform_req_page_action {
 typedef struct st_dms_reform_req_res {
     mes_message_head_t head;
     uint32 action;
+    uint32 sess_id;
+    uint64 rsn;
     char resid[DMS_RESID_SIZE];
     uint8 res_type;
 } dms_reform_req_res_t;

@@ -989,6 +989,7 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
     int ret = DMS_SUCCESS;
     uint64 edp_map, lsn;
 
+    mes_msg_end_wait(req->rsn, req->sess_id);
     if (req->res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(process_ctx->db_handle,
             req->resid, CM_FALSE, &lock_mode, &edp_map, &lsn);
