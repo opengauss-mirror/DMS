@@ -128,7 +128,7 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     dms_ask_res_req_t page_req;
     DMS_INIT_MESSAGE_HEAD(&page_req.head,
         MSG_REQ_ASK_EDP_REMOTE, 0, dms_ctx->inst_id, remote_id, dms_ctx->sess_id, CM_INVALID_ID16);
-    page_req.head.rsn  = mes_get_rsn(dms_ctx->sess_id);
+    page_req.head.rsn  = mes_get_current_rsn(dms_ctx->sess_id);
     page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
     page_req.req_mode  = req_mode;
     page_req.curr_mode = ctrl->lock_mode;

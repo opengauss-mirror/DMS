@@ -243,6 +243,8 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
 
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_CONFIRM_CONVERTING, sess_id);
+        req.sess_id = buf_res->converting.req_info.sess_id;
+        req.rsn = buf_res->converting.req_info.rsn;
         if (reform_info->reform_fail) {
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;

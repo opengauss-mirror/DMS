@@ -379,7 +379,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_ask_res_req_t req;
     DMS_INIT_MESSAGE_HEAD(&req.head,
         MSG_REQ_ASK_OWNER_FOR_PAGE, 0, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
-    req.head.rsn  = mfc_get_rsn(dms_ctx->sess_id);
+    req.head.rsn  = mes_get_current_rsn(dms_ctx->sess_id);
     req.head.size = (uint16)sizeof(dms_ask_res_req_t);
     req.req_mode  = req_mode;
     req.curr_mode = curr_mode;
