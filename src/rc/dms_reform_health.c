@@ -188,6 +188,7 @@ static void dms_reform_health_handle_fail(void)
         cm_exit(0);
     } else {
         reform_info->reform_fail = CM_TRUE;
+        LOG_RUN_INF("[DMS REFORM]set reform fail, health check");
     }
 #endif
 }

@@ -385,13 +385,21 @@ static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_m
 
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
+    if (DMS_IS_REFORMER) {
+        LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_req_prepare");
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
     int in_reform = dms_reform_in_process();
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare in reform: %d", in_reform);
     dms_reform_ack_req_prepare(process_ctx, receive_msg, in_reform);
     mfc_release_message_buf(receive_msg);
 
     if (in_reform) {
-        dms_reform_set_fail();
+        reform_info_t* reform_info = DMS_REFORM_INFO;
+        reform_info->reform_fail = CM_TRUE;
+        LOG_RUN_INF("[DMS REFORM]set reform fail, receive MSG_REQ_REFORM_PREPARE");
         return;
     }
 
@@ -461,9 +469,15 @@ void dms_reform_proc_sync_next_step(dms_process_context_t *process_ctx, mes_mess
         return;
     }
 
+    if (DMS_IS_REFORMER) {
+        LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
     if (req->curr_step == DMS_REFORM_STEP_SELF_FAIL || req->curr_step == DMS_REFORM_STEP_REFORM_FAIL) {
         reform_info->reform_fail = CM_TRUE;
-        LOG_RUN_INF("[DMS REFORM]dms_reform_proc_sync_next_step set reform fail");
+        LOG_RUN_INF("[DMS REFORM]set reform fail by reformer");
     } else {
         reform_info->sync_step = req->next_step;
     }

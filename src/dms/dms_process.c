@@ -212,6 +212,23 @@ static bool32 dms_msg_skip_gcv_check(unsigned char cmd)
         case MSG_REQ_MAP_INFO:
         case MSG_ACK_MAP_INFO:
         case MSG_ACK_REFORM_COMMON:
+        case MES_REQ_MGRT_MASTER_DATA:
+        case MSG_REQ_PAGE_REBUILD:
+        case MSG_REQ_LOCK_REBUILD:
+        case MSG_REQ_PAGE:
+        case MSG_REQ_SWITCHOVER:
+        case MSG_REQ_CHECK_REFORM_DONE:
+        case MSG_REQ_TXN_INFO:
+        case MSG_REQ_TXN_SNAPSHOT:
+        case MSG_REQ_WAIT_TXN:
+        case MSG_REQ_AWAKE_TXN:
+        case MSG_REQ_BOC:
+        case MSG_REQ_DDL_SYNC:
+        case MSG_REQ_CR_PAGE:
+        case MSG_REQ_CHECK_VISIBLE:
+#ifndef OPENGAUSS
+        case MSG_REQ_BROADCAST:
+#endif
             return CM_TRUE;
         default:
             break;
