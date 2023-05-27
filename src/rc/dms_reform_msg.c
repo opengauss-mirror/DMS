@@ -1415,10 +1415,8 @@ void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *proce
     block_key = (void *)(receive_msg->buffer + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
     g_dms.callback.opengauss_ondemand_redo_buffer(block_key, &redo_status);
 
-    mfc_init_ack_head(&ack_head, MSG_ACK_OPENGAUSS_ONDEMAND_REDO, 0, req_head->dst_inst, req_head->src_inst,
-        process_ctx->sess_id, req_head->src_sid);
-    ack_head.size = (uint16)(sizeof(int32) + sizeof(mes_message_head_t));
-    ack_head.rsn = req_head->rsn;
+    mfc_init_ack_head(req_head, &ack_head, MSG_ACK_OPENGAUSS_ONDEMAND_REDO, sizeof(int32) + sizeof(mes_message_head_t),
+        process_ctx->sess_id);
 
     mfc_release_message_buf(receive_msg);
     if (mfc_send_data2(&ack_head, &redo_status) != CM_SUCCESS) {
