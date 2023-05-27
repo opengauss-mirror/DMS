@@ -1910,6 +1910,16 @@ static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
 }
 #endif
 
+static void dms_reform_judgement_record_start_times(void)
+{
+    share_info_t* share_info = DMS_SHARE_INFO;
+    health_info_t* health_info = DMS_HEALTH_INFO;
+
+    for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        share_info->start_times[i] = health_info->online_times[i];
+    }
+}
+
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
@@ -1969,6 +1979,8 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     // build reform step. check_proc may change reform_type, so reset judgement_proc
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
     reform_judgement_proc.judgement_proc(inst_lists);
+
+    dms_reform_judgement_record_start_times();
 
     if (dms_reform_sync_share_info() != DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to sync share info");
