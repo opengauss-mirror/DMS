@@ -1403,6 +1403,14 @@ static int dms_reform_dw_recovery_inner(void)
         (void *)&share_info->dw_recovery_info, DMS_IS_SHARE_REFORMER);
 }
 
+static int dms_reform_df_recovery_inner(void)
+{
+    if (DMS_IS_SHARE_REFORMER) {
+        return g_dms.callback.df_recovery(g_dms.reform_ctx.handle_proc);
+    }
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_file_orglsn_recovery_inner(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -2243,6 +2251,22 @@ static int dms_reform_dw_recovery(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_df_recovery(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = dms_reform_df_recovery_inner();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_file_orglsn_recovery(void)
 {
     int ret = DMS_SUCCESS;
@@ -2415,6 +2439,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SYNC_WAIT] = { "SYNC_WAIT", dms_reform_sync_wait, NULL },
     [DMS_REFORM_STEP_PAGE_ACCESS] = { "PAGE_ACCESS", dms_reform_page_access, NULL },
     [DMS_REFORM_STEP_DW_RECOVERY] = { "DW_RECOVERY", dms_reform_dw_recovery, NULL },
+    [DMS_REFORM_STEP_DF_RECOVERY] = { "DF_RECOVERY", dms_reform_df_recovery, NULL },
     [DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY] = { "FILE_ORGLSN_RECOVERY", dms_reform_file_orglsn_recovery, NULL },
     [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL },
     [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL },
