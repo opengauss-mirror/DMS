@@ -132,6 +132,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SYNC_WAIT,                      // tips: can not use before reconnect
     DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
     DMS_REFORM_STEP_DW_RECOVERY,                    // recovery the dw area
+    DMS_REFORM_STEP_DF_RECOVERY,
     DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY,           // recovery the file org lsn
     DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
