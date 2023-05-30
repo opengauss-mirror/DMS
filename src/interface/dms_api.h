@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2022 Huawei Technologies Co.,Ltd.
  *
  * DMS is licensed under Mulan PSL v2.
@@ -505,6 +505,7 @@ typedef int(*dms_edp_lsn)(void *db_handle, char *pageid, unsigned long long *lsn
 typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int is_reformer);
 typedef int(*dms_dw_recovery)(void *db_handle, void *recovery_list, int is_reformer);
+typedef int(*dms_df_recovery)(void *db_handle);
 typedef int(*dms_file_orglsn_recovery)(void *db_handle, void *recovery_list, int is_reformer);
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
@@ -649,6 +650,7 @@ typedef struct st_dms_callback {
     dms_disk_lsn disk_lsn;
     dms_recovery recovery;
     dms_dw_recovery dw_recovery;
+    dms_df_recovery df_recovery;
     dms_file_orglsn_recovery file_orglsn_recovery;
     dms_db_is_primary db_is_primary;
     dms_get_open_status get_open_status;
@@ -832,7 +834,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           67
+#define DMS_LOCAL_VERSION           68
 
 #ifdef __cplusplus
 }
