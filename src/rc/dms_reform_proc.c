@@ -243,6 +243,8 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
 
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_CONFIRM_CONVERTING, sess_id);
+        req.sess_id = buf_res->converting.req_info.sess_id;
+        req.rsn = buf_res->converting.req_info.rsn;
         if (reform_info->reform_fail) {
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
@@ -1791,7 +1793,8 @@ static void dms_reform_set_switchover_result(void)
             switchover_info->switch_start = CM_FALSE;
             cm_spin_unlock(&switchover_info->lock);
             g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, reform_info->err_code);
-        } else if (dms_dst_id_is_self(share_info->demote_id)) {
+        }
+        if (dms_dst_id_is_self(share_info->demote_id)) {
             // only clean switchover request in the original primary,
             // because the new primary may have receive new switchover request
             cm_spin_lock(&switchover_info->lock, NULL);
@@ -2026,24 +2029,8 @@ static int dms_reform_sync_step_send(void)
 static void dms_reform_sync_fail_r(uint8 dst_id)
 {
     dms_reform_req_sync_step_t req;
-    int ret = DMS_SUCCESS;
-
-    while (CM_TRUE) {
-        dms_reform_init_req_sync_next_step(&req, dst_id);
-        ret = mfc_send_data(&req.head);
-        if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DMS REFORM]dms_reform_sync_fail_r SEND error: %d, dst_id: %d", ret, dst_id);
-            break;
-        }
-
-        ret = dms_reform_req_sync_next_step_wait();
-        if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_step WAIT timeout, dst_id: %d", dst_id);
-            continue;
-        } else {
-            break;
-        }
-    }
+    dms_reform_init_req_sync_next_step(&req, dst_id);
+    (void)mfc_send_data(&req.head); // try to notify partner set reform fail
 }
 
 static void dms_reform_remote_fail(void)
@@ -2378,7 +2365,11 @@ static int dms_reform_lock_instance(void)
         if (g_timer()->now - begin_time >= DMS_REFORM_LOCK_INST_TIMEOUT) {
             LOG_RUN_ERR("[DMS REFORM][GCV PUSH]dms_reform_lock_instance timeout error, inst:%d exits now",
                 g_dms.inst_id);
+#ifdef _DEBUG
+            cm_panic(0);
+#else
             cm_exit(0);
+#endif
         }
     }
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");

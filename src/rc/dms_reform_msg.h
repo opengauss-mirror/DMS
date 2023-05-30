@@ -50,6 +50,7 @@ typedef struct st_dms_reform_ack_common {
 typedef struct st_dms_reform_req_sync_step {
     mes_message_head_t  head;
     uint64              scn;
+    uint64              start_time;
     uint8               last_step;
     uint8               curr_step;
     uint8               next_step;
@@ -133,6 +134,8 @@ enum dms_reform_req_page_action {
 typedef struct st_dms_reform_req_res {
     mes_message_head_t head;
     uint32 action;
+    uint32 sess_id;
+    uint64 rsn;
     char resid[DMS_RESID_SIZE];
     uint8 res_type;
 } dms_reform_req_res_t;

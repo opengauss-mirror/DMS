@@ -385,13 +385,21 @@ static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_m
 
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
+    if (DMS_IS_REFORMER) {
+        LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_req_prepare");
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
     int in_reform = dms_reform_in_process();
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare in reform: %d", in_reform);
     dms_reform_ack_req_prepare(process_ctx, receive_msg, in_reform);
     mfc_release_message_buf(receive_msg);
 
     if (in_reform) {
-        dms_reform_set_fail();
+        reform_info_t* reform_info = DMS_REFORM_INFO;
+        reform_info->reform_fail = CM_TRUE;
+        LOG_RUN_INF("[DMS REFORM]set reform fail, receive MSG_REQ_REFORM_PREPARE");
         return;
     }
 
@@ -425,6 +433,7 @@ void dms_reform_init_req_sync_next_step(dms_reform_req_sync_step_t *req, uint8 d
 {
     reform_context_t *ctx = DMS_REFORM_CONTEXT;
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    share_info_t* share_info = DMS_SHARE_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_SYNC_NEXT_STEP, 0, g_dms.inst_id, dst_id, ctx->sess_proc,
         CM_INVALID_ID16);
@@ -433,6 +442,7 @@ void dms_reform_init_req_sync_next_step(dms_reform_req_sync_step_t *req, uint8 d
     req->curr_step = reform_info->current_step;
     req->next_step = reform_info->next_step;
     req->scn = reform_info->max_scn;
+    req->start_time = share_info->start_times[dst_id];
 }
 
 void dms_reform_ack_sync_next_step(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
@@ -461,12 +471,26 @@ void dms_reform_proc_sync_next_step(dms_process_context_t *process_ctx, mes_mess
         return;
     }
 
+    if (DMS_IS_REFORMER) {
+        LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
+    if (req->start_time != reform_info->start_time) {
+        LOG_DEBUG_WAR("[DMS REFORM]expired dms_reform_proc_sync_next_step");
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
     if (req->curr_step == DMS_REFORM_STEP_SELF_FAIL || req->curr_step == DMS_REFORM_STEP_REFORM_FAIL) {
         reform_info->reform_fail = CM_TRUE;
-        LOG_RUN_INF("[DMS REFORM]dms_reform_proc_sync_next_step set reform fail");
-    } else {
-        reform_info->sync_step = req->next_step;
+        LOG_RUN_INF("[DMS REFORM]set reform fail by reformer");
+        mfc_release_message_buf(receive_msg);
+        return;
     }
+
+    reform_info->sync_step = req->next_step;
     reform_info->max_scn = MAX(reform_info->max_scn, req->scn);
     dms_reform_ack_sync_next_step(process_ctx, receive_msg);
     mfc_release_message_buf(receive_msg);
@@ -975,6 +999,7 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
     int ret = DMS_SUCCESS;
     uint64 edp_map, lsn;
 
+    mes_msg_end_wait(req->rsn, req->sess_id);
     if (req->res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(process_ctx->db_handle,
             req->resid, CM_FALSE, &lock_mode, &edp_map, &lsn);
@@ -1142,6 +1167,13 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
 
     if (!DMS_IS_REFORMER) {
         dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
+        mfc_release_message_buf(receive_msg);
+        return;
+    }
+
+    // if switchover request come from self, return error
+    if (dms_dst_id_is_self(req->head.src_inst)) {
+        dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
         mfc_release_message_buf(receive_msg);
         return;
     }

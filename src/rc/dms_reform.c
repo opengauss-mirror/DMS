@@ -330,6 +330,9 @@ void dms_reform_uninit(void)
 #ifdef DMS_TEST
     dms_reform_cm_simulation_uninit();
 #endif
+    reform_info_t* reform_info = DMS_REFORM_INFO;
+    reform_info->reform_fail = CM_TRUE;
+    LOG_RUN_INF("[DMS REFORM]set reform fail, dms_reform_uninit");
     cm_close_thread(&reform_context->thread_judgement);
     cm_close_thread(&reform_context->thread_reformer);
     cm_close_thread(&reform_context->thread_reform);
@@ -502,12 +505,6 @@ int dms_reform_last_failed(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     return reform_info->last_fail;
-}
-
-void dms_reform_set_fail(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    reform_info->reform_fail = CM_TRUE;
 }
 
 int dms_is_reformer(void)

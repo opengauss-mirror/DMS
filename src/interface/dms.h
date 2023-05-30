@@ -639,7 +639,7 @@ DMS_DECLARE int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *
     unsigned char is_dirty);
 
 DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
-    unsigned char thread_index, unsigned char for_rebuild);
+    unsigned char thread_index, unsigned char for_rebuild, unsigned char can_release, unsigned char *release);
 
 /*
  * @brief check if session is recovery session or not.

@@ -128,7 +128,7 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     dms_ask_res_req_t page_req;
     DMS_INIT_MESSAGE_HEAD(&page_req.head,
         MSG_REQ_ASK_EDP_REMOTE, 0, dms_ctx->inst_id, remote_id, dms_ctx->sess_id, CM_INVALID_ID16);
-    page_req.head.rsn  = mes_get_rsn(dms_ctx->sess_id);
+    page_req.head.rsn  = mes_get_current_rsn(dms_ctx->sess_id);
     page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
     page_req.req_mode  = req_mode;
     page_req.curr_mode = ctrl->lock_mode;
@@ -1018,12 +1018,13 @@ int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsign
 }
 
 int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, unsigned char thread_index,
-    unsigned char for_rebuild)
+    unsigned char for_rebuild, unsigned char can_release, unsigned char *release)
 {
     dms_reset_error();
     uint8 master_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
+    *release = CM_FALSE;
     ret = drc_get_page_master_id(dms_ctx->resid, &master_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, fail to get master id", cm_display_pageid(dms_ctx->resid));
@@ -1033,6 +1034,11 @@ int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ct
     // page validate no need to get remaster id
     if (for_rebuild) {
         if (!dms_reform_res_need_rebuild(master_id)) {
+            return DMS_SUCCESS;
+        }
+
+        if (can_release) {
+            *release = CM_TRUE;
             return DMS_SUCCESS;
         }
 

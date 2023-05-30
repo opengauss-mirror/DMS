@@ -848,6 +848,12 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
             dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
     }
 #else
+    // primary_standby and centralized no need to rebuild
+    if (DMS_CATALOG_IS_CENTRALIZED && DMS_CATALOG_IS_PRIMARY_STANDBY &&
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
+        return;
+    }
+
     dms_reform_list_init(&share_info->list_rebuild);
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
         dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_JOIN]);
@@ -1904,6 +1910,16 @@ static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
 }
 #endif
 
+static void dms_reform_judgement_record_start_times(void)
+{
+    share_info_t* share_info = DMS_SHARE_INFO;
+    health_info_t* health_info = DMS_HEALTH_INFO;
+
+    for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        share_info->start_times[i] = health_info->online_times[i];
+    }
+}
+
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
@@ -1963,6 +1979,8 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     // build reform step. check_proc may change reform_type, so reset judgement_proc
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
     reform_judgement_proc.judgement_proc(inst_lists);
+
+    dms_reform_judgement_record_start_times();
 
     if (dms_reform_sync_share_info() != DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to sync share info");

@@ -251,6 +251,7 @@ typedef struct st_share_info {
     uint64              version_num;
     dw_recovery_info_t  dw_recovery_info;
     file_orglsn_recovery_info_t  file_orglsn_recovery_info;
+    uint64              start_times[DMS_MAX_INSTANCES];
 } share_info_t;
 
 typedef struct st_rebuild_info {
@@ -430,7 +431,6 @@ void dms_reform_judgement_step_log(void);
 void dms_reform_set_start(void);
 void dms_reform_uninit(void);
 void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list);
-void dms_reform_set_fail(void);
 bool8 dms_dst_id_is_self(uint8 dst_id);
 bool8 dms_reform_list_exist(instance_list_t *list, uint8 inst_id);
 bool8 dms_reform_type_is(dms_reform_type_t type);
