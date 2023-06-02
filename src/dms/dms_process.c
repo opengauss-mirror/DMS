@@ -366,7 +366,7 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 
     for (uint32 loop = 0; loop < total_ctx_cnt; loop++) {
         proc_ctx[loop].inst_id = (uint8)dms_profile->inst_id;
-        proc_ctx[loop].db_handle = g_dms.callback.get_db_handle(&proc_ctx[loop].sess_id);
+        proc_ctx[loop].db_handle = g_dms.callback.get_db_handle(&proc_ctx[loop].sess_id, DMS_WORKER);
     }
 
     g_dms.proc_ctx_cnt = total_ctx_cnt;
@@ -606,7 +606,7 @@ static int32 init_drc_smon_ctx(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    ctx->smon_handle = g_dms.callback.get_db_handle(&ctx->smon_sid);
+    ctx->smon_handle = g_dms.callback.get_db_handle(&ctx->smon_sid, DMS_TYPE_NONE);
     if (ctx->smon_handle == NULL) {
         LOG_RUN_ERR("[DRC]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
