@@ -99,7 +99,7 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
     reform_info->parallel_enable = CM_TRUE;
     for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
         parallel = &parallel_info->parallel[i];
-        parallel->handle = g_dms.callback.get_db_handle(&parallel->sess_id);
+        parallel->handle = g_dms.callback.get_db_handle(&parallel->sess_id, DMS_TYPE_NONE);
         if (parallel->handle == NULL) {
             LOG_RUN_ERR("[DMS REFORM]fail to get db session");
             DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
