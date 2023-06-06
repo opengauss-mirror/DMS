@@ -482,6 +482,13 @@ typedef enum en_dms_status {
     DMS_STATUS_IN = 3
 } dms_status_t;             // used in database startup
 
+typedef enum st_dms_session_type {
+    DMS_TYPE_NONE = 0,
+    DMS_WORKER = 1,
+    DMS_FULL_RCY = 2,
+    DMS_FULL_RCY_PARAL = 3,
+}dms_session_type_e;
+
 #define DCS_BATCH_BUF_SIZE (1024 * 30)
 #define DCS_RLS_OWNER_BATCH_SIZE (DCS_BATCH_BUF_SIZE / DMS_PAGEID_SIZE)
 typedef struct st_dcs_batch_buf {
@@ -537,7 +544,7 @@ typedef void(*dms_leave_local_page)(void *db_handle, dms_buf_ctrl_t *buf_ctrl);
 typedef void(*dms_get_pageid)(dms_buf_ctrl_t *buf_ctrl, char **pageid, unsigned int *size);
 typedef char *(*dms_get_page)(dms_buf_ctrl_t *buf_ctrl);
 typedef int (*dms_invalidate_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE], unsigned char invld_owner);
-typedef void *(*dms_get_db_handle)(unsigned int *db_handle_index);
+typedef void *(*dms_get_db_handle)(unsigned int *db_handle_index, dms_session_type_e session_type);
 typedef void (*dms_release_db_handle)(void *db_handle);
 typedef void *(*dms_stack_push_cr_cursor)(void *db_handle);
 typedef void (*dms_stack_pop_cr_cursor)(void *db_handle);
@@ -834,7 +841,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           68
+#define DMS_LOCAL_VERSION           69
 
 #ifdef __cplusplus
 }
