@@ -50,7 +50,7 @@ static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *loc
     uint32 wait_ticks = 0;
 
     do {
-        if (!dms_drc_accessible((uint8)DRC_RES_LOCAL_LOCK_TYPE) && dms_ctx->sess_type == DMS_SESSION_NORMAL) {
+        if (!dms_drc_accessible((uint8)DRC_RES_LOCK_TYPE) && dms_ctx->sess_type == DMS_SESSION_NORMAL) {
             return CM_FALSE;
         }
 
