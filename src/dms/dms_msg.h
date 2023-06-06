@@ -151,6 +151,7 @@ typedef enum en_msg_command {
 typedef struct st_dms_process_context {
     void *db_handle;
     uint32 sess_id; // current session id
+    uint32 rmid;    // current rm id
     uint8 inst_id;  // current instance id
 } dms_process_context_t;
 
