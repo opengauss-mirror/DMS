@@ -296,8 +296,10 @@ static int drc_request_page_owner_internal(char *resid, uint8 type,
     }
 
     // only for try get page owner id, and currently have owner or converting
+    // if has edp, no need to preload
     if (req_info->is_try && buf_res->type == DRC_RES_PAGE_TYPE &&
-        (buf_res->claimed_owner != CM_INVALID_ID8 || buf_res->converting.req_info.inst_id != CM_INVALID_ID8)) {
+        (buf_res->claimed_owner != CM_INVALID_ID8 || buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
+         buf_res->last_edp != CM_INVALID_ID8)) {
         result->type = DRC_REQ_OWNER_WAITING;
         result->curr_owner_id = buf_res->claimed_owner;
         return DMS_SUCCESS;

@@ -727,13 +727,9 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
 {
     drc_req_owner_result_t result;
     drc_request_info_t req_info;
-    req_info.inst_id = self_id;
-    req_info.sess_id = (uint16)dms_ctx->sess_id;
-    req_info.req_mode = req_mode;
-    req_info.curr_mode = ctrl->lock_mode;
-    req_info.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    req_info.is_try = CM_TRUE;
-    req_info.sess_type = dms_ctx->sess_type;
+
+    dms_set_req_info(&req_info, self_id, (uint16)dms_ctx->sess_id, mfc_get_rsn(dms_ctx->sess_id), ctrl->lock_mode,
+        req_mode, CM_TRUE, dms_ctx->sess_type, g_timer()->now);
 
     int ret = drc_request_page_owner(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
