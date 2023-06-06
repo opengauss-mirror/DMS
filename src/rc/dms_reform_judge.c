@@ -741,8 +741,19 @@ static void dms_reform_judgement_switchover_demote(instance_list_t *inst_lists)
 
 static void dms_reform_judgement_switchover_promote(void)
 {
+#ifndef OPENGAUSS
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
+        if (DMS_CATALOG_IS_PRIMARY_STANDBY && !g_dms.callback.db_is_primary(g_dms.reform_ctx.handle_judge)) {
+            share_info_t *share_info = DMS_SHARE_INFO;
+            share_info->promote_id = (uint8)g_dms.inst_id;
+            dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+            dms_reform_add_step(DMS_REFORM_STEP_SWITCHOVER_PROMOTE);
+        }
+        return;
+    }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_SWITCHOVER_PROMOTE);
+#endif
 }
 
 static void dms_reform_judgement_switchover_promote_opengauss(void)
@@ -1439,6 +1450,7 @@ static void dms_reform_judgement_full_clean(instance_list_t *inst_lists)
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
+    dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
 }
