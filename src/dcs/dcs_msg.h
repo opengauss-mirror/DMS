@@ -151,6 +151,11 @@ typedef struct st_msg_opengauss_txn_snapshot {
     mes_message_head_t head;
 } msg_opengauss_txn_snapshot_t;
 
+typedef struct st_msg_opengauss_txn_swinfo {
+    mes_message_head_t head;
+    uint32 proc_slot;
+} msg_opengauss_txn_swinfo_t;
+
 typedef struct st_msg_txn_snapshot {
     mes_message_head_t head;
     uint32 xmap;

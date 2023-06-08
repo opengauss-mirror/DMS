@@ -235,6 +235,12 @@ typedef struct dms_opengauss_txn_snapshot {
     unsigned long long localxmin;
 } dms_opengauss_txn_snapshot_t;
 
+typedef struct dms_opengauss_txn_sw_info {
+    unsigned long long sxid;        // transaction id of master, used for standby write feature
+    unsigned int scid;              // command id of master, used for standby write feature
+    unsigned int server_proc_slot;  // backend slot of master, used for standby write feature
+} dms_opengauss_txn_sw_info_t;
+
 typedef enum dms_opengauss_lock_req_type {
     SHARED_INVAL_MSG,
     DROP_BUF_MSG,
@@ -590,6 +596,7 @@ typedef int(*dms_opengauss_lock_buffer)(void *db_handle, int buffer, unsigned ch
     unsigned char* curr_mode);
 typedef int(*dms_get_txn_snapshot)(void *db_handle, unsigned int xmap, dms_txn_snapshot_t *txn_snapshot);
 typedef int(*dms_get_opengauss_txn_snapshot)(void *db_handle, dms_opengauss_txn_snapshot_t *txn_snapshot);
+typedef int(*dms_get_opengauss_txn_of_master)(void *db_handle, dms_opengauss_txn_sw_info_t *txn_swinfo);
 typedef void (*dms_log_output)(dms_log_id_t log_type, dms_log_level_t log_level, const char *code_file_name,
     unsigned int code_line_num, const char *module_name, const char *format, ...);
 typedef int (*dms_log_flush)(void *db_handle, unsigned long long *lsn);
@@ -736,6 +743,7 @@ typedef struct st_dms_callback {
     dms_opengauss_lock_buffer opengauss_lock_buffer;
     dms_get_txn_snapshot get_txn_snapshot;
     dms_get_opengauss_txn_snapshot get_opengauss_txn_snapshot;
+    dms_get_opengauss_txn_of_master get_opengauss_txn_of_master;
     dms_log_output log_output;
     dms_log_flush log_flush;
     dms_process_edp ckpt_edp;
@@ -841,7 +849,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           71
+#define DMS_LOCAL_VERSION           72
 
 #ifdef __cplusplus
 }
