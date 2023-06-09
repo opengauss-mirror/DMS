@@ -374,6 +374,19 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
     return DMS_SUCCESS;
 }
 
+static void dms_deinit_proc_ctx(void)
+{
+    if (g_dms.proc_ctx == NULL) {
+        return;
+    }
+
+    for (uint32 loop = 0; loop < g_dms.proc_ctx_cnt; loop++) {
+        DMS_RELEASE_DB_HANDLE(g_dms.proc_ctx[loop].db_handle);
+    }
+
+    CM_FREE_PTR(g_dms.proc_ctx);
+}
+
 void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
 {
     uint32 pool_idx = 0;
@@ -588,6 +601,13 @@ static inline void init_reform_res_ctx(dms_profile_t *dms_profile)
     drc_init_deposit_map();
 }
 
+static void drc_smon_ctx_deinit(void)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    cm_close_thread(&ctx->smon_thread);
+    DMS_RELEASE_DB_HANDLE(ctx->smon_handle);
+}
+
 static int32 init_drc_smon_ctx(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -647,6 +667,7 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
     } while (0);
 
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         drc_destroy();
     }
 
@@ -853,14 +874,15 @@ int dms_init(dms_profile_t *dms_profile)
 
     ret = dms_init_drc_res_ctx(dms_profile);
     if (ret != DMS_SUCCESS) {
-        CM_FREE_PTR(g_dms.proc_ctx);
+        dms_deinit_proc_ctx();
         return ret;
     }
 
     ret = dms_init_mes(dms_profile);
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         drc_destroy();
-        CM_FREE_PTR(g_dms.proc_ctx);
+        dms_deinit_proc_ctx();
         return ret;
     }
 
@@ -868,16 +890,19 @@ int dms_init(dms_profile_t *dms_profile)
 
     ret = dms_reform_init(dms_profile);
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         dms_reform_uninit();
         drc_destroy();
-        CM_FREE_PTR(g_dms.proc_ctx);
+        dms_deinit_proc_ctx();
         return ret;
     }
 
     ret = dms_scrlock_init(dms_profile);
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         dms_reform_uninit();
         drc_destroy();
+        dms_deinit_proc_ctx();
         return ret;
     }
 
@@ -901,15 +926,14 @@ void dms_uninit(void)
     dms_scrlock_uninit();
     dms_reform_uninit();
 #endif
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    cm_close_thread(&ctx->smon_thread);
+    drc_smon_ctx_deinit();
     mfc_uninit();
     drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
     CM_FREE_PTR(g_dms_stat.sess_stats);
     CM_FREE_PTR(cm_log_param_instance()->log_compress_buf);
-    CM_FREE_PTR(g_dms.proc_ctx);
+    dms_deinit_proc_ctx();
 }
 
 unsigned long long dms_get_min_scn(unsigned long long min_scn)
