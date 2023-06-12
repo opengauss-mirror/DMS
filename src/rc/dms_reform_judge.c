@@ -1102,11 +1102,9 @@ static void dms_refrom_judgement_startup_opengauss(void)
     dms_reform_add_step(DMS_REFORM_STEP_STARTUP_OPENGAUSS);
 }
 
-static char *dms_reform_get_type_desc(void)
+char *dms_reform_get_type_desc(uint32 reform_type)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    switch (share_info->reform_type) {
+    switch (reform_type) {
         case DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS:
             return "OPENGAUSS_NORMAL";
 
@@ -1160,7 +1158,7 @@ void dms_reform_judgement_step_log(void)
 
     char *role = DMS_IS_REFORMER ? "reformer" : "partner";
     char *catalog = DMS_CATALOG_IS_CENTRALIZED ? "centralized" : "distributed";
-    char *reform_type = dms_reform_get_type_desc();
+    char *reform_type = dms_reform_get_type_desc((uint32)share_info->reform_type);
 
     LOG_RUN_INF("[DMS REFORM]inst_id:%u, role:%s, catalog:%s, reform_type:%s, full_clean:%d, dms_reform_step:%s",
         g_dms.inst_id, role, catalog, reform_type, share_info->full_clean, desc);

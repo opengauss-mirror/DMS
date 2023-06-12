@@ -1840,13 +1840,13 @@ static void dms_reform_end(void)
     int ret = memset_s(&share_info, sizeof(share_info_t), 0, sizeof(share_info_t));
     DMS_SECUREC_CHECK(ret);
 
-    reform_ctx->last_reform_info = reform_ctx->reform_info;
-    reform_ctx->last_share_info = reform_ctx->share_info;
-    reform_ctx->share_info = share_info;
     reform_info->ddl_unable = CM_FALSE;
     reform_info->file_unable = CM_FALSE;
     reform_info->reform_done = CM_TRUE;
     reform_info->reform_fail =  CM_FALSE;
+    reform_ctx->last_reform_info = reform_ctx->reform_info;
+    reform_ctx->last_share_info = reform_ctx->share_info;
+    reform_ctx->share_info = share_info;
 }
 
 static int dms_reform_done(void)
@@ -2529,5 +2529,14 @@ void dms_reform_proc_thread(thread_t *thread)
             reform_info->proc_time = (uint64)g_timer()->now; // record time for check if dms_reform_proc is active
             dms_reform_inner();
         }
+    }
+}
+
+char *dms_reform_get_step_desc(uint32 step)
+{
+    if (step >= DMS_REFORM_STEP_COUNT) {
+        return "UNKNOWN STEP";
+    } else {
+        return g_dms_reform_procs[step].desc;
     }
 }

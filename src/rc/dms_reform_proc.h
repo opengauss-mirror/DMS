@@ -52,6 +52,7 @@ int dms_reform_flush_copy_by_part(bilist_t *part_list, void *handle, uint32 sess
 void dms_reform_rebuild_buffer_init(uint8 thread_index);
 void dms_reform_rebuild_buffer_free(void *handle, uint8 thread_index);
 int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num);
+char *dms_reform_get_step_desc(uint32 step);
 
 #ifdef __cplusplus
 }
