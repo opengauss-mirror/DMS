@@ -70,7 +70,7 @@ add_compile_options(-freg-struct-return)
 add_compile_options(-pipe)
 add_compile_options(-Wl,-Bsymbolic)
 add_compile_options(-rdynamic)
-
+add_compile_options(-Wall)
 add_compile_options(-Werror)
 
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
