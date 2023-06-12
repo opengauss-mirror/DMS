@@ -1228,6 +1228,8 @@ static void dms_reform_judgement_list_collect(instance_list_t *inst_lists, uint8
         }
     }
 
+    // bitmap_in is not only used in the connect scenario,
+    // but also used in ss_cb_save_list_stable to unblock rcy for old_join nodes and new_join nodes.
     dms_reform_list_to_bitmap(&share_info->bitmap_in, &inst_lists[INST_LIST_OLD_IN]);
 }
 
