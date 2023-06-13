@@ -1859,7 +1859,7 @@ static int dms_reform_done(void)
         save_ctrl = CM_TRUE;
     }
     ret = g_dms.callback.save_list_stable(g_dms.reform_ctx.handle_proc, share_info->bitmap_online,
-        share_info->reformer_id, save_ctrl);
+        share_info->reformer_id, share_info->bitmap_in, save_ctrl);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DMS REFORM]list_stable fail to save in ctrl");
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_SAVE_LIST_STABLE_FAILED);
