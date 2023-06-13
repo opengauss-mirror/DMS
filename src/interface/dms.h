@@ -783,6 +783,8 @@ DMS_DECLARE int dms_get_latch_owner_id(dms_context_t *dms_ctx, dms_drlatch_t *dl
 DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *block_key,
     unsigned int key_len, int *redo_status);
 
+DMS_DECLARE int dms_info(char *buf, unsigned int len, unsigned int curr);
+
 #ifdef __cplusplus
 }
 #endif
