@@ -635,11 +635,8 @@ DMS_DECLARE int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsign
  * @[in]param is_dirty -  page is dirty or not.
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
-    unsigned char is_dirty);
-
 DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
-    unsigned char thread_index, unsigned char for_rebuild, unsigned char can_release, unsigned char *release);
+    unsigned char thread_index);
 
 /*
  * @brief check if session is recovery session or not.
@@ -784,6 +781,8 @@ DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms
     unsigned int key_len, int *redo_status);
 
 DMS_DECLARE int dms_info(char *buf, unsigned int len, unsigned int curr);
+
+DMS_DECLARE int dms_reform_res_need_rebuild(char *res, unsigned char res_type, unsigned int *need_rebuild);
 
 #ifdef __cplusplus
 }

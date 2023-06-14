@@ -599,8 +599,7 @@ typedef char *(*dms_display_pageid)(char *display_buf, unsigned int count, char 
 typedef char *(*dms_display_xid)(char *display_buf, unsigned int count, char *xid);
 typedef char *(*dms_display_rowid)(char *display_buf, unsigned int count, char *rowid);
 typedef int (*dms_drc_buf_res_rebuild)(void *db_handle);
-typedef int (*dms_drc_buf_res_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num,
-    unsigned char for_rebuild);
+typedef int (*dms_drc_buf_res_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef int(*dms_ctl_rcy_clean_parallel_t)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
@@ -842,7 +841,7 @@ typedef struct st_logger_param {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           70
+#define DMS_LOCAL_VERSION           71
 
 #ifdef __cplusplus
 }

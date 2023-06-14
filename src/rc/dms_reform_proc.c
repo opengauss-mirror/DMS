@@ -662,72 +662,6 @@ static void drc_rebuild_set_copy(drc_buf_res_t* buf_res, uint8 owner_id, bool8 i
     }
 }
 
-int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
-{
-    dms_buf_ctrl_t *ctrl = &ctrl_info->ctrl;
-    uint64 lsn = ctrl_info->lsn;
-    bool8 matched = CM_TRUE;
-
-    drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_FALSE);
-    int ret = drc_enter_buf_res(resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
-    if (ret != DMS_SUCCESS || buf_res == NULL) {
-        LOG_DEBUG_WAR("[DRC validate][%s]node: %d, fail to get drc, ret: %d", cm_display_pageid(resid), inst_id, ret);
-        cm_panic(CM_FALSE);
-        return DMS_SUCCESS;
-    }
-
-    if (ctrl->lock_mode == DMS_LOCK_NULL) {
-        if (!ctrl->is_edp) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, ctrl is not edp, edp map: %llu", cm_display_pageid(resid),
-                inst_id, buf_res->edp_map);
-            matched = CM_FALSE;
-        }
-        if (!bitmap64_exist(&buf_res->edp_map, inst_id)) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, edp not matched, edp map: %llu", cm_display_pageid(resid),
-                inst_id, buf_res->edp_map);
-            matched = CM_FALSE;
-        }
-        if (buf_res->last_edp == inst_id && buf_res->lsn != lsn) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, edp lsn not matched, %llu:%llu", cm_display_pageid(resid),
-                inst_id, lsn, buf_res->lsn);
-            matched = CM_FALSE;
-        }
-    } else if (ctrl->lock_mode == DMS_LOCK_SHARE) {
-        if (buf_res->lock_mode != DMS_LOCK_SHARE) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, lock not matched, %d:%d", cm_display_pageid(resid), inst_id,
-                ctrl->lock_mode, buf_res->lock_mode);
-            matched = CM_FALSE;
-        }
-        if (buf_res->claimed_owner != inst_id && !bitmap64_exist(&buf_res->copy_insts, inst_id)) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, owner not matched, owner: %d, copy_insts: %llu",
-                cm_display_pageid(resid), inst_id, buf_res->claimed_owner, buf_res->copy_insts);
-            matched = CM_FALSE;
-        }
-    } else {
-        if (buf_res->lock_mode != DMS_LOCK_EXCLUSIVE) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, lock not matched, %d:%d", cm_display_pageid(resid), inst_id,
-                ctrl->lock_mode, buf_res->lock_mode);
-            matched = CM_FALSE;
-        }
-        if (buf_res->claimed_owner != inst_id) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, owner not matched, owner: %d, copy_insts: %llu",
-                cm_display_pageid(resid), inst_id, buf_res->claimed_owner, buf_res->copy_insts);
-            matched = CM_FALSE;
-        }
-        if (buf_res->in_recovery != ctrl->in_rcy) {
-            LOG_DEBUG_WAR("[DRC validate][%s]node: %d, recovery not matched, %d: %d", cm_display_pageid(resid), inst_id,
-                ctrl->in_rcy, buf_res->in_recovery);
-            matched = CM_FALSE;
-        }
-    }
-    if (!matched) {
-        DRC_DISPLAY(buf_res, "validate");
-    }
-    drc_leave_buf_res(buf_res);
-    return DMS_SUCCESS;
-}
-
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
     dms_buf_ctrl_t *ctrl = &ctrl_info->ctrl;
@@ -781,19 +715,14 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
 }
 
 // for rebuild: used for discriminate rebuild and validate
-int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
-    uint8 thread_index, bool8 for_rebuild)
+int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, uint8 thread_index)
 {
     if (master_id == g_dms.inst_id) {
-        if (for_rebuild) {
-            return dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
-        } else {
-            return dms_reform_proc_page_validate(dms_ctx->resid, ctrl_info, master_id);
-        }
+        return dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
     } else if (thread_index == CM_INVALID_ID8) {
-        return dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id, for_rebuild);
+        return dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id);
     } else {
-        return dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index, for_rebuild);
+        return dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index);
     }
 }
 
@@ -836,9 +765,9 @@ static int dms_reform_rebuild_send_rest(uint32 sess_id, uint8 thread_index)
     return DMS_SUCCESS;
 }
 
-int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num, bool8 for_rebuild)
+int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num)
 {
-    int ret = g_dms.callback.dms_reform_rebuild_parallel(handle, thread_index, thread_num, for_rebuild);
+    int ret = g_dms.callback.dms_reform_rebuild_parallel(handle, thread_index, thread_num);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -970,37 +899,50 @@ static int dms_reform_rebuild_lock_inner(drc_local_lock_res_t *lock_res, uint8 n
     }
 }
 
-bool8 dms_reform_res_need_rebuild(uint8 master_id)
+int dms_reform_res_need_rebuild(char *res, unsigned char res_type, unsigned int *need_rebuild)
 {
+    uint8 master_id = CM_INVALID_ID8;
+    int ret = DMS_SUCCESS;
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_rebuild = &share_info->list_rebuild;
 
     if (share_info->full_clean) {
-        return CM_TRUE;
+        *need_rebuild = CM_TRUE;
+        return DMS_SUCCESS;
     }
 
-    if (dms_reform_list_exist(list_rebuild, master_id)) {
-        return CM_TRUE;
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        ret = drc_get_page_master_id(res, &master_id);
     } else {
-        return CM_FALSE;
+        ret = drc_get_lock_master_id((dms_drid_t *)res, &master_id);
     }
+    DMS_RETURN_IF_ERROR(ret);
+
+    if (dms_reform_list_exist(list_rebuild, master_id)) {
+        *need_rebuild = CM_TRUE;
+    } else {
+        *need_rebuild = CM_FALSE;
+    }
+    return DMS_SUCCESS;
 }
 
 static int dms_reform_rebuild_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thread_index)
 {
     bilist_node_t *node;
     drc_local_lock_res_t *lock_res;
-    uint8 master_id;
+    uint8 remaster_id;
+    bool32 need_rebuild = CM_FALSE;
     int ret = DMS_SUCCESS;
 
     cm_spin_lock(&bucket->lock, NULL);
     node = cm_bilist_head(&bucket->bucket_list);
     for (uint32 i = 0; i < bucket->bucket_list.count; i++) {
         lock_res = (drc_local_lock_res_t *)DRC_RES_NODE_OF(drc_local_lock_res_t, node, node);
-        (void)drc_get_lock_master_id(&lock_res->resid, &master_id);
-        if (dms_reform_res_need_rebuild(master_id)) {
-            drc_get_lock_remaster_id(&lock_res->resid, &master_id);
-            ret = dms_reform_rebuild_lock_inner(lock_res, master_id, thread_index);
+        ret = dms_reform_res_need_rebuild((char *)&lock_res->resid, DRC_RES_LOCK_TYPE, &need_rebuild);
+        DMS_BREAK_IF_ERROR(ret);
+        if (need_rebuild) {
+            drc_get_lock_remaster_id(&lock_res->resid, &remaster_id);
+            ret = dms_reform_rebuild_lock_inner(lock_res, remaster_id, thread_index);
             DMS_BREAK_IF_ERROR(ret);
         }
         node = BINODE_NEXT(node);
@@ -1078,8 +1020,7 @@ static int dms_reform_rebuild(void)
     LOG_RUN_FUNC_ENTER;
 
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
-    ret = dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8,
-        CM_TRUE);
+    ret = dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
