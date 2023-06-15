@@ -419,6 +419,14 @@ DMS_DECLARE int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx,
     dms_opengauss_txn_snapshot_t *dms_txn_snapshot);
 
 /*
+ * @brief get openGauss transaction id and command id of primary for standby write feature.
+ * @[in] dms_ctx - Obtains the context information required by txn info
+ * @return DMS_SUCCESS - success; otherwise failed
+ */
+DMS_DECLARE int dms_request_opengauss_txn_of_master(dms_context_t *dms_ctx,
+    dms_opengauss_txn_sw_info_t *dms_txn_swinfo);
+
+/*
  * @brief get openGauss buffer lock mode and lock the buffer.
  * @[in] dms_ctx - Obtains the context information required by txn info
  * @return DMS_SUCCESS - success; otherwise failed
