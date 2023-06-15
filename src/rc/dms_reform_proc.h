@@ -34,13 +34,10 @@ extern "C" {
 #endif
 
 void dms_reform_proc_thread(thread_t *thread);
-int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num, bool8 for_rebuild);
-int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
-    uint8 thread_index, bool8 for_rebuild);
+int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
+int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, uint8 thread_index);
 int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst);
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
-int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
-bool8 dms_reform_res_need_rebuild(uint8 master_id);
 bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2);
 void dms_reform_next_step(void);
 int dms_reform_clean_buf_res_by_part(bilist_t *part_list, uint32 sess_id);

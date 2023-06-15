@@ -38,7 +38,6 @@ int dms_reform_repair_parallel(void);
 int dms_reform_drc_rcy_clean_parallel(void);
 int dms_reform_flush_copy_parallel(void);
 int dms_reform_rebuild_parallel(void);
-int dms_reform_validate_parallel(void);
 int dms_reform_ctl_rcy_clean_parallel(void);
 
 int dms_reform_parallel_thread_init(dms_profile_t *dms_profile);
@@ -52,7 +51,6 @@ typedef enum en_dms_reform_parallel {
     DMS_REFORM_PARALLEL_DRC_RCY_CLEAN,
     DMS_REFORM_PARALLEL_FLUSH_COPY,
     DMS_REFORM_PARALLEL_REBUILD,
-    DMS_REFORM_PARALLEL_VALIDATE,
     DMS_REFORM_PARALLEL_CTL_RCY_CLEAN,
 
     /* add new items above here */

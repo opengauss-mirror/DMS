@@ -176,14 +176,6 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
 
-typedef enum en_db_open_status {
-    DB_OPEN_STATUS_NORMAL = 0,
-    DB_OPEN_STATUS_RESTRICT = 1,
-    DB_OPEN_STATUS_EMERGENCY = 2,
-    DB_OPEN_STATUS_UPGRADE = 3,
-    DB_OPEN_STATUS_UPGRADE_PHASE_2 = 4,
-} db_open_status_t;
-
 typedef enum en_dms_thread_status {
     DMS_THREAD_STATUS_IDLE = 0,
     DMS_THREAD_STATUS_RUNNING,

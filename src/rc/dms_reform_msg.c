@@ -700,14 +700,14 @@ void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, mes_message
 }
 
 int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
-    uint8 thread_index, bool8 rebuild)
+    uint8 thread_index)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)parallel->data[master_id];
     uint32 append_size = (uint32)(DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t));
     int ret = DMS_SUCCESS;
-    uint8 cmd = rebuild ? MSG_REQ_PAGE_REBUILD : MSG_REQ_PAGE_VALIDATE;
+    uint8 cmd = MSG_REQ_PAGE_REBUILD;
 
     // if NULL, init req_rebuild
     if (req_rebuild == NULL) {
@@ -740,13 +740,13 @@ int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t
     return DMS_SUCCESS;
 }
 
-int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, bool8 rebuild)
+int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id)
 {
     rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)rebuild_info->rebuild_data[master_id];
     uint32 append_size = (uint32)(DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t));
     int ret = DMS_SUCCESS;
-    uint8 cmd = rebuild ? MSG_REQ_PAGE_REBUILD : MSG_REQ_PAGE_VALIDATE;
+    uint8 cmd = MSG_REQ_PAGE_REBUILD;
 
     // if NULL, init req_rebuild
     if (req_rebuild == NULL) {
@@ -791,37 +791,6 @@ void dms_reform_ack_req_rebuild(dms_process_context_t *process_ctx, mes_message_
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
     }
-}
-
-void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, mes_message_t *receive_msg)
-{
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
-    dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
-
-    uint8 inst_id = req_rebuild->head.src_inst;
-    uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t);
-    char pageid[DMS_PAGEID_SIZE];
-    dms_ctrl_info_t *ctrl_info = NULL;
-    int ret;
-
-    while (offset + unit_len <= req_rebuild->offset) {
-        ret = memcpy_s(pageid, DMS_PAGEID_SIZE, (uint8 *)req_rebuild + offset, DMS_PAGEID_SIZE);
-        DMS_SECUREC_CHECK(ret);
-        offset += DMS_PAGEID_SIZE;
-
-        ctrl_info = (dms_ctrl_info_t *)((uint8 *)req_rebuild + offset);
-        offset += sizeof(dms_ctrl_info_t);
-
-        ret = dms_reform_proc_page_validate(pageid, ctrl_info, inst_id);
-        if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DRC][%s]dms_reform_proc_req_page_validate", cm_display_pageid(pageid));
-            break;
-        }
-    }
-    dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
-    mfc_release_message_buf(receive_msg);
 }
 
 void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, mes_message_t *receive_msg)
