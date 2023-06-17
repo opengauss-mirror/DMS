@@ -160,6 +160,7 @@ typedef enum en_dms_session {
     DMS_SESSION_NORMAL = 0,     // can not access DRC when DRC is inaccessible
     DMS_SESSION_REFORM = 1,     // can access DRC when DRC is inaccessible
     DMS_SESSION_RECOVER = 2,    // can access DRC when DRC is inaccessible, buf if no owner, should set in recovery
+    DMS_SESSION_RECOVER_HOT_STANDBY = 3, // can access DRC when pmstate = PM_HOT_STANDBY
 } dms_session_e;
 
 #define DMS_RESID_SIZE  32
@@ -490,10 +491,10 @@ typedef enum en_dms_status {
 } dms_status_t;             // used in database startup
 
 typedef enum st_dms_session_type {
-    DMS_TYPE_NONE = 0,
-    DMS_WORKER = 1,
-    DMS_FULL_RCY = 2,
-    DMS_FULL_RCY_PARAL = 3,
+    DMS_SESSION_TYPE_NONE = 0,
+    DMS_SESSION_TYPE_WORKER = 1,
+    DMS_SESSION_TYPE_FULL_RCY = 2,
+    DMS_SESSION_TYPE_FULL_RCY_PARAL = 3,
 }dms_session_type_e;
 
 #define DCS_BATCH_BUF_SIZE (1024 * 30)
