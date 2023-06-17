@@ -264,25 +264,25 @@ int dms_reform_init(dms_profile_t *dms_profile)
     reform_context->mes_has_init = (bool8)dms_profile->conn_created_during_init;
     reform_context->share_info_lock = 0;
 
-    reform_context->handle_proc = g_dms.callback.get_db_handle(&reform_context->sess_proc, DMS_TYPE_NONE);
+    reform_context->handle_proc = g_dms.callback.get_db_handle(&reform_context->sess_proc, DMS_SESSION_TYPE_NONE);
     if (reform_context->handle_proc == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_judge = g_dms.callback.get_db_handle(&reform_context->sess_judge, DMS_TYPE_NONE);
+    reform_context->handle_judge = g_dms.callback.get_db_handle(&reform_context->sess_judge, DMS_SESSION_TYPE_NONE);
     if (reform_context->handle_judge == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_normal = g_dms.callback.get_db_handle(&reform_context->sess_normal, DMS_TYPE_NONE);
+    reform_context->handle_normal = g_dms.callback.get_db_handle(&reform_context->sess_normal, DMS_SESSION_TYPE_NONE);
     if (reform_context->handle_normal == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_health = g_dms.callback.get_db_handle(&reform_context->sess_health, DMS_TYPE_NONE);
+    reform_context->handle_health = g_dms.callback.get_db_handle(&reform_context->sess_health, DMS_SESSION_TYPE_NONE);
     if (reform_context->handle_health == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
