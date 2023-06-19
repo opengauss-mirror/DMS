@@ -71,6 +71,7 @@ typedef struct st_dms_instance {
     cm_res_mgr_t cm_res_mgr;
     uint32 cluster_ver;
     void* mes_ptr;
+    uint32 max_wait_time;
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
