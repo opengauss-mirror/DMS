@@ -792,6 +792,14 @@ int32 dms_init_logger(logger_param_t *param_def)
     return DMS_SUCCESS;
 }
 
+/* max timeout interval should be within [1, 30]s */
+static inline uint32 dms_check_max_wait_time(uint32 time)
+{
+    const uint32 max = 30000;
+    const uint32 min = 1000;
+    return time < min ? min : (time > max ? max : time);
+}
+
 static int dms_init_stat(dms_profile_t *dms_profile)
 {
     g_dms_stat.time_stat_enabled = dms_profile->time_stat_enabled;
@@ -821,6 +829,7 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.enable_reform = dms_profile->enable_reform;
     g_dms.scrlock_ctx.enable = dms_profile->enable_scrlock;
     g_dms.gdb_in_progress = CM_FALSE;
+    g_dms.max_wait_time = dms_check_max_wait_time(dms_profile->max_wait_time);
 }
 
 static void dms_init_mfc(dms_profile_t *dms_profile)

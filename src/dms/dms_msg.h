@@ -35,7 +35,7 @@
 extern "C" {
 #endif
 
-#define DMS_WAIT_MAX_TIME       (10000) // ms
+#define DMS_WAIT_MAX_TIME       g_dms.max_wait_time
 #define DMS_MSG_RETRY_TIME      (100) // ms
 #define DMS_MSG_SLEEP_TIME      (1000) // ms
 #define DMS_CVT_EXPIRE_TIME     (2 * DMS_WAIT_MAX_TIME) // ms
