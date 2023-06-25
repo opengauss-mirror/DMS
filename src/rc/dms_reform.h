@@ -245,6 +245,7 @@ typedef struct st_share_info {
     dw_recovery_info_t  dw_recovery_info;
     file_orglsn_recovery_info_t  file_orglsn_recovery_info;
     uint64              start_times[DMS_MAX_INSTANCES];
+    date_t              judge_time;
 } share_info_t;
 
 typedef struct st_rebuild_info {
