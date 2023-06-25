@@ -631,7 +631,7 @@ int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, c
         ret = dms_notify_invld_share_copy(ctx->inst_id, ctx->sess_id, resid, len, DRC_RES_PAGE_TYPE,
             buf_res->copy_insts, sess_type, &succ_insts);
     }
-    if (ret == DMS_SUCCESS) {
+    if (ret == DMS_SUCCESS && buf_res->claimed_owner != CM_INVALID_ID8) {
         ret = dms_notify_invld_owner(ctx, resid, len, DRC_RES_PAGE_TYPE, sess_type, buf_res->claimed_owner);
     }
 
