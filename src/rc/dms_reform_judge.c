@@ -25,6 +25,7 @@
 #include "dms_reform_judge.h"
 #include "dms_reform_msg.h"
 #include "dms_error.h"
+#include "cm_timer.h"
 
 extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
 
@@ -466,6 +467,7 @@ static void dms_reform_judgement_prepare(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     share_info->reform_step_count = 0;
     share_info->reform_phase_count = 0;
+    share_info->judge_time = g_timer()->now;
     dms_reform_add_step(DMS_REFORM_STEP_PREPARE);
 }
 
