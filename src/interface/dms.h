@@ -785,6 +785,10 @@ DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms
 
 DMS_DECLARE int dms_info(char *buf, unsigned int len, unsigned int curr);
 
+DMS_DECLARE int dms_reform_res_need_rebuild(char *res, unsigned char res_type, unsigned int *need_rebuild);
+
+DMS_DECLARE unsigned int dms_get_mes_max_watting_rooms(void);
+
 #ifdef __cplusplus
 }
 #endif

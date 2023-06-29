@@ -1019,3 +1019,8 @@ int dms_get_ssl_param(const char *param_name, char *param_value, unsigned int si
     return DMS_SUCCESS;
 }
 
+unsigned int dms_get_mes_max_watting_rooms(void)
+{
+    return mfc_get_max_watting_rooms();
+}
+
