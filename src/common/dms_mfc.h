@@ -106,6 +106,7 @@ int32 mfc_wait_acks_and_recv_msg(uint32 sid, uint32 timeout, uint64 success_inst
 #define mfc_get_elapsed_time mes_get_elapsed_time
 #define mfc_get_elapsed_count mes_get_elapsed_count
 #define mfc_register_decrypt_pwd mes_register_decrypt_pwd
+#define mfc_get_max_watting_rooms mes_get_max_watting_rooms
 
 #ifdef __cplusplus
 }
