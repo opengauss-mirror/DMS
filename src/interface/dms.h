@@ -427,6 +427,14 @@ DMS_DECLARE int dms_request_opengauss_txn_of_master(dms_context_t *dms_ctx,
     dms_opengauss_txn_sw_info_t *dms_txn_swinfo);
 
 /*
+ * @brief get openGauss page buffer status.
+ * @[in] dms_ctx - Obtains the context information required by page status
+ * @return DMS_SUCCESS - success; otherwise failed
+ */
+DMS_DECLARE int dms_request_opengauss_page_status(dms_context_t *dms_ctx,
+    unsigned int page, int page_num, unsigned long int *page_map, int *bit_count);
+
+/*
  * @brief get openGauss buffer lock mode and lock the buffer.
  * @[in] dms_ctx - Obtains the context information required by txn info
  * @return DMS_SUCCESS - success; otherwise failed

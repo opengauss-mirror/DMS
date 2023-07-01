@@ -130,6 +130,15 @@ typedef struct st_msg_opengauss_lock_buffer_ctx {
     unsigned char recv_lock_mode;
 } msg_opengauss_lock_buffer_ctx_t;
 
+typedef struct st_msg_opengauss_page_status_request {
+    mes_message_head_t head;
+    dms_opengauss_relfilenode_t rnode;
+    uint32 page;
+    int page_num;
+    int bit_count;
+    unsigned long int page_map[8];
+} msg_opengauss_page_status_request_t;
+
 typedef struct st_msg_txn_wait_request {
     mes_message_head_t head;
     uint64 xid;
