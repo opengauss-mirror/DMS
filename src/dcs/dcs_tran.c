@@ -730,3 +730,110 @@ unsigned char dms_wait_txn_cond(dms_context_t *dms_ctx)
     return drc_local_txn_wait(xid);
 }
 
+int dms_request_opengauss_page_status(dms_context_t *dms_ctx, unsigned int page, int page_num,
+    unsigned long int *page_map, int *bit_count)
+{
+    dms_reset_error();
+    msg_opengauss_page_status_request_t status_req;
+    mes_message_head_t *head = &status_req.head;
+    dms_rfn_t *node = &dms_ctx->rfn;
+    mes_message_t receive_msg = { 0 };
+
+    DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_OPENGAUSS_PAGE_STATUS, 0, dms_ctx->inst_id, node->inst_id,
+        (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
+    status_req.rnode = node->rnode;
+    status_req.page = page;
+    status_req.page_num = page_num;
+    status_req.bit_count = *bit_count;
+    errno_t err = memcpy_s(status_req.page_map, sizeof(status_req.page_map), page_map, sizeof(status_req.page_map));
+    if (err != EOK) {
+        LOG_DEBUG_ERR("[PAGE] memcpy_s failed, errno = %d", err);
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        return ERRNO_DMS_SECUREC_CHECK_FAIL;
+    }
+
+    head->size = (uint16)sizeof(msg_opengauss_page_status_request_t);
+    head->rsn = mfc_get_rsn(dms_ctx->sess_id);
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_PAGE_STATUS_INFO, CM_TRUE);
+
+    int32 ret = mfc_send_data(head);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_ERR("[PAGE] send message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%u)",
+            (uint32)node->inst_id, (uint32)MSG_REQ_OPENGAUSS_PAGE_STATUS, head->rsn, (uint32)ret);
+        return ret;
+    }
+
+    ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &receive_msg, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_ERR("[PAGE] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%u)",
+            (uint32)node->inst_id, (uint32)MSG_REQ_OPENGAUSS_PAGE_STATUS, head->rsn, (uint32)ret);
+        return ret;
+    }
+
+    dms_end_stat(dms_ctx->sess_id);
+
+    CM_CHK_RECV_MSG_SIZE(&receive_msg,
+        (uint32)(sizeof(mes_message_head_t) + sizeof(dms_opengauss_page_status_result_t)), CM_TRUE, CM_FALSE);
+    dms_opengauss_page_status_result_t status_result;
+    err = memcpy_s(&status_result, sizeof(dms_opengauss_page_status_result_t),
+        (receive_msg.buffer + sizeof(mes_message_head_t)), sizeof(dms_opengauss_page_status_result_t));
+    if (err != EOK) {
+        mfc_release_message_buf(&receive_msg);
+        LOG_DEBUG_ERR("[PAGE] memcpy_s failed, errno = %d", err);
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        return ERRNO_DMS_SECUREC_CHECK_FAIL;
+    }
+    *bit_count = status_result.bit_count;
+    err = memcpy_s(page_map, sizeof(status_result.page_map), status_result.page_map, sizeof(status_result.page_map));
+    if (err != EOK) {
+        mfc_release_message_buf(&receive_msg);
+        LOG_DEBUG_ERR("[PAGE] memcpy_s failed, errno = %d", err);
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        return ERRNO_DMS_SECUREC_CHECK_FAIL;
+    }
+    mfc_release_message_buf(&receive_msg);
+    return DMS_SUCCESS;
+}
+
+void dcs_proc_opengauss_page_status_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+{
+    mes_message_head_t *req_head = receive_msg->head;
+    mes_message_head_t ack_head;
+
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(msg_opengauss_page_status_request_t), CM_TRUE, CM_TRUE);
+    msg_opengauss_page_status_request_t *status_req = (msg_opengauss_page_status_request_t *)(receive_msg->buffer);
+    dms_opengauss_page_status_result_t page_result = { 0 };
+
+    unsigned int page = status_req->page;
+    dms_opengauss_relfilenode_t *rnode = &status_req->rnode;
+    int page_num = status_req->page_num;
+    page_result.bit_count = status_req->bit_count;
+    errno_t err = memcpy_s(page_result.page_map, sizeof(page_result.page_map), status_req->page_map,
+        sizeof(page_result.page_map));
+    if (err != EOK) {
+        DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+        cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_ERROR, DMS_ERROR);
+        return;
+    }
+
+    int ret = g_dms.callback.get_opengauss_page_status(process_ctx->db_handle, rnode, page, page_num, &page_result);
+    if (ret != DMS_SUCCESS) {
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_GET_PAGE_IN_BUFFER_FAILED, ret);
+        cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_ERROR, ret);
+        return;
+    }
+
+    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_PAGE_STATUS, 0, req_head->dst_inst, req_head->src_inst,
+        process_ctx->sess_id, req_head->src_sid);
+    ack_head.size = (uint16)(sizeof(dms_opengauss_page_status_result_t) + sizeof(mes_message_head_t));
+    ack_head.rsn = req_head->rsn;
+
+    mfc_release_message_buf(receive_msg);
+    if (mfc_send_data2(&ack_head, &page_result) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[PAGE] send openGauss page status ack message failed, src_inst = %u, dst_inst = %u",
+            (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
+    }
+}

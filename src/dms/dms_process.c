@@ -117,6 +117,8 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
         CM_TRUE, CM_FALSE, "dms notify primary node ondemand-redo buffer"},
     { MSG_REQ_OPENGAUSS_TXN_SWINFO, dcs_proc_opengauss_txn_of_master_req,
         CM_TRUE, CM_FALSE,  "req opengauss txn sw info for write redirect" },
+    { MSG_REQ_OPENGAUSS_PAGE_STATUS, dcs_proc_opengauss_page_status_req,
+        CM_TRUE, CM_FALSE,  "req opengauss page hit buffer" },
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -164,6 +166,7 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_ASK_RES_OWNER_ID,             dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for res owner id" },
     { MSG_ACK_OPENGAUSS_ONDEMAND_REDO,      dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack on-demand redo request"},
     { MSG_ACK_OPENGAUSS_TXN_SWINFO,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss transaction swinfo" },
+    { MSG_ACK_OPENGAUSS_PAGE_STATUS,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss page hit buffer" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
