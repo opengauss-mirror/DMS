@@ -265,6 +265,9 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
         ctrl->is_remote_dirty = (ctrl->edp_map != 0);
         ctrl->is_edp = 0;
 #ifndef OPENGAUSS
+        if (ctrl->is_remote_dirty) {
+            g_dms.callback.ckpt_enque_one_page(dms_ctx->db_handle, ctrl);
+        }
         unsigned long long lastest_lfn = g_dms.callback.get_global_lfn(dms_ctx->db_handle);
         g_dms.callback.update_page_lfn(ctrl, lastest_lfn);
 #endif
