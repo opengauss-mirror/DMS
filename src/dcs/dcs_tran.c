@@ -466,7 +466,6 @@ int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx, dms_opengauss_txn
 
 int dms_request_opengauss_txn_of_master(dms_context_t *dms_ctx, dms_opengauss_txn_sw_info_t *dms_txn_swinfo)
 {
-#ifdef OPENGAUSS
     dms_reset_error();
     mes_message_t message = { 0 };
     msg_opengauss_txn_swinfo_t req;
@@ -510,7 +509,6 @@ int dms_request_opengauss_txn_of_master(dms_context_t *dms_ctx, dms_opengauss_tx
         DMS_THROW_ERROR(ERRNO_DMS_DCS_GET_TXN_INFO_FAILED);
         return ERRNO_DMS_DCS_GET_TXN_INFO_FAILED;
     }
-#endif
 }
 
 int dms_request_txn_snapshot(dms_context_t *dms_ctx, dms_txn_snapshot_t *dms_txn_snapshot)

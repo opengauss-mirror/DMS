@@ -31,6 +31,7 @@
 #include "cm_timer.h"
 #include "dms_reform_health.h"
 #include "dms_reform_proc_parallel.h"
+#include "dms_reform_proc_stat.h"
 #ifndef WIN32
 #include "config.h"
 #endif
@@ -116,6 +117,7 @@ void dms_reform_set_start(void)
     reform_info->reform_pause = CM_FALSE;
     reform_info->current_step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
     reform_info->proc_time = (uint64)g_timer()->now;
+    dms_reform_proc_stat_clear_current();
     dms_reform_health_set_running();
     dms_reform_proc_set_running();
     LOG_DEBUG_FUNC_SUCCESS;

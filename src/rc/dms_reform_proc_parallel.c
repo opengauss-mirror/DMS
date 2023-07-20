@@ -27,6 +27,7 @@
 #include "dms_error.h"
 #include "dms_process.h"
 #include "drc_page.h"
+#include "dms_reform_proc_stat.h"
 
 static void dms_reform_parallel_thread_inner(parallel_thread_t *parallel)
 {
@@ -56,6 +57,7 @@ static void dms_reform_parallel_thread(thread_t *thread)
     PRTS_RETVOID_IFERR(sprintf_s(thread_name, CM_MAX_THREAD_NAME_LEN, "dms_parallel_%d", parallel->index));
     cm_set_thread_name(thread_name);
 
+    dms_reform_proc_stat_bind_proc_parallel(parallel->index);
     LOG_RUN_INF("[DMS REFORM]%s thread started", thread_name);
     while (!thread->closed) {
         if (parallel->thread_status == DMS_THREAD_STATUS_IDLE ||
@@ -262,12 +264,16 @@ static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_threa
 
     // lock
     part_list = &ctx->global_lock_res.res_parts[res_id->part_id];
+    dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
     ret = dms_reform_repair_by_part(part_list, parallel->handle, parallel->sess_id);
+    dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
     DMS_RETURN_IF_ERROR(ret);
 
     // page
     part_list = &ctx->global_buf_res.res_parts[res_id->part_id];
+    dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
     ret = dms_reform_repair_by_part(part_list, parallel->handle, parallel->sess_id);
+    dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
     DMS_RETURN_IF_ERROR(ret);
 
     return DMS_SUCCESS;
@@ -349,7 +355,7 @@ static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
     // reset callback function and fail_num
     parallel_info->parallel_proc = parallel_proc;
     parallel_info->parallel_fail = 0;
-    parallel_info->parallel_active = (atomic32_t)parallel_info->parallel_num;
+    parallel_info->parallel_active = (int32)parallel_info->parallel_num;
 
     // set all assist threads RUNNING
     for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
