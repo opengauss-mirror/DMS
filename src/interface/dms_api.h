@@ -674,6 +674,9 @@ typedef int (*dms_db_check_lock)(void *db_handle);
 typedef int (*dms_cache_msg)(void *db_handle, char* msg);
 typedef void (*dms_ckpt_enque_one_page)(void *db_handle, dms_buf_ctrl_t *ctrl);
 typedef int (*dms_set_remove_point)(void *db_handle, unsigned int node_id, void *curr_point);
+typedef int (*dms_get_enable_checksum)(void *db_handle);
+typedef unsigned int (*dms_calc_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, unsigned int page_size);
+typedef int (*dms_verify_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, unsigned int page_size, int cks);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -808,6 +811,9 @@ typedef struct st_dms_callback {
     dms_cache_msg cache_msg;
     dms_ckpt_enque_one_page ckpt_enque_one_page;
     dms_set_remove_point set_remove_point;
+    dms_get_enable_checksum get_enable_checksum;
+    dms_calc_page_checksum calc_page_checksum;
+    dms_verify_page_checksum verify_page_checksum;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -883,7 +889,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           80
+#define DMS_LOCAL_VERSION           81
 
 #ifdef __cplusplus
 }
