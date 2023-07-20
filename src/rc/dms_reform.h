@@ -149,6 +149,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
     DMS_REFORM_STEP_DRC_VALIDATE,
     DMS_REFORM_STEP_LOCK_INSTANCE,                  // get X mode instance lock for reform
+    DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
@@ -228,6 +229,7 @@ typedef struct st_share_info {
     uint64              bitmap_clean;
     uint64              bitmap_recovery;
     uint64              bitmap_in;
+    uint64              bitmap_remove;
     remaster_info_t     remaster_info;
     migrate_info_t      migrate_info;
     version_info_t      reformer_version;       // record reformer version, find reformer restart in time
@@ -256,6 +258,13 @@ typedef struct st_reformer_ctrl {
     bool8               instance_fail[DMS_MAX_INSTANCES];
     uint8               instance_step[DMS_MAX_INSTANCES];
 } reformer_ctrl_t;
+
+typedef struct st_log_point {
+    uint32              asn;
+    uint32              block_id;
+    uint64              rst_id : 18;
+    uint64              lfn : 46;
+} log_point_t;
 
 typedef struct st_reform_info {
     latch_t             ddl_latch;
@@ -296,6 +305,7 @@ typedef struct st_reform_info {
     bool8               parallel_enable;        // dms reform proc parallel enable
     bool8               use_default_map;        // if use default part_map in this judgement
     uint8               unused[2];
+    log_point_t         curr_points[DMS_MAX_INSTANCES];
 } reform_info_t;
 
 typedef struct st_switchover_info {
