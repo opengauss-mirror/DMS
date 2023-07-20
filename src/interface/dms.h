@@ -802,6 +802,8 @@ DMS_DECLARE int dms_reform_res_need_rebuild(char *res, unsigned char res_type, u
 
 DMS_DECLARE unsigned int dms_get_mes_max_watting_rooms(void);
 
+DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point);
+
 #ifdef __cplusplus
 }
 #endif

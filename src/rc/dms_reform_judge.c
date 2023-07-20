@@ -238,7 +238,7 @@ static void dms_reform_modify_list(void)
 #endif
 }
 
-static void dms_reform_bitmap_to_list(instance_list_t *list, uint64 bitmap)
+void dms_reform_bitmap_to_list(instance_list_t *list, uint64 bitmap)
 {
     dms_reform_list_init(list);
 
@@ -1087,6 +1087,17 @@ static void dms_reform_judgement_lock_instance(void)
     dms_reform_add_step(DMS_REFORM_STEP_LOCK_INSTANCE);
 }
 
+static void dms_reform_judgement_set_remove_point(instance_list_t *inst_lists)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    if (inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
+        dms_reform_list_to_bitmap(&share_info->bitmap_remove, &inst_lists[INST_LIST_OLD_REMOVE]);
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_SET_REMOVE_POINT);
+    }
+}
+
 static void dms_reform_judgement_success(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
@@ -1301,6 +1312,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_set_remove_point(inst_lists);
     dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
@@ -1372,6 +1384,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_set_remove_point(inst_lists);
     dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
@@ -1476,6 +1489,7 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_set_remove_point(inst_lists);
     dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }

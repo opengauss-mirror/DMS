@@ -2354,6 +2354,34 @@ static int dms_reform_lock_instance(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_set_remove_point(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    instance_list_t inst_list;
+    int ret = DMS_SUCCESS;
+
+    if (!DMS_IS_SHARE_REFORMER) {
+        LOG_RUN_FUNC_SKIP;
+        dms_reform_next_step();
+        return DMS_SUCCESS;
+    }
+
+    LOG_RUN_FUNC_ENTER;
+    dms_reform_bitmap_to_list(&inst_list, share_info->bitmap_remove);
+    for (uint32 i = 0; i < inst_list.inst_id_count; i++) {
+        uint32 inst = (uint32)inst_list.inst_id_list[i];
+        ret = g_dms.callback.set_remove_point(g_dms.reform_ctx.handle_proc, inst, &reform_info->curr_points[inst]);
+        if (ret != DMS_SUCCESS) {
+            LOG_RUN_FUNC_FAIL;
+            return ret;
+        }
+    }
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL },
     [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL },
@@ -2401,6 +2429,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, dms_reform_validate_parallel },
 #endif
     [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
+    [DMS_REFORM_STEP_SET_REMOVE_POINT] = { "SET_REMOVE_POINT", dms_reform_set_remove_point, NULL},
 };
 
 static void dms_reform_inner(void)
@@ -2479,5 +2508,18 @@ char *dms_reform_get_step_desc(uint32 step)
         return "UNKNOWN STEP";
     } else {
         return g_dms_reform_procs[step].desc;
+    }
+}
+
+void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    if (DMS_IS_SHARE_REFORMER) {
+        if (bitmap64_exist(&share_info->bitmap_remove, (uint8)node_id)) {
+            log_point_t *point = (log_point_t *)curr_point;
+            reform_info->curr_points[node_id] = *point;
+        }
     }
 }
