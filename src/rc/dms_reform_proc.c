@@ -32,6 +32,15 @@
 #include "dms_reform_health.h"
 #include "cm_timer.h"
 #include "dms_reform_proc_parallel.h"
+#include "dms_reform_proc_stat.h"
+
+static void dms_reform_set_next_step(uint8 step)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    dms_reform_proc_stat_end(reform_info->current_step);
+    dms_reform_proc_stat_start(step);
+    reform_info->current_step = step;
+}
 
 void dms_reform_next_step(void)
 {
@@ -39,18 +48,20 @@ void dms_reform_next_step(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
 
+
     if (step == DMS_REFORM_STEP_SYNC_WAIT) {
         reform_info->last_step = reform_info->current_step;
         reform_info->next_step = (uint8)share_info->reform_step[reform_info->reform_step_index];
         reform_info->sync_step = CM_INVALID_ID8;
         reform_info->sync_send_success = CM_FALSE;
     }
-
-    reform_info->current_step = step;
+    dms_reform_set_next_step(step);
 }
 
 static int dms_reform_prepare(void)
 {
+    dms_reform_proc_stat_start(DRPS_REFORM);
+    dms_reform_proc_stat_start(DMS_REFORM_STEP_PREPARE);
     LOG_RUN_FUNC_ENTER;
     dms_scrlock_stop_server();
     dms_reform_next_step();
@@ -379,18 +390,22 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     DRC_DISPLAY(buf_res, "clean");
     dms_reform_clean_buf_res_fault_inst_info_inner(buf_res);
     if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        dms_reform_proc_stat_times(DRPS_DRC_CLEAN_NO_OWNER);
         return DMS_SUCCESS;
     } else if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
         if (bitmap64_exist(&share_info->bitmap_clean, buf_res->claimed_owner)) {
             buf_res->claimed_owner = CM_INVALID_ID8;
         }
+        dms_reform_proc_stat_times(DRPS_DRC_CLEAN_NO_CVT);
         return DMS_SUCCESS;
     }
 
     // if converting request X and buf_res has copy_insts, should confirm copy_insts
     if (buf_res->lock_mode == DMS_LOCK_SHARE && buf_res->copy_insts != 0 &&
         buf_res->converting.req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_CONFIRM_COPY);
         ret = dms_reform_confirm_copy(buf_res, sess_id);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_CONFIRM_COPY);
         DMS_RETURN_IF_ERROR(ret);
     }
 
@@ -399,10 +414,15 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     if (owner_fault && cvt_fault) {
         init_drc_cvt_item(&buf_res->converting);
         buf_res->claimed_owner = CM_INVALID_ID8;
+        dms_reform_proc_stat_times(DRPS_DRC_CLEAN_OWNER_CVT_FAULT);
     } else if (!owner_fault && cvt_fault) {
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_CONFIRM_OWNER);
         ret = dms_reform_confirm_owner(buf_res, sess_id);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_CONFIRM_OWNER);
     } else if (owner_fault && !cvt_fault) {
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_CONFIRM_CVT);
         ret = dms_reform_confirm_converting(buf_res, sess_id);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_CONFIRM_CVT);
     }
 
     return ret;
@@ -717,13 +737,21 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
 // for rebuild: used for discriminate rebuild and validate
 int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, uint8 thread_index)
 {
+    int ret;
     if (master_id == g_dms.inst_id) {
-        return dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCAL);
+        ret = dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
-        return dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_REMOTE);
+        ret = dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_REMOTE);
     } else {
-        return dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_REMOTE);
+        ret = dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_REMOTE);
     }
+    return ret;
 }
 
 static int dms_reform_rebuild_send_rest(uint32 sess_id, uint8 thread_index)
@@ -1047,7 +1075,9 @@ static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess
     if (edp_copyinsts != 0) {
         *exists_owner = CM_TRUE;
         uint8 new_owner = drc_lookup_owner_id(&edp_copyinsts);
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
         ret = dms_reform_may_need_flush(buf_res, sess_id, new_owner);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
         if (ret != DMS_SUCCESS) {
             return ret;
         }
@@ -1060,7 +1090,9 @@ static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess
         if (!bitmap64_exist(&buf_res->copy_insts, i)) {
             continue;
         }
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
         ret = dms_reform_may_need_flush(buf_res, sess_id, i);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
         if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_INVALID) {
             return ret;
         }
@@ -1164,29 +1196,42 @@ static int dms_reform_repair_with_edp_map(drc_buf_res_t *buf_res, void *handle, 
 
 static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle, uint32 sess_id)
 {
+    int ret;
     DRC_DISPLAY(buf_res, "repair");
 
     if (buf_res->claimed_owner != CM_INVALID_ID8) {
         if (bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {
-            return dms_reform_may_need_flush(buf_res, sess_id, buf_res->claimed_owner);
+            dms_reform_proc_stat_start(DRPS_DRC_REPAIR_NEED_FLUSH);
+            ret = dms_reform_may_need_flush(buf_res, sess_id, buf_res->claimed_owner);
+            dms_reform_proc_stat_end(DRPS_DRC_REPAIR_NEED_FLUSH);
+            return ret;
         }
+        dms_reform_proc_stat_times(DRPS_DRC_REPAIR_NEED_NOT_FLUSH);
         return DMS_SUCCESS;
     }
 
     if (buf_res->copy_insts != 0) {
         bool32 exists_owner = CM_FALSE;
-        int32 ret = dms_reform_repair_with_copy_insts(buf_res, sess_id, &exists_owner);
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY);
+        ret = dms_reform_repair_with_copy_insts(buf_res, sess_id, &exists_owner);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY);
         if (ret != DMS_SUCCESS || exists_owner) {
             return ret;
         }
     }
 
     if (buf_res->last_edp != CM_INVALID_ID8) {
-        return dms_reform_repair_with_last_edp(buf_res, handle);
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_LAST_EDP);
+        ret = dms_reform_repair_with_last_edp(buf_res, handle);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_LAST_EDP);
+        return ret;
     }
 
     if (buf_res->edp_map != 0) {
-        return dms_reform_repair_with_edp_map(buf_res, handle, sess_id);
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_EDP_MAP);
+        ret = dms_reform_repair_with_edp_map(buf_res, handle, sess_id);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_EDP_MAP);
+        return ret;
     }
 
     return DMS_SUCCESS;
@@ -1221,11 +1266,15 @@ static int dms_reform_repair_inner(void)
     for (uint8 i = 0; i < inst_part->count; i++) {
         // lock
         part_list = &ctx->global_lock_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
         ret = dms_reform_repair_by_part(part_list, reform_ctx->handle_proc, reform_ctx->sess_proc);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
         DMS_RETURN_IF_ERROR(ret);
         // page
         part_list = &ctx->global_buf_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
         ret = dms_reform_repair_by_part(part_list, reform_ctx->handle_proc, reform_ctx->sess_proc);
+        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
         DMS_RETURN_IF_ERROR(ret);
         part_id = part_mngr->part_map[part_id].next;
     }
@@ -1261,9 +1310,13 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res, void *han
 #else
     if (buf_res->copy_promote != DMS_COPY_PROMOTE_NONE && buf_res->recovery_skip) {
         if (dms_dst_id_is_self(buf_res->claimed_owner)) {
+            dms_reform_proc_stat_start(DRPS_DRC_FLUSH_COPY_LOCAL);
             ret = g_dms.callback.flush_copy(handle, buf_res->data);
+            dms_reform_proc_stat_end(DRPS_DRC_FLUSH_COPY_LOCAL);
         } else {
+            dms_reform_proc_stat_start(DRPS_DRC_FLUSH_COPY_REMOTE);
             ret = dms_reform_flush_copy_page(buf_res, sess_id);
+            dms_reform_proc_stat_end(DRPS_DRC_FLUSH_COPY_REMOTE);
         }
     }
     buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
@@ -2250,8 +2303,7 @@ static int dms_reform_drc_validate()
 #else
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
-    (void)dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8,
-        CM_FALSE);
+    (void)dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
 #endif
 
@@ -2369,7 +2421,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL },
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL },
     [DMS_REFORM_STEP_RECOVERY] = { "RECOVERY", dms_reform_recovery, NULL },
-    [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY", dms_reform_recovery_opengauss, NULL },
+    [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY_OPENGAUSS", dms_reform_recovery_opengauss, NULL },
     [DMS_REFORM_STEP_DRC_RCY_CLEAN] = { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel },
     [DMS_REFORM_STEP_CTL_RCY_CLEAN] = { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel },
     [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL },
@@ -2395,11 +2447,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_BCAST_UNABLE] = { "BCAST_UNABLE", dms_reform_bcast_unable, NULL },
     [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL },
     [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL },
-#ifdef OPENGAUSS
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL },
-#else
-    [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, dms_reform_validate_parallel },
-#endif
     [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
 };
 
@@ -2408,9 +2456,10 @@ static void dms_reform_inner(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
 
+    reform_info->proc_time = (uint64)g_timer()->now; // record time for check if dms_reform_proc is active
     if (reform_info->current_step >= DMS_REFORM_STEP_COUNT) {
         LOG_RUN_ERR("dms_reform_inner, error step: %d", reform_info->current_step);
-        reform_info->current_step = DMS_REFORM_STEP_SELF_FAIL;
+        dms_reform_set_next_step((uint8)DMS_REFORM_STEP_SELF_FAIL);
         reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
     }
 
@@ -2426,19 +2475,19 @@ static void dms_reform_inner(void)
     }
 
     if (reform_info->reform_fail) {
-        reform_info->current_step = DMS_REFORM_STEP_REFORM_FAIL;
+        dms_reform_set_next_step((uint8)DMS_REFORM_STEP_REFORM_FAIL);
         reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
         return;
     }
 
     if (ret != DMS_SUCCESS) {
-        reform_info->current_step = DMS_REFORM_STEP_SELF_FAIL;
+        dms_reform_set_next_step((uint8)DMS_REFORM_STEP_SELF_FAIL);
         reform_info->err_code = ret;
         return;
     }
 
     if (dms_reform_check_partner_fail()) {
-        reform_info->current_step = DMS_REFORM_STEP_SELF_FAIL;
+        dms_reform_set_next_step((uint8)DMS_REFORM_STEP_SELF_FAIL);
         reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
         return;
     }
@@ -2454,21 +2503,27 @@ void dms_reform_proc_thread(thread_t *thread)
     g_dms.callback.dms_thread_init(CM_TRUE, (char **)&thread->reg_data);
 #endif
 
+    dms_reform_proc_stat_bind_proc();
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc thread started");
     while (!thread->closed) {
+        if (reform_info->thread_status == DMS_THREAD_STATUS_RUNNING) {
+            dms_reform_inner();
+            continue;
+        }
         if (reform_info->thread_status == DMS_THREAD_STATUS_IDLE ||
             reform_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
-            DMS_REFORM_LONG_SLEEP;
+            DMS_REFORM_SHORT_SLEEP;
             continue;
         }
         if (reform_info->thread_status == DMS_THREAD_STATUS_PAUSING) {
             LOG_RUN_INF("[DMS REFORM]dms_reform_proc paused");
             reform_info->thread_status = DMS_THREAD_STATUS_PAUSED;
+            dms_reform_proc_stat_end(reform_info->current_step);
+            dms_reform_proc_stat_end(DRPS_REFORM);
+            dms_reform_proc_stat_collect_current();
+            dms_reform_proc_stat_collect_total();
+            dms_reform_proc_stat_log_current();
             continue;
-        }
-        if (reform_info->thread_status == DMS_THREAD_STATUS_RUNNING) {
-            reform_info->proc_time = (uint64)g_timer()->now; // record time for check if dms_reform_proc is active
-            dms_reform_inner();
         }
     }
 }
