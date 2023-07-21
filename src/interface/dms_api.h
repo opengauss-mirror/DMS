@@ -553,6 +553,39 @@ typedef enum en_dms_inst_behavior {
     DMS_INST_BEHAVIOR_IN_BACKUP,
 } dms_inst_behavior_t;
 
+typedef struct st_stat_buf_info {
+    int                 instance_id;
+    unsigned char       lock_mode;              /* which lock held by instance of this buffer */
+    unsigned long int   mem_lsn;                /* page lsn in memory */
+    unsigned long int   rec_lsn;                /* recovery LSN */
+    unsigned long int   lsn_on_disk;            /* page lsn in dick */
+    unsigned long int   dirty_queue_loc;        /* actual location of dirty page queue */
+    char                aio_in_progress;        /* indicate aio is in progress */
+    char                data[DMS_RESID_SIZE];   /* user defined resource(page) identifier */
+} stat_buf_info_t;
+/*
+* used by openGauss server to get DRC information
+*/
+typedef struct st_stat_drc_info {
+    stat_buf_info_t         buf_info[DMS_MAX_INSTANCES];           /* save buffer related information */
+    dms_context_t           dms_ctx;
+    unsigned char           master_id;
+    unsigned long long      copy_insts;         /* bitmap for owners, for S mode, more than one owner may exist */
+    unsigned char           claimed_owner;      /* owner */
+    unsigned char           lock_mode;          /* current DRC lock mode */
+    unsigned char           last_edp;           /* the newest edp instance id */
+    unsigned char           type;               /* page or lock */
+    unsigned char           in_recovery;        /* in recovery or not */
+    unsigned char           copy_promote;       /* copy promote to owner, can not release, may need flush */
+    unsigned short          part_id;            /* which partition id that current page belongs to */
+    unsigned long long      edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
+    unsigned long long      lsn;                /* the newest edp LSN of current page in the cluster */
+    unsigned short          len;                /* the length of data below */
+    unsigned char           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
+    unsigned char           recycling;
+    char                    data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
+} stat_drc_info_t;
+
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
@@ -711,6 +744,7 @@ typedef int (*dms_verify_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, u
 typedef int (*dms_update_node_oldest_xmin)(void *db_handle, unsigned char inst_id, unsigned long long oldest_xmin);
 typedef void (*dms_set_inst_behavior)(void *db_handle, dms_inst_behavior_t inst_behavior);
 typedef int (*dms_db_prepare)(void *db_handle);
+typedef void (*dms_get_buf_info)(char* resid, stat_buf_info_t *buf_info);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -856,6 +890,8 @@ typedef struct st_dms_callback {
     //for shared storage backup
     dms_set_inst_behavior set_inst_behavior;
     dms_db_prepare db_prepare;
+
+    dms_get_buf_info get_buf_info;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {

@@ -99,6 +99,7 @@ typedef enum en_msg_command {
     MSG_REQ_OPENGAUSS_TXN_SWINFO = 52,
     MSG_REQ_OPENGAUSS_PAGE_STATUS = 53,
     MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN = 54,
+    MSG_REQ_NODE_FOR_BUF_INFO = 55,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -149,6 +150,7 @@ typedef enum en_msg_command {
     MSG_ACK_OPENGAUSS_PAGE_STATUS = 172,
     MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN = 173,
     MSG_ACK_VERSION_NOT_MATCH = 174,
+    MSG_ACK_NODE_FOR_BUF_INFO = 175,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -375,6 +377,28 @@ void dms_set_node_proto_version(uint8 inst_id, uint32 version);
 uint32 dms_get_node_proto_version(uint8 inst_id);
 void dms_init_cluster_proto_version();
 uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_id);
+
+/* 
+* The following structs are used for communication
+* between Primary and Standby to obtain relevant
+* information about buffers on other nodes.
+*/
+typedef struct st_dms_req_buf_info {
+    dms_message_head_t      head;
+    unsigned long long      copy_insts;
+    unsigned char           claimed_owner;
+    unsigned char           master_id;
+    unsigned char           from_inst;
+    char                    resid[DMS_RESID_SIZE];
+} dms_req_buf_info_t;
+
+typedef struct st_dms_ack_buf_info {
+    dms_message_head_t      head;
+    stat_buf_info_t          buf_info;
+} dms_ack_buf_info_t;
+
+void dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info);
+void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 
 #ifdef __cplusplus
 }
