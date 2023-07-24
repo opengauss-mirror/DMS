@@ -576,7 +576,7 @@ typedef void *(*dms_get_db_handle)(unsigned int *db_handle_index, dms_session_ty
 typedef void (*dms_release_db_handle)(void *db_handle);
 typedef void *(*dms_stack_push_cr_cursor)(void *db_handle);
 typedef void (*dms_stack_pop_cr_cursor)(void *db_handle);
-typedef void(*dms_init_cr_cursor)(void *cr_cursor, char pageid[DMS_PAGEID_SIZE], char xid[DMS_XID_SIZE],
+typedef int(*dms_init_cr_cursor)(void *cr_cursor, char pageid[DMS_PAGEID_SIZE], char xid[DMS_XID_SIZE],
     unsigned long long query_scn, unsigned int ssn);
 typedef void(*dms_init_index_cr_cursor)(void *cr_cursor, char pageid[DMS_PAGEID_SIZE], char xid[DMS_XID_SIZE],
     unsigned long long query_scn, unsigned int ssn, char entry[DMS_PAGEID_SIZE], char *index_profile);
@@ -883,7 +883,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           79
+#define DMS_LOCAL_VERSION           80
 
 #ifdef __cplusplus
 }
