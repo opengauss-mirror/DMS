@@ -187,9 +187,14 @@ static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reques
         return ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR;
     }
 
-    g_dms.callback.init_heap_cr_cursor(cr_cursor, request->pageid, request->xid, request->query_scn, request->ssn);
+    int ret = g_dms.callback.init_heap_cr_cursor(
+        cr_cursor, request->pageid, request->xid, request->query_scn, request->ssn);
+    if (ret != DMS_SUCCESS) {
+        g_dms.callback.stack_pop_cr_cursor(ctx->db_handle);
+        return ret;
+    }
 
-    int ret = dcs_construct_cr_page(ctx, request, cr_cursor, cr_page, fb_mark);
+    ret = dcs_construct_cr_page(ctx, request, cr_cursor, cr_page, fb_mark);
     g_dms.callback.stack_pop_cr_cursor(ctx->db_handle);
     return ret;
 }
