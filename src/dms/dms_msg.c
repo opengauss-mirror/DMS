@@ -1539,6 +1539,18 @@ void dms_smon_entry(thread_t *thread)
     }
 }
 
+void dms_smon_recycle_entry(thread_t *thread)
+{
+#ifdef OPENGAUSS
+    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
+#endif
+
+    while (!thread->closed) {
+        drc_recycle_buf_res_on_demand();
+        DMS_REFORM_SHORT_SLEEP;
+    }
+}
+
 void dms_proc_removed_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg)
 {
     mfc_release_message_buf(receive_msg);

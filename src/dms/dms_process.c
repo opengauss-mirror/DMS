@@ -610,6 +610,7 @@ static void drc_smon_ctx_deinit(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     cm_close_thread(&ctx->smon_thread);
+    cm_close_thread(&ctx->smon_recycle_thread);
     DMS_RELEASE_DB_HANDLE(ctx->smon_handle);
 }
 
@@ -627,6 +628,13 @@ static int32 init_drc_smon_ctx(void)
     int32 ret = cm_create_thread(dms_smon_entry, 0, NULL, &ctx->smon_thread);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DRC]fail to create smon thread");
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
+        return ERRNO_DMS_COMMON_CBB_FAILED;
+    }
+
+    ret = cm_create_thread(dms_smon_recycle_entry, 0, NULL, &ctx->smon_recycle_thread);
+    if (ret != CM_SUCCESS) {
+        LOG_RUN_ERR("[DRC]fail to create smon recycle thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
