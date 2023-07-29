@@ -86,6 +86,18 @@ static int dms_info_append_instance_list(char *buf, unsigned int len, const char
     return dms_info_append_uint64(buf, len, key, bitmap);
 }
 
+static int dms_info_append_date(char *buf, unsigned int len, const char *key, date_t date)
+{
+    date_detail_t detail;
+    char date_buf[CM_BUFLEN_128];
+
+    cm_decode_date(date, &detail);
+    PRTS_RETURN_IFERR(sprintf_s(date_buf, CM_BUFLEN_128, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
+        detail.year, detail.mon, detail.day, detail.hour, detail.min, detail.sec, detail.millisec));
+
+    return dms_info_append_string(buf, len, key, date_buf);
+}
+
 static int dms_info_reform(reform_info_t *reform_info, share_info_t *share_info, char *buf, uint32 len, bool32 curr)
 {
     DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "INSTANCE_ID", (uint64)g_dms.inst_id));
@@ -100,7 +112,7 @@ static int dms_info_reform(reform_info_t *reform_info, share_info_t *share_info,
         return dms_info_append_string(buf, len, "REFORM_STATUS", "WAITING");
     }
     DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "REFORM_STATUS", curr, "RUNNING", "FINISHED"));
-    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "START_TIME", (uint64)share_info->judge_time));
+    DMS_RETURN_IF_ERROR(dms_info_append_date(buf, len, "START_TIME", share_info->judge_time));
     DMS_RETURN_IF_ERROR(dms_info_append_enum(buf, len, "REFORM_TYPE", (uint32)share_info->reform_type,
         dms_reform_get_type_desc));
     DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "FULL_CLEAN", share_info->full_clean, "TRUE", "FALSE"));
