@@ -690,7 +690,8 @@ typedef struct st_dms_callback {
     dms_recovery recovery;
     dms_dw_recovery dw_recovery;
     dms_df_recovery df_recovery;
-    dms_file_orglsn_recovery file_orglsn_recovery;
+    dms_file_orglsn_recovery file_orglsn_recovery_part1;
+    dms_file_orglsn_recovery file_orglsn_recovery_part2;
     dms_db_is_primary db_is_primary;
     dms_get_open_status get_open_status;
     dms_undo_init undo_init;
@@ -883,7 +884,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           80
+#define DMS_LOCAL_VERSION           81
 
 #ifdef __cplusplus
 }
