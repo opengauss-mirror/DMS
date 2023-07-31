@@ -194,6 +194,9 @@ typedef struct st_dms_ask_res_ack {
     uint8 seg_fileno;
     uint32 seg_blockno;
 #endif
+    bool8 enable_cks; // enable checksum
+    uint8 unused;
+    uint16 checksum;
 } dms_ask_res_ack_t;
 
 typedef struct st_dms_claim_owner_req {
