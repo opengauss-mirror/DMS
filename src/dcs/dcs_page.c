@@ -251,13 +251,15 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
         int ret = memcpy_s(g_dms.callback.get_page(ctrl), g_dms.page_size, msg->buffer + sizeof(dms_ask_res_ack_t),
             g_dms.page_size);
         DMS_SECUREC_CHECK(ret);
-
+        
+#ifndef OPENGAUSS
         if (ack->enable_cks &&
             !g_dms.callback.verify_page_checksum(dms_ctx->db_handle, ctrl, g_dms.page_size, ack->checksum)) {
             LOG_RUN_ERR("[DCS][%s][%s]: page checksum failed", cm_display_pageid(dms_ctx->resid),
                 dms_get_mescmd_msg(msg->head->cmd));
             return ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED;
         }
+#endif
 
         DMS_STAT_INC_BUFFER_GETS(dms_ctx->sess_id);
     }
@@ -467,8 +469,10 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     if (page_ack.head.flags & MSG_FLAG_NO_PAGE) {
         ret = mfc_send_data(&page_ack.head);
     } else {
+#ifndef OPENGAUSS
         page_ack.enable_cks = (bool8)g_dms.callback.get_enable_checksum(ctx->db_handle);
         page_ack.checksum = (uint16)g_dms.callback.calc_page_checksum(ctx->db_handle, ctrl, g_dms.page_size);
+#endif
         ret = mfc_send_data3(&page_ack.head, sizeof(dms_ask_res_ack_t), (void*)g_dms.callback.get_page(ctrl));
     }
 

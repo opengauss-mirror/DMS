@@ -42,6 +42,7 @@ void dcs_proc_txn_snapshot_req(dms_process_context_t *process_ctx, mes_message_t
 void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 void dcs_proc_txn_awake_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 void dcs_proc_opengauss_page_status_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+void dcs_proc_send_opengauss_oldest_xmin(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

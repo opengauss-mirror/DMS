@@ -79,7 +79,8 @@ static int dms_reform_start(void)
     reform_info->true_start = CM_TRUE;
 #ifdef OPENGAUSS
     share_info_t* share_info = DMS_SHARE_INFO;
-    g_dms.callback.reform_start_notify(g_dms.reform_ctx.handle_proc, reform_info->dms_role, share_info->reform_type);
+    g_dms.callback.reform_start_notify(g_dms.reform_ctx.handle_proc, reform_info->dms_role, share_info->reform_type,
+        share_info->bitmap_online);
 #endif
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;

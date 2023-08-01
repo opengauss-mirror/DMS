@@ -804,6 +804,14 @@ DMS_DECLARE unsigned int dms_get_mes_max_watting_rooms(void);
 
 DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point);
 
+/*
+ * @brief send oldest_xmin
+ * @[in]param dms_ctx -  context information.
+ * @[in]param oldest_xmin -  oldest xmin during snapshot in node 
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned long long oldest_xmin);
+
 #ifdef __cplusplus
 }
 #endif

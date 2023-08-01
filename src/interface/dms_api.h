@@ -473,6 +473,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_LATCH_S_REMOTE,
     DMS_EVT_ONDEMAND_REDO,
     DMS_EVT_PAGE_STATUS_INFO,
+    DMS_EVT_OPENGAUSS_SEND_XMIN,
 
 
     DMS_EVT_COUNT,
@@ -546,7 +547,8 @@ typedef int(*dms_file_orglsn_recovery)(void *db_handle, void *recovery_list, int
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
 typedef int(*dms_opengauss_recovery_primary)(void *db_handle, int inst_id);
-typedef void(*dms_reform_start_notify)(void *db_handle, dms_role_t role, unsigned char reform_type);
+typedef void(*dms_reform_start_notify)(void *db_handle, dms_role_t role, unsigned char reform_type,
+    unsigned long long bitmap_nodes);
 typedef int(*dms_undo_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_load)(void *db_handle, unsigned char inst_id);
@@ -617,7 +619,8 @@ typedef int(*dms_get_opengauss_txn_status)(void *db_handle, unsigned long long x
 typedef int(*dms_opengauss_lock_buffer)(void *db_handle, int buffer, unsigned char lock_mode,
     unsigned char* curr_mode);
 typedef int(*dms_get_txn_snapshot)(void *db_handle, unsigned int xmap, dms_txn_snapshot_t *txn_snapshot);
-typedef int(*dms_get_opengauss_txn_snapshot)(void *db_handle, dms_opengauss_txn_snapshot_t *txn_snapshot);
+typedef int(*dms_get_opengauss_txn_snapshot)(void *db_handle, dms_opengauss_txn_snapshot_t *txn_snapshot,
+    unsigned char inst_id);
 typedef int(*dms_get_opengauss_txn_of_master)(void *db_handle, dms_opengauss_txn_sw_info_t *txn_swinfo);
 typedef int(*dms_get_opengauss_page_status)(void *db_handle, dms_opengauss_relfilenode_t *rnode, unsigned int page,
     int page_num, dms_opengauss_page_status_result_t *page_result);
@@ -678,6 +681,7 @@ typedef int (*dms_set_remove_point)(void *db_handle, unsigned int node_id, void 
 typedef int (*dms_get_enable_checksum)(void *db_handle);
 typedef unsigned int (*dms_calc_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, unsigned int page_size);
 typedef int (*dms_verify_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, unsigned int page_size, int cks);
+typedef int (*dms_update_node_oldest_xmin)(void *db_handle, unsigned char inst_id, unsigned long long oldest_xmin);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -816,6 +820,7 @@ typedef struct st_dms_callback {
     dms_get_enable_checksum get_enable_checksum;
     dms_calc_page_checksum calc_page_checksum;
     dms_verify_page_checksum verify_page_checksum;
+    dms_update_node_oldest_xmin update_node_oldest_xmin;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -891,7 +896,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           82
+#define DMS_LOCAL_VERSION           83
 
 #ifdef __cplusplus
 }

@@ -190,6 +190,11 @@ typedef struct st_dcs_boc_req {
     uint32 inst_id;
 } dcs_boc_req_t;
 
+typedef struct st_msg_send_opengauss_oldest_xmin {
+    mes_message_head_t head;
+    uint64 oldest_xmin;
+} msg_send_opengauss_oldest_xmin_t;
+
 #ifdef __cplusplus
 }
 #endif
