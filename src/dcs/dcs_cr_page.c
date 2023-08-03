@@ -629,7 +629,7 @@ static inline void dcs_read_page_init(dms_read_page_assist_t *assist, char *page
     assist->query_scn = query_scn;
     assist->mode = mode;
     assist->options = options;
-    assist->try_edp = CM_FALSE;
+    assist->try_edp = (query_scn == CM_INVALID_ID64 ? CM_FALSE : CM_TRUE);
     assist->read_num = read_num;
 }
 
@@ -639,12 +639,13 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     dms_read_page_assist_t assist;
     msg_pcr_request_t *new_req = NULL;
     char *page = NULL;
+    uint32 status = 0;
     int ret;
 
     *local_route = CM_FALSE;
     dcs_read_page_init(&assist, request->pageid, DMS_PAGE_LATCH_MODE_S, DMS_ENTER_PAGE_NORMAL, request->query_scn, 1);
 
-    if (g_dms.callback.read_page(ctx->db_handle, &assist, &page) != DMS_SUCCESS) {
+    if (g_dms.callback.read_page(ctx->db_handle, &assist, &page, &status) != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_READ_PAGE);
         return ERRNO_DMS_CALLBACK_READ_PAGE;
     }
@@ -658,6 +659,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     new_req = (msg_pcr_request_t *)g_dms.callback.mem_alloc(ctx->db_handle,
         sizeof(msg_pcr_request_t) + g_dms.page_size);
     if (new_req == NULL) {
+        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, status);
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_STACK_PUSH);
         return ERRNO_DMS_CALLBACK_STACK_PUSH;
     }
@@ -668,12 +670,12 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     ret = memcpy_sp((char *)new_req + sizeof(msg_pcr_request_t), g_dms.page_size, page, g_dms.page_size);
     if (ret != EOK) {
         g_dms.callback.mem_free(ctx->db_handle, new_req);
-        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE);
+        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, status);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(new_req->pageid));
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
 
-    g_dms.callback.leave_page(ctx->db_handle, CM_FALSE);
+    g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, status);
 
     /* sync scn before construct CR page */
     g_dms.callback.update_global_scn(ctx->db_handle, request->query_scn);
