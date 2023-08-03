@@ -614,8 +614,8 @@ void dcs_proc_txn_awake_req(dms_process_context_t *process_ctx, mes_message_t *r
     uint64 xid = txn_awake_req->xid;
     uint64 scn = txn_awake_req->scn;
 
-    drc_local_txn_awake(&xid);
     g_dms.callback.update_global_scn(process_ctx->db_handle, scn);
+    drc_local_txn_awake(&xid);
 #endif
     mfc_release_message_buf(receive_msg);
     // there is no ack msg.
@@ -660,7 +660,7 @@ void dms_release_txn_cond(dms_context_t *dms_ctx)
         return;
     }
 
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+    for (uint8 i = 0; i < g_dms.inst_cnt; i++) {
         if (bitmap64_exist(&txn_res->inst_map, i)) {
             if (i == g_dms.inst_id) {
                 continue; // self instance

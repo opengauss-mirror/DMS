@@ -359,6 +359,7 @@ typedef enum en_dms_cr_status {
     DMS_CR_TRY_READ = 0,
     DMS_CR_LOCAL_READ,
     DMS_CR_READ_PAGE,
+    DMS_CR_READ_EDP_PAGE,
     DMS_CR_CONSTRUCT,
     DMS_CR_PAGE_VISIBLE,
     DMS_CR_CHECK_MASTER,
@@ -596,8 +597,8 @@ typedef void(*dms_get_entry_pageid_from_cr_cursor)(void *cr_cursor, char index_e
 typedef void(*dms_get_index_profile_from_cr_cursor)(void *cr_cursor, char index_profile[DMS_INDEX_PROFILE_SIZE]);
 typedef void(*dms_get_xid_from_cr_cursor)(void *cr_cursor, char xid[DMS_XID_SIZE]);
 typedef void(*dms_get_rowid_from_cr_cursor)(void *cr_cursor, char rowid[DMS_ROWID_SIZE]);
-typedef int(*dms_read_page)(void *db_handle, dms_read_page_assist_t *assist, char **page_addr);
-typedef void(*dms_leave_page)(void *db_handle, unsigned char changed);
+typedef int(*dms_read_page)(void *db_handle, dms_read_page_assist_t *assist, char **page_addr, unsigned int *status);
+typedef void(*dms_leave_page)(void *db_handle, unsigned char changed, unsigned int status);
 typedef char *(*dms_mem_alloc)(void *context, unsigned int size);
 typedef void(*dms_mem_free)(void *context, void *ptr);
 typedef void(*dms_mem_reset)(void *context);
@@ -890,7 +891,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           81
+#define DMS_LOCAL_VERSION           82
 
 #ifdef __cplusplus
 }
