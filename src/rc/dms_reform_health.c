@@ -31,6 +31,7 @@
 void dms_reform_health_set_running(void)
 {
     health_info_t *health_info = DMS_HEALTH_INFO;
+    reform_context_t *reform_context = DMS_REFORM_CONTEXT;
 
     while (CM_TRUE) {
         if (health_info->thread_status == DMS_THREAD_STATUS_IDLE ||
@@ -41,6 +42,7 @@ void dms_reform_health_set_running(void)
     }
     LOG_RUN_INF("[DMS REFORM]dms_reform_health running");
     health_info->thread_status = DMS_THREAD_STATUS_RUNNING;
+    cm_sem_post(&reform_context->sem_health);
 }
 
 void dms_reform_health_set_pause(void)
@@ -218,6 +220,7 @@ void dms_reform_health_thread(thread_t *thread)
 {
     cm_set_thread_name("reform_health");
     health_info_t *health_info = DMS_HEALTH_INFO;
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
@@ -225,7 +228,7 @@ void dms_reform_health_thread(thread_t *thread)
     while (!thread->closed) {
         if (health_info->thread_status == DMS_THREAD_STATUS_IDLE ||
             health_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
-            DMS_REFORM_LONG_SLEEP;
+            cm_sem_wait(&reform_ctx->sem_health);
             continue;
         }
         if (health_info->thread_status == DMS_THREAD_STATUS_PAUSING) {

@@ -364,6 +364,7 @@ typedef union st_resource_id {
 } resource_id_t;
 
 typedef struct st_parallel_thread {
+    cm_sem_t            sem;
     thread_t            thread;
     dms_thread_status_t thread_status;
     void                *handle;
@@ -378,10 +379,10 @@ typedef void(*dms_assign_proc)(void);
 typedef int(*dms_parallel_proc)(resource_id_t *res_id, parallel_thread_t *parallel);
 
 typedef struct st_parallel_info {
+    cm_sem_t            parallel_sem;
     parallel_thread_t   parallel[DMS_PARALLEL_MAX_THREAD];
     dms_parallel_proc   parallel_proc;          // parallel callback function
     uint32              parallel_num;           // parallel thread total num
-    atomic32_t          parallel_active;        // parallel thread active num
     atomic32_t          parallel_fail;          // parallel thread proc fail num
     uint32              parallel_res_num;       // parallel total res num
 } parallel_info_t;
@@ -400,6 +401,8 @@ typedef struct st_reform_context {
     void                *handle_proc;           // used in reform, and set recovery flag in buf_res
     void                *handle_normal;
     void                *handle_health;
+    cm_sem_t            sem_proc;
+    cm_sem_t            sem_health;
     uint32              sess_judge;             // used to send message in reform judgment
     uint32              sess_proc;              // used to send message in reform proc
     uint32              sess_normal;

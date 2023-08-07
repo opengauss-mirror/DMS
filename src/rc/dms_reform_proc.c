@@ -2552,6 +2552,7 @@ void dms_reform_proc_thread(thread_t *thread)
 {
     cm_set_thread_name("reform_proc");
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
 #ifdef OPENGAUSS
     // this thread will invoke startup method in opengauss
     // need_startup flag need set to be true
@@ -2567,7 +2568,7 @@ void dms_reform_proc_thread(thread_t *thread)
         }
         if (reform_info->thread_status == DMS_THREAD_STATUS_IDLE ||
             reform_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
-            DMS_REFORM_SHORT_SLEEP;
+            cm_sem_wait(&reform_ctx->sem_proc);
             continue;
         }
         if (reform_info->thread_status == DMS_THREAD_STATUS_PAUSING) {

@@ -62,13 +62,13 @@ static void dms_reform_parallel_thread(thread_t *thread)
     while (!thread->closed) {
         if (parallel->thread_status == DMS_THREAD_STATUS_IDLE ||
             parallel->thread_status == DMS_THREAD_STATUS_PAUSED) {
-            DMS_REFORM_SHORT_SLEEP;
+            cm_sem_wait(&parallel->sem);
             continue;
         }
         if (parallel->thread_status == DMS_THREAD_STATUS_PAUSING) {
             LOG_DEBUG_INF("[DMS REFORM]%s paused", thread_name);
             parallel->thread_status = DMS_THREAD_STATUS_PAUSED;
-            (void)cm_atomic32_dec(&parallel_info->parallel_active);
+            cm_sem_post(&parallel_info->parallel_sem);
             continue;
         }
         if (parallel->thread_status == DMS_THREAD_STATUS_RUNNING) {
@@ -97,6 +97,7 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
         return DMS_SUCCESS;
     }
 
+    cm_sem_init(&parallel_info->parallel_sem);
     parallel_info->parallel_num = dms_profile->parallel_thread_num;
     reform_info->parallel_enable = CM_TRUE;
     for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
@@ -108,6 +109,7 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
             return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
         }
         parallel->index = i;
+        cm_sem_init(&parallel->sem);
         if (cm_create_thread(dms_reform_parallel_thread, 0, (void *)parallel, &parallel->thread) != CM_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]create dms_reform_parallel_%d failed", i);
             return ERR_MES_WORK_THREAD_FAIL;
@@ -119,12 +121,18 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
 
 void dms_reform_parallel_thread_deinit(void)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = NULL;
 
     for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
         parallel = &parallel_info->parallel[i];
-        cm_close_thread(&parallel->thread);
+        cm_close_thread_with_sem(&parallel->thread, &parallel->sem);
+        cm_sem_destroy(&parallel->sem);
+    }
+
+    if (reform_info->parallel_enable) {
+        cm_sem_destroy(&parallel_info->parallel_sem);
     }
 }
 
@@ -355,17 +363,17 @@ static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
     // reset callback function and fail_num
     parallel_info->parallel_proc = parallel_proc;
     parallel_info->parallel_fail = 0;
-    parallel_info->parallel_active = (int32)parallel_info->parallel_num;
 
     // set all assist threads RUNNING
     for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
         parallel = &parallel_info->parallel[i];
         parallel->thread_status = DMS_THREAD_STATUS_RUNNING;
+        cm_sem_post(&parallel->sem);
     }
 
-    // wait all assist threads FINISH
-    while (parallel_info->parallel_active != 0) {
-        DMS_REFORM_SHORT_SLEEP;
+    // wait all assist threads PAUSED
+    for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
+        cm_sem_wait(&parallel_info->parallel_sem);
     }
 
     // check fail num
