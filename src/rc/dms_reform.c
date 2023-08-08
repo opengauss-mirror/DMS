@@ -89,6 +89,7 @@ int dms_drc_accessible(unsigned char res_type)
 
 static void dms_reform_proc_set_running(void)
 {
+    reform_context_t *reform_context = DMS_REFORM_CONTEXT;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     while (CM_TRUE) {
         if (reform_info->thread_status == DMS_THREAD_STATUS_IDLE ||
@@ -99,6 +100,7 @@ static void dms_reform_proc_set_running(void)
     }
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc running");
     reform_info->thread_status = DMS_THREAD_STATUS_RUNNING;
+    cm_sem_post(&reform_context->sem_proc);
 }
 
 void dms_reform_set_start(void)
@@ -128,6 +130,7 @@ static int dms_reform_init_thread(void)
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
     int ret = DMS_SUCCESS;
 
+    cm_sem_init(&reform_context->sem_proc);
     ret = cm_create_thread(dms_reform_proc_thread, 0, NULL, &reform_context->thread_reform);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DMS REFORM]fail to create dms_reform_thread");
@@ -149,6 +152,7 @@ static int dms_reform_init_thread(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
+    cm_sem_init(&reform_context->sem_health);
     ret = cm_create_thread(dms_reform_health_thread, 0, NULL, &reform_context->thread_health);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DMS REFORM]fail to create dms_reform_health_thread");
@@ -337,8 +341,10 @@ void dms_reform_uninit(void)
     LOG_RUN_INF("[DMS REFORM]set reform fail, dms_reform_uninit");
     cm_close_thread(&reform_context->thread_judgement);
     cm_close_thread(&reform_context->thread_reformer);
-    cm_close_thread(&reform_context->thread_reform);
-    cm_close_thread(&reform_context->thread_health);
+    cm_close_thread_with_sem(&reform_context->thread_reform, &reform_context->sem_proc);
+    cm_close_thread_with_sem(&reform_context->thread_health, &reform_context->sem_health);
+    cm_sem_destroy(&reform_context->sem_proc);
+    cm_sem_destroy(&reform_context->sem_health);
     dms_reform_parallel_thread_deinit();
     dms_reform_db_handle_deinit();
 }
