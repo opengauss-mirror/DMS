@@ -355,7 +355,9 @@ void dcs_proc_opengauss_txn_snapshot_req(dms_process_context_t *process_ctx, mes
 {
     mes_message_head_t ack;
     dms_opengauss_txn_snapshot_t txn_snapshot;
-    int32 ret = g_dms.callback.get_opengauss_txn_snapshot(process_ctx->db_handle, &txn_snapshot);
+
+    uint8 src_inst = receive_msg->head->src_inst;
+    int32 ret = g_dms.callback.get_opengauss_txn_snapshot(process_ctx->db_handle, &txn_snapshot, src_inst);
     if (ret == DMS_SUCCESS) {
         DMS_INIT_MESSAGE_HEAD(&ack, MSG_ACK_OPENGAUSS_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst,
             receive_msg->head->src_inst, process_ctx->sess_id, receive_msg->head->src_sid);
@@ -834,4 +836,71 @@ void dcs_proc_opengauss_page_status_req(dms_process_context_t *process_ctx, mes_
         LOG_DEBUG_ERR("[PAGE] send openGauss page status ack message failed, src_inst = %u, dst_inst = %u",
             (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
     }
+}
+
+int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, uint64 oldest_xmin)
+{
+    msg_send_opengauss_oldest_xmin_t send_msg;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (reform_info->reformer_id == g_dms.inst_id) {
+        return DMS_SUCCESS;
+    }
+    DMS_INIT_MESSAGE_HEAD(&send_msg.head, MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN, 0, dms_ctx->inst_id,
+        reform_info->reformer_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    send_msg.head.size = sizeof(msg_send_opengauss_oldest_xmin_t);
+    send_msg.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    send_msg.oldest_xmin = oldest_xmin;
+    int ret = CM_SUCCESS;
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_OPENGAUSS_SEND_XMIN, CM_TRUE);
+    ret = mfc_send_data(&send_msg.head);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_WAR("[OG XMIN] send openGauss oldest xmin failed, src_inst:%u, src_sid:%u, "
+            "dst_inst:%u, rsn:%llu",
+            send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.rsn);
+        return ret;
+    }
+    LOG_DEBUG_INF("[OG XMIN] send openGauss oldest xmin success, src_inst:%u, src_sid:%u, "
+        "dst_inst:%u, rsn:%llu",
+        send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.rsn);
+
+    mes_message_t ack_msg;
+    ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &ack_msg, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_WAR("[OG XMIN] wait receive openGauss oldest xmin ack failed, src_inst:%u, src_sid:%u, "
+            "dst_inst:%u, rsn:%llu",
+            send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.rsn);
+        return ret;
+    }
+    dms_end_stat(dms_ctx->sess_id);
+    LOG_DEBUG_INF("[OG XMIN] receive openGauss oldest xmin ack success, src_inst:%u, src_sid:%u, "
+        "dst_inst:%u, rsn:%llu",
+        send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.rsn);
+    return ret;
+}
+
+void dcs_proc_send_opengauss_oldest_xmin(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(msg_send_opengauss_oldest_xmin_t), CM_TRUE, CM_TRUE);
+    msg_send_opengauss_oldest_xmin_t recv_msg = *(msg_send_opengauss_oldest_xmin_t*)receive_msg->buffer;
+    mfc_release_message_buf(receive_msg);
+
+    uint64 oldest_xmin = recv_msg.oldest_xmin;
+    LOG_DEBUG_INF("[OG XMIN] receive openGauss oldest xmin, src_inst:%u, src_sid:%u, dst_inst:%u, rsn:%llu",
+        recv_msg.head.src_inst, recv_msg.head.src_sid, recv_msg.head.dst_inst, recv_msg.head.rsn);
+    g_dms.callback.update_node_oldest_xmin(process_ctx->db_handle, recv_msg.head.src_inst, oldest_xmin);
+
+    mes_message_head_t ack_msg;
+    mfc_init_ack_head(&recv_msg.head, &ack_msg, MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN, sizeof(mes_message_head_t),
+        process_ctx->sess_id);
+    int ret = mfc_send_data(&ack_msg);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_WAR("[OG XMIN] send openGauss oldest xmin ack failed, src_inst:%u, src_sid:%u, dst_inst:%u, rsn:%llu",
+            ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, ack_msg.rsn);
+        return;
+    }
+    LOG_DEBUG_INF("[OG XMIN] send openGauss oldest xmin ack success, src_inst:%u, src_sid:%u, dst_inst:%u, rsn:%llu",
+        ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, ack_msg.rsn);
 }
