@@ -838,15 +838,11 @@ void dcs_proc_opengauss_page_status_req(dms_process_context_t *process_ctx, mes_
     }
 }
 
-int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, uint64 oldest_xmin)
+int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, uint64 oldest_xmin, unsigned char dest_id)
 {
     msg_send_opengauss_oldest_xmin_t send_msg;
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    if (reform_info->reformer_id == g_dms.inst_id) {
-        return DMS_SUCCESS;
-    }
     DMS_INIT_MESSAGE_HEAD(&send_msg.head, MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN, 0, dms_ctx->inst_id,
-        reform_info->reformer_id, dms_ctx->sess_id, CM_INVALID_ID16);
+        dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     send_msg.head.size = sizeof(msg_send_opengauss_oldest_xmin_t);
     send_msg.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     send_msg.oldest_xmin = oldest_xmin;
