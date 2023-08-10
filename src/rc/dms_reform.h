@@ -72,6 +72,7 @@ extern "C" {
 #define DMS_IS_SHARE_PARTNER            (g_dms.reform_ctx.share_info.reformer_id != g_dms.inst_id)
 
 #define DMS_REFORMER_ID_FOR_BUILD       0
+#define DMS_REFORMER_ID_FOR_RST_RECOVER DMS_REFORMER_ID_FOR_BUILD
 #define DMS_FIRST_REFORM_FINISH         (g_dms.reform_ctx.reform_info.first_reform_finish)
 
 #define DMS_MAINTAIN_ENV                "DMS_MAINTAIN"
@@ -165,6 +166,7 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_FOR_BUILD,
     DMS_REFORM_TYPE_FOR_FAILOVER,
     DMS_REFORM_TYPE_FOR_SWITCHOVER,
+    DMS_REFORM_TYPE_FOR_RST_RECOVER,
 
     // for openGauss
     DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS,
@@ -305,7 +307,8 @@ typedef struct st_reform_info {
     bool8               file_unable;
     bool8               parallel_enable;        // dms reform proc parallel enable
     bool8               use_default_map;        // if use default part_map in this judgement
-    uint8               unused[2];
+    bool8               rst_recover;            // recover after restore for Gauss100
+    uint8               unused[1];
     log_point_t         curr_points[DMS_MAX_INSTANCES];
 } reform_info_t;
 

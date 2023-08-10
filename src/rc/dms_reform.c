@@ -297,11 +297,15 @@ int dms_reform_init(dms_profile_t *dms_profile)
 #if defined(OPENGAUSS) || defined(UT_TEST)
     reform_info->build_complete = CM_TRUE;
     reform_info->maintain = CM_FALSE;
+    reform_info->rst_recover = CM_FALSE;
 #else
     bool32 build_complete = CM_FALSE;
     // Notice: judgement thread does not work at this moment, so handle_judge can be used here
     g_dms.callback.check_if_build_complete(g_dms.reform_ctx.handle_judge, &build_complete);
     reform_info->build_complete = (bool8)build_complete;
+    bool32 rst_recover = CM_FALSE;
+    g_dms.callback.check_if_restore_recover(g_dms.reform_ctx.handle_judge, &rst_recover);
+    reform_info->rst_recover = (bool8)rst_recover;
     reform_info->maintain = dms_reform_get_maintain();
     reform_info->file_unable = CM_FALSE;
 #endif

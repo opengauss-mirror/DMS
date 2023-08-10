@@ -527,6 +527,12 @@ typedef struct st_dcs_batch_buf {
     unsigned int max_count;
 } dcs_batch_buf_t;
 
+typedef enum en_dms_inst_behavior {
+    DMS_INST_BEHAVIOR_IN_IDLE = 0,
+    DMS_INST_BEHAVIOR_IN_REFORM,
+    DMS_INST_BEHAVIOR_IN_BACKUP,
+} dms_inst_behavior_t;
+
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
@@ -637,6 +643,7 @@ typedef int (*dms_drc_buf_res_rebuild_parallel)(void *db_handle, unsigned char t
 typedef int(*dms_ctl_rcy_clean_parallel_t)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
+typedef void (*dms_check_if_restore_recover)(void *db_handle, unsigned int *rst_recover);
 typedef int (*dms_db_is_primary)(void *db_handle);
 typedef void (*dms_set_switchover_result)(void *db_handle, int result);
 typedef void (*dms_set_db_role)(void *db_handle, unsigned char is_primary);
@@ -682,6 +689,7 @@ typedef int (*dms_get_enable_checksum)(void *db_handle);
 typedef unsigned int (*dms_calc_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, unsigned int page_size);
 typedef int (*dms_verify_page_checksum)(void *db_handle, dms_buf_ctrl_t *ctrl, unsigned int page_size, int cks);
 typedef int (*dms_update_node_oldest_xmin)(void *db_handle, unsigned char inst_id, unsigned long long oldest_xmin);
+typedef void (*dms_set_inst_behavior)(void *db_handle, dms_inst_behavior_t inst_behavior);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -711,6 +719,7 @@ typedef struct st_dms_callback {
     dms_drc_buf_res_rebuild_parallel dms_reform_rebuild_parallel;
     dms_ctl_rcy_clean_parallel_t dms_ctl_rcy_clean_parallel;
     dms_check_if_build_complete check_if_build_complete;
+    dms_check_if_restore_recover check_if_restore_recover;
 
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
@@ -821,6 +830,9 @@ typedef struct st_dms_callback {
     dms_calc_page_checksum calc_page_checksum;
     dms_verify_page_checksum verify_page_checksum;
     dms_update_node_oldest_xmin update_node_oldest_xmin;
+
+    //for shared storage backup
+    dms_set_inst_behavior set_inst_behavior;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -896,7 +908,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           84
+#define DMS_LOCAL_VERSION           85
 
 #ifdef __cplusplus
 }

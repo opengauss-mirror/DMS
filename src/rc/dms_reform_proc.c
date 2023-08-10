@@ -1851,6 +1851,11 @@ static void dms_reform_end(void)
     reform_ctx->share_info = share_info;
 }
 
+static void dms_reform_set_idle_behavior(void)
+{
+    g_dms.callback.set_inst_behavior(g_dms.reform_ctx.handle_proc, DMS_INST_BEHAVIOR_IN_IDLE);
+}
+
 static int dms_reform_done(void)
 {
     int ret = DMS_SUCCESS;
@@ -1889,6 +1894,10 @@ static int dms_reform_done_check()
     dms_reform_end();
     reform_info->last_fail = CM_FALSE;
     reform_info->first_reform_finish = CM_TRUE;
+    if (!reform_info->rst_recover) { // maintain reeform after rst recover
+        reform_info->first_reform_finish = CM_TRUE;
+    }
+    dms_reform_set_idle_behavior();
 #ifdef OPENGAUSS
     g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
 #endif
