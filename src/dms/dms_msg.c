@@ -35,8 +35,6 @@
 extern "C" {
 #endif
 
-static void dms_handle_cvt_info(dms_process_context_t* ctx, cvt_info_t* cvt_info, bool8 proc_direct);
-
 void cm_send_error_msg(mes_message_head_t *head, int32 err_code, char *err_info)
 {
     msg_error_t msg_error;
@@ -225,8 +223,7 @@ static int32 dms_invalidate_share_copy(uint32 inst_id, uint32 sess_id, char *res
     return ret;
 }
 
-static void dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
+void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
 {
     dms_claim_owner_req_t request;
     DMS_INIT_MESSAGE_HEAD(&request.head,
@@ -241,7 +238,7 @@ static void dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
     request.len       = dms_ctx->len;
     int32 ret = memcpy_sp(request.resid, DMS_RESID_SIZE, dms_ctx->resid, request.len);
     if (ret != EOK) {
-        LOG_DEBUG_ERR("[DMS][%s][dms_claim_ownership_r]: system call failed",
+        LOG_DEBUG_ERR("[DMS][%s][dms_claim_ownership]: system call failed",
             cm_display_resid(dms_ctx->resid, dms_ctx->type));
         return;
     }
@@ -279,52 +276,6 @@ static int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 le
     }
     LOG_DEBUG_ERR("[DMS][%s][dms_set_claim_info]: system call failed", cm_display_resid(resid, res_type));
     return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
-}
-
-static void dms_claim_ownership_l(dms_context_t* dms_ctx, dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
-{
-    cvt_info_t cvt_info;
-    claim_info_t claim_info;
-    dms_process_context_t ctx;
-    
-    LOG_DEBUG_INF("[DMS][%s][%s]: src_id=%u, src_sid=%u, has_edp=%u, req_mode=%u",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), "claim owner local", dms_ctx->inst_id,
-        dms_ctx->sess_id, (uint32)has_edp, mode);
-
-    // call drc interface to claim ownership
-    (void)dms_set_claim_info(&claim_info, dms_ctx->resid, dms_ctx->len, (uint8)dms_ctx->type, (uint8)dms_ctx->inst_id,
-        mode, has_edp, page_lsn, dms_ctx->sess_id, mfc_get_rsn(dms_ctx->sess_id), dms_ctx->sess_type);
-
-    if (drc_claim_page_owner(&claim_info, &cvt_info) != DMS_SUCCESS) {
-        return;
-    }
-
-    if (cvt_info.invld_insts != 0) {
-        LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type), cvt_info.invld_insts);
-
-        int32 ret = dms_invalidate_share_copy(dms_ctx->inst_id, dms_ctx->sess_id, cvt_info.resid,
-            cvt_info.len, cvt_info.res_type, cvt_info.invld_insts, dms_ctx->sess_type, NULL);
-        if (ret != DMS_SUCCESS) {
-            dms_send_error_ack((uint8)dms_ctx->inst_id, dms_ctx->sess_id,
-                cvt_info.req_id, cvt_info.req_sid, cvt_info.req_rsn, ret);
-            return;
-        }
-    }
-    ctx.inst_id   = (uint8)dms_ctx->inst_id;
-    ctx.sess_id   = dms_ctx->sess_id;
-    ctx.db_handle = dms_ctx->db_handle;
-    dms_handle_cvt_info(&ctx, &cvt_info, CM_FALSE);
-}
-
-void dms_claim_ownership(dms_context_t* dms_ctx, uint8 master_id,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
-{
-    if (master_id == (uint8)dms_ctx->inst_id) {
-        dms_claim_ownership_l(dms_ctx, mode, has_edp, page_lsn);
-    } else {
-        dms_claim_ownership_r(dms_ctx, master_id, mode, has_edp, page_lsn);
-    }
 }
 
 static inline int32 dms_handle_grant_owner_ack(dms_context_t *dms_ctx, void *res,
@@ -816,13 +767,13 @@ static inline int32 dms_transfer_res_owner(dms_process_context_t *process_ctx, d
     return dls_owner_transfer_lock(process_ctx, req_info);
 }
 
-static int dms_notify_owner_for_res(dms_process_context_t *ctx, dms_res_req_info_t *req_info, bool8 proc_direct)
+static int dms_notify_owner_for_res(dms_process_context_t *ctx, dms_res_req_info_t *req_info)
 {
     LOG_DEBUG_INF("[DMS][%s][dms_notify_owner_for_res]: owner_id=%u, curr_mode=%u, req_mode=%u",
         cm_display_resid(req_info->resid, req_info->res_type), (uint32)req_info->owner_id,
         (uint32)req_info->curr_mode, (uint32)req_info->req_mode);
 
-    if (!proc_direct || ctx->inst_id != req_info->owner_id) {
+    if (ctx->inst_id != req_info->owner_id) {
         // notify owner to transfer this page to requester
         return dms_notify_owner_for_res_r(ctx, req_info);
     }
@@ -855,7 +806,7 @@ static int dms_send_req2owner(dms_process_context_t *ctx, dms_ask_res_req_t *req
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_resid(req_msg->resid, req_msg->res_type));
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
-    return dms_notify_owner_for_res(ctx, &req_info, CM_TRUE);
+    return dms_notify_owner_for_res(ctx, &req_info);
 }
 
 void dms_handle_remote_req_result(dms_process_context_t *ctx, dms_ask_res_req_t *req, drc_req_owner_result_t *result)
@@ -1070,7 +1021,7 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, mes_message_t *receive_
     dms_end_stat(proc_ctx->sess_id);
 }
 
-static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *cvt_info, bool8 proc_direct)
+static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *cvt_info)
 {
     dms_res_req_info_t req_info;
     req_info.owner_id = cvt_info->owner_id;
@@ -1089,7 +1040,7 @@ static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
 
-    ret = dms_notify_owner_for_res(ctx, &req_info, proc_direct);
+    ret = dms_notify_owner_for_res(ctx, &req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_ERR("[DMS][%s][notify owner transfer page]: failed, owner_id=%u, req_id=%u, "
             "req_sid=%u, req_rsn=%llu, req_mode=%u, curr_mode=%u",
@@ -1148,7 +1099,7 @@ static int32 dms_notify_granted_directly(dms_process_context_t *ctx, cvt_info_t 
     return CM_SUCCESS;
 }
 
-static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info, bool8 proc_direct)
+static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info)
 {
     int ret;
 
@@ -1159,7 +1110,7 @@ static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info
 
     switch (cvt_info->type) {
         case DRC_REQ_OWNER_CONVERTING:
-            ret = dms_try_notify_owner_for_res(ctx, cvt_info, proc_direct);
+            ret = dms_try_notify_owner_for_res(ctx, cvt_info);
             break;
         case DRC_REQ_OWNER_ALREADY_OWNER:
             ret = dms_notify_already_owner(ctx, cvt_info);
@@ -1218,7 +1169,7 @@ void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, mes_messag
             return;
         }
     }
-    dms_handle_cvt_info(process_ctx, &cvt_info, CM_TRUE);
+    dms_handle_cvt_info(process_ctx, &cvt_info);
 }
 
 void dms_cancel_request_res(dms_context_t *dms_ctx)
@@ -1290,7 +1241,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, mes_message_t 
             return;
         }
     }
-    dms_handle_cvt_info(proc_ctx, &cvt_info, CM_TRUE);
+    dms_handle_cvt_info(proc_ctx, &cvt_info);
 }
 
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg)
@@ -1410,7 +1361,7 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
             return;
         }
     }
-    dms_handle_cvt_info(proc_ctx, &cvt_info, CM_TRUE);
+    dms_handle_cvt_info(proc_ctx, &cvt_info);
 }
 
 static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t *res_id,
@@ -1452,7 +1403,7 @@ static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t
             return;
         }
     }
-    dms_handle_cvt_info(proc_ctx, &cvt_info, CM_TRUE);
+    dms_handle_cvt_info(proc_ctx, &cvt_info);
 }
 
 static void dms_smon_handle_confirm_ack(res_id_t *res_id, drc_request_info_t *cvt_req)
