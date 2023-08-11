@@ -119,21 +119,14 @@ static int32 drc_check_req_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t
         return DMS_SUCCESS;
     }
 
-    if (buf_res->claimed_owner == converting->req_info.inst_id &&
-        buf_res->lock_mode == DMS_LOCK_SHARE && converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
-        // converting is owner, the scenario is S->X
-        // master will invalidate readonly copy on other instances
-        // so,need to reject all requests from these instances, don't let them wait.
-        // otherwise, master can not invalidate readonly because local latch can not be added.
-        // current owner may be recycled out of memory and be reloeaded later
-        if (bitmap64_exist(&buf_res->copy_insts, req->inst_id)) {
-            LOG_DEBUG_INF("[DRC][%s]:conflicted with owner, [buf_res:owner=%u, mode=%u], "
-                "[req:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u]",
-                cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
-                (uint32)buf_res->lock_mode, (uint32)req->inst_id, (uint32)req->sess_id,
-                req->rsn, (uint32)req->req_mode, (uint32)req->curr_mode);
-            return ERRNO_DMS_DRC_CONFLICT_WITH_OWNER;
-        }
+    if (buf_res->lock_mode == DMS_LOCK_SHARE && converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE &&
+        bitmap64_exist(&buf_res->copy_insts, req->inst_id)) {
+        LOG_DEBUG_INF("[DRC][%s]:conflicted with other, [buf_res:owner=%u, mode=%u, cvt:inst_id=%u, req_mode=%u], "
+            "[req:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u]",
+            cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
+            (uint32)buf_res->lock_mode, (uint32)converting->req_info.inst_id, (uint32)converting->req_info.req_mode,
+            (uint32)req->inst_id, (uint32)req->sess_id, req->rsn, (uint32)req->req_mode, (uint32)req->curr_mode);
+        return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
 
     if (buf_res->claimed_owner == req->inst_id) {

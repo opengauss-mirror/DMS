@@ -75,7 +75,6 @@ const char *g_dms_errno_drc_desc[] = {
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_LOCK_DEAD_LOCK)] = "dms lock dead lock",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_PAGE_OWNER_NOT_FOUND)] = "page owner not found, pageid is %s",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND)] = "page master not found, pageid is %s",
-    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_CONFLICT_WITH_OWNER)] = "dms req conflict with owner",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER)] = "dms req conflict with other requester",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_REMASTER_IN_MIGRATE)] = "remaster in migrate, remaster status = %d",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_CONFLICT_WITH_INVALID_PAGE)] = "dms req conflict with invalid page",
