@@ -42,6 +42,7 @@ extern "C" {
 #define DMS_REFORM_LONG_TIMEOUT         5000
 #define DMS_REFORM_SHORT_TIMEOUT        500
 #define DMS_REFORM_CONFIRM_TIMEOUT      5000000 // 5s
+#define DMS_REFORM_LOCK_INST_TIMEOUT    2000000
 #define DMS_REFORM_CONTEXT              (&g_dms.reform_ctx)
 #define DMS_REFORMER_CTRL               (&g_dms.reform_ctx.reformer_ctrl)
 #define DMS_REFORM_INFO                 (&g_dms.reform_ctx.reform_info)
@@ -121,7 +122,8 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE,
     DMS_REFORM_STEP_RECOVERY,
     DMS_REFORM_STEP_RECOVERY_OPENGAUSS,
-    DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN,
+    DMS_REFORM_STEP_DRC_RCY_CLEAN,
+    DMS_REFORM_STEP_CTL_RCY_CLEAN,
     DMS_REFORM_STEP_TXN_DEPOSIT,
     DMS_REFORM_STEP_ROLLBACK,
     DMS_REFORM_STEP_SUCCESS,
@@ -130,6 +132,8 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SYNC_WAIT,                      // tips: can not use before reconnect
     DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
     DMS_REFORM_STEP_DW_RECOVERY,                    // recovery the dw area
+    DMS_REFORM_STEP_DF_RECOVERY,
+    DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY,           // recovery the file org lsn
     DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
@@ -247,6 +251,8 @@ typedef struct st_share_info {
     uint8               unused[2];
     uint64              version_num;
     dw_recovery_info_t  dw_recovery_info;
+    file_orglsn_recovery_info_t  file_orglsn_recovery_info;
+    uint64              start_times[DMS_MAX_INSTANCES];
 } share_info_t;
 
 typedef struct st_rebuild_info {
@@ -259,8 +265,8 @@ typedef struct st_reformer_ctrl {
 } reformer_ctrl_t;
 
 typedef struct st_reform_info {
-    latch_t             bcast_latch;
     latch_t             ddl_latch;
+    latch_t             file_latch;
     uint64              max_scn;
     spinlock_t          version_lock;
     spinlock_t          mes_lock;
@@ -292,19 +298,23 @@ typedef struct st_reform_info {
     uint8               reform_phase_index;
     uint8               reform_phase;           // set by reform_proc
     bool8               reform_pause;
-    bool8               bcast_unable;
     bool8               ddl_unable;
+    bool8               file_unable;
     bool8               parallel_enable;        // dms reform proc parallel enable
     bool8               use_default_map;        // if use default part_map in this judgement
     uint8               unused[2];
 } reform_info_t;
 
 typedef struct st_switchover_info {
+    // var below used for origin primary
     uint64              start_time;             // start lsn
     spinlock_t          lock;
     bool8               switch_req;             // concurrency control & used in dms_reform_judgement
     uint8               inst_id;                // instance id of initiator
     uint16              sess_id;                // session id of initiator, use for message reentry
+    // var below used for origin standby
+    version_info_t      reformer_version;       // for origin standby record, if version changed, stop request session
+    bool8               switch_start;           // if current node request switchover
 } switchover_info_t;
 
 typedef struct st_reform_scrlock_context {
@@ -422,7 +432,6 @@ void dms_reform_judgement_step_log(void);
 void dms_reform_set_start(void);
 void dms_reform_uninit(void);
 void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list);
-void dms_reform_set_fail(void);
 bool8 dms_dst_id_is_self(uint8 dst_id);
 bool8 dms_reform_list_exist(instance_list_t *list, uint8 inst_id);
 bool8 dms_reform_type_is(dms_reform_type_t type);

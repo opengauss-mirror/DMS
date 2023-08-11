@@ -77,27 +77,27 @@ typedef enum en_msg_command {
     MSG_REQ_LOCK_REBUILD = 28,
     MSG_REQ_OPENGAUSS_TXN_STATUS = 29,
     MSG_REQ_OPENGAUSS_TXN_SNAPSHOT = 30,
-    MES_REQ_RELEASE_OWNER_BATCH = 31,
-    MSG_REQ_OPENGAUSS_TXN_UPDATE_XID = 32,
-    MSG_REQ_OPENGAUSS_XID_CSN = 33,
-    MSG_REQ_OPENGAUSS_LOCK_BUFFER = 34,
-    MSG_REQ_ASK_EDP_REMOTE = 35,
-    MSG_REQ_SYNC_STEP = 36,
-    MSG_REQ_SYNC_SHARE_INFO = 37,
-    MSG_REQ_DMS_STATUS = 38,
-    MSG_REQ_REFORM_PREPARE = 39,
-    MSG_REQ_SYNC_NEXT_STEP = 40,
-    MSG_REQ_PAGE = 41,
-    MSG_REQ_SWITCHOVER = 42,
-	MSG_REQ_CHANNEL_CHECK = 43,
-    MSG_REQ_CANCEL_REQUEST_RES = 44,
-    MSG_REQ_OPENGAUSS_DDLLOCK = 45,
-    MSG_REQ_CONFIRM_CVT = 46,
-    MSG_REQ_CHECK_REFORM_DONE = 47,
-    MSG_REQ_MAP_INFO = 48,
-    MSG_REQ_DDL_SYNC = 49,
-    MSG_REQ_REFORM_GCV_SYNC = 50,
-    MSG_REQ_PAGE_VALIDATE = 51,
+    MSG_REQ_OPENGAUSS_TXN_UPDATE_XID = 31,
+    MSG_REQ_OPENGAUSS_XID_CSN = 32,
+    MSG_REQ_ASK_EDP_REMOTE = 33,
+    MSG_REQ_SYNC_STEP = 34,
+    MSG_REQ_SYNC_SHARE_INFO = 35,
+    MSG_REQ_DMS_STATUS = 36,
+    MSG_REQ_REFORM_PREPARE = 37,
+    MSG_REQ_SYNC_NEXT_STEP = 38,
+    MSG_REQ_PAGE = 39,
+    MSG_REQ_SWITCHOVER = 40,
+    MSG_REQ_CANCEL_REQUEST_RES = 41,
+    MSG_REQ_OPENGAUSS_DDLLOCK = 42,
+    MSG_REQ_CONFIRM_CVT = 43,
+    MSG_REQ_CHECK_REFORM_DONE = 44,
+    MSG_REQ_MAP_INFO = 45,
+    MSG_REQ_DDL_SYNC = 46,
+    MSG_REQ_REFORM_GCV_SYNC = 47,
+    MSG_REQ_PAGE_VALIDATE = 48,
+    MSG_REQ_INVALID_OWNER = 49,
+    MSG_REQ_ASK_RES_OWNER_ID = 50,
+    MSG_REQ_OPENGAUSS_ONDEMAND_REDO = 51,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -121,7 +121,7 @@ typedef enum en_msg_command {
     MSG_ACK_OWNER_CLEAN_EDP = 145,
     MSG_ACK_ERROR = 146,
     MSG_ACK_RELEASE_PAGE_OWNER = 147,
-    MSG_ACK_INVLD_OWNER = 148,
+    MSG_ACK_INVLDT_SHARE_COPY = 148,
     MSG_ACK_BOC = 149,
     MSG_ACK_SMON_DLOCK_INFO = 150,
     MSG_ACK_SMON_DEADLOCK_SQL = 151,
@@ -141,6 +141,9 @@ typedef enum en_msg_command {
     MSG_ACK_CONFIRM_CVT = 165,
     MSG_ACK_MAP_INFO = 166,
     MSG_ACK_REFORM_GCV_SYNC = 167,
+    MSG_ACK_INVLD_OWNER = 168,
+    MSG_ACK_ASK_RES_OWNER_ID = 169,
+    MSG_ACK_OPENGAUSS_ONDEMAND_REDO = 170,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -148,6 +151,7 @@ typedef enum en_msg_command {
 typedef struct st_dms_process_context {
     void *db_handle;
     uint32 sess_id; // current session id
+    uint32 rmid;    // current rm id
     uint8 inst_id;  // current instance id
 } dms_process_context_t;
 
@@ -161,12 +165,11 @@ typedef struct st_dms_ask_res_req {
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     dms_session_e sess_type;
-    uint32 ver;
     uint16 len;
-    bool8 has_share_copy;
     bool8 is_try;
     uint8 res_type;
-    uint8 unused[3];
+    uint8 unused[4];
+    date_t req_time;
     char resid[DMS_RESID_SIZE];
 } dms_ask_res_req_t;
 
@@ -175,6 +178,7 @@ typedef struct st_dms_ask_res_ack_load {
     mes_message_head_t head;
     uint64 master_lsn;
     uint64 scn;
+    bool8 master_grant;
 } dms_ask_res_ack_ld_t;
 
 typedef struct st_dms_ask_res_ack {
@@ -182,7 +186,6 @@ typedef struct st_dms_ask_res_ack {
     uint64 lsn;
     uint64 scn;
     uint64 edp_map;
-    uint32 ver;
 #ifdef OPENGAUSS
     uint8 seg_fileno;
     uint32 seg_blockno;
@@ -197,7 +200,6 @@ typedef struct st_dms_claim_owner_req {
     uint8  res_type;
     uint16 len;
     uint64 lsn;
-    uint32 ver;
     char resid[DMS_RESID_SIZE];
 } dms_claim_owner_req_t;
 
@@ -206,8 +208,8 @@ typedef struct st_dms_invld_req {
     uint8  is_try;
     uint8  res_type;
     uint16 len;
+    bool32 invld_owner;
     dms_session_e sess_type;
-    uint32 ver;
     char   resid[DMS_RESID_SIZE];
 } dms_invld_req_t;
 
@@ -216,18 +218,32 @@ typedef struct st_dms_invld_ack {
     int32 err_code;
 } dms_invld_ack_t;
 
+typedef struct st_dms_ask_res_owner_id_req {
+    mes_message_head_t head;
+    dms_session_e sess_type;
+    uint16 len;
+    uint8 res_type;
+    uint8 unused;
+    uint64 lsn;
+    char resid[DMS_RESID_SIZE];
+} dms_ask_res_owner_id_req_t;
+
+typedef struct st_dms_ask_res_owner_id_ack {
+    mes_message_head_t head;
+    uint8 owner_id;
+    uint8 unused[3];
+} dms_ask_res_owner_id_ack_t;
+
 typedef struct st_dms_res_req_info {
     uint8 req_id;
     uint8 owner_id;
-    bool8 has_share_copy;
     uint8 res_type;
-    uint8 unused;
     bool8 is_try;
+    uint8 unused[2];
     uint16 req_sid;
     dms_session_e sess_type;
     uint64 req_rsn;
     uint32 len;
-    uint32 ver;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     char resid[DMS_RESID_SIZE];
@@ -239,7 +255,6 @@ typedef struct st_dms_cancel_request_res {
     uint16 len;
     uint8  res_type;
     uint8  unused;
-
     char resid[DMS_RESID_SIZE];
 }dms_cancel_request_res_t;
 
@@ -261,7 +276,6 @@ typedef struct st_dms_confirm_cvt_ack {
     uint32 result;
     uint64 lsn;
     uint64 edp_map;
-    uint32 ver;
     uint8 lock_mode;
 }dms_confirm_cvt_ack_t;
 
@@ -324,7 +338,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
     } while (0)
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 rsn,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, dms_session_e sess_type, uint32 ver)
+    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, dms_session_e sess_type, date_t req_time)
 {
     req_info->rsn = rsn;
     req_info->inst_id = req_id;
@@ -333,14 +347,13 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->curr_mode = curr_mode;
     req_info->req_mode = req_mode;
     req_info->sess_type = sess_type;
-    req_info->ver = ver;
+    req_info->req_time = req_time;
 }
 
 void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 ret);
-int32 dms_claim_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 ver);
-int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode,
-    dms_lock_mode_t req_mode, uint32 ver);
+void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
+    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
+int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
 void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_proc_invld_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
@@ -349,6 +362,12 @@ void dms_cancel_request_res(dms_context_t *dms_ctx);
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_smon_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
+int32 dms_notify_invld_share_copy(uint32 inst_id, uint32 sess_id, char* resid, uint16 len,
+    uint8 type, uint64 invld_insts, dms_session_e sess_type, uint64* succ_insts);
+int32 dms_notify_invld_owner(dms_process_context_t* ctx, char* resid, uint16 len,
+    uint8 type, dms_session_e sess_type, uint8 owner_id);
+int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
+void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, mes_message_t *receive_msg);
 #ifdef __cplusplus
 }
 #endif

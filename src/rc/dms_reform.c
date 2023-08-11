@@ -264,25 +264,25 @@ int dms_reform_init(dms_profile_t *dms_profile)
     reform_context->mes_has_init = (bool8)dms_profile->conn_created_during_init;
     reform_context->share_info_lock = 0;
 
-    reform_context->handle_proc = g_dms.callback.get_db_handle(&reform_context->sess_proc);
+    reform_context->handle_proc = g_dms.callback.get_db_handle(&reform_context->sess_proc, DMS_TYPE_NONE);
     if (reform_context->handle_proc == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_judge = g_dms.callback.get_db_handle(&reform_context->sess_judge);
+    reform_context->handle_judge = g_dms.callback.get_db_handle(&reform_context->sess_judge, DMS_TYPE_NONE);
     if (reform_context->handle_judge == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_normal = g_dms.callback.get_db_handle(&reform_context->sess_normal);
+    reform_context->handle_normal = g_dms.callback.get_db_handle(&reform_context->sess_normal, DMS_TYPE_NONE);
     if (reform_context->handle_normal == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
-    reform_context->handle_health = g_dms.callback.get_db_handle(&reform_context->sess_health);
+    reform_context->handle_health = g_dms.callback.get_db_handle(&reform_context->sess_health, DMS_TYPE_NONE);
     if (reform_context->handle_health == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
@@ -297,7 +297,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
     g_dms.callback.check_if_build_complete(g_dms.reform_ctx.handle_judge, &build_complete);
     reform_info->build_complete = (bool8)build_complete;
     reform_info->maintain = dms_reform_get_maintain();
-    reform_info->bcast_unable = CM_TRUE;
+    reform_info->file_unable = CM_FALSE;
 #endif
     if (reform_info->build_complete && !reform_info->maintain) {
         ret = dms_reform_cm_res_init();
@@ -330,6 +330,9 @@ void dms_reform_uninit(void)
 #ifdef DMS_TEST
     dms_reform_cm_simulation_uninit();
 #endif
+    reform_info_t* reform_info = DMS_REFORM_INFO;
+    reform_info->reform_fail = CM_TRUE;
+    LOG_RUN_INF("[DMS REFORM]set reform fail, dms_reform_uninit");
     cm_close_thread(&reform_context->thread_judgement);
     cm_close_thread(&reform_context->thread_reformer);
     cm_close_thread(&reform_context->thread_reform);
@@ -442,18 +445,22 @@ int dms_is_recovery_session(unsigned int sid)
 int dms_switchover(unsigned int sess_id)
 {
     dms_reset_error();
+    reform_info_t* reform_info = DMS_REFORM_INFO;
+    switchover_info_t* switchover_info = DMS_SWITCHOVER_INFO;
     dms_reform_req_switchover_t req;
+    uint8 reformer_id = reform_info->reformer_id;
+    uint64 start_time = 0;
     int ret = DMS_SUCCESS;
 
     while (CM_TRUE) {
-        dms_reform_init_req_switchover(&req, (uint16)sess_id);
+        dms_reform_init_req_switchover(&req, reformer_id, (uint16)sess_id);
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
             return ret;
         }
 
-        ret = dms_reform_req_switchover_wait((uint16)sess_id);
+        ret = dms_reform_req_switchover_wait((uint16)sess_id, &start_time);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.dst_inst);
             continue;
@@ -461,8 +468,16 @@ int dms_switchover(unsigned int sess_id)
             break;
         }
     }
+    DMS_RETURN_IF_ERROR(ret);
 
-    return ret;
+    cm_spin_lock(&switchover_info->lock, NULL);
+    // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    switchover_info->reformer_version.inst_id = reformer_id;
+    switchover_info->reformer_version.start_time = start_time;
+    switchover_info->switch_start = CM_TRUE;
+    cm_spin_unlock(&switchover_info->lock);
+
+    return DMS_SUCCESS;
 }
 
 int dms_get_version(void)
@@ -492,12 +507,6 @@ int dms_reform_last_failed(void)
     return reform_info->last_fail;
 }
 
-void dms_reform_set_fail(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    reform_info->reform_fail = CM_TRUE;
-}
-
 int dms_is_reformer(void)
 {
     return DMS_IS_REFORMER ? CM_TRUE : CM_FALSE;
@@ -523,4 +532,149 @@ void dms_ddl_leave(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     cm_unlatch(&reform_info->ddl_latch, NULL);
+}
+
+void dms_file_enter(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_latch_s(&reform_info->file_latch, 0, CM_FALSE, NULL);
+    while (reform_info->file_unable) {
+        cm_unlatch(&reform_info->file_latch, NULL);
+        DMS_REFORM_SHORT_SLEEP;
+        cm_latch_s(&reform_info->file_latch, 0, CM_FALSE, NULL);
+    }
+}
+
+void dms_file_leave(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_unlatch(&reform_info->file_latch, NULL);
+}
+
+static int dms_info_append_start(char *buf, unsigned int len)
+{
+    buf[0] = 0;
+    MEMS_RETURN_IFERR(strcat_s(buf, len, "{"));
+    return DMS_SUCCESS;
+}
+
+static void dms_info_append_end(char *buf, unsigned int len)
+{
+    uint32 str_len = (uint32)strlen(buf);
+    if (str_len > 0) {
+        buf[str_len - 1] = '}';
+    }
+}
+
+static int dms_info_append_string(char *buf, unsigned int len, const char *key, const char *value)
+{
+    MEMS_RETURN_IFERR(strcat_s(buf, len, "\""));
+    MEMS_RETURN_IFERR(strcat_s(buf, len, key));
+    MEMS_RETURN_IFERR(strcat_s(buf, len, "\":\""));
+    MEMS_RETURN_IFERR(strcat_s(buf, len, value));
+    MEMS_RETURN_IFERR(strcat_s(buf, len, "\""));
+    MEMS_RETURN_IFERR(strcat_s(buf, len, ","));
+    return DMS_SUCCESS;
+}
+
+static int dms_info_append_uint64(char *buf, unsigned int len, const char *key, uint64 value)
+{
+    char tmp[CM_BUFLEN_32];
+
+    PRTS_RETURN_IFERR(sprintf_s(tmp, CM_BUFLEN_32, "%llu", value));
+    return dms_info_append_string(buf, len, key, tmp);
+}
+
+static int dms_info_append_bool(char *buf, unsigned int len, const char *key, bool32 value,
+    const char *desc1, const char *desc2)
+{
+    if (value) {
+        return dms_info_append_string(buf, len, key, desc1);
+    } else {
+        return dms_info_append_string(buf, len, key, desc2);
+    }
+}
+
+typedef char *(get_desc_func_t)(uint32 value);
+
+static int dms_info_append_enum(char *buf, unsigned int len, const char *key, uint32 value, get_desc_func_t get_desc)
+{
+    return dms_info_append_string(buf, len, key, get_desc(value));
+}
+
+static int dms_info_append_instance_list(char *buf, unsigned int len, const char *key, instance_list_t *list)
+{
+    uint64 bitmap = 0;
+    dms_reform_list_to_bitmap(&bitmap, list);
+    return dms_info_append_uint64(buf, len, key, bitmap);
+}
+
+static int dms_info_inner(reform_info_t *reform_info, share_info_t *share_info, char *buf, uint32 len, bool32 curr)
+{
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "instance_id", (uint64)g_dms.inst_id));
+    DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "dms_role", reform_info->dms_role == DMS_ROLE_REFORMER,
+        "reformer", "partner"));
+    if (reform_info->reform_done && curr) {
+        return dms_info_append_string(buf, len, "reform_status", "finished");
+    }
+    if (reform_info->reform_step_index == 0) {
+        return dms_info_append_string(buf, len, "reform_status", "waiting");
+    }
+    DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "reform_status", curr, "running", "finished"));
+    DMS_RETURN_IF_ERROR(dms_info_append_enum(buf, len, "reform_type", (uint32)share_info->reform_type,
+        dms_reform_get_type_desc));
+    DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "full_clean", share_info->full_clean, "true", "false"));
+    if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
+        DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "promote_id", (uint64)share_info->promote_id));
+        DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "demote_id", (uint64)share_info->demote_id));
+    }
+    DMS_RETURN_IF_ERROR(dms_info_append_enum(buf, len, "last_step", (uint32)reform_info->last_step,
+        dms_reform_get_step_desc));
+    DMS_RETURN_IF_ERROR(dms_info_append_enum(buf, len, "curr_step", (uint32)reform_info->current_step,
+        dms_reform_get_step_desc));
+    if (reform_info->current_step == DMS_REFORM_STEP_DONE_CHECK) {
+        DMS_RETURN_IF_ERROR(dms_info_append_string(buf, len, "next_step", "N/A"));
+    } else {
+        DMS_RETURN_IF_ERROR(dms_info_append_enum(buf, len, "next_step", (uint32)reform_info->next_step,
+            dms_reform_get_step_desc));
+    }
+    if (curr) {
+        DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "curr_step_elasped(us)",
+            (uint64)g_timer()->now - reform_info->proc_time));
+    }
+    DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "ddl_enable", reform_info->ddl_unable, "false", "true"));
+    DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "file_enable", reform_info->file_unable, "false", "true"));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_mes", reform_info->bitmap_mes));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_connect", reform_info->bitmap_connect));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_stable", share_info->bitmap_stable));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_online", share_info->bitmap_online));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_reconnect", share_info->bitmap_reconnect));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_disconnect", share_info->bitmap_disconnect));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_clean", share_info->bitmap_clean));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_recovery", share_info->bitmap_recovery));
+    DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "bitmap_in", share_info->bitmap_in));
+    DMS_RETURN_IF_ERROR(dms_info_append_instance_list(buf, len, "bitmap_rebuild", &share_info->list_rebuild));
+    DMS_RETURN_IF_ERROR(dms_info_append_instance_list(buf, len, "bitmap_withdraw", &share_info->list_withdraw));
+    DMS_RETURN_IF_ERROR(dms_info_append_instance_list(buf, len, "bitmap_rollback", &share_info->list_rollback));
+
+    return DMS_SUCCESS;
+}
+
+int dms_info(char *buf, unsigned int len, unsigned int curr)
+{
+    reform_info_t reform_info;
+    share_info_t share_info;
+
+    if (curr) {
+        reform_info = g_dms.reform_ctx.reform_info;
+        share_info = g_dms.reform_ctx.share_info;
+    } else {
+        reform_info = g_dms.reform_ctx.last_reform_info;
+        share_info = g_dms.reform_ctx.last_share_info;
+    }
+
+    DMS_RETURN_IF_ERROR(dms_info_append_start(buf, len));
+    DMS_RETURN_IF_ERROR(dms_info_inner(&reform_info, &share_info, buf, len, curr));
+    dms_info_append_end(buf, len);
+    return DMS_SUCCESS;
 }

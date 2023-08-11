@@ -44,13 +44,13 @@ typedef struct st_dms_reform_ack_common {
     uint8               lock_mode;
     bool8               is_edp;
     uint64              lsn;
-    uint32              ver;
     uint64              start_time;
 } dms_reform_ack_common_t;
 
 typedef struct st_dms_reform_req_sync_step {
     mes_message_head_t  head;
     uint64              scn;
+    uint64              start_time;
     uint8               last_step;
     uint8               curr_step;
     uint8               next_step;
@@ -134,12 +134,14 @@ enum dms_reform_req_page_action {
 typedef struct st_dms_reform_req_res {
     mes_message_head_t head;
     uint32 action;
+    uint32 sess_id;
+    uint64 rsn;
     char resid[DMS_RESID_SIZE];
     uint8 res_type;
 } dms_reform_req_res_t;
 void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
     uint32 sess_id);
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 *ver, uint32 sess_id);
+int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 sess_id);
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 int dms_reform_send_data(mes_message_head_t *msg_head, uint32 sess_id);
@@ -148,13 +150,9 @@ typedef struct st_dms_reform_req_switchover {
     mes_message_head_t head;
     uint64 start_time;
 } dms_reform_req_switchover_t;
-void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint16 sess_id);
-int dms_reform_req_switchover_wait(uint16 sess_id);
+void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 reformer_id, uint16 sess_id);
+int dms_reform_req_switchover_wait(uint16 sess_id, uint64 *start_time);
 void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
-
-void dms_reform_init_channel_check(mes_message_head_t *head, uint8 inst_id, uint32 index, uint16 sess_id);
-int dms_reform_channel_check_wait(uint16 sess_id);
-void dms_reform_proc_channel_check(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 int dms_reform_check_reform_done(void);
@@ -166,6 +164,12 @@ typedef struct st_dms_reform_ack_map {
 void dms_reform_init_map_info_req(mes_message_head_t *head, uint8 dst_id);
 int dms_reform_map_info_req_wait(void);
 void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+
+typedef struct st_dms_reform_req_opengauss_ondemand_redo {
+    mes_message_head_t head;
+    uint16 len;
+} dms_reform_req_opengauss_ondemand_redo_t;
+void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 #ifdef __cplusplus
 }
 #endif

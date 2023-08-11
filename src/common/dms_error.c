@@ -83,6 +83,7 @@ const char *g_dms_errno_drc_desc[] = {
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST)] = "invalid repeat request",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_INVALID_CLAIM_REQUEST)] = "invalid claim request",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_INVALID)] = "invalid drc: %s",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_IS_RECYCLING)] = "drc: %s is recycling",
 };
 
 const char *g_dms_errno_dls_desc[] = {

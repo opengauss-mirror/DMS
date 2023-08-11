@@ -637,8 +637,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     int ret;
 
     *local_route = CM_FALSE;
-    dcs_read_page_init(&assist, request->pageid, DMS_PAGE_LATCH_MODE_S, (DMS_ENTER_PAGE_TRY | DMS_ENTER_PAGE_REMOTE),
-        request->query_scn, 1);
+    dcs_read_page_init(&assist, request->pageid, DMS_PAGE_LATCH_MODE_S, DMS_ENTER_PAGE_NORMAL, request->query_scn, 1);
 
     if (g_dms.callback.read_page(ctx->db_handle, &assist, &page) != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_READ_PAGE);

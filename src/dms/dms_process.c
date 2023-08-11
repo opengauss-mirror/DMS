@@ -92,13 +92,9 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,   CM_TRUE, CM_FALSE, "req opengauss txn status" },
     { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, dcs_proc_opengauss_txn_snapshot_req,
         CM_TRUE, CM_FALSE,  "req opengauss txn snapshot" },
-    { MES_REQ_RELEASE_OWNER_BATCH,    dcs_proc_release_owner_batch_req,
-        CM_TRUE, CM_FALSE,  "release page owner batch req"},
     { MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, dcs_proc_opengauss_update_xid_req,
         CM_TRUE, CM_FALSE,  "req opengauss update xid" },
     { MSG_REQ_OPENGAUSS_XID_CSN,      dcs_proc_opengauss_xid_csn_req,  CM_TRUE, CM_FALSE, "req opengauss txn csn" },
-    { MSG_REQ_OPENGAUSS_LOCK_BUFFER,  dcs_proc_opengauss_lock_buffer_req,
-        CM_TRUE, CM_FALSE,  "req opengauss lock buffer" },
     { MSG_REQ_ASK_EDP_REMOTE,         dcs_proc_ask_remote_for_edp,     CM_TRUE, CM_TRUE,  "ask remote for edp" },
     { MSG_REQ_SYNC_STEP,              dms_reform_proc_sync_step,       CM_TRUE, CM_TRUE,  "dms reform sync step" },
     { MSG_REQ_SYNC_SHARE_INFO,        dms_reform_proc_sync_share_info, CM_TRUE, CM_TRUE,  "dms reform sync share info" },
@@ -107,7 +103,6 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_SYNC_NEXT_STEP,         dms_reform_proc_sync_next_step,  CM_TRUE, CM_TRUE,  "dms reform sync next step" },
     { MSG_REQ_PAGE,                   dms_reform_proc_req_page,        CM_TRUE, CM_TRUE,  "dms reform request page info" },
     { MSG_REQ_SWITCHOVER,             dms_reform_proc_req_switchover,  CM_TRUE, CM_FALSE, "dms switchover" },
-    { MSG_REQ_CHANNEL_CHECK,          dms_reform_proc_channel_check,   CM_TRUE, CM_TRUE,  "dms check channel" },
     { MSG_REQ_CANCEL_REQUEST_RES,     dms_proc_cancel_request_res,     CM_TRUE, CM_TRUE,  "dms cancel request res" },
     { MSG_REQ_OPENGAUSS_DDLLOCK,      dcs_proc_broadcast_req,          CM_TRUE, CM_TRUE,  "broadcast msg" },
     { MSG_REQ_CONFIRM_CVT,            dms_proc_confirm_cvt_req,        CM_TRUE, CM_FALSE, "dms proc confirm converting" },
@@ -117,6 +112,10 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
     { MSG_REQ_REFORM_GCV_SYNC,        dms_reform_proc_req_gcv_sync,
         CM_TRUE, CM_TRUE, "ask partner to sync gcv" },
     { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE,  "page validate" },
+    { MSG_REQ_INVALID_OWNER,          dms_proc_invld_req,              CM_TRUE, CM_TRUE,  "invalid owner" },
+    { MSG_REQ_ASK_RES_OWNER_ID,       dms_proc_ask_res_owner_id,       CM_TRUE, CM_TRUE,  "ask res owner id" },
+    { MSG_REQ_OPENGAUSS_ONDEMAND_REDO, dms_reform_proc_opengauss_ondemand_redo_buffer,
+        CM_TRUE, CM_FALSE, "dms notify primary node ondemand-redo buffer"},
 };
 
 static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
@@ -141,7 +140,7 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "error msg" },
     { MSG_ACK_RELEASE_PAGE_OWNER,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "release page owner ack" },
     { MSG_ACK_CONFIRM_CVT,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "confirm converting ack" },
-    { MSG_ACK_INVLD_OWNER,                  dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "relase lock owner ack" },
+    { MSG_ACK_INVLDT_SHARE_COPY,            dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "relase lock owner ack" },
     { MSG_ACK_BOC,                          dms_proc_broadcast_ack,  CM_FALSE, CM_TRUE, "commit scn broadcast ack" },
     { MSG_ACK_SMON_DLOCK_INFO,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req dead lock msg" },
     { MSG_ACK_SMON_DEADLOCK_SQL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req sql" },
@@ -159,8 +158,10 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
     { MSG_ACK_REFORM_COMMON,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for reform requests only" },
     { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
-    { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,
-        CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
+    { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
+    { MSG_ACK_INVLD_OWNER,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for invalid owner" },
+    { MSG_ACK_ASK_RES_OWNER_ID,             dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for res owner id" },
+    { MSG_ACK_OPENGAUSS_ONDEMAND_REDO,      dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack on-demand redo request"},
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -211,6 +212,23 @@ static bool32 dms_msg_skip_gcv_check(unsigned char cmd)
         case MSG_REQ_MAP_INFO:
         case MSG_ACK_MAP_INFO:
         case MSG_ACK_REFORM_COMMON:
+        case MES_REQ_MGRT_MASTER_DATA:
+        case MSG_REQ_PAGE_REBUILD:
+        case MSG_REQ_LOCK_REBUILD:
+        case MSG_REQ_PAGE:
+        case MSG_REQ_SWITCHOVER:
+        case MSG_REQ_CHECK_REFORM_DONE:
+        case MSG_REQ_TXN_INFO:
+        case MSG_REQ_TXN_SNAPSHOT:
+        case MSG_REQ_WAIT_TXN:
+        case MSG_REQ_AWAKE_TXN:
+        case MSG_REQ_BOC:
+        case MSG_REQ_DDL_SYNC:
+        case MSG_REQ_CR_PAGE:
+        case MSG_REQ_CHECK_VISIBLE:
+#ifndef OPENGAUSS
+        case MSG_REQ_BROADCAST:
+#endif
             return CM_TRUE;
         default:
             break;
@@ -348,12 +366,25 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 
     for (uint32 loop = 0; loop < total_ctx_cnt; loop++) {
         proc_ctx[loop].inst_id = (uint8)dms_profile->inst_id;
-        proc_ctx[loop].db_handle = g_dms.callback.get_db_handle(&proc_ctx[loop].sess_id);
+        proc_ctx[loop].db_handle = g_dms.callback.get_db_handle(&proc_ctx[loop].sess_id, DMS_WORKER);
     }
 
     g_dms.proc_ctx_cnt = total_ctx_cnt;
     g_dms.proc_ctx = proc_ctx;
     return DMS_SUCCESS;
+}
+
+static void dms_deinit_proc_ctx(void)
+{
+    if (g_dms.proc_ctx == NULL) {
+        return;
+    }
+
+    for (uint32 loop = 0; loop < g_dms.proc_ctx_cnt; loop++) {
+        DMS_RELEASE_DB_HANDLE(g_dms.proc_ctx[loop].db_handle);
+    }
+
+    CM_FREE_PTR(g_dms.proc_ctx);
 }
 
 void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
@@ -394,7 +425,6 @@ static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
         case MSG_REQ_LOCK_REBUILD:
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
-        case MSG_REQ_CHANNEL_CHECK:
         case MSG_REQ_CHECK_REFORM_DONE:
             return MES_TASK_GROUP_ONE;      // group one is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
@@ -492,6 +522,7 @@ static status_t dms_global_res_init(drc_global_res_map_t *global_res, int32 res_
 
     for (i = 0; i < DRC_MAX_PART_NUM; i++) {
         cm_bilist_init(&global_res->res_parts[i]);
+        global_res->res_parts_lock[i] = 0;
     }
 
     return drc_res_map_init(&global_res->res_map, res_type, pool_size, item_size, res_cmp_func, get_hash_func);
@@ -570,6 +601,13 @@ static inline void init_reform_res_ctx(dms_profile_t *dms_profile)
     drc_init_deposit_map();
 }
 
+static void drc_smon_ctx_deinit(void)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    cm_close_thread(&ctx->smon_thread);
+    DMS_RELEASE_DB_HANDLE(ctx->smon_handle);
+}
+
 static int32 init_drc_smon_ctx(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -588,7 +626,7 @@ static int32 init_drc_smon_ctx(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    ctx->smon_handle = g_dms.callback.get_db_handle(&ctx->smon_sid);
+    ctx->smon_handle = g_dms.callback.get_db_handle(&ctx->smon_sid, DMS_TYPE_NONE);
     if (ctx->smon_handle == NULL) {
         LOG_RUN_ERR("[DRC]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
@@ -629,6 +667,7 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
     } while (0);
 
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         drc_destroy();
     }
 
@@ -835,14 +874,15 @@ int dms_init(dms_profile_t *dms_profile)
 
     ret = dms_init_drc_res_ctx(dms_profile);
     if (ret != DMS_SUCCESS) {
-        CM_FREE_PTR(g_dms.proc_ctx);
+        dms_deinit_proc_ctx();
         return ret;
     }
 
     ret = dms_init_mes(dms_profile);
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         drc_destroy();
-        CM_FREE_PTR(g_dms.proc_ctx);
+        dms_deinit_proc_ctx();
         return ret;
     }
 
@@ -850,16 +890,19 @@ int dms_init(dms_profile_t *dms_profile)
 
     ret = dms_reform_init(dms_profile);
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         dms_reform_uninit();
         drc_destroy();
-        CM_FREE_PTR(g_dms.proc_ctx);
+        dms_deinit_proc_ctx();
         return ret;
     }
 
     ret = dms_scrlock_init(dms_profile);
     if (ret != DMS_SUCCESS) {
+        drc_smon_ctx_deinit();
         dms_reform_uninit();
         drc_destroy();
+        dms_deinit_proc_ctx();
         return ret;
     }
 
@@ -883,17 +926,14 @@ void dms_uninit(void)
     dms_scrlock_uninit();
     dms_reform_uninit();
 #endif
+    drc_smon_ctx_deinit();
     mfc_uninit();
-
-    if (g_dms_stat.sess_stats != NULL) {
-        free(g_dms_stat.sess_stats);
-        g_dms_stat.sess_stats = NULL;
-    }
     drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
+    CM_FREE_PTR(g_dms_stat.sess_stats);
     CM_FREE_PTR(cm_log_param_instance()->log_compress_buf);
-    CM_FREE_PTR(g_dms.proc_ctx);
+    dms_deinit_proc_ctx();
 }
 
 unsigned long long dms_get_min_scn(unsigned long long min_scn)
@@ -977,5 +1017,10 @@ int dms_get_ssl_param(const char *param_name, char *param_value, unsigned int si
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
     return DMS_SUCCESS;
+}
+
+unsigned int dms_get_mes_max_watting_rooms(void)
+{
+    return mfc_get_max_watting_rooms();
 }
 

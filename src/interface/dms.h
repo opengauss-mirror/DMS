@@ -639,7 +639,7 @@ DMS_DECLARE int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *
     unsigned char is_dirty);
 
 DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
-    unsigned char thread_index, unsigned char for_rebuild);
+    unsigned char thread_index, unsigned char for_rebuild, unsigned char can_release, unsigned char *release);
 
 /*
  * @brief check if session is recovery session or not.
@@ -655,15 +655,6 @@ DMS_DECLARE int dms_is_recovery_session(unsigned int sid);
  * @return DMS_SUCCESS - success;otherwise: failed
  */
 DMS_DECLARE int drc_get_page_master_id(char pageid[DMS_PAGEID_SIZE], unsigned char *master_id);
-
-/*
- * @brief release page by batch
- * @[in]param dms_ctx - dms_context_t structure
- * @[in]param owner_map - page batch from owner
- * @[out]param owner_count - page released number
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_release_page_batch(dms_context_t *dms_ctx, dcs_batch_buf_t *owner_map, unsigned int *owner_count);
 
 /*
  * @brief register ssl decrypt func
@@ -709,7 +700,6 @@ DMS_DECLARE int dms_reform_failed(void);
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
 DMS_DECLARE int dms_switchover(unsigned int sess_id);
-
 /*
  * @brief check drc if accessible or not
  * @* @return TRUE - accessible; FALSE - inaccessible
@@ -753,6 +743,13 @@ DMS_DECLARE int dms_is_share_reformer(void);
 DMS_DECLARE void dms_ddl_enter(void);
 DMS_DECLARE void dms_ddl_leave(void);
 
+DMS_DECLARE void dms_file_enter(void);
+DMS_DECLARE void dms_file_leave(void);
+
+DMS_DECLARE int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
+    unsigned long long *success_inst);
+DMS_DECLARE int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout,
+    unsigned long long *success_inst);
 /*
  * @brief thorough check for DRC and bufferpool buffer befor reform ends
  * @ PANIC if any of version, pageid, lockmode and need_flush is unmatched.
@@ -765,6 +762,30 @@ DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
 * @[in]param log_level -  db log level.
 */
 DMS_DECLARE void dms_set_log_level(unsigned int log_level);
+
+/*
+ * @brief get latch owner id
+ * @[in]param dms_ctx - dms_context_t structure.
+ * @[in]param dlatch - dms_drlatch_t structure.
+ * @[out]param owner_id - owner id.
+ * @return DMS_SUCCESS - success;otherwise: failed.
+ */
+DMS_DECLARE int dms_get_latch_owner_id(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char *owner_id);
+
+/*
+ * @brief request primary node redo page in on-demand recovery, only for openGauss
+ * @[in]param dms_ctx - obtains the context information required by the page.
+ * @[in]param block_key - page information.
+ * @[in]param key_len - len of page information.
+ * @[out]redo_status - redo result.
+ * @return DMS_SUCCESS - success;otherwise: failed.
+ */
+DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *block_key,
+    unsigned int key_len, int *redo_status);
+
+DMS_DECLARE int dms_info(char *buf, unsigned int len, unsigned int curr);
+
+DMS_DECLARE unsigned int dms_get_mes_max_watting_rooms(void);
 
 #ifdef __cplusplus
 }

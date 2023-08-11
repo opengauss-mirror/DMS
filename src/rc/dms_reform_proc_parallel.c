@@ -99,7 +99,12 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
     reform_info->parallel_enable = CM_TRUE;
     for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
         parallel = &parallel_info->parallel[i];
-        parallel->handle = g_dms.callback.get_db_handle(&parallel->sess_id);
+        parallel->handle = g_dms.callback.get_db_handle(&parallel->sess_id, DMS_TYPE_NONE);
+        if (parallel->handle == NULL) {
+            LOG_RUN_ERR("[DMS REFORM]fail to get db session");
+            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
+            return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
+        }
         parallel->index = i;
         if (cm_create_thread(dms_reform_parallel_thread, 0, (void *)parallel, &parallel->thread) != CM_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]create dms_reform_parallel_%d failed", i);
@@ -190,7 +195,7 @@ static void dms_reform_parallel_assign_parts(void)
     }
 }
 
-static void dms_reform_parallel_assign_rebuild(void)
+static void dms_reform_parallel_assign_thread(void)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     resource_id_t res_id = { 0 };
@@ -216,7 +221,7 @@ static void dms_reform_parallel_assign_migrate_task(void)
 
 static int dms_reform_reconnect_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
-    return dms_reform_reconnect_channel(res_id->node_id, res_id->channel_index, parallel->sess_id);
+    return mes_connect_batch(&res_id->node_id, 1);
 }
 
 static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
@@ -268,7 +273,7 @@ static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_threa
     return DMS_SUCCESS;
 }
 
-static int dms_reform_rcy_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
+static int dms_reform_drc_rcy_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     bilist_t *part_list = &ctx->global_buf_res.res_parts[res_id->part_id];
@@ -314,6 +319,14 @@ static int dms_reform_validate_parallel_proc(resource_id_t *res_id, parallel_thr
     return DMS_SUCCESS;
 }
 
+static int dms_reform_ctl_rcy_clean_parallel_proc(resource_id_t* res_id, parallel_thread_t* parallel)
+{
+    parallel_info_t* parallel_info = DMS_PARALLEL_INFO;
+    g_dms.callback.dms_ctl_rcy_clean_parallel(parallel->handle, (uint8)parallel->index,
+        (uint8)parallel_info->parallel_num);
+    return DMS_SUCCESS;
+}
+
 dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
     [DMS_REFORM_PARALLEL_RECONNECT] = { "dms_reform_reconnect_parallel", dms_reform_parallel_assign_channels,
     dms_reform_reconnect_parallel_proc },
@@ -327,17 +340,20 @@ dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
     [DMS_REFORM_PARALLEL_REPAIR] = { "dms_reform_repair_parallel", dms_reform_parallel_assign_parts,
     dms_reform_repair_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_RCY_CLEAN] = { "dms_reform_rcy_clean_parallel", dms_reform_parallel_assign_parts,
-    dms_reform_rcy_clean_parallel_proc },
+    [DMS_REFORM_PARALLEL_DRC_RCY_CLEAN] = { "dms_reform_drc_rcy_clean_parallel", dms_reform_parallel_assign_parts,
+    dms_reform_drc_rcy_clean_parallel_proc },
 
     [DMS_REFORM_PARALLEL_FLUSH_COPY] = { "dms_reform_flush_copy_parallel", dms_reform_parallel_assign_parts,
     dms_reform_flush_copy_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_REBUILD] = { "dms_reform_rebuild_parallel", dms_reform_parallel_assign_rebuild,
+    [DMS_REFORM_PARALLEL_REBUILD] = { "dms_reform_rebuild_parallel", dms_reform_parallel_assign_thread,
     dms_reform_rebuild_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_VALIDATE] = { "dms_reform_validate_parallel", dms_reform_parallel_assign_rebuild,
+    [DMS_REFORM_PARALLEL_VALIDATE] = { "dms_reform_validate_parallel", dms_reform_parallel_assign_thread,
     dms_reform_validate_parallel_proc },
+
+    [DMS_REFORM_PARALLEL_CTL_RCY_CLEAN] = { "dms_reform_ctl_rcy_clean_parallel", dms_reform_parallel_assign_thread,
+    dms_reform_ctl_rcy_clean_parallel_proc },
 };
 
 static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
@@ -434,9 +450,9 @@ int dms_reform_repair_parallel(void)
     return dms_reform_parallel(DMS_REFORM_PARALLEL_REPAIR);
 }
 
-int dms_reform_rcy_clean_parallel(void)
+int dms_reform_drc_rcy_clean_parallel(void)
 {
-    return dms_reform_parallel(DMS_REFORM_PARALLEL_RCY_CLEAN);
+    return dms_reform_parallel(DMS_REFORM_PARALLEL_DRC_RCY_CLEAN);
 }
 
 int dms_reform_flush_copy_parallel(void)
@@ -457,4 +473,9 @@ int dms_reform_rebuild_parallel(void)
 int dms_reform_validate_parallel(void)
 {
     return dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE);
+}
+
+int dms_reform_ctl_rcy_clean_parallel(void)
+{
+    return dms_reform_parallel(DMS_REFORM_PARALLEL_CTL_RCY_CLEAN);
 }

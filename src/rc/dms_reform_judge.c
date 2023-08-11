@@ -741,8 +741,19 @@ static void dms_reform_judgement_switchover_demote(instance_list_t *inst_lists)
 
 static void dms_reform_judgement_switchover_promote(void)
 {
+#ifndef OPENGAUSS
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
+        if (DMS_CATALOG_IS_PRIMARY_STANDBY && !g_dms.callback.db_is_primary(g_dms.reform_ctx.handle_judge)) {
+            share_info_t *share_info = DMS_SHARE_INFO;
+            share_info->promote_id = (uint8)g_dms.inst_id;
+            dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+            dms_reform_add_step(DMS_REFORM_STEP_SWITCHOVER_PROMOTE);
+        }
+        return;
+    }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_SWITCHOVER_PROMOTE);
+#endif
 }
 
 static void dms_reform_judgement_switchover_promote_opengauss(void)
@@ -834,6 +845,25 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
         return;
     }
+#ifdef OPENGAUSS
+    // 1) primary restart 2) failover need rebuild phase
+    dms_reform_list_init(&share_info->list_rebuild);
+    uint32 primary_id;
+    g_dms.callback.get_db_primary_id(g_dms.reform_ctx.handle_judge, &primary_id);
+    if ((dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS) && 
+        dms_reform_list_exist(&inst_lists[INST_LIST_OLD_JOIN], (uint8)primary_id))
+        || dms_reform_type_is(DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS)) {
+            dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_JOIN]);
+            dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_REMOVE]);
+            dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+            dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
+    }
+#else
+    // primary_standby and centralized no need to rebuild
+    if (DMS_CATALOG_IS_CENTRALIZED && DMS_CATALOG_IS_PRIMARY_STANDBY &&
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
+        return;
+    }
 
     dms_reform_list_init(&share_info->list_rebuild);
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
@@ -842,6 +872,7 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
     }
+#endif
 }
 
 // Notice: REPAIR and FLUSH_COPY must be used in pairs
@@ -879,7 +910,28 @@ static void dms_reform_judgement_recovery(instance_list_t *inst_lists)
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_RECOVERY);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN);
+    dms_reform_add_step(DMS_REFORM_STEP_DRC_RCY_CLEAN);
+    dms_reform_add_step(DMS_REFORM_STEP_CTL_RCY_CLEAN);
+}
+
+static void dms_reform_judgement_file_orglsn_recovery(instance_list_t *inst_lists)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0 ||
+        inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0) {
+        share_info->file_orglsn_recovery_info.bitmap_old_join = 0L;
+        share_info->file_orglsn_recovery_info.bitmap_old_remove = 0L;
+        share_info->file_orglsn_recovery_info.bitmap_new_join = 0L;
+        dms_reform_list_to_bitmap(&share_info->file_orglsn_recovery_info.bitmap_old_join,
+            &inst_lists[INST_LIST_OLD_JOIN]);
+        dms_reform_list_to_bitmap(&share_info->file_orglsn_recovery_info.bitmap_old_remove,
+            &inst_lists[INST_LIST_OLD_REMOVE]);
+        dms_reform_list_to_bitmap(&share_info->file_orglsn_recovery_info.bitmap_new_join,
+            &inst_lists[INST_LIST_NEW_JOIN]);
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY);
+    }
 }
 
 // Notice: must be used before DRC_ACCESS
@@ -900,6 +952,12 @@ static void dms_reform_judgement_dw_recovery(instance_list_t *inst_lists)
     }
 }
 
+static void dms_reform_judgement_df_recovery()
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_DF_RECOVERY);
+}
+
 static void dms_reform_judgement_recovery_opengauss(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -912,7 +970,7 @@ static void dms_reform_judgement_recovery_opengauss(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_OPENGAUSS);
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_FLAG_CLEAN);
+        dms_reform_add_step(DMS_REFORM_STEP_DRC_RCY_CLEAN);
     }
 }
 
@@ -1044,11 +1102,9 @@ static void dms_refrom_judgement_startup_opengauss(void)
     dms_reform_add_step(DMS_REFORM_STEP_STARTUP_OPENGAUSS);
 }
 
-static char *dms_reform_get_type_desc(void)
+char *dms_reform_get_type_desc(uint32 reform_type)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    switch (share_info->reform_type) {
+    switch (reform_type) {
         case DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS:
             return "OPENGAUSS_NORMAL";
 
@@ -1102,7 +1158,7 @@ void dms_reform_judgement_step_log(void)
 
     char *role = DMS_IS_REFORMER ? "reformer" : "partner";
     char *catalog = DMS_CATALOG_IS_CENTRALIZED ? "centralized" : "distributed";
-    char *reform_type = dms_reform_get_type_desc();
+    char *reform_type = dms_reform_get_type_desc((uint32)share_info->reform_type);
 
     LOG_RUN_INF("[DMS REFORM]inst_id:%u, role:%s, catalog:%s, reform_type:%s, full_clean:%d, dms_reform_step:%s",
         g_dms.inst_id, role, catalog, reform_type, share_info->full_clean, desc);
@@ -1170,6 +1226,8 @@ static void dms_reform_judgement_list_collect(instance_list_t *inst_lists, uint8
         }
     }
 
+    // bitmap_in is not only used in the connect scenario,
+    // but also used in ss_cb_save_list_stable to unblock rcy for old_join nodes and new_join nodes.
     dms_reform_list_to_bitmap(&share_info->bitmap_in, &inst_lists[INST_LIST_OLD_IN]);
 }
 
@@ -1183,10 +1241,12 @@ static void dms_reform_judgement_set_phase(reform_phase_t reform_phase)
     share_info->reform_phase[share_info->reform_phase_count++] = reform_phase;
 }
 
-static void dms_reform_judgement_bcast_unable(void)
+static void dms_reform_judgement_bcast_unable(instance_list_t *inst_lists)
 {
-    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_BCAST_UNABLE);
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0) {
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_BCAST_UNABLE);
+    }
 }
 
 static void dms_reform_judgement_update_scn(void)
@@ -1222,15 +1282,14 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
-    dms_reform_judgement_drc_validate(CM_TRUE);
+    dms_reform_judgement_df_recovery();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
-    dms_reform_judgement_bcast_unable();
+    dms_reform_judgement_bcast_unable(inst_lists);
     dms_reform_judgement_update_scn();
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
@@ -1240,6 +1299,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1248,7 +1308,6 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_switchover_demote(inst_lists);
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_drc_inaccess();
     dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
@@ -1256,7 +1315,6 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
@@ -1294,15 +1352,14 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
-    dms_reform_judgement_drc_validate(CM_TRUE);
+    dms_reform_judgement_df_recovery();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
-    dms_reform_judgement_drc_validate(CM_FALSE);
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
-    dms_reform_judgement_bcast_unable();
+    dms_reform_judgement_bcast_unable(inst_lists);
     dms_reform_judgement_update_scn();
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
@@ -1313,6 +1370,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1392,6 +1450,7 @@ static void dms_reform_judgement_full_clean(instance_list_t *inst_lists)
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
+    dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
 }
@@ -1401,6 +1460,7 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_dw_recovery(inst_lists);
+    dms_reform_judgement_df_recovery();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
@@ -1413,6 +1473,8 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_file_orglsn_recovery(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1869,6 +1931,16 @@ static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
 }
 #endif
 
+static void dms_reform_judgement_record_start_times(void)
+{
+    share_info_t* share_info = DMS_SHARE_INFO;
+    health_info_t* health_info = DMS_HEALTH_INFO;
+
+    for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        share_info->start_times[i] = health_info->online_times[i];
+    }
+}
+
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
@@ -1928,6 +2000,8 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     // build reform step. check_proc may change reform_type, so reset judgement_proc
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
     reform_judgement_proc.judgement_proc(inst_lists);
+
+    dms_reform_judgement_record_start_times();
 
     if (dms_reform_sync_share_info() != DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to sync share info");

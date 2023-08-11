@@ -27,7 +27,7 @@
 #include "securec.h"
 #include "dms_error.h"
 #include "dcs_page.h"
-
+#include "drc_page.h"
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;
 
@@ -125,6 +125,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
 char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
 {
     if (pool->extend_num >= DRC_RES_EXTEND_MAX_NUM) {
+        pool->res_depleted = CM_TRUE;
         return NULL;
     }
 
@@ -146,9 +147,11 @@ char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
         drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
         drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
         pool->extend_num++;
+        pool->item_num += pool->extend_step;
     }
 
     if (cm_bilist_empty(&pool->free_list)) {
+        pool->res_depleted = CM_TRUE;
         return NULL;
     }
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
@@ -190,7 +193,6 @@ char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
     if (cm_bilist_empty(&pool->free_list)) {
         item_addr = drc_res_pool_try_extend_and_alloc(pool);
         cm_spin_unlock(&pool->lock);
-        cm_panic(item_addr != NULL);
         return item_addr;
     }
     item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
@@ -278,27 +280,57 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     buf_res->edp_map = 0;
     buf_res->lsn = 0;
     buf_res->in_recovery = CM_FALSE;
-    buf_res->copy_promote = CM_FALSE;
+    buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
     buf_res->recovery_skip = CM_FALSE;
     buf_res->type = res_type;
     buf_res->len = len;
     buf_res->count = 0;
-    buf_res->ver = 0;
+    buf_res->recycling = CM_FALSE;
     cm_bilist_init(&buf_res->convert_q);
     init_drc_cvt_item(&buf_res->converting);
     errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
     DMS_SECUREC_CHECK(ret);
 }
 
+static uint32 drc_recycle_buf_res_directly(char *resid)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    bilist_t *part_list = NULL;
+    uint16 part_id = drc_page_partid(resid);
+    uint16 part_cnt = 0;
+    do {
+        part_list = &ctx->global_buf_res.res_parts[part_id];
+        cm_spin_lock(&ctx->global_buf_res.res_parts_lock[part_id], NULL);
+        uint32 recycled = drc_recycle_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE, 1, CM_FALSE);
+        cm_spin_unlock(&ctx->global_buf_res.res_parts_lock[part_id]);
+        if (recycled != 0) {
+            return recycled;
+        }
+        part_id++;
+        part_id = part_id % DRC_MAX_PART_NUM;
+        part_cnt++;
+    } while (part_cnt < DRC_MAX_PART_NUM);
+    return 0;
+}
+
 static drc_buf_res_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
     drc_res_bucket_t *bucket)
 {
-    drc_buf_res_t* buf_res = (drc_buf_res_t *)drc_res_pool_alloc_item(pool);
-    if (buf_res == NULL) {
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
-        return NULL;
-    }
-    LOG_DEBUG_INF("[DRC][%s]buf_res create", cm_display_pageid(resid));
+    drc_buf_res_t* buf_res;
+    do {
+        buf_res = (drc_buf_res_t *)drc_res_pool_alloc_item(pool);
+        if (buf_res != NULL) {
+            break;
+        }
+        LOG_DEBUG_WAR("[DRC][%s]buf_res create fail", cm_display_pageid(resid));
+        uint32 recycled = drc_recycle_buf_res_directly(resid);
+        if (recycled == 0) {
+                LOG_DEBUG_WAR("[DRC][%s]buf_res recycle fail", cm_display_pageid(resid));
+                DMS_DRC_SHORT_SLEEP;
+        }
+    } while (CM_TRUE);
+    LOG_DEBUG_INF("[DRC][%s]buf_res create successful", cm_display_pageid(resid));
+
     init_buf_res(buf_res, resid, len, res_type);
     drc_res_map_add_res(bucket, (char *)buf_res);
     if (res_type == DRC_RES_PAGE_TYPE) {
@@ -318,7 +350,7 @@ bool32 drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     return CM_TRUE;
 }
 
-static drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
+drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;
@@ -484,7 +516,6 @@ void drc_destroy(void)
     drc_res_map_destroy(&ctx->local_txn_map);
     ctx->part_lock = 0;
 
-    cm_close_thread(&ctx->smon_thread);
     if (ctx->chan != NULL) {
         cm_chan_free(ctx->chan);
         ctx->chan = NULL;

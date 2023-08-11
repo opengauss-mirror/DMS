@@ -37,23 +37,12 @@ extern "C" {
 void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-
-    cm_latch_s(&reform_info->bcast_latch, process_ctx->sess_id, CM_FALSE, NULL);
-    if (reform_info->bcast_unable) {
-        cm_unlatch(&reform_info->bcast_latch, NULL);
-        cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BROADCAST, ERRNO_DMS_REFORM_IN_PROCESS);
-        return;
-    }
-
     uint32 output_msg_len = 0;
     char output_msg[DCS_BROADCAST_OUTPUT_MSG_LEN] = {0};
     mes_message_head_t *head = (mes_message_head_t *)(receive_msg->buffer);
-
     char *data = receive_msg->buffer + sizeof(mes_message_head_t);
     uint32 len = (uint32)(head->size - sizeof(mes_message_head_t));
     int32 ret = g_dms.callback.process_broadcast(process_ctx->db_handle, data, len, output_msg, &output_msg_len);
-    cm_unlatch(&reform_info->bcast_latch, NULL);
     if (output_msg_len != 0) {
         char ack_buf[DCS_BROADCAST_OUTPUT_MSG_LEN + sizeof(mes_message_head_t)];
         cm_ack_result_msg2(process_ctx, receive_msg, MSG_ACK_BROADCAST_WITH_MSG, output_msg, output_msg_len, ack_buf);
@@ -154,37 +143,18 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
     unsigned int timeout, msg_command_t cmd)
 {
-    reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
-
-    cm_latch_s(&reform_info->bcast_latch, dms_ctx->sess_id, CM_FALSE, NULL);
-    if (reform_info->bcast_unable) {
-        cm_unlatch(&reform_info->bcast_latch, NULL);
-        LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
-        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-        return ERRNO_DMS_REFORM_IN_PROCESS;
-    }
 
     if (timeout != CM_INFINITE_TIMEOUT) {
         ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd);
-        cm_unlatch(&reform_info->bcast_latch, NULL);
         return ret;
     }
 
     while (CM_TRUE) {
         if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd) == DMS_SUCCESS) {
-            cm_unlatch(&reform_info->bcast_latch, NULL);
             return DMS_SUCCESS;
         }
-        cm_unlatch(&reform_info->bcast_latch, NULL);
         cm_sleep(DMS_MSG_RETRY_TIME);
-        cm_latch_s(&reform_info->bcast_latch, dms_ctx->sess_id, CM_FALSE, NULL);
-        if (reform_info->bcast_unable) {
-            cm_unlatch(&reform_info->bcast_latch, NULL);
-            LOG_DEBUG_ERR("[DMS REFORM] broadcast is unable");
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
     }
 }
 
@@ -212,6 +182,45 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, mes_message_t *receive_msg
     cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BOC, DMS_SUCCESS);
 #endif
     return;
+}
+
+int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigned long long *success_inst)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    mes_message_head_t head;
+
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_BROADCAST, 0, dms_ctx->inst_id, 0,  dms_ctx->sess_id, CM_INVALID_ID16);
+    head.size = (uint16)(sizeof(mes_message_head_t) + len);
+    head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    uint64 all_inst = reform_info->bitmap_connect;
+#ifdef OPENGAUSS
+    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
+#endif
+    all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
+    mfc_broadcast2(dms_ctx->sess_id, all_inst, &head, (const void *)data, success_inst);
+    if (*success_inst == all_inst) {
+        return DMS_SUCCESS;
+    }
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
+    return DMS_ERROR;
+}
+
+int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout, unsigned long long *success_inst)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    uint64 all_inst = reform_info->bitmap_connect;
+#ifdef OPENGAUSS
+    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
+#endif
+    all_inst = all_inst & (~((uint64)0x1 << inst_id));
+    (void)mfc_wait_acks2(sid, timeout, success_inst);
+    if (all_inst == *success_inst) {
+        return DMS_SUCCESS;
+    }
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
+    return DMS_ERROR;    
 }
 
 int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
