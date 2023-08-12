@@ -102,7 +102,7 @@ static int dms_reform_reconnect_inner(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_online = &share_info->list_online;
-    int ret = mes_connect_batch(list_online->inst_id_list, list_online->inst_id_count);
+    int ret = mfc_add_instance_batch(list_online->inst_id_list, list_online->inst_id_count, CM_FALSE);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -124,7 +124,7 @@ static int dms_reform_disconnect(void)
     instance_list_t *list_disconnect = &share_info->list_disconnect;
 
     cm_spin_lock(&reform_info->mes_lock, NULL);
-    mes_disconnect_batch(list_disconnect->inst_id_list, list_disconnect->inst_id_count);
+    mfc_del_instance_batch(list_disconnect->inst_id_list, list_disconnect->inst_id_count);
     bitmap64_minus(&reform_info->bitmap_mes, share_info->bitmap_disconnect);
     cm_spin_unlock(&reform_info->mes_lock);
 #endif
@@ -181,13 +181,14 @@ static int dms_reform_confirm_owner_inner(drc_buf_res_t *buf_res, uint32 sess_id
             return ERRNO_DMS_REFORM_FAIL;
         }
 
+        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_confirm_owner_inner SEND error: %d, dst_id: %d", ret, dst_id);
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, lock_mode, is_edp, lsn, sess_id);
+        ret = dms_reform_req_page_wait(&result, lock_mode, is_edp, lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_confirm_owner_inner WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -267,19 +268,20 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
     while (CM_TRUE) {
         dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_CONFIRM_CONVERTING, sess_id);
         req.sess_id = buf_res->converting.req_info.sess_id;
-        req.rsn = buf_res->converting.req_info.rsn;
+        req.ruid = buf_res->converting.req_info.ruid; /* ruid sent to discard response and free mes room */
         if (reform_info->reform_fail) {
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
+        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_confirm_converting SEND error: %d, dst_id: %d", ret, dst_id);
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_confirm_converting WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -326,13 +328,14 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
             return ERRNO_DMS_REFORM_FAIL;
         }
 
+        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_flush_copy_page SEND error: %d, dst_id: %d", ret, dst_id);
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_flush_copy_page WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -371,13 +374,14 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uin
             return ERRNO_DMS_REFORM_FAIL;
         }
 
+        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_may_need_flush SEND error: %d, dst_id: %d", ret, dst_id);
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_may_need_flush WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -1115,7 +1119,7 @@ static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess
         return DMS_SUCCESS;
     }
 
-    for (uint8 i = 0; i < CM_MAX_INSTANCES; ++i) {
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; ++i) {
         if (!bitmap64_exist(&buf_res->copy_insts, i)) {
             continue;
         }
@@ -1179,13 +1183,14 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
             return ERRNO_DMS_REFORM_FAIL;
         }
 
+        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_repair_with_edp_map_inner SEND error: %d, dst_id: %d", ret, inst_id);
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, sess_id);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_repair_with_edp_map_inner WAIT timeout, dst_id: %d", inst_id);
             continue;
@@ -2052,14 +2057,13 @@ static int dms_reform_sync_step_send(void)
 
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d",
-                ret, req.head.mes_head.dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
             return ret;
         }
 
-        ret = dms_reform_req_sync_step_wait();
+        ret = dms_reform_req_sync_step_wait(req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_step WAIT timeout, dst_id: %d", req.head.mes_head.dst_inst);
+            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_step WAIT timeout, dst_id: %d", req.head.dst_inst);
             continue;
         } else {
             break;
@@ -2141,7 +2145,7 @@ static int dms_reform_sync_next_step_r(uint8 dst_id)
             break;
         }
 
-        ret = dms_reform_req_sync_next_step_wait();
+        ret = dms_reform_req_sync_next_step_wait(req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_next_step_r WAIT timeout, dst_id: %d", dst_id);
             continue;

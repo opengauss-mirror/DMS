@@ -30,7 +30,7 @@
 #include "cm_spinlock.h"
 #include "dms_cm.h"
 #include "dms.h"
-#include "mes_type.h"
+#include "mes_interface.h"
 #include "cm_chan.h"
 #include "cm_thread.h"
 #include "cm_latch.h"
@@ -119,9 +119,10 @@ typedef struct st_drc_request_info {
     uint8   req_mode;           /* the expected lock mode that request instance wants */
     uint8   is_try;             /* if is try request */
     dms_session_e sess_type;    /* session type */
-    uint64  rsn;                /* request packet serial number */
+    uint64  ruid;               /* request packet ruid */
     uint16  sess_id;            /* the session id that the request comes from */
     date_t  req_time;
+    uint32 srsn;
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -278,7 +279,7 @@ typedef struct st_cvt_info {
     uint8   unused;
     uint16  len;
     char    resid[DMS_RESID_SIZE];
-    uint64  req_rsn;
+    uint64  req_ruid;
     uint32  req_sid;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
@@ -298,7 +299,7 @@ typedef struct st_claim_info {
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
     dms_session_e sess_type;
-    uint64  rsn;
+    uint32 srsn;
 } claim_info_t;
 
 typedef struct st_edp_info {
@@ -333,7 +334,7 @@ static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
     converting->begin_time = 0;
     converting->req_info.inst_id = CM_INVALID_ID8;
     converting->req_info.sess_id = CM_INVALID_ID16;
-    converting->req_info.rsn = CM_INVALID_ID64;
+    converting->req_info.ruid = CM_INVALID_ID64;
     converting->req_info.curr_mode = DMS_LOCK_NULL;
     converting->req_info.req_mode = DMS_LOCK_NULL;
     converting->req_info.is_try = 0;
@@ -441,7 +442,7 @@ int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
     "EDP:%d-%llu-%llu, FLAG:%d-%d-%d", desc, cm_display_resid((drc)->data, (drc)->type),                            \
     (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts,                                                      \
     (drc)->converting.req_info.inst_id, (drc)->converting.req_info.curr_mode, (drc)->converting.req_info.req_mode,  \
-    (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.rsn,        \
+    (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.ruid,        \
     (drc)->converting.req_info.sess_id, (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                \
     (drc)->in_recovery, (drc)->copy_promote, (drc)->recovery_skip)
 

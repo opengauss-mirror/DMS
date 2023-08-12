@@ -337,16 +337,16 @@ DMS_DECLARE int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, u
 * @return DMS_SUCCESS - success;otherwise: failed
 */
 DMS_DECLARE int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
-    unsigned long long *success_inst);
+    unsigned long long *success_inst, unsigned long long *ruid);
 
 /*
 * @brief wait boc ack from other instances.
-* @param sid - session id.
+* @param ruid - ruid returned from message sending api.
 * @param timeout - wait response msg in timeout
 * @param success_inst - instances in which the broadcast message was successfully sent
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_wait_boc(unsigned int sid, unsigned int timeout, unsigned long long success_inst);
+DMS_DECLARE int dms_wait_boc(unsigned long long ruid, unsigned int timeout, unsigned long long success_inst);
 
 /*
 * @brief get openGauss multixactid's update xid.
@@ -728,8 +728,8 @@ DMS_DECLARE void dms_file_enter(void);
 DMS_DECLARE void dms_file_leave(void);
 
 DMS_DECLARE int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
-    unsigned long long *success_inst);
-DMS_DECLARE int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout,
+    unsigned long long *success_inst, unsigned long long *ruid);
+DMS_DECLARE int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout,
     unsigned long long *success_inst);
 /*
  * @brief thorough check for DRC and bufferpool buffer befor reform ends

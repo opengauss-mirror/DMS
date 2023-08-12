@@ -24,8 +24,7 @@
 #ifndef __DMS_MSG_H__
 #define __DMS_MSG_H__
 
-#include "mes_type.h"
-#include "mes.h"
+#include "mes_interface.h"
 #include "cm_log.h"
 #include "dms_mfc.h"
 #include "dms_api.h"
@@ -41,6 +40,9 @@ extern "C" {
 #define DMS_CVT_EXPIRE_TIME     (2 * DMS_WAIT_MAX_TIME) // ms
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
 #define DMS_MSG_CONFIRM_TIMES   (10)
+
+/* biggest: pcr page ack: head + ack + page */
+#define DMS_MESSAGE_BUFFER_SIZE (uint32)(SIZE_K(32) + 64)
 
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
@@ -171,6 +173,7 @@ typedef struct st_dms_ask_res_req {
     uint8 unused[4];
     date_t req_time;
     char resid[DMS_RESID_SIZE];
+    uint32 srsn;
 } dms_ask_res_req_t;
 
 // msg for notifying instance load page from disk
@@ -204,6 +207,7 @@ typedef struct st_dms_claim_owner_req {
     uint16 len;
     uint64 lsn;
     char resid[DMS_RESID_SIZE];
+    uint32 srsn;
 } dms_claim_owner_req_t;
 
 typedef struct st_dms_invld_req {
@@ -240,7 +244,7 @@ typedef struct st_dms_res_req_info {
     uint8 unused[2];
     uint16 req_sid;
     dms_session_e sess_type;
-    uint64 req_rsn;
+    uint64 req_ruid;
     uint32 len;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
@@ -254,6 +258,7 @@ typedef struct st_dms_cancel_request_res {
     uint8  res_type;
     uint8  unused;
     char resid[DMS_RESID_SIZE];
+    uint32 srsn;
 }dms_cancel_request_res_t;
 
 typedef struct st_dms_confirm_cvt_req {
@@ -299,9 +304,9 @@ static inline void cm_print_error_msg(const void *msg_data)
     LOG_DEBUG_ERR("errno code: %d, errno info: %s", error_msg->code, message);
 }
 
-void cm_send_error_msg(mes_message_head_t *head, int32 err_code, char *err_info);
-void cm_ack_result_msg(dms_process_context_t *process_ctx, mes_message_t *receive_msg, uint32 cmd, int32 ret);
-void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *receive_msg, uint32 cmd, char *msg,
+void cm_send_error_msg(dms_message_head_t *head, int32 err_code, char *err_info);
+void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, int32 ret);
+void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, char *msg,
     uint32 len, char *ack_buf);
 
 #define CM_CHK_RECV_MSG_SIZE(msg, len, free_msg, has_ack)                \
@@ -313,7 +318,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
                 cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg"); \
             }                                                            \
             if (free_msg) {                                              \
-                mfc_release_message_buf((msg));                          \
+                dms_release_recv_message((msg));                          \
             }                                                            \
             return ERRNO_DMS_MES_INVALID_MSG;                            \
         }                                                                \
@@ -328,20 +333,18 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
                 cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg"); \
             }                                                            \
             if (free_msg) {                                              \
-                mfc_release_message_buf((msg));                          \
+                dms_release_recv_message((msg));                          \
             }                                                            \
             return;                                                      \
         }                                                                \
     } while (0)
 
-void dms_init_message_head(dms_message_head_t *head, uint32 v_cmd, uint8 v_flags, uint8 v_src_inst, uint8 v_dst_inst,
-    uint16 v_src_sid, uint16 v_dst_sid);
-#define DMS_INIT_MESSAGE_HEAD dms_init_message_head
 
-static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 rsn,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, dms_session_e sess_type, date_t req_time)
+static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 ruid,
+    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try,
+    dms_session_e sess_type, date_t req_time, uint32 srsn)
 {
-    req_info->rsn = rsn;
+    req_info->ruid = ruid;
     req_info->inst_id = req_id;
     req_info->sess_id = sess_id;
     req_info->is_try = is_try;
@@ -349,37 +352,37 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->req_mode = req_mode;
     req_info->sess_type = sess_type;
     req_info->req_time = req_time;
+    req_info->srsn = srsn;
 }
 
-void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 ret);
+void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret);
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
 int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
-void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
-void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
-void dms_proc_invld_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
-void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 void dms_cancel_request_res(dms_context_t *dms_ctx);
-void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
+void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_smon_entry(thread_t *thread);
 void dms_smon_recycle_entry(thread_t *thread);
-void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
+void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id);
 int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct);
 int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
-void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, mes_message_t *receive_msg);
-void dms_proc_removed_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
-dms_message_head_t* get_dms_head(mes_message_t *msg);
+void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *receive_msg);
+void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+dms_message_head_t* get_dms_head(dms_message_t *msg);
 bool8 dms_cmd_is_broadcast(uint32 cmd);
-void dms_init_message_dms_head(dms_message_head_t *dms_head, uint32 cmd, uint32 msg_version);
 void dms_set_node_proto_version(uint8 inst_id, uint32 version);
 uint32 dms_get_node_proto_version(uint8 inst_id);
 void dms_init_cluster_proto_version();
 uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_id);
 
-/* 
+/*
 * The following structs are used for communication
 * between Primary and Standby to obtain relevant
 * information about buffers on other nodes.
@@ -399,7 +402,41 @@ typedef struct st_dms_ack_buf_info {
 } dms_ack_buf_info_t;
 
 void dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info);
-void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
+void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+static inline void dms_init_ack_head(const dms_message_head_t *req_head, dms_message_head_t *ack_head, unsigned int cmd,
+    unsigned short size, unsigned int src_sid)
+{
+    ack_head->cmd = cmd;
+    ack_head->src_inst = req_head->dst_inst;
+    ack_head->dst_inst = req_head->src_inst;
+    ack_head->src_sid = (uint16)src_sid;
+    ack_head->dst_sid = req_head->src_sid;
+    ack_head->ruid = req_head->ruid;
+    ack_head->size = size;
+    ack_head->flags = req_head->flags;
+    ack_head->cluster_ver = req_head->cluster_ver;
+    ack_head->sw_proto_ver = DMS_SW_PROTO_VER;
+    ack_head->msg_proto_ver = dms_get_send_proto_version_by_cmd(cmd, req_head->src_inst);
+    int32 ret = memset_s(ack_head->reserved, DMS_MSG_HEAD_UNUSED_SIZE, 0, DMS_MSG_HEAD_UNUSED_SIZE);
+    DMS_SECUREC_CHECK(ret);
+}
+
+#define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \
+    do {                                                                                                        \
+        (head)->cmd = (uint32)(v_cmd);                                                                          \
+        (head)->flags = (uint32)((v_flags) | dms_msg_group_id(v_cmd));                                          \
+        (head)->src_inst = (uint8)(v_src_inst);                                                                 \
+        (head)->dst_inst = (uint8)(v_dst_inst);                                                                 \
+        (head)->src_sid = (uint16)(v_src_sid);                                                                  \
+        (head)->dst_sid = (uint16)(v_dst_sid);                                                                  \
+        (head)->sw_proto_ver = DMS_SW_PROTO_VER;                                                                \
+        (head)->msg_proto_ver = dms_get_send_proto_version_by_cmd((v_cmd), ((uint8)v_dst_inst));                \
+        (head)->cluster_ver = DMS_GLOBAL_CLUSTER_VER;                                                           \
+        (head)->ruid = 0;                                                                                       \
+    } while (0)
+
+#define DMS_MESSAGE_BODY(msg) ((msg)->buffer + sizeof(dms_message_head_t))
+
 
 #ifdef __cplusplus
 }

@@ -40,28 +40,28 @@ static int dcs_send_pcr_ack(dms_process_context_t *ctx, msg_pcr_request_t *reque
     int ret;
     msg_pcr_ack_t msg;
 
-    mfc_init_ack_head(&request->head.mes_head, &msg.head, MSG_ACK_CR_PAGE,
+    dms_init_ack_head(&request->head, &msg.head, MSG_ACK_CR_PAGE,
         (uint16)(sizeof(msg_pcr_ack_t) + g_dms.page_size), ctx->sess_id);
-    msg.head.mes_head.src_inst = ctx->inst_id;
-    CM_ASSERT(request->head.mes_head.dst_inst == ctx->inst_id);
+    msg.head.src_inst = ctx->inst_id;
+    CM_ASSERT(request->head.dst_inst == ctx->inst_id);
     msg.force_cvt = request->force_cvt;
     if (fb_mark != NULL) {
-        msg.head.mes_head.size += (uint16)g_dms.page_size;
+        msg.head.size += (uint16)g_dms.page_size;
     }
 
     LOG_DEBUG_INF("[PCR][%s][send pcr ack] cr_type %u src_inst %u src_sid %u dst_inst %u dst_sid %u force_cvt %u",
-        cm_display_pageid(request->pageid), (uint32)request->cr_type, (uint32)msg.head.mes_head.src_inst,
-        (uint32)msg.head.mes_head.src_sid, (uint32)msg.head.mes_head.dst_inst,
-        (uint32)msg.head.mes_head.dst_sid, (uint32)msg.force_cvt);
+        cm_display_pageid(request->pageid), (uint32)request->cr_type, (uint32)msg.head.src_inst,
+        (uint32)msg.head.src_sid, (uint32)msg.head.dst_inst,
+        (uint32)msg.head.dst_sid, (uint32)msg.force_cvt);
 
     if (fb_mark == NULL) {
         ret = mfc_send_data3(&msg.head, sizeof(msg_pcr_ack_t), page);
     } else {
         ret = mfc_send_data4(&msg.head, sizeof(msg_pcr_ack_t), page, g_dms.page_size, fb_mark, g_dms.page_size);
     }
-    
+
     if (ret != DMS_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.dms_cmd, msg.head.mes_head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.cmd, msg.head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -69,17 +69,16 @@ static int dcs_send_pcr_ack(dms_process_context_t *ctx, msg_pcr_request_t *reque
 
 static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *request, uint8 dst_id)
 {
-    request->head.mes_head.dst_inst = dst_id;
+    request->head.dst_inst = dst_id;
 
     LOG_DEBUG_INF("[PCR][%s][send pcr request] cr_type %u query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u force_cvt %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)request->head.mes_head.src_inst, (uint32)request->head.mes_head.src_sid, (uint32)dst_id,
-        (uint32)request->force_cvt);
+        (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)dst_id, (uint32)request->force_cvt);
 
-    int ret = mfc_send_data(&request->head);
+    int ret = mfc_forward_request(&request->head);
     if (ret != DMS_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, request->head.dms_cmd, request->head.mes_head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, request->head.cmd, request->head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -88,19 +87,19 @@ static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *r
 static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *request, char *wxid)
 {
     msg_txn_wait_t msg ;
-    mfc_init_ack_head(&request->head.mes_head, &msg.head, MSG_ACK_TXN_WAIT, sizeof(msg_txn_wait_t), ctx->sess_id);
-    msg.head.mes_head.src_inst = ctx->inst_id;
-    CM_ASSERT(request->head.mes_head.dst_inst == ctx->inst_id);
+    dms_init_ack_head(&request->head, &msg.head, MSG_ACK_TXN_WAIT, sizeof(msg_txn_wait_t), ctx->sess_id);
+    msg.head.src_inst = ctx->inst_id;
+    CM_ASSERT(request->head.dst_inst == ctx->inst_id);
     errno_t err = memcpy_sp(msg.wxid, DMS_XID_SIZE, wxid, DMS_XID_SIZE);
     DMS_SECUREC_CHECK(err);
 
     LOG_DEBUG_INF("[PCR][%s][send txn wait] wxid %s src_inst %u src_sid %u dst_inst %u dst_sid %u",
-        cm_display_pageid(request->pageid), cm_display_xid(wxid), (uint32)msg.head.mes_head.src_inst,
-        (uint32)msg.head.mes_head.src_sid, (uint32)msg.head.mes_head.dst_inst, (uint32)msg.head.mes_head.dst_sid);
+        cm_display_pageid(request->pageid), cm_display_xid(wxid), (uint32)msg.head.src_inst,
+        (uint32)msg.head.src_sid, (uint32)msg.head.dst_inst, (uint32)msg.head.dst_sid);
 
     int ret = mfc_send_data(&msg.head);
     if (ret != CM_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.dms_cmd, msg.head.mes_head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.cmd, msg.head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -175,8 +174,8 @@ static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reques
 {
     bool8 *fb_mark = NULL;
     void *cr_page = (void *)((char *)request + sizeof(msg_pcr_request_t));
-    if (request->head.mes_head.size > sizeof(msg_pcr_request_t) + g_dms.page_size) {
-        if (request->head.mes_head.size < sizeof(msg_pcr_request_t) + 2 * g_dms.page_size) {
+    if (request->head.size > sizeof(msg_pcr_request_t) + g_dms.page_size) {
+        if (request->head.size < sizeof(msg_pcr_request_t) + 2 * g_dms.page_size) {
             DMS_THROW_ERROR(ERRNO_DMS_MES_INVALID_MSG);
             return ERRNO_DMS_MES_INVALID_MSG;
         }
@@ -220,13 +219,13 @@ static int dcs_btree_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reque
     return ret;
 }
 
-static void dcs_handle_pcr_request(dms_process_context_t *ctx, mes_message_t *msg)
+static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *msg)
 {
     int ret;
 
     CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_TRUE);
     msg_pcr_request_t *request = (msg_pcr_request_t *)(msg->buffer);
-    
+
     uint32 total_size = request->cr_type == CR_TYPE_HEAP ? sizeof(msg_pcr_request_t) : sizeof(msg_index_pcr_request_t);
     total_size += g_dms.page_size;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, total_size, CM_FALSE, CM_TRUE);
@@ -250,7 +249,7 @@ static void dcs_handle_pcr_request(dms_process_context_t *ctx, mes_message_t *ms
 }
 #endif
 
-void dcs_proc_pcr_request(dms_process_context_t *process_ctx, mes_message_t *recv_msg)
+void dcs_proc_pcr_request(dms_process_context_t *process_ctx, dms_message_t *recv_msg)
 {
 #ifndef OPENGAUSS
     if (recv_msg->head->src_inst == process_ctx->inst_id) {
@@ -261,7 +260,7 @@ void dcs_proc_pcr_request(dms_process_context_t *process_ctx, mes_message_t *rec
 
     dcs_handle_pcr_request(process_ctx, recv_msg);
 #endif
-    mfc_release_message_buf(recv_msg);
+    dms_release_recv_message(recv_msg);
 }
 
 static int dcs_init_pcr_request(msg_pcr_request_t *request, dms_context_t *dms_ctx, dms_cr_t *dms_cr, cr_type_t type)
@@ -285,7 +284,7 @@ static int dcs_init_pcr_request(msg_pcr_request_t *request, dms_context_t *dms_c
     return DMS_SUCCESS;
 }
 
-static int dcs_proc_msg_req_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, mes_message_t *message)
+static int dcs_proc_msg_req_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message)
 {
     CM_CHK_RECV_MSG_SIZE(message, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_FALSE);
     msg_pcr_request_t *reply = (msg_pcr_request_t *)(message->buffer);
@@ -313,7 +312,7 @@ static int dcs_proc_msg_req_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, me
     return DMS_SUCCESS;
 }
 
-static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, mes_message_t *message)
+static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message)
 {
     CM_CHK_RECV_MSG_SIZE(message, (uint32)(sizeof(msg_pcr_ack_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
     msg_pcr_ack_t *ack = (msg_pcr_ack_t *)(message->buffer);
@@ -339,23 +338,23 @@ static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, me
     return DMS_SUCCESS;
 }
 
-static inline int dcs_proc_msg_ack_txn_wait(dms_cr_t *dms_cr, mes_message_t *message)
+static inline int dcs_proc_msg_ack_txn_wait(dms_cr_t *dms_cr, dms_message_t *message)
 {
     CM_CHK_RECV_MSG_SIZE(message, (uint32)(sizeof(dms_message_head_t) + DMS_XID_SIZE), CM_FALSE, CM_FALSE);
     char *wxid = g_dms.callback.get_wxid_from_cr_cursor(dms_cr->cr_cursor);
-    int ret = memcpy_sp(wxid, DMS_XID_SIZE, MES_MESSAGE_BODY(message), DMS_XID_SIZE);
+    int ret = memcpy_sp(wxid, DMS_XID_SIZE, DMS_MESSAGE_BODY(message), DMS_XID_SIZE);
     DMS_SECUREC_CHECK(ret);
 
     return DMS_SUCCESS;
 }
 
-static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, mes_message_t *message,
+static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message,
     dms_cr_status_t *cr_status, bool8 *is_empty_txn_list, bool8 *exist_waiting_txn)
 {
     *exist_waiting_txn = CM_FALSE;
     *is_empty_txn_list = CM_FALSE;
     dms_message_head_t *dms_head = get_dms_head(message);
-    switch (dms_head->dms_cmd) {
+    switch (dms_head->cmd) {
         case MSG_REQ_CR_PAGE: {
             *cr_status = DMS_CR_CONSTRUCT;
             return dcs_proc_msg_req_cr_page(dms_ctx, dms_cr, message);
@@ -392,7 +391,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
     uint32 head_size, bool8 *is_empty_txn_list, bool8 *exist_waiting_txn, bool8 for_heap)
 {
     int ret;
-    mes_message_t message;
+    dms_message_t message;
     dms_cr_status_t cr_status;
 
     LOG_DEBUG_INF("[PCR][%s][request cr page] cr_type %u query_scn %llu query_ssn %u "
@@ -416,7 +415,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
             break;
         }
 
-        ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &message, DCS_CR_REQ_TIMEOUT);
+        ret = mfc_get_response(request->head.ruid, &message, DCS_CR_REQ_TIMEOUT);
         if (ret != DMS_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
@@ -425,7 +424,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
         dms_end_stat(dms_ctx->sess_id);
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message, &cr_status, is_empty_txn_list, exist_waiting_txn);
-        mfc_release_message_buf(&message);
+        dms_release_recv_message(&message);
         return ret;
     }
 
@@ -447,10 +446,9 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
 
     DMS_INIT_MESSAGE_HEAD(&request.head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
-    request.head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    request.head.mes_head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
+    request.head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
     if (dms_cr->fb_mark != NULL) {
-        request.head.mes_head.size += (uint16)g_dms.page_size;
+        request.head.size += (uint16)g_dms.page_size;
     }
     ret = dcs_init_pcr_request(&request, dms_ctx, dms_cr, CR_TYPE_HEAP);
     if (ret != DMS_SUCCESS) {
@@ -511,8 +509,7 @@ static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
 
     DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
-    request->head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    request->head.mes_head.size = (uint16)(sizeof(msg_index_pcr_request_t) + g_dms.page_size);
+    request->head.size = (uint16)(sizeof(msg_index_pcr_request_t) + g_dms.page_size);
 
     ret = dcs_init_pcr_request(request, dms_ctx, dms_cr, CR_TYPE_BTREE);
     if (ret != DMS_SUCCESS) {
@@ -566,31 +563,33 @@ int dms_construct_index_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr)
 }
 
 #ifndef OPENGAUSS
-static void dcs_send_already_owner(dms_process_context_t *ctx, mes_message_t *msg)
+static void dcs_send_already_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
     dms_message_head_t head;
 
-    mfc_init_ack_head(msg->head, &head, MSG_ACK_ALREADY_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
+    dms_init_ack_head(msg->head, &head, MSG_ACK_ALREADY_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
 
     (void)mfc_send_data(&head);
 }
 
-static void dcs_send_grant_owner(dms_process_context_t *ctx, mes_message_t *msg)
+static void dcs_send_grant_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
     dms_message_head_t head;
 
-    mfc_init_ack_head(msg->head, &head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
+    dms_init_ack_head(msg->head, &head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
 
     (void)mfc_send_data(&head);
 }
 
 static void dcs_route_pcr_request_owner(dms_process_context_t *ctx, msg_pcr_request_t *request, uint8 owner_id)
 {
-    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_OWNER_FOR_CR_PAGE, 0, request->head.mes_head.src_inst, owner_id,
-        request->head.mes_head.src_sid, CM_INVALID_ID16);
+    uint64 ruid = request->head.ruid;
+    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_OWNER_FOR_CR_PAGE, 0, request->head.src_inst, owner_id,
+        request->head.src_sid, CM_INVALID_ID16);
 
-    request->head.mes_head.dst_inst = owner_id;
-    request->head.mes_head.dst_sid = CM_INVALID_ID16;
+    request->head.dst_inst = owner_id;
+    request->head.dst_sid = CM_INVALID_ID16;
+    request->head.ruid = ruid;
 
     (void)mfc_send_data(&request->head);
 }
@@ -610,17 +609,19 @@ static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_req
         return DMS_SUCCESS;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.mes_head.src_inst, master_id,
-        request->head.mes_head.src_sid, CM_INVALID_ID16);
+    uint64 ruid = request->head.ruid;
+    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.src_inst, master_id,
+        request->head.src_sid, CM_INVALID_ID16);
+    request->head.ruid = ruid;
 
     LOG_DEBUG_INF("[PCR][%s][reroute request] cr_type %u query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)request->head.mes_head.src_inst, (uint32)request->head.mes_head.src_sid, (uint32)master_id);
+        (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)master_id);
 
     ret = mfc_send_data(&request->head);
     if (ret != CM_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, request->head.dms_cmd, request->head.mes_head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, request->head.cmd, request->head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -669,8 +670,8 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
         return ERRNO_DMS_CALLBACK_STACK_PUSH;
     }
     *new_req = *(msg_pcr_request_t *)request;
-    new_req->head.dms_cmd = MSG_REQ_CR_PAGE;
-    new_req->head.mes_head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
+    new_req->head.cmd = MSG_REQ_CR_PAGE;
+    new_req->head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
 
     ret = memcpy_sp((char *)new_req + sizeof(msg_pcr_request_t), g_dms.page_size, page, g_dms.page_size);
     if (ret != EOK) {
@@ -692,7 +693,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     return ret;
 }
 
-static void dcs_handle_pcr_req_master(dms_process_context_t *ctx, mes_message_t *msg)
+static void dcs_handle_pcr_req_master(dms_process_context_t *ctx, dms_message_t *msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_TRUE);
     msg_pcr_request_t *request = (msg_pcr_request_t *)(msg->buffer);
@@ -735,7 +736,7 @@ static void dcs_handle_pcr_req_master(dms_process_context_t *ctx, mes_message_t 
 }
 #endif
 
-void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, mes_message_t *recv_msg)
+void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, dms_message_t *recv_msg)
 {
 #ifndef OPENGAUSS
     if (recv_msg->head->src_inst == process_ctx->inst_id) {
@@ -746,11 +747,11 @@ void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, mes_message_t *
 
     dcs_handle_pcr_req_master(process_ctx, recv_msg);
 #endif
-    mfc_release_message_buf(recv_msg);
+    dms_release_recv_message(recv_msg);
 }
 
 
-void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, mes_message_t *recv_msg)
+void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *recv_msg)
 {
 #ifndef OPENGAUSS
     CM_CHK_RECV_MSG_SIZE_NO_ERR(recv_msg, (uint32)sizeof(msg_pcr_request_t), CM_TRUE, CM_TRUE);
@@ -771,7 +772,7 @@ void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, mes_message_t *r
         dcs_handle_pcr_req_master(process_ctx, recv_msg);
     }
 #endif
-    mfc_release_message_buf(recv_msg);
+    dms_release_recv_message(recv_msg);
 }
 
 #ifndef OPENGAUSS
@@ -779,20 +780,20 @@ static int dcs_send_check_visible_ack(dms_process_context_t *ctx, msg_cr_check_t
 {
     msg_cr_check_ack_t msg;
 
-    DMS_INIT_MESSAGE_HEAD(&msg.head, MSG_ACK_CHECK_VISIBLE, 0, ctx->inst_id, check->head.mes_head.src_inst,
-        ctx->sess_id, check->head.mes_head.src_sid);
-    msg.head.mes_head.rsn = check->head.mes_head.rsn;
-    msg.head.mes_head.size = (uint16)sizeof(msg_cr_check_ack_t);
+    DMS_INIT_MESSAGE_HEAD(&msg.head, MSG_ACK_CHECK_VISIBLE, 0, ctx->inst_id, check->head.src_inst,
+        ctx->sess_id, check->head.src_sid);
+    msg.head.ruid = check->head.ruid;
+    msg.head.size = (uint16)sizeof(msg_cr_check_ack_t);
     msg.is_found = is_found;
 
     LOG_DEBUG_INF("[PCR][%s][send check visible ack] is_found %u "
         "src_inst %u src_sid %u dst_inst %u dst_sid %u",
         cm_display_rowid(check->rowid), (uint32)is_found, (uint32)ctx->inst_id, ctx->sess_id,
-        (uint32)check->head.mes_head.src_inst, (uint32)check->head.mes_head.src_sid);
+        (uint32)check->head.src_inst, (uint32)check->head.src_sid);
 
     int ret = mfc_send_data(&msg.head);
     if (ret != CM_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.dms_cmd, msg.head.mes_head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.cmd, msg.head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -800,16 +801,16 @@ static int dcs_send_check_visible_ack(dms_process_context_t *ctx, msg_cr_check_t
 
 static int dcs_send_check_visible(dms_process_context_t *ctx, msg_cr_check_t *check, uint8 dst_id)
 {
-    check->head.mes_head.dst_inst = dst_id;
+    check->head.dst_inst = dst_id;
 
     LOG_DEBUG_INF("[PCR][%s][send check visible] query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
-        cm_display_rowid(check->rowid), check->query_scn, check->ssn, (uint32)check->head.mes_head.src_inst,
-        (uint32)check->head.mes_head.src_sid, (uint32)dst_id);
+        cm_display_rowid(check->rowid), check->query_scn, check->ssn, (uint32)check->head.src_inst,
+        (uint32)check->head.src_sid, (uint32)dst_id);
 
     int ret = mfc_send_data(&check->head);
     if (ret != CM_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, check->head.dms_cmd, check->head.mes_head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, check->head.cmd, check->head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -871,7 +872,7 @@ static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
 }
 #endif
 
-void dcs_proc_check_visible(dms_process_context_t *process_ctx, mes_message_t *recv_msg)
+void dcs_proc_check_visible(dms_process_context_t *process_ctx, dms_message_t *recv_msg)
 {
 #ifndef OPENGAUSS
     if (recv_msg->head->src_inst == process_ctx->inst_id) {
@@ -886,7 +887,7 @@ void dcs_proc_check_visible(dms_process_context_t *process_ctx, mes_message_t *r
         cm_send_error_msg(recv_msg->head, ret, "check heap page visible failed");
     }
 #endif
-    mfc_release_message_buf(recv_msg);
+    dms_release_recv_message(recv_msg);
 }
 
 static inline void dcs_get_msg_cmd_by_cr_status(dms_cr_status_t cr_status, msg_command_t *msg_cmd,
@@ -909,7 +910,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
 {
     dms_reset_error();
     msg_pcr_request_t request;
-    mes_message_t message;
+    dms_message_t message;
     int ret;
     bool8 is_empty_txn_list;
     bool8 exist_waiting_txn;
@@ -919,8 +920,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
     dcs_get_msg_cmd_by_cr_status(*cr_status, &msg_cmd, &log_info);
 
     DMS_INIT_MESSAGE_HEAD(&request.head, msg_cmd, 0, dms_ctx->inst_id, dst_inst_id, dms_ctx->sess_id, CM_INVALID_ID16);
-    request.head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    request.head.mes_head.size = (uint16)sizeof(msg_pcr_request_t);
+    request.head.size = (uint16)sizeof(msg_pcr_request_t);
     ret = dcs_init_pcr_request(&request, dms_ctx, dms_cr, CR_TYPE_HEAP);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -940,7 +940,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
             break;
         }
 
-        if (mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &message, DCS_CR_REQ_TIMEOUT) != CM_SUCCESS) {
+        if (mfc_get_response(request.head.ruid, &message, DCS_CR_REQ_TIMEOUT) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
@@ -951,11 +951,11 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message, cr_status, &is_empty_txn_list, &exist_waiting_txn);
         if (ret != DMS_SUCCESS) {
-            mfc_release_message_buf(&message);
+            dms_release_recv_message(&message);
             return ret;
         }
 
-        mfc_release_message_buf(&message);
+        dms_release_recv_message(&message);
         return DMS_SUCCESS;
     }
 
@@ -1002,15 +1002,15 @@ int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_c
     return DMS_SUCCESS;
 }
 
-static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, mes_message_t *msg, bool8 *is_empty_itl,
+static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, dms_message_t *msg, bool8 *is_empty_itl,
     unsigned char *is_found)
 {
     char *recv_page = NULL;
     dms_message_head_t *dms_head = get_dms_head(msg);
-    switch (dms_head->dms_cmd) {
+    switch (dms_head->cmd) {
         case MSG_ACK_CHECK_VISIBLE:
             CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(msg_cr_check_ack_t), CM_FALSE, CM_FALSE);
-            *is_found = *(bool8 *)MES_MESSAGE_BODY(msg);
+            *is_found = *(bool8 *)DMS_MESSAGE_BODY(msg);
             *is_empty_itl = CM_TRUE;
             return DMS_SUCCESS;
         case MSG_ACK_ERROR:
@@ -1026,7 +1026,7 @@ static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, mes_message_t *msg, 
             return DMS_SUCCESS;
         }
         default:
-            DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, dms_head->dms_cmd);
+            DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, dms_head->cmd);
             return ERRNO_DMS_CMD_INVALID;
     }
 }
@@ -1035,8 +1035,7 @@ static inline void dcs_init_msg_cr_check(msg_cr_check_t *check, dms_context_t *d
 {
     DMS_INIT_MESSAGE_HEAD(&check->head, MSG_REQ_CHECK_VISIBLE, 0, dms_ctx->inst_id, dst_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
-    check->head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    check->head.mes_head.size = (uint16)(sizeof(msg_cr_check_t) + g_dms.page_size);
+    check->head.size = (uint16)(sizeof(msg_cr_check_t) + g_dms.page_size);
     check->query_scn = dms_cr->query_scn;
     check->ssn = dms_cr->ssn;
     g_dms.callback.get_xid_from_cr_cursor(dms_cr->cr_cursor, check->xid);
@@ -1048,15 +1047,15 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
 {
     dms_reset_error();
     msg_cr_check_t check;
-    mes_message_t message;
+    dms_message_t message;
     int ret;
 
     dcs_init_msg_cr_check(&check, dms_ctx, dms_cr, (uint8)dst_inst_id);
 
     LOG_DEBUG_INF("[PCR][%s][check current visible] query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
-        cm_display_rowid(check.rowid), check.query_scn, check.ssn, (uint32)check.head.mes_head.src_inst,
-        (uint32)check.head.mes_head.src_sid, (uint32)dst_inst_id);
+        cm_display_rowid(check.rowid), check.query_scn, check.ssn, (uint32)check.head.src_inst,
+        (uint32)check.head.src_sid, (uint32)dst_inst_id);
 
     for (;;) {
         dms_begin_stat(dms_ctx->sess_id, DMS_EVT_PCR_CHECK_CURR_VISIBLE, CM_TRUE);
@@ -1066,7 +1065,7 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
             break;
         }
 
-        if (mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &message, DCS_CR_REQ_TIMEOUT) != CM_SUCCESS) {
+        if (mfc_get_response(check.head.ruid, &message, DCS_CR_REQ_TIMEOUT) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
@@ -1075,14 +1074,14 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
 
         ret = dcs_proc_check_current_visible(dms_cr, &message, is_empty_itl, is_found);
 
-        mfc_release_message_buf(&message);
+        dms_release_recv_message(&message);
         return ret;
     }
 
     LOG_DEBUG_ERR("[PCR][%s][check current visible failed] query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
-        cm_display_rowid(check.rowid), check.query_scn, check.ssn, (uint32)check.head.mes_head.src_inst,
-        (uint32)check.head.mes_head.src_sid, (uint32)dst_inst_id);
+        cm_display_rowid(check.rowid), check.query_scn, check.ssn, (uint32)check.head.src_inst,
+        (uint32)check.head.src_sid, (uint32)dst_inst_id);
     return DMS_ERROR;
 }
 

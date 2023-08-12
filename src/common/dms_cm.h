@@ -39,6 +39,7 @@ extern "C" {
 #define SSL_CERT_CHK_WHICH_TIME (2)   // check the ssl certificate at 2 o'clock every day
 #define SSL_CERT_CHK_FIRST (1)        // must be ensured that the inspection is only conducted once an hour
 #define SSL_CERT_CHK_NOT_FIRST (2)
+#define DMS_IS_INST_SEND(bits, id) (((bits) >> (id)) & 0x1)
 
 #define DMS_RETURN_IF_ERROR(ret)      \
     do {                              \

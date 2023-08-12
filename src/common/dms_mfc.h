@@ -24,12 +24,48 @@
 #ifndef __DMS_MFC_H__
 #define __DMS_MFC_H__
 
-#include "mes.h"
+#include "mes_interface.h"
 #include "cm_spinlock.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* common code to adapt new MES */
+
+#define DMS_MSG_HEAD_SIZE       sizeof(dms_message_head_t)
+#define DMS_ASYNC_OR_INVLD_RUID (0)
+
+#define MFC_RETURN_IF_BAD_RUID(ruid)                \
+    do {                                            \
+        if (ruid == 0) {                            \
+            LOG_DEBUG_ERR("[mfc] illegal ruid:0");  \
+            return CM_ERROR;                        \
+        }                                           \
+    } while (0)
+
+#define DMS_MSG_HEAD_UNUSED_SIZE 26
+typedef struct st_dms_message_head {
+    unsigned int msg_proto_ver;
+    unsigned int sw_proto_ver;
+    unsigned int cmd;
+    unsigned int  flags;
+    unsigned long long ruid;
+    unsigned char src_inst;
+    unsigned char dst_inst;
+    unsigned short size;
+    unsigned int cluster_ver;
+    unsigned short src_sid;
+    unsigned short dst_sid;
+    unsigned short tickets;
+    unsigned char reserved[DMS_MSG_HEAD_UNUSED_SIZE]; /* 64 bytes total */
+} dms_message_head_t;
+
+typedef struct st_dms_message_t {
+    dms_message_head_t *head;
+    char *buffer;
+} dms_message_t;
+
 
 typedef struct st_mfc_ticket {
     uint16 count;
@@ -42,15 +78,6 @@ typedef struct st_mfc {
     mfc_ticket_t remain_tickets[CM_MAX_INSTANCES];
     mfc_ticket_t recv_tickets[CM_MAX_INSTANCES];
 } mfc_t;
-
-#define DMS_MSG_HEAD_UNUSED_SIZE 64
-typedef struct st_dms_message_head {
-    mes_message_head_t mes_head;
-    unsigned int msg_proto_ver;
-    unsigned int sw_proto_ver;
-    unsigned int dms_cmd;
-    uint8 unused[DMS_MSG_HEAD_UNUSED_SIZE];
-} dms_message_head_t;
 
 static inline void mfc_add_tickets(mfc_ticket_t *ticket, uint16 count)
 {
@@ -69,51 +96,46 @@ static inline uint16 mfc_clean_tickets(mfc_ticket_t *ticket)
     return count;
 }
 
+
 #define mfc_init mes_init
 #define mfc_uninit mes_uninit
-#define mfc_set_msg_enqueue mes_set_msg_enqueue
 #define mfc_register_proc_func mes_register_proc_func
-#define mfc_notify_msg_recv mes_notify_msg_recv
-#define mfc_notify_broadcast_msg_recv_and_release mes_notify_broadcast_msg_recv_and_release
-#define mfc_notify_broadcast_msg_recv_and_cahce mes_notify_broadcast_msg_recv_and_cahce
-#define mfc_notify_broadcast_msg_recv_with_errcode mes_notify_broadcast_msg_recv_with_errcode
-#define mfc_set_command_task_group mes_set_command_task_group
-#define mfc_connect mes_connect
-#define mfc_disconnect mes_disconnect
-#define mfc_connect_batch mes_connect_batch
-#define mfc_disconnect_batch mes_disconnect_batch
+
+/* MES connection */
 #define mfc_connection_ready mes_connection_ready
+#define mfc_connect mes_add_instance
+int mfc_add_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt, bool8 is_sync);
+int mfc_check_connection_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt);
+int mfc_del_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt);
+
+/* MES p2p message passing */
 int32 mfc_send_data(dms_message_head_t *msg);
+int32 mfc_send_data_async(dms_message_head_t *msg);
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body);
-int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size,
+    const void *body1, uint32 len1, const void *body2, uint32 len2);
+int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2);
-int32 mfc_send_data_internal(mes_message_head_t *msg);
-int32 mfc_send_data3_internal(mes_message_head_t *head, uint32 head_size, const void *body);
-int32 mfc_send_data4_internal(mes_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
-    const void *body2, uint32 len2);
-int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout);
-#define mfc_release_message_buf mes_release_message_buf
-static inline void mfc_broadcast(uint32 sid, uint64 inst_bits, const void *msg_data, uint64 *success_inst)
+int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms);
+int32 mfc_forward_request(dms_message_head_t *msg);
+int32 mfc_send_response(dms_message_head_t *msg);
+
+/* MES broadcast */
+void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst);
+void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body, uint64 *success_inst);
+int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout);
+int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout, uint64 *succ_insts);
+int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, mes_msg_list_t *msg_list);
+
+#define mfc_release_mes_msg mes_release_msg
+#define mfc_release_mes_msglist mes_release_msg_list
+
+static inline void dms_release_recv_message(dms_message_t *msg)
 {
-    mes_broadcast3(sid, inst_bits, msg_data, success_inst, mfc_send_data_internal);
+    mes_msg_t mes_msg = { 0 };
+    mes_msg.buffer = msg->buffer;
+    mfc_release_mes_msg(&mes_msg);
 }
-static inline void mfc_broadcast3(uint32 sid, uint64 inst_bits, dms_message_head_t *head, uint32 head_size,
-    const void *body, uint64 *success_inst)
-{
-    mes_broadcast5(sid, inst_bits, &(head->mes_head), head_size, body, success_inst, mfc_send_data3_internal);
-}
-int32 mfc_broadcast_and_recv_msg_with_judge(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
-    uint64 *send_insts);
-#define mfc_get_current_rsn mes_get_current_rsn
-void mfc_init_ack_head(mes_message_head_t *req_head, dms_message_head_t *ack_head, unsigned int cmd,
-    unsigned short size, unsigned int src_sid);
-int32 mfc_wait_acks(uint32 sid, uint32 timeout, uint64 success_inst);
-int32 mfc_wait_acks2(uint32 sid, uint32 timeout, uint64 *succ_insts);
-int32 mfc_wait_acks_and_recv_msg(uint32 sid, uint32 timeout, uint64 success_inst, char *recv_msg[MES_MAX_INSTANCES]);
-int32 mfc_wait_acks_and_recv_msg_with_judge(uint32 sid, uint32 timeout, uint64 send_insts,
-    char *recv_msg[MES_MAX_INSTANCES], uint64 *success_recv_insts);
-void dms_release_recv_acks_after_broadcast(uint64 recv_insts, char *recv_msg[MES_MAX_INSTANCES]);
-#define mfc_get_rsn mes_get_rsn
 #define mfc_get_stat_send_count mes_get_stat_send_count
 #define mfc_get_stat_recv_count mes_get_stat_recv_count
 #define mfc_get_stat_occupy_buf mes_get_stat_occupy_buf
@@ -122,7 +144,6 @@ void dms_release_recv_acks_after_broadcast(uint64 recv_insts, char *recv_msg[MES
 #define mfc_get_elapsed_time mes_get_elapsed_time
 #define mfc_get_elapsed_count mes_get_elapsed_count
 #define mfc_register_decrypt_pwd mes_register_decrypt_pwd
-#define mfc_get_max_watting_rooms mes_get_max_watting_rooms
 
 #ifdef __cplusplus
 }

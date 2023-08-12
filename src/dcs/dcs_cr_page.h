@@ -24,17 +24,17 @@
 #ifndef __DCS_CR_PAGE_H__
 #define __DCS_CR_PAGE_H__
 
-#include "mes_type.h"
+#include "mes_interface.h"
 #include "dms_process.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void dcs_proc_pcr_request(dms_process_context_t *process_ctx, mes_message_t *recv_msg);
-void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, mes_message_t *recv_msg);
-void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, mes_message_t *recv_msg);
-void dcs_proc_check_visible(dms_process_context_t *process_ctx, mes_message_t *recv_msg);
+void dcs_proc_pcr_request(dms_process_context_t *process_ctx, dms_message_t *recv_msg);
+void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, dms_message_t *recv_msg);
+void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *recv_msg);
+void dcs_proc_check_visible(dms_process_context_t *process_ctx, dms_message_t *recv_msg);
 
 #ifdef __cplusplus
 }

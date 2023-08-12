@@ -23,7 +23,7 @@
  */
 
 #include "dms_error.h"
-#include "mes_type.h"
+#include "mes_interface.h"
 #include "dms_stat.h"
 #include "dcs_msg.h"
 #include "dls_msg.h"
@@ -115,36 +115,36 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
     int32 ret = dls_invld_lock_ownership(req_info->resid, req_info->req_mode, req_info->is_try);
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
-            req_info->req_id, req_info->req_sid, req_info->req_rsn, ret);
+            req_info->req_id, req_info->req_sid, req_info->req_ruid, ret);
         return DMS_SUCCESS;
     }
 
     dms_ask_res_ack_t page_ack;
     DMS_INIT_MESSAGE_HEAD(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
         req_info->req_id, proc_ctx->sess_id, req_info->req_sid);
-    page_ack.head.mes_head.rsn = req_info->req_rsn;
-    page_ack.head.mes_head.flags |= MSG_FLAG_NO_PAGE;
-    page_ack.head.mes_head.size = (uint16)sizeof(dms_ask_res_ack_t);
+    page_ack.head.ruid = req_info->req_ruid;
+    page_ack.head.flags |= MSG_FLAG_NO_PAGE;
+    page_ack.head.size = (uint16)sizeof(dms_ask_res_ack_t);
     ret = mfc_send_data(&page_ack.head);
     return ret;
 }
 
 int32 dls_handle_grant_owner_ack(dms_context_t *dms_ctx,
-    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
+    drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);
     return DMS_SUCCESS;
 }
 
 int32 dls_handle_already_owner_ack(dms_context_t *dms_ctx,
-    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
+    drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);
     return DMS_SUCCESS;
 }
 
 int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
-    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
+    drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
     CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);

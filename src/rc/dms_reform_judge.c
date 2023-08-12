@@ -182,7 +182,7 @@ static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_t
         return ret;
     }
 
-    ret = dms_reform_req_dms_status_wait(online_status, online_times, dst_id, sess_id);
+    ret = dms_reform_req_dms_status_wait(online_status, online_times, dst_id, req.head.ruid);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_get_online_status_r WAIT error: %d, dst_id: %d", ret, dst_id);
     }
@@ -267,7 +267,7 @@ static int dms_reform_connect(instance_list_t *list_online)
     dms_reform_bitmap_to_list(&list_reconnect, bitmap_online);
 
     cm_spin_lock(&reform_info->mes_lock, NULL);
-    ret = mes_connect_batch_no_wait(list_reconnect.inst_id_list, list_reconnect.inst_id_count);
+    ret = mfc_add_instance_batch(list_reconnect.inst_id_list, list_reconnect.inst_id_count, CM_FALSE);
     if (ret != DMS_SUCCESS) {
         cm_spin_unlock(&reform_info->mes_lock);
         LOG_DEBUG_FUNC_FAIL;
@@ -314,13 +314,14 @@ static int dms_reform_check_remote_inner(uint8 dst_id)
     int in_reform = CM_FALSE;
 
     dms_reform_init_req_prepare(&req, dst_id);
+    
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_remote_inner SEND error: %d, dst_id: %d", ret, dst_id);
         return ret;
     }
 
-    ret = dms_reform_req_prepare_wait(&last_fail, &in_reform);
+    ret = dms_reform_req_prepare_wait(&last_fail, &in_reform, req.head.ruid);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_remote_inner WAIT error: %d, dst_id: %d", ret, dst_id);
         return ret;
@@ -377,6 +378,7 @@ static int dms_reform_sync_cluster_version_inner(uint8 dst_id, bool8 *local_upda
     int ret = DMS_SUCCESS;
 
     dms_reform_init_req_gcv_sync(&req, dst_id, pushing);
+    
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][GCV SYNC]dms_reform_sync_cluster_version_inner "
@@ -384,7 +386,7 @@ static int dms_reform_sync_cluster_version_inner(uint8 dst_id, bool8 *local_upda
         return ret;
     }
 
-    ret = dms_reform_req_gcv_sync_wait(local_updated, pushing);
+    ret = dms_reform_req_gcv_sync_wait(local_updated, pushing, req.head.ruid);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][GCV SYNC]dms_reform_sync_cluster_version_inner "
             "WAIT error: %d, dst_id: %d", ret, dst_id);
@@ -1903,13 +1905,14 @@ static int dms_reform_sync_share_info_r(uint8 dst_id)
     int ret = DMS_SUCCESS;
 
     dms_reform_init_req_sync_share_info(&req, dst_id);
+    
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_share_info_r SEND error: %d, dst_id: %d", ret, dst_id);
         return ret;
     }
 
-    ret = dms_reform_req_sync_share_info_wait();
+    ret = dms_reform_req_sync_share_info_wait(req.head.ruid);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_share_info_r WAIT error: %d, dst_id: %d", ret, dst_id);
         return ret;
@@ -1960,12 +1963,13 @@ static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *in
     // get part info and txn deposit map from instance which status is IN
     dms_message_head_t head;
     dms_reform_init_map_info_req(&head, inst_lists[INST_LIST_OLD_IN].inst_id_list[0]);
+    
     int ret = mfc_send_data(&head);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
 
-    return dms_reform_map_info_req_wait();
+    return dms_reform_map_info_req_wait(head.ruid);
 }
 
 #ifdef OPENGAUSS

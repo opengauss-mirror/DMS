@@ -55,13 +55,13 @@ void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
     (void)cm_gettimeofday(&stat->wait[curr_level].begin_tv);
 }
 
-void dms_end_stat(uint32    sid)
+void dms_end_stat(uint32 sid)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
     dms_end_stat_ex(sid, stat->wait[stat->level - 1].event);
 }
 
-void dms_end_stat_ex(uint32    sid, dms_wait_event_t event)
+void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
 
