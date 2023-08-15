@@ -96,7 +96,7 @@ static void dms_reform_proc_set_running(void)
             reform_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
             break;
         }
-        DMS_REFORM_LONG_SLEEP;
+        DMS_REFORM_SHORT_SLEEP;
     }
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc running");
     reform_info->thread_status = DMS_THREAD_STATUS_RUNNING;
@@ -363,7 +363,7 @@ int dms_wait_reform(unsigned int *has_offline)
 #endif
 
     while (!DMS_FIRST_REFORM_FINISH) {
-        DMS_REFORM_LONG_SLEEP;
+        DMS_REFORM_SHORT_SLEEP;
         if (reform_info->last_fail) {
             if (DMS_FIRST_REFORM_FINISH) {
                 return CM_TRUE;
@@ -386,7 +386,7 @@ int dms_wait_reform_finish(void)
             }
             return CM_FALSE;
         }
-        DMS_REFORM_LONG_SLEEP;
+        DMS_REFORM_SHORT_SLEEP;
     }
 
     g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_IN);
@@ -427,7 +427,7 @@ int dms_wait_reform_phase(unsigned char reform_phase)
             LOG_RUN_INF("[DMS REFORM] wait reform phase %s finish", dms_reform_phase_desc(reform_phase));
             return CM_TRUE;
         }
-        DMS_REFORM_LONG_SLEEP;
+        DMS_REFORM_SHORT_SLEEP;
     }
 }
 
