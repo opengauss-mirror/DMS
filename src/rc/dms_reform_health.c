@@ -38,7 +38,7 @@ void dms_reform_health_set_running(void)
             health_info->thread_status == DMS_THREAD_STATUS_PAUSED) {
             break;
         }
-        DMS_REFORM_LONG_SLEEP;
+        DMS_REFORM_SHORT_SLEEP;
     }
     LOG_RUN_INF("[DMS REFORM]dms_reform_health running");
     health_info->thread_status = DMS_THREAD_STATUS_RUNNING;
@@ -54,7 +54,7 @@ void dms_reform_health_set_pause(void)
     health_info->thread_status = DMS_THREAD_STATUS_PAUSING;
 
     while (health_info->thread_status != DMS_THREAD_STATUS_PAUSED) {
-        DMS_REFORM_LONG_SLEEP;
+        DMS_REFORM_SHORT_SLEEP;
     }
 }
 
@@ -238,7 +238,7 @@ void dms_reform_health_thread(thread_t *thread)
         }
         if (health_info->thread_status == DMS_THREAD_STATUS_RUNNING) {
             dms_reform_health_check();
-            DMS_REFORM_LONG_SLEEP;
+            DMS_REFORM_SHORT_SLEEP;
         }
     }
 }
