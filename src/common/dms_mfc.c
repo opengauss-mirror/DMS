@@ -225,8 +225,6 @@ int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout)
         return ret;
     }
 
-    CM_ASSERT(msg->head->cmd >= MSG_ACK_BEGIN);
-
     mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->head->src_inst], msg->head->tickets);
     return DMS_SUCCESS;
 }
