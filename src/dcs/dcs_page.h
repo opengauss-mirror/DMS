@@ -41,7 +41,7 @@ extern "C" {
 #define DCS_INSTID_VALID(instid) ((instid) != CM_INVALID_ID8)
 
 typedef struct st_msg_page_batch_op {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint32 count;
     atomic_t lsn;
     uint64 scn;

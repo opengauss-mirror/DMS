@@ -33,22 +33,22 @@
 #include "mes_func.h"
 #include "dcs_page.h"
 
-static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint8 cmd, dms_edp_info_t *pages, uint32 count)
+static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint32 cmd, dms_edp_info_t *pages, uint32 count)
 {
     int32 ret;
-    mes_message_head_t head;
+    dms_message_head_t head;
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     uint32 left_cnt = count;
-    uint32 max_send_cnt = (uint32)(((MES_MESSAGE_BUFFER_SIZE - sizeof(mes_message_head_t)) - sizeof(unsigned int)) /
+    uint32 max_send_cnt = (uint32)(((MES_MESSAGE_BUFFER_SIZE - sizeof(dms_message_head_t)) - sizeof(unsigned int)) /
         sizeof(dms_edp_info_t));
 
     while (left_cnt > 0) {
         uint32 send_cnt = MIN(max_send_cnt, left_cnt);
-        uint32 size = (uint32)(sizeof(mes_message_head_t) + sizeof(unsigned int) + send_cnt * sizeof(dms_edp_info_t));
-        head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-        head.size = (uint16)size;
+        uint32 size = (uint32)(sizeof(dms_message_head_t) + sizeof(unsigned int) + send_cnt * sizeof(dms_edp_info_t));
+        head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+        head.mes_head.size = (uint16)size;
 
-        if ((ret = mfc_send_data4(&head, sizeof(mes_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
+        if ((ret = mfc_send_data4(&head, sizeof(dms_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
             pages, send_cnt * (uint32)sizeof(dms_edp_info_t))) != CM_SUCCESS) {
             LOG_DEBUG_ERR("[DMS]send edp failed, errno = %d", ret);
             DMS_THROW_ERROR(ERRNO_DMS_DCS_SEND_EDP_FAILED);
@@ -320,12 +320,12 @@ void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, mes_messag
     dms_ctx.db_handle = process_ctx->db_handle;
     dms_ctx.edp_inst = receive_msg->head->src_inst;
 
-    uint32 total_size = (uint32)(sizeof(mes_message_head_t) + sizeof(uint32));
+    uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(mes_message_head_t));
+    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    char *pages = receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint32);
+    char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
     mfc_release_message_buf(receive_msg);
@@ -340,12 +340,12 @@ void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, mes_message
     dms_ctx.sess_id = process_ctx->sess_id;
     dms_ctx.db_handle = process_ctx->db_handle;
 
-    uint32 total_size = (uint32)(sizeof(mes_message_head_t) + sizeof(uint32));
+    uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(mes_message_head_t));
+    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    char *pages = receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint32);
+    char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
     mfc_release_message_buf(receive_msg);
@@ -360,12 +360,12 @@ void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, mes_messa
     dms_ctx.sess_id = process_ctx->sess_id;
     dms_ctx.db_handle = process_ctx->db_handle;
 
-    uint32 total_size = (uint32)(sizeof(mes_message_head_t) + sizeof(uint32));
+    uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(mes_message_head_t));
+    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    char *pages = receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint32);
+    char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
     mfc_release_message_buf(receive_msg);
@@ -380,12 +380,12 @@ void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, mes_messag
     dms_ctx.sess_id = process_ctx->sess_id;
     dms_ctx.db_handle = process_ctx->db_handle;
 
-    uint32 total_size = (uint32)(sizeof(mes_message_head_t) + sizeof(uint32));
+    uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(mes_message_head_t));
+    uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
-    char *pages = receive_msg->buffer + sizeof(mes_message_head_t) + sizeof(uint32);
+    char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
     mfc_release_message_buf(receive_msg);

@@ -51,6 +51,7 @@ enum en_errno_dms_common {
     ERRNO_DMS_MES_INVALID_MSG = 10014,
     ERRNO_DMS_RES_INVALID_VERSION = 10015,
     ERRNO_DMS_INIT_LOG_FAILED = 10016,
+    ERRNO_DMS_MSG_VERSION_NOT_MATCH = 10017,
 
     /* add new errno above */
     ERRNO_DMS_COMMON_END

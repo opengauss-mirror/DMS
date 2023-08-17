@@ -37,7 +37,7 @@ extern "C" {
 #define DMS_REFORM_MSG_MAX_LENGTH           SIZE_K(32)
 
 typedef struct st_dms_reform_ack_common {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     int                 result;         // proc result
     uint8               last_fail;      // for ack MSG_REQ_REFORM_PREPARE
     uint8               dms_status;     // for ack MSG_REQ_DATABASE_STATUS
@@ -48,7 +48,7 @@ typedef struct st_dms_reform_ack_common {
 } dms_reform_ack_common_t;
 
 typedef struct st_dms_reform_req_sync_step {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     uint64              scn;
     uint64              start_time;
     uint8               last_step;
@@ -64,7 +64,7 @@ int dms_reform_req_sync_next_step_wait(void);
 void dms_reform_proc_sync_next_step(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_sync_share_info {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     share_info_t        share_info;
 } dms_reform_req_sync_share_info_t;
 void dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id);
@@ -72,7 +72,7 @@ int dms_reform_req_sync_share_info_wait(void);
 void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_partner_status {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     uint64              lsn;
 } dms_reform_req_partner_status_t;
 void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id, uint32 sess_id);
@@ -80,7 +80,7 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64 *online_times, u
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_prepare {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     bool8               last_fail;
 } dms_reform_req_prepare_t;
 void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id);
@@ -88,12 +88,12 @@ int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform);
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_gcv_sync {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     bool8               pushing;
 } dms_reform_req_gcv_sync_t;
 
 typedef struct st_dms_reform_ack_gcv_sync {
-    mes_message_head_t  head;
+    dms_message_head_t  head;
     bool8               updated;
 } dms_reform_ack_gcv_sync_t;
 void dms_reform_init_req_gcv_sync(dms_reform_req_gcv_sync_t *req, uint8 dst_id, bool8 pushing);
@@ -101,7 +101,7 @@ int dms_reform_req_gcv_sync_wait(bool8 *updated, bool8 pushing);
 void dms_reform_proc_req_gcv_sync(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_migrate {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint32 part_id;
     uint32 res_num;
     bool8  is_part_end;
@@ -111,7 +111,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_rebuild {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint32 offset;
 } dms_reform_req_rebuild_t;
 int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id);
@@ -131,7 +131,7 @@ enum dms_reform_req_page_action {
 };
 
 typedef struct st_dms_reform_req_res {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint32 action;
     uint32 sess_id;
     uint64 rsn;
@@ -143,10 +143,10 @@ void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid
 int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint32 sess_id);
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
-int dms_reform_send_data(mes_message_head_t *msg_head, uint32 sess_id);
+int dms_reform_send_data(dms_message_head_t *msg_head, uint32 sess_id);
 
 typedef struct st_dms_reform_req_switchover {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint64 start_time;
 } dms_reform_req_switchover_t;
 void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 reformer_id, uint16 sess_id);
@@ -157,15 +157,15 @@ void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_mes
 int dms_reform_check_reform_done(void);
 
 typedef struct st_dms_reform_ack_map {
-    mes_message_head_t head;
+    dms_message_head_t head;
     remaster_info_t remaster_info;
 } dms_reform_ack_map_t;
-void dms_reform_init_map_info_req(mes_message_head_t *head, uint8 dst_id);
+void dms_reform_init_map_info_req(dms_message_head_t *head, uint8 dst_id);
 int dms_reform_map_info_req_wait(void);
 void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_opengauss_ondemand_redo {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint16 len;
 } dms_reform_req_opengauss_ondemand_redo_t;
 void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, mes_message_t *receive_msg);

@@ -122,9 +122,9 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
     dms_ask_res_ack_t page_ack;
     DMS_INIT_MESSAGE_HEAD(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
         req_info->req_id, proc_ctx->sess_id, req_info->req_sid);
-    page_ack.head.rsn = req_info->req_rsn;
-    page_ack.head.flags |= MSG_FLAG_NO_PAGE;
-    page_ack.head.size = (uint16)sizeof(dms_ask_res_ack_t);
+    page_ack.head.mes_head.rsn = req_info->req_rsn;
+    page_ack.head.mes_head.flags |= MSG_FLAG_NO_PAGE;
+    page_ack.head.mes_head.size = (uint16)sizeof(dms_ask_res_ack_t);
     ret = mfc_send_data(&page_ack.head);
     return ret;
 }
