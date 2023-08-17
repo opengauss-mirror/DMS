@@ -88,13 +88,13 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
     return;
 }
 
-void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 code)
+void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 code)
 {
     int32 ret;
     msg_error_t msg_error;
     const char *errmsg = cm_get_errormsg(code);
 
-    DMS_INIT_MESSAGE_HEAD(&msg_error.head, MSG_ACK_ERROR, 0, src_inst, dst_inst, src_sid, dst_sid);
+    DMS_INIT_MESSAGE_HEAD(&msg_error.head, MSG_ACK_ERROR, 0, (uint8)src_inst, dst_inst, src_sid, dst_sid);
     msg_error.code      = code;
     msg_error.head.rsn  = dst_rsn;
 
@@ -110,39 +110,44 @@ void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 d
     }
 }
 
-int32 dms_notify_invld_share_copy(uint32 inst_id, uint32 sess_id, char *resid, uint16 len,
-    uint8 type, uint64 invld_insts, dms_session_e sess_type, uint64 *succ_insts)
+static void dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, uint16 len,
+    uint8 type, uint64 invld_insts, dms_session_e sess_type, bool8 is_try)
 {
     dms_invld_req_t req;
-    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALIDATE_SHARE_COPY, 0, inst_id, 0, sess_id, CM_INVALID_ID16);
-    req.head.size = (uint16)sizeof(dms_invld_req_t);
-    req.head.rsn = mfc_get_rsn(sess_id);
-    req.len = len;
-    req.res_type = type;
-    req.sess_type = sess_type;
+    uint64 succ_insts = 0;
+
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALIDATE_SHARE_COPY, 0, ctx->inst_id, 0, ctx->sess_id, CM_INVALID_ID16);
+    req.head.size   = (uint16)sizeof(dms_invld_req_t);
+    req.head.rsn    = mfc_get_rsn(ctx->sess_id);
+    req.len         = len;
+    req.is_try      = is_try;
+    req.res_type    = type;
+    req.sess_type   = sess_type;
     req.invld_owner = CM_FALSE;
-    int32 ret = memcpy_sp(req.resid, DMS_RESID_SIZE, resid, len);
-    if (SECUREC_UNLIKELY(ret != EOK)) {
-        LOG_DEBUG_ERR("[DMS][%s][dms_notify_invld_share_copy]: system call failed", cm_display_resid(resid, type));
-        return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
+    if (memcpy_sp(req.resid, DMS_RESID_SIZE, resid, len) != EOK) {
+        LOG_DEBUG_ERR("[DMS][%s]: system call failed", cm_display_resid(resid, type));
+        return;
     }
 
-    dms_begin_stat(sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_REQ, CM_TRUE);
-    ret = mfc_broadcast_and_wait2(sess_id, invld_insts, (void *)&req, DMS_WAIT_MAX_TIME, succ_insts);
-    if (ret != DMS_SUCCESS || *succ_insts != invld_insts) {
-        dms_end_stat(sess_id);
-        LOG_DEBUG_ERR("[DMS][%s][dms_notify_invld_share_copy]: failed, invld_insts=%llu, succ_insts=%llu",
-            cm_display_resid(req.resid, req.res_type), invld_insts, *succ_insts);
-        return ERRNO_DMS_DCS_BROADCAST_FAILED;
+    dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_REQ, CM_TRUE);
+    mfc_broadcast(ctx->sess_id, invld_insts, (const void *)&req, &succ_insts);
+    if (succ_insts != invld_insts) {
+        LOG_DEBUG_ERR("[DMS][%s]:send failed, invld_insts=%llu, succ_insts=%llu",
+            cm_display_resid(req.resid, req.res_type), invld_insts, succ_insts);
+        return;
     }
 
-    LOG_DEBUG_INF("[DMS][%s][dms_notify_invld_share_copy]: invld_insts=%llu, succ_insts=%llu",
-        cm_display_resid(req.resid, req.res_type), invld_insts, *succ_insts);
-    dms_end_stat(sess_id);
-    return DMS_SUCCESS;
+    LOG_DEBUG_INF("[DMS][%s]:send ok invld_insts=%llu, succ_insts=%llu",
+        cm_display_resid(req.resid, req.res_type), invld_insts, succ_insts);
 }
 
-int32 dms_notify_invld_owner(dms_process_context_t *ctx, char* resid, uint16 len,
+static inline void dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 *succ_insts)
+{
+    (void)mfc_wait_acks2(ctx->sess_id, DMS_WAIT_MAX_TIME, succ_insts);
+    dms_end_stat(ctx->sess_id);
+}
+
+int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id)
 {
     cm_panic(type == DRC_RES_PAGE_TYPE);
@@ -159,7 +164,7 @@ int32 dms_notify_invld_owner(dms_process_context_t *ctx, char* resid, uint16 len
     req.invld_owner = CM_TRUE;
     int32 ret = memcpy_sp(req.resid, DMS_RESID_SIZE, resid, len);
     if (SECUREC_UNLIKELY(ret != EOK)) {
-        LOG_DEBUG_ERR("[DMS][%s][dms_notify_invld_owner]: system call failed", cm_display_resid(resid, type));
+        LOG_DEBUG_ERR("[DMS][%s]: system call failed", cm_display_resid(resid, type));
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
 
@@ -167,7 +172,7 @@ int32 dms_notify_invld_owner(dms_process_context_t *ctx, char* resid, uint16 len
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat(ctx->sess_id);
-        LOG_DEBUG_ERR("[DMS][%s][dms_notify_invld_owner]: send to owner:%u failed",
+        LOG_DEBUG_ERR("[DMS][%s]: send to owner:%u failed",
             cm_display_resid(req.resid, req.res_type), (uint32)owner_id);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
@@ -176,51 +181,82 @@ int32 dms_notify_invld_owner(dms_process_context_t *ctx, char* resid, uint16 len
     ret = mfc_allocbuf_and_recv_data(ctx->sess_id, &msg, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         dms_end_stat(ctx->sess_id);
-        LOG_DEBUG_ERR("[DMS][%s][dms_notify_invld_owner]:wait owner ack timeout timeout=%d ms",
+        LOG_DEBUG_ERR("[DMS][%s]:wait owner ack timeout timeout=%d ms",
             cm_display_resid(req.resid, req.res_type), DMS_WAIT_MAX_TIME);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
     dms_invld_ack_t ack = *(dms_invld_ack_t*)msg.buffer;
     mfc_release_message_buf(&msg);
-    LOG_DEBUG_INF("[DMS][%s][dms_notify_invld_owner]: invalid owner:%u result:%d",
+    LOG_DEBUG_INF("[DMS][%s]: invalid owner:%u result:%d",
         cm_display_resid(req.resid, req.res_type), (uint32)owner_id, ack.err_code);
     dms_end_stat(ctx->sess_id);
     return ack.err_code;
 }
 
-static void drc_clean_share_copy_insts(char *resid, uint16 len, uint8 type,
-    dms_session_e sess_type, uint64 owner_map, drc_buf_res_t *buf_res)
+static void drc_clean_share_copy_insts(char *resid, uint16 len, uint8 type, dms_session_e sess_type, uint64 owner_map)
 {
-    bool need_lock = (buf_res == NULL);
-    if (need_lock) {
-        uint8 options = drc_build_options(CM_FALSE, sess_type, CM_TRUE);
-        int ret = drc_enter_buf_res(resid, len, type, options, &buf_res);
-        if (ret != DMS_SUCCESS) {
-            return;
+    drc_buf_res_t *buf_res = NULL;
+    uint8 opts = drc_build_options(CM_FALSE, sess_type, CM_TRUE);
+    if (drc_enter_buf_res(resid, len, type, opts, &buf_res) != DMS_SUCCESS || buf_res == NULL) {
+        return;
+    }
+    buf_res->copy_insts = buf_res->copy_insts & (~owner_map);
+    LOG_DEBUG_INF("[DMS][%s]: invld_owner_map=%llu, curr_copy_insts=%llu",
+        cm_display_resid(resid, type), owner_map, buf_res->copy_insts);
+    drc_leave_buf_res(buf_res);
+}
+
+static inline int32 dms_invalidate_res_l(dms_process_context_t *ctx, char *resid, uint8 type, bool8 is_try)
+{
+    int32 ret = DMS_SUCCESS;
+    if (type == DRC_RES_PAGE_TYPE) {
+        ret = g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_FALSE);
+    } else {
+        ret = dls_invld_lock_ownership(resid, DMS_LOCK_EXCLUSIVE, is_try);
+    }
+    return ret;
+}
+
+int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct)
+{
+    uint64 succ_insts = 0;
+    bool32 invld_local = CM_FALSE;
+    uint64 invld_insts = copy_insts;
+
+    if (can_direct && bitmap64_exist(&invld_insts, (uint8)ctx->inst_id)) {
+        invld_local = CM_TRUE;
+        bitmap64_clear(&invld_insts, (uint8)ctx->inst_id);
+    }
+
+    if (invld_insts > 0) {
+        dms_send_invalidate_req(ctx, resid, len, type, invld_insts, sess_type, is_try);
+    }
+
+    if (invld_local) {
+        if (dms_invalidate_res_l(ctx, resid, type, is_try) == DMS_SUCCESS) {
+            bitmap64_set(&succ_insts, (uint8)ctx->inst_id);
         }
     }
 
-    cm_panic_log(buf_res != NULL, "[DCS][%s][drc_clean_share_copy_insts]: buf_res is NULL",
-        cm_display_resid(resid, type));
-    buf_res->copy_insts = buf_res->copy_insts & (~owner_map);
-    LOG_DEBUG_INF("[DCS][%s][drc_clean_share_copy_insts]: invld_owner_map=%llu, curr_copy_insts=%llu",
-        cm_display_resid(resid, type), owner_map, buf_res->copy_insts);
-    
-    if (need_lock) {
-        drc_leave_buf_res(buf_res); 
+    if (invld_insts > 0) {
+        uint64 tmp_result = 0;
+        dms_handle_invalidate_ack(ctx, &tmp_result);
+        if (tmp_result > 0) {
+            bitmap64_union(&succ_insts, tmp_result);
+        }
     }
-}
 
-static int32 dms_invalidate_share_copy(uint32 inst_id, uint32 sess_id, char *resid,
-    uint16 len, uint8 type, uint64 invld_insts, dms_session_e sess_type, drc_buf_res_t *buf_res)
-{
-    uint64 succ_insts = 0;
-    int32 ret = dms_notify_invld_share_copy(inst_id, sess_id, resid, len, type, invld_insts,
-        sess_type, &succ_insts);
     if (succ_insts > 0) {
-        drc_clean_share_copy_insts(resid, len, type, sess_type, succ_insts, buf_res);
+        drc_clean_share_copy_insts(resid, len, type, sess_type, succ_insts);
     }
-    return ret;
+
+    if (succ_insts != copy_insts) {
+        LOG_DEBUG_ERR("[DMS][%s]: invalid failed, invld_insts=%llu, succ_insts=%llu",
+            cm_display_resid(resid, type), copy_insts, succ_insts);
+        return ERRNO_DMS_DCS_BROADCAST_FAILED;
+    }
+    return DMS_SUCCESS;
 }
 
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
@@ -525,8 +561,8 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
 
-        ret = dms_invalidate_share_copy(dms_ctx->inst_id, dms_ctx->sess_id, dms_ctx->resid,
-            dms_ctx->len, dms_ctx->type, result.invld_insts, dms_ctx->sess_type, NULL);
+        ret = dms_invalidate_share_copy(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
+            dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE);
         if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
             dms_end_stat(dms_ctx->sess_id);
             return ret;
@@ -878,8 +914,8 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, mes_message_t 
     if (result.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(req.resid, req.res_type), result.invld_insts);
-        ret = dms_invalidate_share_copy(proc_ctx->inst_id, proc_ctx->sess_id, req.resid,
-            req.len, req.res_type, result.invld_insts, req.sess_type, NULL);
+        ret = dms_invalidate_share_copy(proc_ctx, req.resid, req.len,
+            req.res_type, result.invld_insts, req.sess_type, req.is_try, CM_TRUE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
                 req_info.inst_id, req_info.sess_id, req_info.rsn, ret);
@@ -1161,8 +1197,8 @@ void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, mes_messag
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(request->resid, request->res_type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(process_ctx->inst_id, process_ctx->sess_id, cvt_info.resid,
-            cvt_info.len, cvt_info.res_type, cvt_info.invld_insts, request->sess_type, NULL);
+        int32 ret = dms_invalidate_share_copy(process_ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_TRUE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(process_ctx->inst_id, process_ctx->sess_id,
                 cvt_info.req_id, cvt_info.req_sid, cvt_info.req_rsn, ret);
@@ -1233,8 +1269,8 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, mes_message_t 
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(req.resid, req.res_type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(proc_ctx->inst_id, proc_ctx->sess_id, cvt_info.resid,
-            cvt_info.len, cvt_info.res_type, cvt_info.invld_insts, CM_FALSE, NULL);
+        int32 ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_TRUE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
                 cvt_info.req_id, cvt_info.req_sid, cvt_info.req_rsn, ret);
@@ -1317,7 +1353,7 @@ static inline bool32 dms_the_same_drc_req(drc_request_info_t *req1, drc_request_
 
 static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
     res_id_t *res_id, drc_request_info_t *cvt_req, dms_confirm_cvt_ack_t *ack)
-{   
+{
     drc_buf_res_t *buf_res = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, CM_TRUE);
     int ret = drc_enter_buf_res(res_id->data, res_id->len, res_id->type, options, &buf_res);
@@ -1339,22 +1375,18 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
         ack->lock_mode, (bool8)has_edp, ack->lsn, cvt_req->sess_id, cvt_req->rsn, DMS_SESSION_NORMAL);
 
     cvt_info_t cvt_info;
-    if (drc_convert_page_owner(buf_res, &claim_info, &cvt_info) != DMS_SUCCESS) {
-        drc_leave_buf_res(buf_res);
-        return;
-    }
+    drc_convert_page_owner(buf_res, &claim_info, &cvt_info);
     LOG_DEBUG_INF("[DMS][%s][dms_smon_handle_ready_ack]: mode=%u, claimed_owner=%u, edp_map=%llu, copy_insts=%llu",
         cm_display_resid(claim_info.resid, claim_info.res_type), (uint32)buf_res->lock_mode,
         (uint32)buf_res->claimed_owner, buf_res->edp_map, buf_res->copy_insts);
-
     drc_leave_buf_res(buf_res);
 
     if (cvt_info.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(claim_info.resid, claim_info.res_type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(proc_ctx->inst_id, proc_ctx->sess_id, cvt_info.resid,
-            cvt_info.len, cvt_info.res_type, cvt_info.invld_insts, CM_FALSE, NULL);
+        int32 ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_FALSE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
                 cvt_info.req_id, cvt_info.req_sid, cvt_info.req_rsn, ret);
@@ -1366,7 +1398,7 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
 
 static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t *res_id,
     drc_request_info_t *cvt_req)
-{   
+{
     drc_buf_res_t *buf_res = NULL;
      uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, CM_TRUE);
     int ret = drc_enter_buf_res(res_id->data, res_id->len, res_id->type, options, &buf_res);
@@ -1386,17 +1418,17 @@ static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t
     cvt_info_t cvt_info;
     cvt_info.invld_insts = 0;
     cvt_info.req_id = CM_INVALID_ID8;
-    
+
     (void)drc_cancel_converting(buf_res, &req_info, &cvt_info);
-    
+
     drc_leave_buf_res(buf_res);
 
     if (cvt_info.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(buf_res->data, buf_res->type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(proc_ctx->inst_id, proc_ctx->sess_id, cvt_info.resid,
-            cvt_info.len, cvt_info.res_type, cvt_info.invld_insts, CM_FALSE, NULL);
+        int32 ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_FALSE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
                 cvt_info.req_id, cvt_info.req_sid, cvt_info.req_rsn, ret);
@@ -1424,15 +1456,6 @@ static void dms_smon_handle_confirm_ack(res_id_t *res_id, drc_request_info_t *cv
     LOG_DEBUG_INF("[DMS][%s] recv confirm ack [result:%u edp_map:%llu lsn:%llu]",
         cm_display_resid(res_id->data, res_id->type), (uint32)ack.result, ack.edp_map, ack.lsn);
 
-    if (ack.result == CONFIRM_NONE) {
-        return;
-    }
-
-    /* page request will be infinite loop until success in db layer */
-    if (res_id->type == DRC_RES_PAGE_TYPE && ack.result == CONFIRM_CANCEL) {
-        return;
-    }
-
     dms_process_context_t proc_ctx;
     proc_ctx.inst_id = (uint8)g_dms.inst_id;
     proc_ctx.sess_id = DRC_RES_CTX->smon_sid;
@@ -1440,7 +1463,10 @@ static void dms_smon_handle_confirm_ack(res_id_t *res_id, drc_request_info_t *cv
 
     if (ack.result == CONFIRM_READY) {
         dms_smon_handle_ready_ack(&proc_ctx, res_id, cvt_req, &ack);
-    } else {
+        return;
+    }
+    
+    if (ack.result == CONFIRM_CANCEL) {
         dms_smon_handle_cancel_ack(&proc_ctx, res_id, cvt_req);
     }
 }
@@ -1454,11 +1480,10 @@ static void dms_smon_confirm_converting(res_id_t *res_id)
         return;
     }
 
-    if (!if_cvt_need_confirm(buf_res) || buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
+    if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
         drc_leave_buf_res(buf_res);
         return;
     }
-    buf_res->converting.begin_time = g_timer()->now;
     drc_request_info_t cvt_req = buf_res->converting.req_info;
     drc_leave_buf_res(buf_res);
 
