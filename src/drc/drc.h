@@ -282,6 +282,7 @@ typedef struct st_cvt_info {
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     uint64  invld_insts;
+    dms_session_e sess_type;
     drc_req_owner_result_type_t type;
 } cvt_info_t;
 

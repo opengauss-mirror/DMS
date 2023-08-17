@@ -235,18 +235,11 @@ static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
         LOG_DEBUG_ERR("[DRC]memcpy_s err: %d", ret);
         return;
     }
+    buf_res->converting.begin_time = g_timer()->now;
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%u sid:%u rsn:%llu req_mode:%u] prepare confirm",
         cm_display_resid(buf_res->data, buf_res->type), (uint32)cvt_req->inst_id,
         (uint32)cvt_req->sess_id, cvt_req->rsn, (uint32)cvt_req->req_mode);
-#ifdef OPENGAUSS
-    if (cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id) != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[DRC][%s]fail to add to confirm queue", cm_display_resid(buf_res->data, buf_res->type));
-    }
-#else
-    if (cm_chan_send_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[DRC][%s]fail to add to confirm queue", cm_display_resid(buf_res->data, buf_res->type));
-    }
-#endif
+    (void)cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id);
 }
 
 static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *buf_res,
@@ -394,7 +387,7 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
     cvt_info->type = DRC_REQ_OWNER_ALREADY_OWNER;
 }
 
-int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cvt_info_t* cvt_info)
+void drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cvt_info_t* cvt_info)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint8 ex_owner = buf_res->claimed_owner;
@@ -410,7 +403,7 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->converting.req_info.inst_id,
             (uint32)buf_res->converting.req_info.sess_id, buf_res->converting.req_info.rsn,
             (uint32)claim_info->new_id, claim_info->sess_id, claim_info->rsn);
-        return DMS_SUCCESS;
+        return;
     }
 
     buf_res->lock_mode = claim_info->req_mode;
@@ -434,7 +427,7 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
 
     if (cm_bilist_empty(&buf_res->convert_q)) {
         init_drc_cvt_item(&buf_res->converting);
-        return DMS_SUCCESS;
+        return;
     }
 
     /* assign next lock request to converting */
@@ -445,7 +438,6 @@ int32 drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, c
 
     /* get the detail converting information */
     drc_get_convert_info(buf_res, cvt_info);
-    return DMS_SUCCESS;
 }
 
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
@@ -460,12 +452,7 @@ int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
         LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL", cm_display_pageid(claim_info->resid));
         return ERRNO_DMS_DRC_PAGE_NOT_FOUND;
     }
-    ret = drc_convert_page_owner(buf_res, claim_info, cvt_info);
-    if (ret != DMS_SUCCESS) {
-        drc_leave_buf_res(buf_res);
-        return ret;
-    }
-
+    drc_convert_page_owner(buf_res, claim_info, cvt_info);
     LOG_DEBUG_INF("[DCS][%s][drc_claim_page_owner]: mode =%u, claimed_owner=%u, edp_map=%llu, copy_insts=%llu",
         cm_display_resid(claim_info->resid, claim_info->res_type), (uint32)buf_res->lock_mode,
         (uint32)buf_res->claimed_owner, buf_res->edp_map, buf_res->copy_insts);
@@ -611,7 +598,6 @@ bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 do_recy
 
 int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len)
 {
-    uint64 succ_insts = 0;
     int32 ret = DMS_SUCCESS;
 
     drc_buf_res_t* buf_res = drc_get_buf_res(resid, len, DRC_RES_PAGE_TYPE, DRC_RES_NORMAL);
@@ -621,11 +607,11 @@ int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, c
     }
 
     if (buf_res->copy_insts > 0) {
-        ret = dms_notify_invld_share_copy(ctx->inst_id, ctx->sess_id, resid, len, DRC_RES_PAGE_TYPE,
-            buf_res->copy_insts, sess_type, &succ_insts);
+        ret = dms_invalidate_share_copy(ctx, resid, len, DRC_RES_PAGE_TYPE,
+            buf_res->copy_insts, sess_type, CM_FALSE, CM_FALSE);
     }
     if (ret == DMS_SUCCESS && buf_res->claimed_owner != CM_INVALID_ID8) {
-        ret = dms_notify_invld_owner(ctx, resid, len, DRC_RES_PAGE_TYPE, sess_type, buf_res->claimed_owner);
+        ret = dms_invalidate_ownership(ctx, resid, len, DRC_RES_PAGE_TYPE, sess_type, buf_res->claimed_owner);
     }
 
     cm_spin_lock(&buf_res->lock, NULL);

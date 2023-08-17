@@ -154,13 +154,6 @@ typedef enum en_msg_command {
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
 
-typedef struct st_dms_process_context {
-    void *db_handle;
-    uint32 sess_id; // current session id
-    uint32 rmid;    // current rm id
-    uint8 inst_id;  // current instance id
-} dms_process_context_t;
-
 typedef struct st_msg_error {
     mes_message_head_t head;
     int32 code;
@@ -359,7 +352,7 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->req_time = req_time;
 }
 
-void dms_send_error_ack(uint8 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 ret);
+void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_rsn, int32 ret);
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
 int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
@@ -371,10 +364,10 @@ void dms_cancel_request_res(dms_context_t *dms_ctx);
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_smon_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
-int32 dms_notify_invld_share_copy(uint32 inst_id, uint32 sess_id, char* resid, uint16 len,
-    uint8 type, uint64 invld_insts, dms_session_e sess_type, uint64* succ_insts);
-int32 dms_notify_invld_owner(dms_process_context_t* ctx, char* resid, uint16 len,
+int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id);
+int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct);
 int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
 void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, mes_message_t *receive_msg);
 void dms_proc_removed_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);

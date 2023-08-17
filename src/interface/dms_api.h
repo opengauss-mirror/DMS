@@ -200,12 +200,24 @@ typedef struct st_dms_xmap_ctx {
     unsigned int dest_id;
 } dms_xmap_ctx_t;
 
-typedef struct st_dms_context {
-    unsigned int inst_id;   // current instance id
-    unsigned int sess_id;   // current session id
-    unsigned int rmid;      // current rm id
-    dms_session_e sess_type;  // request page: recovery session flag
+typedef struct st_dms_process_context {
     void *db_handle;
+    unsigned int sess_id; // current session id
+    unsigned int rmid;    // current rm id
+    unsigned int inst_id;  // current instance id
+} dms_process_context_t;
+
+typedef struct st_dms_context {
+    union {
+        struct {
+            void *db_handle;
+            unsigned int sess_id; // current session id
+            unsigned int rmid;    // current rm id
+            unsigned int inst_id;  // current instance id
+        };
+        dms_process_context_t proc_ctx;
+    };
+    dms_session_e sess_type;  // request page: recovery session flag
     unsigned char is_try;
     unsigned char type;
     unsigned short len;
@@ -908,7 +920,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           85
+#define DMS_LOCAL_VERSION           86
 
 #ifdef __cplusplus
 }
