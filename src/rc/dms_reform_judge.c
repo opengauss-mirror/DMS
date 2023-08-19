@@ -1998,7 +1998,7 @@ static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *in
 
     reform_info->use_default_map = CM_FALSE;
     // get part info and txn deposit map from instance which status is IN
-    mes_message_head_t head;
+    dms_message_head_t head;
     dms_reform_init_map_info_req(&head, inst_lists[INST_LIST_OLD_IN].inst_id_list[0]);
     int ret = mfc_send_data(&head);
     if (ret != DMS_SUCCESS) {
@@ -2038,10 +2038,12 @@ static void dms_reform_judgement_record_start_times(void)
     }
 }
 
+#ifndef OPENGAUSS
 static void dms_reform_set_reform_behavior(void)
 {
     g_dms.callback.set_inst_behavior(g_dms.reform_ctx.handle_judge, DMS_INST_BEHAVIOR_IN_REFORM);
 }
+#endif
 
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
@@ -2112,9 +2114,9 @@ static bool32 dms_reform_judgement(uint8 *online_status)
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to sync share info");
         return CM_FALSE;
     }
-
+#ifndef OPENGAUSS
     dms_reform_set_reform_behavior();
-
+#endif
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: Yes");
     reform_judgement_proc.print_proc(inst_lists);
     return CM_TRUE;

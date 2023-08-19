@@ -305,6 +305,14 @@ typedef struct st_dms_edp_info {
     };
 } dms_edp_info_t;
 
+typedef struct st_dms_broadcast_context {
+    char *data;
+    unsigned int len;
+    char *output_msg;
+    unsigned int *output_msg_len;
+    unsigned int msg_version;
+} dms_broadcast_context_t;
+
 typedef struct st_dms_buf_ctrl {
     volatile unsigned char is_remote_dirty;
     volatile unsigned char lock_mode;       // used only in DMS, 0: Null, 1: Shared lock, 2: Exclusive lock
@@ -623,9 +631,8 @@ typedef char *(*dms_mem_alloc)(void *context, unsigned int size);
 typedef void(*dms_mem_free)(void *context, void *ptr);
 typedef void(*dms_mem_reset)(void *context);
 // The maximum length of output_msg is 128 bytes.
-typedef int (*dms_process_broadcast)(void *db_handle, char *data, unsigned int len, char *output_msg,
-    unsigned int *output_msg_len);
-typedef int (*dms_process_broadcast_ack)(void *db_handle, char *data, unsigned int len);
+typedef int (*dms_process_broadcast)(void *db_handle, dms_broadcast_context_t *broad_ctx);
+typedef int (*dms_process_broadcast_ack)(void *db_handle, dms_broadcast_context_t *broad_ctx);
 typedef int(*dms_get_txn_info)(void *db_handle, unsigned long long xid,
     unsigned char is_scan, dms_txn_info_t *txn_info);
 typedef int(*dms_get_opengauss_xid_csn)(void *db_handle, dms_opengauss_xid_csn_t *csn_req,
@@ -916,11 +923,19 @@ typedef enum en_dms_info_id {
     DMS_INFO_REFORM_LAST = 1,
 } dms_info_id_e;
 
+typedef enum st_protocol_version {
+    PROTO_VER_0 = 0,    // invalid version
+    PROTO_VER_1 = 1,    // first version
+} protocol_version_e;
+
+#define INVALID_PROTO_VER PROTO_VER_0
+#define SW_PROTO_VER PROTO_VER_1
+
 #define DMS_LOCAL_MAJOR_VER_WEIGHT  1000000
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           86
+#define DMS_LOCAL_VERSION           87
 
 #ifdef __cplusplus
 }

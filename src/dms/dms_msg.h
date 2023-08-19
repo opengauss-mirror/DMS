@@ -42,8 +42,6 @@ extern "C" {
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
 #define DMS_MSG_CONFIRM_TIMES   (10)
 
-#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
-
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
     MSG_REQ_ASK_MASTER_FOR_PAGE = MSG_REQ_BEGIN,
@@ -150,17 +148,18 @@ typedef enum en_msg_command {
     MSG_ACK_OPENGAUSS_TXN_SWINFO = 171,
     MSG_ACK_OPENGAUSS_PAGE_STATUS = 172,
     MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN = 173,
+    MSG_ACK_VERSION_NOT_MATCH = 174,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
 
 typedef struct st_msg_error {
-    mes_message_head_t head;
+    dms_message_head_t head;
     int32 code;
 } msg_error_t;
 
 typedef struct st_dms_ask_res_req {
-    mes_message_head_t head;
+    dms_message_head_t head;
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     dms_session_e sess_type;
@@ -174,14 +173,14 @@ typedef struct st_dms_ask_res_req {
 
 // msg for notifying instance load page from disk
 typedef struct st_dms_ask_res_ack_load {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint64 master_lsn;
     uint64 scn;
     bool8 master_grant;
 } dms_ask_res_ack_ld_t;
 
 typedef struct st_dms_ask_res_ack {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint64 lsn;
     uint64 scn;
     uint64 edp_map;
@@ -195,7 +194,7 @@ typedef struct st_dms_ask_res_ack {
 } dms_ask_res_ack_t;
 
 typedef struct st_dms_claim_owner_req {
-    mes_message_head_t head;
+    dms_message_head_t head;
     dms_lock_mode_t req_mode;
     dms_session_e sess_type;
     bool8  has_edp;  // previous owner has earlier dirty page
@@ -206,7 +205,7 @@ typedef struct st_dms_claim_owner_req {
 } dms_claim_owner_req_t;
 
 typedef struct st_dms_invld_req {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint8  is_try;
     uint8  res_type;
     uint16 len;
@@ -215,13 +214,8 @@ typedef struct st_dms_invld_req {
     char   resid[DMS_RESID_SIZE];
 } dms_invld_req_t;
 
-typedef struct st_dms_invld_ack {
-    mes_message_head_t head;
-    int32 err_code;
-} dms_invld_ack_t;
-
 typedef struct st_dms_ask_res_owner_id_req {
-    mes_message_head_t head;
+    dms_message_head_t head;
     dms_session_e sess_type;
     uint16 len;
     uint8 res_type;
@@ -231,7 +225,7 @@ typedef struct st_dms_ask_res_owner_id_req {
 } dms_ask_res_owner_id_req_t;
 
 typedef struct st_dms_ask_res_owner_id_ack {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint8 owner_id;
     uint8 unused[3];
 } dms_ask_res_owner_id_ack_t;
@@ -252,7 +246,7 @@ typedef struct st_dms_res_req_info {
 } dms_res_req_info_t;
 
 typedef struct st_dms_cancel_request_res {
-    mes_message_head_t head;
+    dms_message_head_t head;
     dms_session_e sess_type;
     uint16 len;
     uint8  res_type;
@@ -261,7 +255,7 @@ typedef struct st_dms_cancel_request_res {
 }dms_cancel_request_res_t;
 
 typedef struct st_dms_confirm_cvt_req {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint8 res_type;
     uint8 cvt_mode;
     char resid[DMS_RESID_SIZE];
@@ -274,7 +268,7 @@ typedef enum en_confirm_result {
 }confirm_result_t;
 
 typedef struct st_dms_confirm_cvt_ack {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint32 result;
     uint64 lsn;
     uint64 edp_map;
@@ -282,14 +276,19 @@ typedef struct st_dms_confirm_cvt_ack {
 }dms_confirm_cvt_ack_t;
 
 typedef struct st_dms_query_owner_req  {
-    mes_message_head_t head;
+    dms_message_head_t head;
     char resid[DMS_RESID_SIZE];
 } dms_query_owner_req_t;
 
 typedef struct st_dms_query_owner_ack  {
-    mes_message_head_t head;
+    dms_message_head_t head;
     uint8 owner_id;
 } dms_query_owner_ack_t;
+
+typedef struct st_dms_common_ack {
+    dms_message_head_t head;
+    int32 ret;
+} dms_common_ack_t;
 
 static inline void cm_print_error_msg(const void *msg_data)
 {
@@ -299,8 +298,8 @@ static inline void cm_print_error_msg(const void *msg_data)
 }
 
 void cm_send_error_msg(mes_message_head_t *head, int32 err_code, char *err_info);
-void cm_ack_result_msg(dms_process_context_t *process_ctx, mes_message_t *receive_msg, uint8 cmd, int32 ret);
-void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *receive_msg, uint8 cmd, char *msg,
+void cm_ack_result_msg(dms_process_context_t *process_ctx, mes_message_t *receive_msg, uint32 cmd, int32 ret);
+void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *receive_msg, uint32 cmd, char *msg,
     uint32 len, char *ack_buf);
 
 #define CM_CHK_RECV_MSG_SIZE(msg, len, free_msg, has_ack)                \
@@ -333,11 +332,9 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, mes_message_t *recei
         }                                                                \
     } while (0)
 
-#define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)  \
-    do {                                                                                           \
-        MES_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid); \
-        (head)->cluster_ver = (uint32)(DMS_GLOBAL_CLUSTER_VER);                                    \
-    } while (0)
+void dms_init_message_head(dms_message_head_t *head, uint32 v_cmd, uint8 v_flags, uint8 v_src_inst, uint8 v_dst_inst,
+    uint16 v_src_sid, uint16 v_dst_sid);
+#define DMS_INIT_MESSAGE_HEAD dms_init_message_head
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 rsn,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try, dms_session_e sess_type, date_t req_time)
@@ -371,6 +368,13 @@ int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 
 int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
 void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, mes_message_t *receive_msg);
 void dms_proc_removed_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
+dms_message_head_t* get_dms_head(mes_message_t *msg);
+bool8 dms_cmd_is_broadcast(uint32 cmd);
+void dms_init_message_dms_head(dms_message_head_t *dms_head, uint32 cmd, uint32 msg_version);
+void dms_set_node_proto_version(uint8 inst_id, uint32 version);
+uint32 dms_get_node_proto_version(uint8 inst_id);
+void dms_init_cluster_proto_version();
+uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_id);
 
 #ifdef __cplusplus
 }

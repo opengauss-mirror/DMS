@@ -145,7 +145,8 @@ static void dms_reform_clean_buf_res_fault_inst_info_inner(drc_buf_res_t *buf_re
 {
     share_info_t *share_info = DMS_SHARE_INFO;
 
-    if (bitmap64_exist(&share_info->bitmap_clean, buf_res->last_edp)) {
+    if (buf_res->last_edp != CM_INVALID_ID8 && 
+        bitmap64_exist(&share_info->bitmap_clean, buf_res->last_edp)) {
         buf_res->last_edp = CM_INVALID_ID8;
         buf_res->lsn = 0;
     }
@@ -1851,10 +1852,12 @@ static void dms_reform_end(void)
     reform_ctx->share_info = share_info;
 }
 
+#ifndef OPENGAUSS
 static void dms_reform_set_idle_behavior(void)
 {
     g_dms.callback.set_inst_behavior(g_dms.reform_ctx.handle_proc, DMS_INST_BEHAVIOR_IN_IDLE);
 }
+#endif
 
 static int dms_reform_done(void)
 {
@@ -1897,7 +1900,11 @@ static int dms_reform_done_check()
     if (!reform_info->rst_recover) { // maintain reeform after rst recover
         reform_info->first_reform_finish = CM_TRUE;
     }
+
+#ifndef OPENGAUSS
     dms_reform_set_idle_behavior();
+#endif
+
 #ifdef OPENGAUSS
     g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
 #endif
@@ -2025,13 +2032,13 @@ static int dms_reform_sync_step_send(void)
 
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d", ret, req.head.mes_head.dst_inst);
             return ret;
         }
 
         ret = dms_reform_req_sync_step_wait();
         if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_step WAIT timeout, dst_id: %d", req.head.dst_inst);
+            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_sync_step WAIT timeout, dst_id: %d", req.head.mes_head.dst_inst);
             continue;
         } else {
             break;

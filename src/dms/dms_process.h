@@ -72,6 +72,7 @@ typedef struct st_dms_instance {
     uint32 cluster_ver;
     void* mes_ptr;
     uint32 max_wait_time;
+    atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
@@ -87,6 +88,7 @@ typedef struct st_dms_instance {
 #define DMS_FIRST_BUFFER_RATIO (1.0f / 4)
 #define DMS_SECOND_BUFFER_RATIO (1.0f / 4)
 #define DMS_THIRDLY_BUFFER_RATIO (1.0f / 2)
+#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
 
 extern dms_instance_t g_dms;
 
@@ -114,7 +116,7 @@ static inline void dms_proc_broadcast_ack3(dms_process_context_t *process_ctx, m
     mfc_notify_broadcast_msg_recv_with_errcode(msg);
 }
 
-static inline const char *dms_get_mescmd_msg(uint8 cmd)
+static inline const char *dms_get_mescmd_msg(uint32 cmd)
 {
     return (cmd < MSG_CMD_CEIL) ? g_dms.processors[cmd].name : "INVALID";
 }

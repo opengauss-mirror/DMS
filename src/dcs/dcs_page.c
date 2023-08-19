@@ -77,8 +77,9 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
 {
     CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
+    dms_message_head_t *recv_dms_head = get_dms_head(msg);
 
-    if (ack->head.cmd == MSG_ACK_EDP_READY && !(ack->head.flags & MSG_FLAG_NO_PAGE)) {
+    if (ack->head.dms_cmd == MSG_ACK_EDP_READY && !(ack->head.mes_head.flags & MSG_FLAG_NO_PAGE)) {
         CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
         int ret = memcpy_sp(g_dms.callback.get_page(ctrl), g_dms.page_size, msg->buffer + sizeof(dms_ask_res_ack_t),
             g_dms.page_size);
@@ -88,7 +89,7 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
         if (ack->enable_cks &&
             !g_dms.callback.verify_page_checksum(dms_ctx->db_handle, ctrl, g_dms.page_size, ack->checksum)) {
             LOG_RUN_ERR("[DCS][%s][%s]: edp page checksum failed", cm_display_pageid(dms_ctx->resid),
-                dms_get_mescmd_msg(msg->head->cmd));
+                dms_get_mescmd_msg(recv_dms_head->dms_cmd));
             return ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED;
         }
         
@@ -105,7 +106,7 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
 
     LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"
         "dest_sid=%d, dirty=%d, remote diry=%d, page_lsn=%llu, page_scn=%llu", cm_display_pageid(dms_ctx->resid),
-        dms_get_mescmd_msg(msg->head->cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst, msg->head->src_sid,
+        dms_get_mescmd_msg(recv_dms_head->dms_cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst, msg->head->src_sid,
         msg->head->dst_inst, msg->head->dst_sid, DCS_ACK_PAGE_IS_DIRTY(msg), DCS_ACK_PAGE_IS_REMOTE_DIRTY(msg),
         ack->lsn, ack->scn);
 
@@ -117,11 +118,12 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
 static inline int32 dcs_handle_ask_edp_ack(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode)
 {
-    if (msg->head->cmd == MSG_ACK_EDP_READY) {
+    dms_message_head_t *ack_dms_head = get_dms_head(msg);
+    if (ack_dms_head->dms_cmd == MSG_ACK_EDP_READY) {
         return dcs_handle_ack_edp_remote(dms_ctx, ctrl, master_id, msg, mode);
     }
 
-    if (msg->head->cmd == MSG_ACK_GRANT_OWNER) {
+    if (ack_dms_head->dms_cmd == MSG_ACK_GRANT_OWNER) {
         return dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, msg, mode);
     }
     LOG_DEBUG_ERR("[DCS][dcs_handle_ask_edp_ack]recieve unexpected message");
@@ -135,8 +137,8 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     dms_ask_res_req_t page_req;
     DMS_INIT_MESSAGE_HEAD(&page_req.head,
         MSG_REQ_ASK_EDP_REMOTE, 0, dms_ctx->inst_id, remote_id, dms_ctx->sess_id, CM_INVALID_ID16);
-    page_req.head.rsn  = mes_get_current_rsn(dms_ctx->sess_id);
-    page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
+    page_req.head.mes_head.rsn = mes_get_current_rsn(dms_ctx->sess_id);
+    page_req.head.mes_head.size = (uint16)sizeof(dms_ask_res_req_t);
     page_req.req_mode  = req_mode;
     page_req.curr_mode = ctrl->lock_mode;
     page_req.len = DMS_PAGEID_SIZE;
@@ -147,21 +149,21 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     ret = mfc_send_data(&page_req.head);
     if (SECUREC_UNLIKELY(ret != CM_SUCCESS)) {
         LOG_DEBUG_ERR("[DCS]%s][%s]: send failed, src_id=%d, src_sid=%d, dest_id=%d, dest_sid=%d, req_mode=%u",
-            cm_display_pageid(dms_ctx->resid), dms_get_mescmd_msg(page_req.head.cmd), page_req.head.src_inst,
-            page_req.head.src_sid, page_req.head.dst_inst, page_req.head.dst_sid, req_mode);
+            cm_display_pageid(dms_ctx->resid), dms_get_mescmd_msg(page_req.head.dms_cmd), page_req.head.mes_head.src_inst,
+            page_req.head.mes_head.src_sid, page_req.head.mes_head.dst_inst, page_req.head.mes_head.dst_sid, req_mode);
         return ret;
     }
 
     LOG_DEBUG_INF("[DCS][%s][%s]: send ok, src_id=%d, src_sid=%d, dest_id=%d, dest_sid=%d, req_mode=%u",
-        cm_display_pageid(dms_ctx->resid), dms_get_mescmd_msg(page_req.head.cmd), page_req.head.src_inst,
-        page_req.head.src_sid, page_req.head.dst_inst, page_req.head.dst_sid, req_mode);
+        cm_display_pageid(dms_ctx->resid), dms_get_mescmd_msg(page_req.head.dms_cmd), page_req.head.mes_head.src_inst,
+        page_req.head.mes_head.src_sid, page_req.head.mes_head.dst_inst, page_req.head.mes_head.dst_sid, req_mode);
 
     mes_message_t msg;
     ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s][%s]: ack time out, src_id=%d, src_sid=%d, dest_id=%d, dest_sid=%d, req_mode=%u",
-            cm_display_pageid(dms_ctx->resid), "ASK OWNER", page_req.head.src_inst, page_req.head.src_sid,
-            page_req.head.dst_inst, page_req.head.dst_sid, req_mode);
+            cm_display_pageid(dms_ctx->resid), "ASK OWNER", page_req.head.mes_head.src_inst, page_req.head.mes_head.src_sid,
+            page_req.head.mes_head.dst_inst, page_req.head.mes_head.dst_sid, req_mode);
         return ret;
     }
     ret = dcs_handle_ask_edp_ack(dms_ctx, ctrl, (uint8)dms_ctx->inst_id, &msg, req_mode);
@@ -238,8 +240,9 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
 {
     CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
+    dms_message_head_t *recv_dms_head = get_dms_head(msg);
 
-    if (ack->head.cmd == MSG_ACK_PAGE_READY && !(ack->head.flags & MSG_FLAG_NO_PAGE)) {
+    if (ack->head.dms_cmd == MSG_ACK_PAGE_READY && !(ack->head.mes_head.flags & MSG_FLAG_NO_PAGE)) {
         CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
 #ifdef OPENGAUSS
         ctrl->seg_fileno = ack->seg_fileno;
@@ -256,7 +259,7 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
         if (ack->enable_cks &&
             !g_dms.callback.verify_page_checksum(dms_ctx->db_handle, ctrl, g_dms.page_size, ack->checksum)) {
             LOG_RUN_ERR("[DCS][%s][%s]: page checksum failed", cm_display_pageid(dms_ctx->resid),
-                dms_get_mescmd_msg(msg->head->cmd));
+                dms_get_mescmd_msg(recv_dms_head->dms_cmd));
             return ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED;
         }
 #endif
@@ -300,7 +303,7 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"
         "dest_sid=%d, mode=%u, remote dirty=%d, remote remote diry=%d, page_lsn=%llu, page_scn=%llu,"
         "curr_page_lsn=%llu, curr_global_lsn=%llu", cm_display_pageid(dms_ctx->resid),
-        dms_get_mescmd_msg(msg->head->cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst,
+        dms_get_mescmd_msg(recv_dms_head->dms_cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst,
         msg->head->src_sid, msg->head->dst_inst, msg->head->dst_sid, mode,
         DCS_ACK_PAGE_IS_DIRTY(msg), DCS_ACK_PAGE_IS_REMOTE_DIRTY(msg), ack->lsn, ack->scn,
         g_dms.callback.get_page_lsn(ctrl), g_dms.callback.get_global_lsn(dms_ctx->db_handle));
@@ -363,34 +366,34 @@ int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode
 void dcs_send_requester_edp_local(dms_process_context_t *ctx, dms_ask_res_req_t *page_req)
 {
     dms_ask_res_ack_ld_t ack;
-    mes_init_ack_head(&page_req->head, &ack.head, MSG_ACK_EDP_LOCAL, sizeof(dms_ask_res_ack_ld_t), ctx->sess_id);
+    mfc_init_ack_head(&page_req->head.mes_head, &ack.head, MSG_ACK_EDP_LOCAL, sizeof(dms_ask_res_ack_ld_t), ctx->sess_id);
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_RUN_ERR("[DCS][%s][%s]send failed, src_inst=%d, src_sid=%d, dst_inst=%d, dst_sid=%d, req_mode=%u",
-            cm_display_pageid(page_req->resid), dms_get_mescmd_msg(page_req->head.cmd), ack.head.src_inst,
-            ack.head.src_sid, ack.head.dst_inst, ack.head.dst_sid, page_req->req_mode);
+            cm_display_pageid(page_req->resid), dms_get_mescmd_msg(page_req->head.dms_cmd), ack.head.mes_head.src_inst,
+            ack.head.mes_head.src_sid, ack.head.mes_head.dst_inst, ack.head.mes_head.dst_sid, page_req->req_mode);
         return;
     }
 
     LOG_DEBUG_INF("[DCS][%s][%s]send ok, src_inst=%d, src_sid=%d, dst_inst=%d, dst_sid=%d, req_mode=%u",
-        cm_display_pageid(page_req->resid), dms_get_mescmd_msg(page_req->head.cmd), ack.head.src_inst,
-        ack.head.src_sid, ack.head.dst_inst, ack.head.dst_sid, page_req->req_mode);
+        cm_display_pageid(page_req->resid), dms_get_mescmd_msg(page_req->head.dms_cmd), ack.head.mes_head.src_inst,
+        ack.head.mes_head.src_sid, ack.head.mes_head.dst_inst, ack.head.mes_head.dst_sid, page_req->req_mode);
 }
 
 static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
-    uint8 cmd)
+    uint32 cmd)
 {
     dms_ask_res_ack_t page_ack;
 
     DMS_INIT_MESSAGE_HEAD(&page_ack.head, cmd, 0, req_info->owner_id,
         req_info->req_id, ctx->sess_id, req_info->req_sid);
-    page_ack.head.rsn = req_info->req_rsn;
+    page_ack.head.mes_head.rsn = req_info->req_rsn;
 
     if (req_info->curr_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
         // page will not be sent with ack
-        page_ack.head.flags |= MSG_FLAG_NO_PAGE;
-        page_ack.head.size = (uint16)sizeof(dms_ask_res_ack_t);
+        page_ack.head.mes_head.flags |= MSG_FLAG_NO_PAGE;
+        page_ack.head.mes_head.size = (uint16)sizeof(dms_ask_res_ack_t);
     } else {
-        page_ack.head.size = (uint16)(g_dms.page_size + sizeof(dms_ask_res_ack_t));
+        page_ack.head.mes_head.size = (uint16)(g_dms.page_size + sizeof(dms_ask_res_ack_t));
     }
 
 #ifdef OPENGAUSS
@@ -432,11 +435,11 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
             page_ack.edp_map = (ctrl->edp_map) | (1ULL << g_dms.inst_id);
         }
         if (g_dms.callback.page_is_dirty(ctrl)) {
-            page_ack.head.flags |= MSG_FLAG_DIRTY_PAGE;
+            page_ack.head.mes_head.flags |= MSG_FLAG_DIRTY_PAGE;
         }
 
         if (ctrl->is_remote_dirty) {
-            page_ack.head.flags |= MSG_FLAG_REMOTE_DIRTY_PAGE;
+            page_ack.head.mes_head.flags |= MSG_FLAG_REMOTE_DIRTY_PAGE;
         }
 
         if (page_ack.edp_map == 0) {
@@ -449,7 +452,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     } else {
         // send share copy, multiple share owners are supported on master
         // owner doesn't need to maintain any info. Just send page.
-        page_ack.head.flags |= MSG_FLAG_SHARED_PAGE;
+        page_ack.head.mes_head.flags |= MSG_FLAG_SHARED_PAGE;
 
         LOG_DEBUG_INF("[DCS][%s][transfer share copy]: dest_id=%d, dest_sid=%d, dest_rsn=%llu, mode=%u",
             cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid, req_info->req_rsn,
@@ -466,7 +469,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE, CM_TRUE);
 
     int32 ret;
-    if (page_ack.head.flags & MSG_FLAG_NO_PAGE) {
+    if (page_ack.head.mes_head.flags & MSG_FLAG_NO_PAGE) {
         ret = mfc_send_data(&page_ack.head);
     } else {
 #ifndef OPENGAUSS
@@ -485,17 +488,17 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_ERR("[DCS][%s][%s]:send failed, dest_id=%d, dest_sid=%d, mode=%u, remote dirty=%d, \
             ctrl_lock_mode=%d, ctrl_is_edp=%d, page_lsn=%llu, page_scn=%llu, edp_map=%llu",
-            cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.cmd), page_ack.head.dst_inst,
-            page_ack.head.dst_sid, req_info->req_mode, ctrl->is_remote_dirty, ctrl->lock_mode,
-            ctrl->is_edp, page_ack.lsn, page_ack.scn, page_ack.edp_map);
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, page_ack.head.cmd, page_ack.head.dst_inst);
+            cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.dms_cmd), 
+            page_ack.head.mes_head.dst_inst, page_ack.head.mes_head.dst_sid, req_info->req_mode,
+            ctrl->is_remote_dirty, ctrl->lock_mode, ctrl->is_edp, page_ack.lsn, page_ack.scn, page_ack.edp_map);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, page_ack.head.dms_cmd, page_ack.head.mes_head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     LOG_DEBUG_INF("[DCS][%s][%s]:send ok, dest_id=%d, dest_sid=%d, req_mode=%u, remote dirty=%d,\
              ctrl_lock_mode=%d, ctrl_is_edp=%d, page_lsn=%llu, page_scn=%llu, edp_map=%llu",
-        cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.cmd), page_ack.head.dst_inst,
-        page_ack.head.dst_sid, req_info->req_mode, ctrl->is_remote_dirty, ctrl->lock_mode,
+        cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.dms_cmd), page_ack.head.mes_head.dst_inst,
+        page_ack.head.mes_head.dst_sid, req_info->req_mode, ctrl->is_remote_dirty, ctrl->lock_mode,
         ctrl->is_edp, page_ack.lsn, page_ack.scn, page_ack.edp_map);
 
     return DMS_SUCCESS;
@@ -505,8 +508,8 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
 {
     dms_ask_res_ack_ld_t ack;
     DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_GRANT_OWNER, 0, req->owner_id, req->req_id, ctx->sess_id, req->req_sid);
-    ack.head.rsn  = req->req_rsn;
-    ack.head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
+    ack.head.mes_head.rsn = req->req_rsn;
+    ack.head.mes_head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
     ack.master_grant = CM_FALSE; /* owner has not loaded page, sharer might exist, grant requested mode only */
 #ifndef OPENGAUSS
     ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
@@ -515,14 +518,14 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
 
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s]send failed, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
-            cm_display_pageid(req->resid), (uint32)ack.head.src_inst, (uint32)ack.head.src_sid,
-            (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid, (uint32)req->req_mode);
+            cm_display_pageid(req->resid), (uint32)ack.head.mes_head.src_inst, (uint32)ack.head.mes_head.src_sid,
+            (uint32)ack.head.mes_head.dst_inst, (uint32)ack.head.mes_head.dst_sid, (uint32)req->req_mode);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     LOG_DEBUG_INF("[DCS][%s]send OK, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
-        cm_display_pageid(req->resid), (uint32)ack.head.src_inst, (uint32)ack.head.src_sid,
-        (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid, (uint32)req->req_mode);
+        cm_display_pageid(req->resid), (uint32)ack.head.mes_head.src_inst, (uint32)ack.head.mes_head.src_sid,
+        (uint32)ack.head.mes_head.dst_inst, (uint32)ack.head.mes_head.dst_sid, (uint32)req->req_mode);
     return DMS_SUCCESS;
 }
 
@@ -558,8 +561,8 @@ static int dcs_notify_remote_for_edp_r(dms_process_context_t *ctx, dms_res_req_i
             req_info->req_sid, CM_INVALID_ID16);
         page_req.req_mode = req_info->req_mode;
         page_req.curr_mode = req_info->curr_mode;
-        page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
-        page_req.head.rsn = req_info->req_rsn;
+        page_req.head.mes_head.size = (uint16)sizeof(dms_ask_res_req_t);
+        page_req.head.mes_head.rsn = req_info->req_rsn;
         page_req.res_type = req_info->res_type;
         page_req.len = DMS_PAGEID_SIZE;
         ret = memcpy_s(page_req.resid, DMS_PAGEID_SIZE, req_info->resid, DMS_PAGEID_SIZE);
@@ -568,14 +571,14 @@ static int dcs_notify_remote_for_edp_r(dms_process_context_t *ctx, dms_res_req_i
         ret = mfc_send_data(&page_req.head);
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("[DCS][%s][%s] send ok: dest_id=%d, dest_sid=%d, mode=%u",
-                cm_display_pageid(page_req.resid), "ASK EDP", page_req.head.dst_inst, page_req.head.dst_sid,
-                page_req.req_mode);
+                cm_display_pageid(page_req.resid), "ASK EDP", page_req.head.mes_head.dst_inst,
+                page_req.head.mes_head.dst_sid, page_req.req_mode);
             return ret;
         }
 
         LOG_DEBUG_ERR("[DCS][%s][%s]: send failed, dest_id=%d, dest_sid=%d, mode=%u",
-            cm_display_pageid(page_req.resid), "ASK EDP", page_req.head.dst_inst, page_req.head.dst_sid,
-            page_req.req_mode);
+            cm_display_pageid(page_req.resid), "ASK EDP", page_req.head.mes_head.dst_inst,
+            page_req.head.mes_head.dst_sid, page_req.req_mode);
         return ret;
     }
 
@@ -583,18 +586,18 @@ static int dcs_notify_remote_for_edp_r(dms_process_context_t *ctx, dms_res_req_i
     dms_ask_res_ack_ld_t ack;
     DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_EDP_LOCAL, 0, ctx->inst_id, req_info->req_id,
         ctx->sess_id, req_info->req_sid);
-    ack.head.rsn = req_info->req_rsn;
-    ack.head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
+    ack.head.mes_head.rsn = req_info->req_rsn;
+    ack.head.mes_head.size = (uint16)sizeof(dms_ask_res_ack_ld_t);
 
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s][%s]: failed, dest_id=%d, dest_sid=%d, mode=%u", cm_display_pageid(req_info->resid),
-            "MASTER ACK EDP LOCAL", ack.head.dst_inst, ack.head.dst_sid, req_info->req_mode);
+            "MASTER ACK EDP LOCAL", ack.head.mes_head.dst_inst, ack.head.mes_head.dst_sid, req_info->req_mode);
         return ret;
     }
 
     LOG_DEBUG_INF("[DCS][%s][%s]: dest_id=%d, dest_sid=%d, mode=%u", cm_display_pageid(req_info->resid),
-        "MASTER ACK EDP LOCAL", ack.head.dst_inst, ack.head.dst_sid, req_info->req_mode);
+        "MASTER ACK EDP LOCAL", ack.head.mes_head.dst_inst, ack.head.mes_head.dst_sid, req_info->req_mode);
     return DMS_SUCCESS;
 }
 
@@ -624,9 +627,9 @@ int dcs_send_requester_edp_remote(dms_process_context_t *ctx, dms_ask_res_req_t 
 {
     dms_res_req_info_t req_info;
     req_info.owner_id = result->curr_owner_id;
-    req_info.req_id = page_req->head.src_inst;
-    req_info.req_sid = page_req->head.src_sid;
-    req_info.req_rsn = page_req->head.rsn;
+    req_info.req_id = page_req->head.mes_head.src_inst;
+    req_info.req_sid = page_req->head.mes_head.src_sid;
+    req_info.req_rsn = page_req->head.mes_head.rsn;
     req_info.curr_mode = page_req->curr_mode;
     req_info.req_mode = page_req->req_mode;
     req_info.res_type = page_req->res_type;
@@ -707,8 +710,9 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, mes_m
 
     drc_req_owner_result_t result;
     drc_request_info_t req_info;
-    dms_set_req_info(&req_info, page_req.head.src_inst, page_req.head.src_sid, page_req.head.rsn,
-        page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_type, page_req.req_time);
+    dms_set_req_info(&req_info, page_req.head.mes_head.src_inst, page_req.head.mes_head.src_sid,
+        page_req.head.mes_head.rsn, page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_type,
+        page_req.req_time);
 
     int ret = drc_request_page_owner(page_req.resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -716,23 +720,24 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, mes_m
         return;
     }
 
-    mes_message_head_t ack_head;
-    ack_head.rsn = page_req.head.rsn;
-    ack_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
+    dms_message_head_t ack_head;
+    ack_head.mes_head.rsn = page_req.head.mes_head.rsn;
+    ack_head.mes_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
 
     if (result.type == DRC_REQ_OWNER_GRANTED) {
         // this page_req not in memory of other instance, notify requester to load from disk
-        mfc_init_ack_head(&page_req.head, &ack_head, MSG_ACK_GRANT_OWNER, sizeof(mes_message_head_t), ctx->sess_id);
+        mfc_init_ack_head(&page_req.head.mes_head, &ack_head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t),
+            ctx->sess_id);
         ret = mfc_send_data(&ack_head);
     } else {
-        if (result.curr_owner_id == page_req.head.src_inst) {
+        if (result.curr_owner_id == page_req.head.mes_head.src_inst) {
             // asker is already owner, just notify requester(owner) page_req is ready
-            mfc_init_ack_head(&page_req.head, &ack_head, MSG_ACK_ALREADY_OWNER,
-                sizeof(mes_message_head_t), ctx->sess_id);
+            mfc_init_ack_head(&page_req.head.mes_head, &ack_head, MSG_ACK_ALREADY_OWNER,
+                sizeof(dms_message_head_t), ctx->sess_id);
             ret = mfc_send_data(&ack_head);
         } else {
             msg_ack_owner_id_t ack;
-            mfc_init_ack_head(&page_req.head, &ack.head, MSG_ACK_PAGE_OWNER_ID,
+            mfc_init_ack_head(&page_req.head.mes_head, &ack.head, MSG_ACK_PAGE_OWNER_ID,
                 sizeof(msg_ack_owner_id_t), ctx->sess_id);
             ack.owner_id = result.curr_owner_id;
             ret = mfc_send_data(&ack.head);
@@ -741,7 +746,8 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, mes_m
 
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_INF("[DCS][%s][try ask master for page_req]: failed, dest_id=%d, dest_sid=%d, mode=%u",
-            cm_display_pageid(page_req.resid), page_req.head.src_inst, page_req.head.src_sid, page_req.req_mode);
+            cm_display_pageid(page_req.resid), page_req.head.mes_head.src_inst, page_req.head.mes_head.src_sid,
+            page_req.req_mode);
     }
 }
 
@@ -774,8 +780,8 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
 static inline void dcs_set_page_req_parameter(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
     dms_ask_res_req_t *page_req)
 {
-    page_req->head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    page_req->head.size = (uint16)sizeof(dms_ask_res_req_t);
+    page_req->head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    page_req->head.mes_head.size = (uint16)sizeof(dms_ask_res_req_t);
     page_req->req_mode = req_mode;
     page_req->curr_mode = ctrl->lock_mode;
 }
@@ -804,10 +810,10 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
 
         LOG_DEBUG_ERR(
             "[DCS][%s][try ask master for page owner id]: failed to send msg, src_id=%d, src_sid=%d, dest_id=%d",
-            cm_display_pageid(page_req.resid), page_req.head.src_inst, page_req.head.src_sid,
-            page_req.head.dst_inst);
+            cm_display_pageid(page_req.resid), page_req.head.mes_head.src_inst, page_req.head.mes_head.src_sid,
+            page_req.head.mes_head.dst_inst);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID,
-            page_req.head.dst_inst);
+            page_req.head.mes_head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
@@ -817,7 +823,8 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
         dms_end_stat(dms_ctx->sess_id);
 
         LOG_DEBUG_ERR("[DCS][%s][try ask master for page owner id]: ack timeout, src_id=%d, src_sid=%d, dest_id=%d",
-            cm_display_pageid(page_req.resid), page_req.head.src_inst, page_req.head.src_sid, page_req.head.dst_inst);
+            cm_display_pageid(page_req.resid), page_req.head.mes_head.src_inst, page_req.head.mes_head.src_sid, 
+            page_req.head.mes_head.dst_inst);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -827,12 +834,13 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     session_stat_t *sess_stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
     sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait[sess_stat->level].usecs;
 
-    if (SECUREC_UNLIKELY(msg.head->cmd == MSG_ACK_GRANT_OWNER)) {
+    dms_message_head_t *ack_dms_head = get_dms_head(&msg);
+    if (SECUREC_UNLIKELY(ack_dms_head->dms_cmd == MSG_ACK_GRANT_OWNER)) {
         *owner_id = (uint8)dms_ctx->inst_id;
         ret = dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, NULL, req_mode);
-    } else if (SECUREC_UNLIKELY(msg.head->cmd == MSG_ACK_ALREADY_OWNER)) {
+    } else if (SECUREC_UNLIKELY(ack_dms_head->dms_cmd == MSG_ACK_ALREADY_OWNER)) {
         *owner_id = (uint8)dms_ctx->inst_id;
-    } else if (SECUREC_UNLIKELY(msg.head->cmd == MSG_ACK_PAGE_OWNER_ID)) {
+    } else if (SECUREC_UNLIKELY(ack_dms_head->dms_cmd == MSG_ACK_PAGE_OWNER_ID)) {
         CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(msg_ack_owner_id_t), CM_TRUE, CM_FALSE);
         *owner_id = (uint8)(*(uint32 *)MES_MESSAGE_BODY(&msg));
     } else {
@@ -874,8 +882,8 @@ static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id)
     msg_rls_owner_req_t req;
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_RELEASE_OWNER, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id,
         CM_INVALID_ID16);
-    req.head.size = (uint16)sizeof(msg_rls_owner_req_t);
-    req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    req.head.mes_head.size = (uint16)sizeof(msg_rls_owner_req_t);
+    req.head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     req.sess_type = dms_ctx->sess_type;
 #ifndef OPENGAUSS
     req.owner_lsn = g_dms.callback.get_global_lsn(dms_ctx->db_handle);
@@ -890,13 +898,13 @@ static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id)
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s][send release own req]:src_sid=%u, dest_id=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu",
             cm_display_pageid(dms_ctx->resid), dms_ctx->sess_id, master_id, req.owner_lsn, req.owner_scn,
-            req.head.rsn);
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, req.head.cmd, req.head.dst_inst);
+            req.head.mes_head.rsn);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, req.head.dms_cmd, req.head.mes_head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     LOG_DEBUG_INF("[DCS][%s][send release own req]:src_sid=%u, dest_id=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu",
         cm_display_pageid(dms_ctx->resid), dms_ctx->sess_id, master_id, req.owner_lsn, req.owner_scn,
-        req.head.rsn);
+        req.head.mes_head.rsn);
     return ret;
 }
 
@@ -958,14 +966,15 @@ int dcs_release_owner(dms_context_t *dms_ctx, unsigned char *released)
 static int dcs_send_rls_owner_ack(dms_process_context_t *ctx, msg_rls_owner_req_t *req, bool8 released)
 {
     msg_rls_owner_ack_t ack;
-    mfc_init_ack_head(&req->head, &ack.head, MSG_ACK_RELEASE_PAGE_OWNER, sizeof(msg_rls_owner_ack_t), ctx->inst_id);
+    mfc_init_ack_head(&req->head.mes_head, &ack.head, MSG_ACK_RELEASE_PAGE_OWNER, sizeof(msg_rls_owner_ack_t),
+        ctx->inst_id);
     ack.released = released;
     int ret = mfc_send_data(&ack.head);
     LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, "
-        "rsn=%llu, released =%d", cm_display_pageid(req->pageid), req->head.src_inst, req->head.src_sid,
-        req->owner_lsn, req->owner_scn, req->head.rsn, ack.released);
+        "rsn=%llu, released =%d", cm_display_pageid(req->pageid), req->head.mes_head.src_inst,
+        req->head.mes_head.src_sid, req->owner_lsn, req->owner_scn, req->head.mes_head.rsn, ack.released);
     if (ret != DMS_SUCCESS) {
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, ack.head.cmd, ack.head.dst_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, ack.head.dms_cmd, ack.head.mes_head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
     return ret;
@@ -978,8 +987,8 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
     mfc_release_message_buf(receive_msg);
 
     LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, rsn=%llu",
-        cm_display_pageid(req.pageid), req.head.src_inst, req.head.src_sid, req.owner_lsn, req.owner_scn,
-        req.head.rsn);
+        cm_display_pageid(req.pageid), req.head.mes_head.src_inst, req.head.mes_head.src_sid, req.owner_lsn,
+        req.owner_scn, req.head.mes_head.rsn);
 
 #ifndef OPENGAUSS
     // Need to sync scn/lsn with master when releasing ownership
@@ -988,7 +997,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
 #endif
 
     bool8 released = CM_FALSE;
-    (void)drc_chk_4_rlse_owner(req.pageid, DMS_PAGEID_SIZE, req.head.src_inst, CM_FALSE, &released);
+    (void)drc_chk_4_rlse_owner(req.pageid, DMS_PAGEID_SIZE, req.head.mes_head.src_inst, CM_FALSE, &released);
     (void)dcs_send_rls_owner_ack(ctx, &req, released);
 }
 
@@ -1029,16 +1038,16 @@ void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, mes_message_t *rece
 
     LOG_DEBUG_INF("[DCS][%s][dcs_proc_ask_remote_for_edp]: started, owner_id=%d, req_id=%d, "
         "req_sid=%d, req_rsn=%llu, mode=%u",
-        cm_display_pageid(page_req.resid), ctx->inst_id, page_req.head.src_inst, page_req.head.src_sid,
+        cm_display_pageid(page_req.resid), ctx->inst_id, page_req.head.mes_head.src_inst, page_req.head.mes_head.src_sid,
         page_req.head.rsn, page_req.req_mode);
 
     dms_res_req_info_t req_info;
-    req_info.owner_id = page_req.head.dst_inst;
-    req_info.req_id = page_req.head.src_inst;
-    req_info.req_sid = page_req.head.src_sid;
+    req_info.owner_id = page_req.head.mes_head.dst_inst;
+    req_info.req_id = page_req.head.mes_head.src_inst;
+    req_info.req_sid = page_req.head.mes_head.src_sid;
     req_info.curr_mode = page_req.curr_mode;
     req_info.req_mode = page_req.req_mode;
-    req_info.req_rsn = page_req.head.rsn;
+    req_info.req_rsn = page_req.head.mes_head.rsn;
     req_info.len = DMS_PAGEID_SIZE;
     int ret = memcpy_sp(req_info.resid, DMS_RESID_SIZE, page_req.resid, DMS_PAGEID_SIZE);
     DMS_SECUREC_CHECK(ret);

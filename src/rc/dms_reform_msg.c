@@ -44,22 +44,22 @@ static int dms_reform_req_common_wait(uint16 sid)
     return DMS_SUCCESS;
 }
 
-int dms_reform_send_data(mes_message_head_t *msg_head, uint32 sess_id)
+int dms_reform_send_data(dms_message_head_t *msg_head, uint32 sess_id)
 {
     int ret = DMS_SUCCESS;
 
     while (CM_TRUE) {
-        msg_head->rsn = mfc_get_rsn(sess_id);
-        msg_head->cluster_ver = DMS_GLOBAL_CLUSTER_VER;
+        msg_head->mes_head.rsn = mfc_get_rsn(sess_id);
+        msg_head->mes_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
         ret = mfc_send_data(msg_head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_send_data SEND error: %d, dst_id: %d", ret, msg_head->dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_send_data SEND error: %d, dst_id: %d", ret, msg_head->mes_head.dst_inst);
             return ret;
         }
 
         ret = dms_reform_req_common_wait((uint16)sess_id);
         if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_send_data WAIT timeout, dst_id: %d", msg_head->dst_inst);
+            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_send_data WAIT timeout, dst_id: %d", msg_head->mes_head.dst_inst);
             continue;
         } else {
             break;
@@ -77,8 +77,8 @@ void dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, 
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_SYNC_SHARE_INFO, 0, g_dms.inst_id, dst_id, reform_context->sess_judge,
         CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_sync_share_info_t);
-    req->head.rsn = mes_get_rsn(reform_context->sess_judge);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_sync_share_info_t);
+    req->head.mes_head.rsn = mes_get_rsn(reform_context->sess_judge);
     req->share_info = *share_info;
 }
 
@@ -87,7 +87,7 @@ static void dms_reform_ack_sync_share_info(dms_process_context_t *process_ctx, m
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = DMS_SUCCESS;
     ret = mfc_send_data(&ack_common.head);
@@ -153,8 +153,8 @@ void dms_reform_init_req_sync_step(dms_reform_req_sync_step_t *req)
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_SYNC_STEP, 0, g_dms.inst_id, share_info->reformer_id, ctx->sess_proc,
         CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_sync_step_t);
-    req->head.rsn = mes_get_rsn(ctx->sess_proc);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_sync_step_t);
+    req->head.mes_head.rsn = mes_get_rsn(ctx->sess_proc);
     req->last_step = reform_info->last_step;
     req->curr_step = reform_info->current_step;
     req->next_step = reform_info->next_step;
@@ -168,7 +168,7 @@ static void dms_reform_ack_req_sync_step(dms_process_context_t *process_ctx, mes
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = DMS_SUCCESS;
     ret = mfc_send_data(&ack_common.head);
@@ -183,7 +183,7 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, mes_message_t
     dms_reform_req_sync_step_t *req = (dms_reform_req_sync_step_t *)receive_msg->buffer;
     reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    uint8 instance_id = req->head.src_inst;
+    uint8 instance_id = req->head.mes_head.src_inst;
 
     if (SECUREC_UNLIKELY(req->last_step >= DMS_REFORM_STEP_COUNT ||
         req->curr_step >= DMS_REFORM_STEP_COUNT ||
@@ -220,8 +220,8 @@ void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_DMS_STATUS, 0, g_dms.inst_id, dst_id, sess_id, CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_partner_status_t);
-    req->head.rsn = mes_get_rsn(sess_id);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_partner_status_t);
+    req->head.mes_head.rsn = mes_get_rsn(sess_id);
     req->lsn = reform_info->start_time;
 }
 
@@ -231,7 +231,7 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, mes_messa
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = DMS_SUCCESS;
     ack_common.dms_status = (uint8)g_dms.callback.get_dms_status(process_ctx->db_handle);
@@ -264,7 +264,7 @@ void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, mes_mess
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_TRUE, CM_FALSE);
     dms_reform_req_partner_status_t *req = (dms_reform_req_partner_status_t*)receive_msg->head;
-    dms_reform_update_reformer_version(req->lsn, req->head.src_inst);
+    dms_reform_update_reformer_version(req->lsn, req->head.mes_head.src_inst);
     dms_reform_ack_req_dms_status(process_ctx, receive_msg);
     mfc_release_message_buf(receive_msg);
 }
@@ -294,8 +294,8 @@ void dms_reform_init_req_gcv_sync(dms_reform_req_gcv_sync_t *req, uint8 dst_id, 
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_REFORM_GCV_SYNC, 0, g_dms.inst_id, dst_id, src_sid,
         CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_gcv_sync_t);
-    req->head.rsn = mes_get_rsn(src_sid);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_gcv_sync_t);
+    req->head.mes_head.rsn = mes_get_rsn(src_sid);
     req->pushing = pushing;
 }
 
@@ -308,10 +308,10 @@ static void dms_reform_ack_req_gcv_sync(dms_process_context_t *process_ctx, mes_
     bool8 pushing = req->pushing;
     bool8 updated = dms_lamport_update_cluster_version(receive_msg->head->cluster_ver, pushing);
 
-    mes_init_ack_head(receive_msg->head, &ack_gcv_sync.head, MSG_ACK_REFORM_GCV_SYNC, sizeof(dms_reform_ack_gcv_sync_t),
+    mfc_init_ack_head(receive_msg->head, &ack_gcv_sync.head, MSG_ACK_REFORM_GCV_SYNC, sizeof(dms_reform_ack_gcv_sync_t),
         process_ctx->sess_id);
     ack_gcv_sync.updated = updated;
-    ack_gcv_sync.head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
+    ack_gcv_sync.head.mes_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
     ret = mfc_send_data(&ack_gcv_sync.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
@@ -363,8 +363,8 @@ void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id)
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_REFORM_PREPARE, 0, g_dms.inst_id, dst_id, ctx->sess_judge,
         CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_prepare_t);
-    req->head.rsn = mes_get_rsn(ctx->sess_judge);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_prepare_t);
+    req->head.mes_head.rsn = mes_get_rsn(ctx->sess_judge);
 }
 
 static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_message_t *receive_msg, int in_reform)
@@ -373,7 +373,7 @@ static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, mes_m
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = in_reform;
     ack_common.last_fail = reform_info->last_fail;
@@ -437,8 +437,8 @@ void dms_reform_init_req_sync_next_step(dms_reform_req_sync_step_t *req, uint8 d
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_SYNC_NEXT_STEP, 0, g_dms.inst_id, dst_id, ctx->sess_proc,
         CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_sync_step_t);
-    req->head.rsn = mes_get_rsn(ctx->sess_proc);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_sync_step_t);
+    req->head.mes_head.rsn = mes_get_rsn(ctx->sess_proc);
     req->curr_step = reform_info->current_step;
     req->next_step = reform_info->next_step;
     req->scn = reform_info->max_scn;
@@ -450,7 +450,7 @@ void dms_reform_ack_sync_next_step(dms_process_context_t *process_ctx, mes_messa
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = DMS_SUCCESS;
     ret = mfc_send_data(&ack_common.head);
@@ -523,7 +523,7 @@ static int dms_reform_req_migrate_add_buf_res(drc_buf_res_t *buf_res, dms_reform
     uint32 len = (uint32)sizeof(drc_buf_res_msg_t);
     if ((*offset + len) > DMS_REFORM_MSG_MAX_LENGTH) {
         // send current msg, then reset the msg pack
-        req->head.size = (uint16)(*offset);
+        req->head.mes_head.size = (uint16)(*offset);
         ret = dms_reform_send_data(&req->head, sess_id);
         if (ret != CM_SUCCESS) {
             LOG_DEBUG_FUNC_FAIL;
@@ -588,7 +588,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
         return DMS_SUCCESS;
     }
 
-    req->head.size = (uint16)offset;
+    req->head.mes_head.size = (uint16)offset;
     ret = dms_reform_send_data(&req->head, sess_id);
     if (ret != CM_SUCCESS) {
         g_dms.callback.mem_free(handle, req);
@@ -633,7 +633,7 @@ static int dms_reform_proc_req_migrate_res(dms_process_context_t *process_ctx, m
     dms_reform_req_migrate_t *req = (dms_reform_req_migrate_t *)receive_msg->buffer;
 
     LOG_DEBUG_INF("[DRC]get page resource migration data, msg size:%d, part id:%u, res num:%u, part end:%d",
-        req->head.size, req->part_id, req->res_num, req->is_part_end);
+        req->head.mes_head.size, req->part_id, req->res_num, req->is_part_end);
 
     if (req->res_num == 0) {
         return DMS_SUCCESS;
@@ -644,7 +644,7 @@ static int dms_reform_proc_req_migrate_res(dms_process_context_t *process_ctx, m
     int ret = DMS_SUCCESS;
 
     for (uint32 i = 0; i < req->res_num; i++) {
-        CM_ASSERT(offset <= req->head.size);
+        CM_ASSERT(offset <= req->head.mes_head.size);
         res_msg = (drc_buf_res_msg_t *)((uint8 *)receive_msg->buffer + offset);
         if (SECUREC_UNLIKELY(res_msg->len > DMS_RESID_SIZE)) {
             DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "res_msg len");
@@ -667,7 +667,7 @@ static void dms_reform_ack_req_migrate(dms_process_context_t *process_ctx, mes_m
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = result;
     ret = mfc_send_data(&ack_common.head);
@@ -707,7 +707,7 @@ int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)parallel->data[master_id];
     uint32 append_size = (uint32)(DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t));
     int ret = DMS_SUCCESS;
-    uint8 cmd = MSG_REQ_PAGE_REBUILD;
+    uint32 cmd = MSG_REQ_PAGE_REBUILD;
 
     // if NULL, init req_rebuild
     if (req_rebuild == NULL) {
@@ -721,7 +721,7 @@ int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t
         DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, cmd, 0, dms_ctx->inst_id, master_id, parallel->sess_id,
             CM_INVALID_ID16);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+        req_rebuild->head.mes_head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
 
     if (req_rebuild->offset + append_size > DMS_REFORM_MSG_MAX_LENGTH) {
@@ -746,7 +746,7 @@ int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_in
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)rebuild_info->rebuild_data[master_id];
     uint32 append_size = (uint32)(DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t));
     int ret = DMS_SUCCESS;
-    uint8 cmd = MSG_REQ_PAGE_REBUILD;
+    uint32 cmd = MSG_REQ_PAGE_REBUILD;
 
     // if NULL, init req_rebuild
     if (req_rebuild == NULL) {
@@ -760,7 +760,7 @@ int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_in
         DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, cmd, 0, dms_ctx->inst_id, master_id, g_dms.reform_ctx.sess_proc,
             CM_INVALID_ID16);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+        req_rebuild->head.mes_head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
 
     if (req_rebuild->offset + append_size > DMS_REFORM_MSG_MAX_LENGTH) {
@@ -784,7 +784,7 @@ void dms_reform_ack_req_rebuild(dms_process_context_t *process_ctx, mes_message_
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = result;
     ret = mfc_send_data(&ack_common.head);
@@ -799,7 +799,7 @@ void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, mes_message_t 
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
 
-    uint8 inst_id = req_rebuild->head.src_inst;
+    uint8 inst_id = req_rebuild->head.mes_head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
     uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t);
     char pageid[DMS_PAGEID_SIZE];
@@ -844,7 +844,7 @@ int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 mast
         DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_LOCK_REBUILD, 0, g_dms.inst_id, master_id,
             reform_ctx->sess_proc, CM_INVALID_ID16);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+        req_rebuild->head.mes_head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
 
     if (req_rebuild->offset + append_size > DMS_REFORM_MSG_MAX_LENGTH) {
@@ -878,7 +878,7 @@ int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, u
         DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_LOCK_REBUILD, 0, g_dms.inst_id, master_id, parallel->sess_id,
             CM_INVALID_ID16);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+        req_rebuild->head.mes_head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
 
     if (req_rebuild->offset + append_size > DMS_REFORM_MSG_MAX_LENGTH) {
@@ -898,7 +898,7 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, mes_message_t 
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
 
-    uint8 inst_id = req_rebuild->head.src_inst;
+    uint8 inst_id = req_rebuild->head.mes_head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
     drc_local_lock_res_t *lock_res;
     int ret;
@@ -920,8 +920,8 @@ void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid
     uint32 sess_id)
 {
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_PAGE, 0, g_dms.inst_id, dst_id, sess_id, CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_res_t);
-    req->head.rsn = mes_get_rsn(sess_id);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_res_t);
+    req->head.mes_head.rsn = mes_get_rsn(sess_id);
     req->action = action;
     req->res_type = type;
     errno_t err = memcpy_s(req->resid, DMS_RESID_SIZE, pageid, DMS_RESID_SIZE);
@@ -947,7 +947,7 @@ static void dms_reform_proc_req_confirm_owner(dms_process_context_t *process_ctx
             cm_display_resid(req->resid, req->res_type), ret);
     }
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = ret;
     ack_common.lock_mode = lock_mode;
@@ -980,7 +980,7 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
             cm_display_resid(req->resid, req->res_type), ret);
     }
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = ret;
     ack_common.lock_mode = lock_mode;
@@ -1002,7 +1002,7 @@ static void dms_reform_proc_req_edp_lsn(dms_process_context_t *process_ctx, mes_
         LOG_DEBUG_ERR("[DMS REFORM][%s]edp_lsn fail, error: %d", cm_display_pageid(req->resid), ret);
     }
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = ret;
     ack_common.lsn = lsn;
@@ -1022,7 +1022,7 @@ static void dms_reform_proc_req_flush_copy(dms_process_context_t *process_ctx, m
         LOG_DEBUG_ERR("[DMS REFORM][%s]flush_copy fail, error: %d", cm_display_pageid(req->resid), ret);
     }
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = ret;
     ret = mfc_send_data(&ack_common.head);
@@ -1041,7 +1041,7 @@ static void dms_reform_proc_req_need_flush(dms_process_context_t *process_ctx, m
         LOG_DEBUG_ERR("[DMS REFORM][%s]need_flush fail, error: %d", cm_display_pageid(req->resid), ret);
     }
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = (ret != DMS_SUCCESS ? ERRNO_DMS_DRC_INVALID : DMS_SUCCESS);
     ret = mfc_send_data(&ack_common.head);
@@ -1108,8 +1108,8 @@ void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 refo
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_SWITCHOVER, 0, g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_switchover_t);
-    req->head.rsn = mes_get_rsn(sess_id);
+    req->head.mes_head.size = (uint16)sizeof(dms_reform_req_switchover_t);
+    req->head.mes_head.rsn = mes_get_rsn(sess_id);
     req->start_time = reform_info->start_time;
 }
 
@@ -1119,7 +1119,7 @@ static void dms_reform_ack_switchover(dms_process_context_t *process_ctx, mes_me
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_common.result = result;
     ack_common.start_time = reform_info->start_time;
@@ -1141,7 +1141,7 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
     }
 
     // if switchover request come from self, return error
-    if (dms_dst_id_is_self(req->head.src_inst)) {
+    if (dms_dst_id_is_self(req->head.mes_head.src_inst)) {
         dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
         mfc_release_message_buf(receive_msg);
         return;
@@ -1151,8 +1151,8 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
     cm_spin_lock(&switchover_info->lock, NULL);
     if (!switchover_info->switch_req) {
         switchover_info->switch_req = CM_TRUE;
-        switchover_info->inst_id = req->head.src_inst;
-        switchover_info->sess_id = req->head.src_sid;
+        switchover_info->inst_id = req->head.mes_head.src_inst;
+        switchover_info->sess_id = req->head.mes_head.src_sid;
         switchover_info->start_time = req->start_time;
         cm_spin_unlock(&switchover_info->lock);
         dms_reform_ack_switchover(process_ctx, receive_msg, DMS_SUCCESS);
@@ -1160,8 +1160,8 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, mes_mess
         return;
     }
 
-    if (switchover_info->inst_id == req->head.src_inst &&
-        switchover_info->sess_id == req->head.src_sid &&
+    if (switchover_info->inst_id == req->head.mes_head.src_inst &&
+        switchover_info->sess_id == req->head.mes_head.src_sid &&
         switchover_info->start_time == req->start_time) {
         cm_spin_unlock(&switchover_info->lock);
         dms_reform_ack_switchover(process_ctx, receive_msg, DMS_SUCCESS);
@@ -1195,12 +1195,12 @@ int dms_reform_req_switchover_wait(uint16 sess_id, uint64 *start_time)
 
 void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
 
     reform_info_t *reform_info = DMS_REFORM_INFO;
     dms_reform_ack_common_t ack_common;
 
-    mes_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    mfc_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
                       process_ctx->sess_id);
     mfc_release_message_buf(receive_msg);
 
@@ -1215,13 +1215,13 @@ void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, mes_mes
     }
 }
 
-static void dms_reform_init_req_check_reform_done(mes_message_head_t *head, uint8 dst_id)
+static void dms_reform_init_req_check_reform_done(dms_message_head_t *head, uint8 dst_id)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_CHECK_REFORM_DONE, 0, g_dms.inst_id, dst_id, reform_context->sess_proc,
                           CM_INVALID_ID16);
-    head->rsn = mes_get_rsn(reform_context->sess_proc);
-    head->size = sizeof(mes_message_head_t);
+    head->mes_head.rsn = mes_get_rsn(reform_context->sess_proc);
+    head->mes_head.size = sizeof(dms_message_head_t);
 }
 
 static int dms_reform_req_check_reform_done_wait(uint8 dst_id)
@@ -1242,7 +1242,7 @@ static int dms_reform_req_check_reform_done_wait(uint8 dst_id)
 
 static int dms_reform_check_reform_done_r(uint8 dst_id)
 {
-    mes_message_head_t req;
+    dms_message_head_t req;
     int ret = DMS_SUCCESS;
     while (CM_TRUE) {
         dms_reform_init_req_check_reform_done(&req, dst_id);
@@ -1291,13 +1291,13 @@ int dms_reform_check_reform_done(void)
     return DMS_SUCCESS;
 }
 
-void dms_reform_init_map_info_req(mes_message_head_t *head, uint8 dst_id)
+void dms_reform_init_map_info_req(dms_message_head_t *head, uint8 dst_id)
 {
     reform_context_t *ctx = DMS_REFORM_CONTEXT;
 
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_MAP_INFO, 0, g_dms.inst_id, dst_id, ctx->sess_judge, CM_INVALID_ID16);
-    head->size = (uint16)sizeof(mes_message_head_t);
-    head->rsn = mes_get_rsn(ctx->sess_judge);
+    head->mes_head.size = (uint16)sizeof(dms_message_head_t);
+    head->mes_head.rsn = mes_get_rsn(ctx->sess_judge);
 }
 
 int dms_reform_map_info_req_wait(void)
@@ -1331,14 +1331,14 @@ int dms_reform_map_info_req_wait(void)
 
 void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
 
     dms_reform_ack_map_t ack_map;
     remaster_info_t *remaster_info = &ack_map.remaster_info;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
 
-    mes_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
+    mfc_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
         process_ctx->sess_id);
     mfc_release_message_buf(receive_msg);
 
@@ -1368,8 +1368,8 @@ int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *
 
     DMS_INIT_MESSAGE_HEAD(&redo_req.head, MSG_REQ_OPENGAUSS_ONDEMAND_REDO, 0, dms_ctx->inst_id,
         xmap_ctx->dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
-    redo_req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-    redo_req.head.size = (uint16)(key_len + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
+    redo_req.head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    redo_req.head.mes_head.size = (uint16)(key_len + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
     redo_req.len = (uint16)key_len;
 
     // openGauss has not adapted stats yet
@@ -1387,14 +1387,14 @@ int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *
         dms_end_stat(dms_ctx->sess_id);
 
         LOG_DEBUG_ERR("[On-demand] receive message to instance(%u) failed, cmd(%u) rsn(%llu) errcode(%d)",
-            xmap_ctx->dest_id, (uint32)MSG_REQ_OPENGAUSS_ONDEMAND_REDO, redo_req.head.rsn, ret);
+            xmap_ctx->dest_id, (uint32)MSG_REQ_OPENGAUSS_ONDEMAND_REDO, redo_req.head.mes_head.rsn, ret);
         return ret;
     }
 
     dms_end_stat(dms_ctx->sess_id);
 
-    CM_CHK_RECV_MSG_SIZE(&message, (uint32)(sizeof(mes_message_head_t) + sizeof(int32)), CM_TRUE, CM_FALSE);
-    *redo_status = *(int *)(message.buffer + sizeof(mes_message_head_t));
+    CM_CHK_RECV_MSG_SIZE(&message, (uint32)(sizeof(dms_message_head_t) + sizeof(int32)), CM_TRUE, CM_FALSE);
+    *redo_status = *(int *)(message.buffer + sizeof(dms_message_head_t));
 
     mfc_release_message_buf(&message);
     return DMS_SUCCESS;
@@ -1403,7 +1403,7 @@ int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *
 void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
     mes_message_head_t *req_head = receive_msg->head;
-    mes_message_head_t ack_head;
+    dms_message_head_t ack_head;
     int32 redo_status;
     void *block_key;
 
@@ -1416,13 +1416,13 @@ void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *proce
     block_key = (void *)(receive_msg->buffer + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
     g_dms.callback.opengauss_ondemand_redo_buffer(block_key, &redo_status);
 
-    mfc_init_ack_head(req_head, &ack_head, MSG_ACK_OPENGAUSS_ONDEMAND_REDO, sizeof(int32) + sizeof(mes_message_head_t),
+    mfc_init_ack_head(req_head, &ack_head, MSG_ACK_OPENGAUSS_ONDEMAND_REDO, sizeof(int32) + sizeof(dms_message_head_t),
         process_ctx->sess_id);
 
     mfc_release_message_buf(receive_msg);
-    if (mfc_send_data2(&ack_head, &redo_status) != CM_SUCCESS) {
+    if (mfc_send_data3(&ack_head, sizeof(dms_message_head_t), &redo_status) != CM_SUCCESS) {
         LOG_DEBUG_ERR(
             "[On-demand] send openGauss on-demand redo status ack message failed, src_inst = %u, dst_inst = %u",
-            (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
+            (uint32)ack_head.mes_head.src_inst, (uint32)ack_head.mes_head.dst_inst);
     }
 }

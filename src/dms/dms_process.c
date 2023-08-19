@@ -55,7 +55,7 @@ typedef struct st_processor_func {
     const char *func_name;
 } processor_func_t;
 
-static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BEGIN] = {
+static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BEGIN] = {
     { MSG_REQ_ASK_MASTER_FOR_PAGE,    dms_proc_ask_master_for_res,      CM_TRUE, CM_TRUE,  "ask master for res" },
     { MSG_REQ_ASK_OWNER_FOR_PAGE,     dms_proc_ask_owner_for_res,       CM_TRUE, CM_TRUE,  "ask owner for res" },
     { MSG_REQ_INVALIDATE_SHARE_COPY,  dms_proc_invld_req,               CM_TRUE, CM_TRUE,  "invalidate req" },
@@ -123,10 +123,10 @@ static processor_func_t g_proc_func_req[(uint16)MSG_REQ_END - (uint16)MSG_REQ_BE
         CM_TRUE, CM_TRUE, "send primary openGauss self oldest xmin"},
 };
 
-static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BEGIN] = {
+static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
     { MSG_ACK_CHECK_VISIBLE,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "row check visible ack" },
     { MSG_ACK_PAGE_OWNER_ID,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "page owner id ack" },
-    { MSG_ACK_BROADCAST,                    dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "broadcast ack" },
+    { MSG_ACK_BROADCAST,                    dms_proc_broadcast_ack2, CM_FALSE, CM_TRUE, "broadcast ack" },
     { MSG_ACK_BROADCAST_WITH_MSG,           dms_proc_broadcast_ack2, CM_FALSE, CM_TRUE, "broadcast ack2" },
     { MSG_ACK_PAGE_READY,                   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "owner ack page ready" },
     { MSG_ACK_GRANT_OWNER,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "master ack grant owner" },
@@ -145,8 +145,8 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "error msg" },
     { MSG_ACK_RELEASE_PAGE_OWNER,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "release page owner ack" },
     { MSG_ACK_CONFIRM_CVT,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "confirm converting ack" },
-    { MSG_ACK_INVLDT_SHARE_COPY,            dms_proc_broadcast_ack3, CM_FALSE, CM_TRUE, "relase lock owner ack" },
-    { MSG_ACK_BOC,                          dms_proc_broadcast_ack,  CM_FALSE, CM_TRUE, "commit scn broadcast ack" },
+    { MSG_ACK_INVLDT_SHARE_COPY,            dms_proc_broadcast_ack2, CM_FALSE, CM_TRUE, "relase lock owner ack" },
+    { MSG_ACK_BOC,                          dms_proc_broadcast_ack2,  CM_FALSE, CM_TRUE, "commit scn broadcast ack" },
     { MSG_ACK_SMON_DLOCK_INFO,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req dead lock msg" },
     { MSG_ACK_SMON_DEADLOCK_SQL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req sql" },
     { MSG_ACK_SMON_DEADLOCK_ITL,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack smon req itl" },
@@ -170,6 +170,7 @@ static processor_func_t g_proc_func_ack[(uint16)MSG_ACK_END - (uint16)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_TXN_SWINFO,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss transaction swinfo" },
     { MSG_ACK_OPENGAUSS_PAGE_STATUS,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss page hit buffer" },
     { MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN,   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack oldest xmin received"},
+    { MSG_ACK_VERSION_NOT_MATCH,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack msg version is not match"},
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -207,7 +208,7 @@ static bool32 dms_same_txn(char *res, const char *res_id, uint32 len)
 }
 
 /* Reform-related messages are exempt from GCV check or instance lock. */
-static bool32 dms_msg_skip_gcv_check(unsigned char cmd)
+static bool32 dms_msg_skip_gcv_check(unsigned int cmd)
 {
     switch (cmd) {
         case MSG_REQ_REFORM_GCV_SYNC:
@@ -260,44 +261,97 @@ static void dms_unlock_instance_s(unsigned char cmd)
     }
 }
 
+void dms_send_ack_version_not_match(dms_process_context_t *ctx, mes_message_t *receive_msg)
+{
+    dms_message_head_t ack_msg;
+    mfc_init_ack_head(receive_msg->head, &ack_msg, MSG_ACK_VERSION_NOT_MATCH, sizeof(dms_message_head_t),
+        ctx->sess_id);
+    dms_message_head_t *dms_head = get_dms_head(receive_msg);
+    int32 ret = mfc_send_data(&ack_msg);
+    if (ret != CM_SUCCESS) {
+        LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
+            "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
+            ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst, 
+            ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, SW_PROTO_VER);
+    }
+    LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
+        "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
+        ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst, 
+        ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, SW_PROTO_VER);
+}
+
+static bool8 dms_check_message_proto_version(dms_process_context_t *ctx, mes_message_t *msg)
+{
+    bool8 pass_check = CM_TRUE;
+    dms_message_head_t *head = get_dms_head(msg);
+    uint8 send_inst = head->mes_head.src_inst;
+    dms_set_node_proto_version(send_inst, head->sw_proto_ver);
+
+    if (dms_cmd_is_broadcast(head->dms_cmd)) {
+        if (head->msg_proto_ver > SW_PROTO_VER) {
+            pass_check = CM_FALSE;
+            dms_send_ack_version_not_match(ctx, msg);
+        }
+    } else {
+        uint32 node_version = dms_get_node_proto_version(send_inst);
+        uint32 nego_version = SW_PROTO_VER;
+        if (node_version != INVALID_PROTO_VER && node_version < nego_version) {
+            nego_version = node_version;
+        }
+        if (nego_version != head->msg_proto_ver) {
+            pass_check = CM_FALSE;
+            dms_send_ack_version_not_match(ctx, msg);
+        }
+    }
+    return pass_check;
+}
+
 static void dms_process_message(uint32 work_idx, mes_message_t *msg)
 {
     if (work_idx >= g_dms.proc_ctx_cnt) {
         cm_panic(0);
     }
 
-    mes_message_head_t* head = msg->head;
-    if ((head->cmd >= MSG_REQ_END && head->cmd < MSG_ACK_BEGIN) || head->cmd >= MSG_ACK_END) {
-        DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, head->cmd);
+    dms_message_head_t *head = get_dms_head(msg);
+    if ((head->dms_cmd >= MSG_REQ_END && head->dms_cmd < MSG_ACK_BEGIN) || head->dms_cmd >= MSG_ACK_END) {
+        DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, head->dms_cmd);
         mfc_release_message_buf(msg);
         return;
     }
 
-    dms_lock_instance_s(head->cmd);
+    dms_lock_instance_s(head->dms_cmd);
 
-    dms_processor_t *processor = &g_dms.processors[head->cmd];
-    mfc_add_tickets(&g_dms.mfc.recv_tickets[head->src_inst], 1);
+    dms_processor_t *processor = &g_dms.processors[head->dms_cmd];
+    mfc_add_tickets(&g_dms.mfc.recv_tickets[head->mes_head.src_inst], 1);
 
 #ifdef OPENGAUSS
     bool32 enable_proc = !g_dms.enable_reform || DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
 #else
     bool32 enable_proc = CM_TRUE;
 #endif
-    bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || dms_msg_skip_gcv_check(head->cmd);
+    bool32 gcv_approved = (head->mes_head.cluster_ver == DMS_GLOBAL_CLUSTER_VER) ||
+                          dms_msg_skip_gcv_check(head->dms_cmd);
     if (!enable_proc || !gcv_approved || !g_dms.dms_init_finish) {
         LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, local_gcv=%u, recv_gcv=%u, "
             "src_sid:%u, dest_sid:%u, finish dms init:%u", 
-            (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst, DMS_GLOBAL_CLUSTER_VER, 
-            head->cluster_ver, (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
+            (uint32)head->dms_cmd, (uint32)head->mes_head.src_inst, (uint32)head->mes_head.dst_inst,
+            DMS_GLOBAL_CLUSTER_VER, head->mes_head.cluster_ver, (uint32)head->mes_head.src_sid,
+            (uint32)head->mes_head.dst_sid, (uint32)g_dms.dms_init_finish);
         mfc_release_message_buf(msg);
-        dms_unlock_instance_s(head->cmd);
+        dms_unlock_instance_s(head->dms_cmd);
         return;
     }
     dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
 #ifdef OPENGAUSS  
     (void)g_dms.callback.cache_msg(ctx->db_handle, (char*)msg->head);
 #endif
-    processor->proc(ctx, msg);
+    bool8 pass_check = CM_TRUE;
+    if (processor->is_enqueue) {
+        pass_check = dms_check_message_proto_version(ctx, msg);
+    }
+    if (pass_check) {
+        processor->proc(ctx, msg);
+    }
 #ifdef OPENGAUSS  
     (void)g_dms.callback.db_check_lock(ctx->db_handle);
 #endif   
@@ -312,7 +366,7 @@ static void dms_process_message(uint32 work_idx, mes_message_t *msg)
         g_dms.callback.mem_reset(ctx->db_handle);
     }
 
-    dms_unlock_instance_s(head->cmd);
+    dms_unlock_instance_s(head->dms_cmd);
 }
 
 // add function
@@ -424,7 +478,7 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
 #define DMS_WORK_THREAD_TASK_GROUP2     1
 #define DMS_WORK_THREAD_TASK_GROUP3     1
 
-static mes_task_group_id_t dms_msg_group_id(uint8 cmd)
+static mes_task_group_id_t dms_msg_group_id(uint32 cmd)
 {
     switch (cmd) {
         case MSG_REQ_SYNC_STEP:
@@ -462,7 +516,7 @@ void dms_set_command_group(void)
 {
     uint8 group_id = 0;
 
-    for (uint8 i = 0; i < MSG_CMD_CEIL; i++) {
+    for (uint32 i = 0; i < MSG_CMD_CEIL; i++) {
         group_id = dms_msg_group_id(i);
         mfc_set_command_task_group(i, group_id);
     }
@@ -836,6 +890,7 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.scrlock_ctx.enable = dms_profile->enable_scrlock;
     g_dms.gdb_in_progress = CM_FALSE;
     g_dms.max_wait_time = dms_check_max_wait_time(dms_profile->max_wait_time);
+    dms_init_cluster_proto_version();
 }
 
 static void dms_init_mfc(dms_profile_t *dms_profile)

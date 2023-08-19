@@ -814,6 +814,16 @@ DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_po
 DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned long long oldest_xmin,
     unsigned char dest_id);
 
+/*
+ * @brief get message protocol version before send
+ * @[in]param is_broadcast -  broadcast msg or not
+ * @[in]param dest_id - if not broadcast, represent destination node
+ *                      if broadcast, this param not work, 255 is recommended
+ * @[in]param dest_id -  destination instance id
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE unsigned int dms_get_send_proto_version(unsigned char is_broadcast, unsigned char dest_id);
+
 #ifdef __cplusplus
 }
 #endif

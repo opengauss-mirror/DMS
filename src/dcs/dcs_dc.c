@@ -26,6 +26,7 @@
 #include "dcs_msg.h"
 #include "dms_msg.h"
 #include "dms_error.h"
+#include "dms_api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,15 +37,18 @@ extern "C" {
 
 void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(mes_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
     uint32 output_msg_len = 0;
     char output_msg[DCS_BROADCAST_OUTPUT_MSG_LEN] = {0};
-    mes_message_head_t *head = (mes_message_head_t *)(receive_msg->buffer);
-    char *data = receive_msg->buffer + sizeof(mes_message_head_t);
-    uint32 len = (uint32)(head->size - sizeof(mes_message_head_t));
-    int32 ret = g_dms.callback.process_broadcast(process_ctx->db_handle, data, len, output_msg, &output_msg_len);
+    dms_message_head_t *head = (dms_message_head_t *)(receive_msg->buffer);
+    char *data = receive_msg->buffer + sizeof(dms_message_head_t);
+    uint32 len = (uint32)(head->mes_head.size - sizeof(dms_message_head_t));
+    dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = output_msg,
+        .output_msg_len = &output_msg_len, .msg_version = head->msg_proto_ver};
+
+    int32 ret = g_dms.callback.process_broadcast(process_ctx->db_handle, &broad_ctx);
     if (output_msg_len != 0) {
-        char ack_buf[DCS_BROADCAST_OUTPUT_MSG_LEN + sizeof(mes_message_head_t)];
+        char ack_buf[DCS_BROADCAST_OUTPUT_MSG_LEN + sizeof(dms_message_head_t)];
         cm_ack_result_msg2(process_ctx, receive_msg, MSG_ACK_BROADCAST_WITH_MSG, output_msg, output_msg_len, ack_buf);
     } else {
         cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BROADCAST, ret);
@@ -57,14 +61,15 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_inst, ch
     uint32 len;
     char *data;
     int ret;
-    mes_message_head_t *head;
+    dms_message_head_t *head;
 
     for (i = 0; i < CM_MAX_INSTANCES; i++) {
         if (DCS_IS_INST_SEND(succ_inst, i) && recv_msg[i] != NULL) {
-            head = (mes_message_head_t *)recv_msg[i];
-            data = recv_msg[i] + sizeof(mes_message_head_t);
-            len = (uint32)(head->size - sizeof(mes_message_head_t));
-            ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, data, len);
+            head = (dms_message_head_t *)recv_msg[i];
+            data = recv_msg[i] + sizeof(dms_message_head_t);
+            len = (uint32)(head->mes_head.size - sizeof(dms_message_head_t));
+            dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .msg_version = head->msg_proto_ver};
+            ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
             if (ret != DMS_SUCCESS) {
                 return ret;
             }
@@ -73,70 +78,39 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_inst, ch
     return DMS_SUCCESS;
 }
 
-static void dcs_release_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_inst, char *recv_msg[CM_MAX_INSTANCES])
-{
-    uint32 i;
-    mes_message_t msg;
-    for (i = 0; i < CM_MAX_INSTANCES; i++) {
-        if (DCS_IS_INST_SEND(succ_inst, i) && recv_msg[i] != NULL) {
-            msg.buffer = recv_msg[i];
-            msg.head = (mes_message_head_t *)recv_msg[i];
-            mfc_release_message_buf(&msg);
-        }
-    }
-}
-
-static int dcs_handle_recv_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_inst, uint32 timeout)
-{
-    int ret;
-    char *recv_msg[CM_MAX_INSTANCES] = {0};
-
-    ret = mfc_wait_acks_and_recv_msg(dms_ctx->sess_id, timeout, succ_inst, recv_msg);
-    if (ret == DMS_SUCCESS) {
-        ret = dcs_handle_broadcast_msg(dms_ctx, succ_inst, recv_msg);
-    }
-
-    dcs_release_broadcast_msg(dms_ctx, succ_inst, recv_msg);
-    return ret;
-}
-
 static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32 len, uint32 timeout, bool8 handle_msg,
     msg_command_t cmd)
 {
     uint64 succ_inst = 0;
-    mes_message_head_t head;
+    dms_message_head_t head;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
-    head.size = (uint16)(sizeof(mes_message_head_t) + len);
-    head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    head.mes_head.size = (uint16)(sizeof(dms_message_head_t) + len);
+    head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
 
     uint64 all_inst = reform_info->bitmap_connect;
 #ifdef OPENGAUSS
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
     all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
-    mfc_broadcast2(dms_ctx->sess_id, all_inst, &head, (const void *)data, &succ_inst);
-    if (!handle_msg) {
-        (void)mfc_wait_acks2(dms_ctx->sess_id, timeout, &succ_inst);
-        if (all_inst == succ_inst) {
-            return DMS_SUCCESS;
-        }
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
-        return ERRNO_DMS_DCS_BROADCAST_FAILED;
-    }
+    mfc_broadcast3(dms_ctx->sess_id, all_inst, &head, sizeof(dms_message_head_t), (const void *)data, &succ_inst);
 
     char *recv_msg[CM_MAX_INSTANCES] = { 0 };
     int32 ret = mfc_wait_acks_and_recv_msg(dms_ctx->sess_id, timeout, succ_inst, recv_msg);
     if (ret != DMS_SUCCESS || all_inst != succ_inst) {
         if (ret == DMS_SUCCESS) {
-            dcs_release_broadcast_msg(dms_ctx, succ_inst, recv_msg);
+            dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
         }
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
+
+    if (!handle_msg) {
+        return ret;
+    }
     ret = dcs_handle_broadcast_msg(dms_ctx, succ_inst, recv_msg);
-    dcs_release_broadcast_msg(dms_ctx, succ_inst, recv_msg);
+    dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
     return ret;
 }
 
@@ -188,17 +162,17 @@ int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigne
 {
     dms_reset_error();
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    mes_message_head_t head;
+    dms_message_head_t head;
 
     DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_BROADCAST, 0, dms_ctx->inst_id, 0,  dms_ctx->sess_id, CM_INVALID_ID16);
-    head.size = (uint16)(sizeof(mes_message_head_t) + len);
-    head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    head.mes_head.size = (uint16)(sizeof(dms_message_head_t) + len);
+    head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     uint64 all_inst = reform_info->bitmap_connect;
 #ifdef OPENGAUSS
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
     all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
-    mfc_broadcast2(dms_ctx->sess_id, all_inst, &head, (const void *)data, success_inst);
+    mfc_broadcast3(dms_ctx->sess_id, all_inst, &head, sizeof(dms_message_head_t), (const void *)data, success_inst);
     if (*success_inst == all_inst) {
         return DMS_SUCCESS;
     }
@@ -215,12 +189,17 @@ int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout,
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
     all_inst = all_inst & (~((uint64)0x1 << inst_id));
-    (void)mfc_wait_acks2(sid, timeout, success_inst);
-    if (all_inst == *success_inst) {
-        return DMS_SUCCESS;
+    char *recv_msg[DMS_MAX_INSTANCES] = { 0 };
+    int32 ret = mfc_wait_acks_and_recv_msg_with_judge(sid, timeout, all_inst, recv_msg, success_inst);
+    if (ret != CM_SUCCESS || all_inst != *success_inst) {
+        if (ret == CM_SUCCESS) {
+            dms_release_recv_acks_after_broadcast(all_inst, recv_msg);
+        }
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
+        return DMS_ERROR;
     }
-    DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
-    return DMS_ERROR;    
+    dms_release_recv_acks_after_broadcast(all_inst, recv_msg);
+    return DMS_SUCCESS;
 }
 
 int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
@@ -231,8 +210,8 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&boc_req.head, MSG_REQ_BOC, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
-    boc_req.head.size = (uint16)sizeof(dcs_boc_req_t);
-    boc_req.head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    boc_req.head.mes_head.size = (uint16)sizeof(dcs_boc_req_t);
+    boc_req.head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
     boc_req.commit_scn = commit_scn;
     boc_req.min_scn = min_scn;
     boc_req.inst_id = dms_ctx->inst_id;
@@ -255,7 +234,12 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
 int dms_wait_boc(unsigned int sid, unsigned int timeout, unsigned long long success_inst)
 {
     dms_reset_error();
-    return mfc_wait_acks(sid, timeout, success_inst);
+    char *recv_msg[DMS_MAX_INSTANCES] = { 0 };
+    int32 ret = mfc_wait_acks_and_recv_msg(sid, timeout, success_inst, recv_msg);
+    if (ret == CM_SUCCESS) {
+        dms_release_recv_acks_after_broadcast(success_inst, recv_msg);
+    }
+    return ret;
 }
 
 int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned int len,
@@ -264,13 +248,13 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
     dms_reset_error();
     int32 ret = DMS_SUCCESS;
     uint64 succ_inst = 0;
-    mes_message_head_t head;
-    uint16 size = (uint16)(sizeof(mes_message_head_t) + len);
+    dms_message_head_t head;
+    uint16 size = (uint16)(sizeof(dms_message_head_t) + len);
     reform_info_t *reform_info = DMS_REFORM_INFO;
     DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_OPENGAUSS_DDLLOCK, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
 
-    head.size = size;
-    head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    head.mes_head.size = size;
+    head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
 
     uint64 all_inst = reform_info->bitmap_connect;
     if (!g_dms.enable_reform) {
@@ -303,14 +287,22 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
             break;
     }
 
-    mfc_broadcast2(dms_ctx->sess_id, invld_insts, &head, (const void *)data, &succ_inst);
+    mfc_broadcast3(dms_ctx->sess_id, invld_insts, &head, sizeof(dms_message_head_t), (const void *)data, &succ_inst);
 
-    if (!handle_recv_msg && timeout > 0) {
-        ret = mfc_wait_acks(dms_ctx->sess_id, timeout, succ_inst);
-    } else {
-        ret = dcs_handle_recv_broadcast_msg(dms_ctx, succ_inst, timeout);
+    char *recv_msg[DMS_MAX_INSTANCES] = { 0 };
+    ret = mfc_wait_acks_and_recv_msg(dms_ctx->sess_id, timeout, succ_inst, recv_msg);
+    if (ret != DMS_SUCCESS || invld_insts != succ_inst) {
+        if (ret == CM_SUCCESS) {
+            dms_release_recv_acks_after_broadcast(invld_insts, recv_msg);
+        }
+        return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
 
+    if (!handle_recv_msg && timeout > 0) {
+        return ret;
+    }
+    ret = dcs_handle_broadcast_msg(dms_ctx, succ_inst, recv_msg);
+    dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
     return ret;
 }
 

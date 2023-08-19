@@ -166,7 +166,6 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_FOR_BUILD,
     DMS_REFORM_TYPE_FOR_FAILOVER,
     DMS_REFORM_TYPE_FOR_SWITCHOVER,
-    DMS_REFORM_TYPE_FOR_RST_RECOVER,
 
     // for openGauss
     DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS,
@@ -177,6 +176,7 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_FOR_FULL_CLEAN, // for all instances are online and stable, and all instances status is IN
     DMS_REFORM_TYPE_FOR_MAINTAIN,   // for start database without CM, every instance is supported
     // New type need to be added start from here
+    DMS_REFORM_TYPE_FOR_RST_RECOVER,
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
 

@@ -468,13 +468,13 @@ int dms_switchover(unsigned int sess_id)
         dms_reform_init_req_switchover(&req, reformer_id, (uint16)sess_id);
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.mes_head.dst_inst);
             return ret;
         }
 
         ret = dms_reform_req_switchover_wait((uint16)sess_id, &start_time);
         if (ret == ERR_MES_WAIT_OVERTIME) {
-            LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.dst_inst);
+            LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.mes_head.dst_inst);
             continue;
         } else {
             break;
