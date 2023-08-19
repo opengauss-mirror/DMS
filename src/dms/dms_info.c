@@ -103,8 +103,10 @@ static int dms_info_reform(reform_info_t *reform_info, share_info_t *share_info,
     DMS_RETURN_IF_ERROR(dms_info_append_uint64(buf, len, "INSTANCE_ID", (uint64)g_dms.inst_id));
     DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "DMS_ROLE", reform_info->dms_role == DMS_ROLE_REFORMER,
         "REFORMER", "PARTNER"));
-    DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "PROC_STATUS", (bool32)dms_reform_in_process(),
-        "RUNNING", "FINISHED"));
+    if (curr) {
+        DMS_RETURN_IF_ERROR(dms_info_append_bool(buf, len, "PROC_STATUS", (bool32)dms_reform_in_process(),
+            "RUNNING", "FINISHED"));
+    }
     if (reform_info->reform_done && curr) {
         return dms_info_append_string(buf, len, "REFORM_STATUS", "FINISHED");
     }
