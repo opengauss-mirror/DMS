@@ -837,7 +837,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
         *owner_id = (uint8)(*(uint32 *)MES_MESSAGE_BODY(&msg));
     } else {
         cm_print_error_msg(msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(msg.buffer) + sizeof(msg_error_t)));
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
         mfc_release_message_buf(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
