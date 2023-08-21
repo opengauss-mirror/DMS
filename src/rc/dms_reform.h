@@ -152,6 +152,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_DRC_VALIDATE,
     DMS_REFORM_STEP_LOCK_INSTANCE,                  // get X mode instance lock for reform
     DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
+    DMS_REFORM_STEP_RESET_USER,
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;

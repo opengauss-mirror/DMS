@@ -669,6 +669,7 @@ typedef void (*dms_set_db_role)(void *db_handle, unsigned char is_primary);
 typedef int (*dms_mount_to_recovery)(void *db_handle, unsigned int *has_offline);
 typedef int(*dms_get_open_status)(void *db_handle);
 typedef void (*dms_reform_set_dms_role)(void *db_handle, unsigned int reformer_id);
+typedef void (*dms_reset_user)(void *db_handle, unsigned long long list_in);
 
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
@@ -739,6 +740,7 @@ typedef struct st_dms_callback {
     dms_ctl_rcy_clean_parallel_t dms_ctl_rcy_clean_parallel;
     dms_check_if_build_complete check_if_build_complete;
     dms_check_if_restore_recover check_if_restore_recover;
+    dms_reset_user reset_user;
 
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
@@ -935,7 +937,7 @@ typedef enum st_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           87
+#define DMS_LOCAL_VERSION           88
 
 #ifdef __cplusplus
 }

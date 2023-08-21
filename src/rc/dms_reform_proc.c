@@ -2474,6 +2474,16 @@ static int dms_reform_set_remove_point(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_reset_user()
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    g_dms.callback.reset_user(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL },
     [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL },
@@ -2521,6 +2531,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL },
     [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
     [DMS_REFORM_STEP_SET_REMOVE_POINT] = { "SET_REMOVE_POINT", dms_reform_set_remove_point, NULL},
+    [DMS_REFORM_STEP_RESET_USER] = { "RESET_USER", dms_reform_reset_user, NULL },
 };
 
 static void dms_reform_inner(void)
