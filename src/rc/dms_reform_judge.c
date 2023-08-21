@@ -1075,6 +1075,12 @@ static void dms_reform_judgement_page_access(void)
     dms_reform_add_step(DMS_REFORM_STEP_PAGE_ACCESS);
 }
 
+static void dms_reform_judgement_reset_user(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_RESET_USER);
+}
+
 // Notice: DRC_INACCESS must be used before
 static void dms_reform_judgement_drc_access(void)
 {
@@ -1325,6 +1331,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_df_recovery();
+    dms_reform_judgement_reset_user();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
@@ -1356,6 +1363,7 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_migrate(inst_lists);
+    dms_reform_judgement_reset_user();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
@@ -1397,6 +1405,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_df_recovery();
+    dms_reform_judgement_reset_user();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
@@ -1494,6 +1503,7 @@ static void dms_reform_judgement_full_clean(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
+    dms_reform_judgement_reset_user();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_switchover_promote();
