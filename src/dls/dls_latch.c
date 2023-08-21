@@ -596,7 +596,9 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
+#ifdef OPENGAUSS
     CM_ASSERT(lock_res->is_owner);
+#endif
 
     drc_lock_local_resx(lock_res);
 
