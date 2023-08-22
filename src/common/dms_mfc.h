@@ -84,12 +84,10 @@ static inline uint16 mfc_clean_tickets(mfc_ticket_t *ticket)
 #define mfc_disconnect_batch mes_disconnect_batch
 #define mfc_connection_ready mes_connection_ready
 int32 mfc_send_data(dms_message_head_t *msg);
-int32 mfc_send_data2(dms_message_head_t *head, const void *body);
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body);
 int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2);
 int32 mfc_send_data_internal(mes_message_head_t *msg);
-int32 mfc_send_data2_internal(mes_message_head_t *head, const void *body);
 int32 mfc_send_data3_internal(mes_message_head_t *head, uint32 head_size, const void *body);
 int32 mfc_send_data4_internal(mes_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2);
@@ -99,18 +97,11 @@ static inline void mfc_broadcast(uint32 sid, uint64 inst_bits, const void *msg_d
 {
     mes_broadcast3(sid, inst_bits, msg_data, success_inst, mfc_send_data_internal);
 }
-static inline void mfc_broadcast2(uint32 sid, uint64 inst_bits, dms_message_head_t *head, const void *body,
-    uint64 *success_inst)
-{
-    mes_broadcast4(sid, inst_bits, &(head->mes_head), body, success_inst, mfc_send_data2_internal);
-}
 static inline void mfc_broadcast3(uint32 sid, uint64 inst_bits, dms_message_head_t *head, uint32 head_size,
     const void *body, uint64 *success_inst)
 {
     mes_broadcast5(sid, inst_bits, &(head->mes_head), head_size, body, success_inst, mfc_send_data3_internal);
 }
-int32 mfc_broadcast_and_wait(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout, uint64 *success_inst);
-int32 mfc_broadcast_and_wait2(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout, uint64 *succ_insts);
 int32 mfc_broadcast_and_recv_msg_with_judge(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
     uint64 *send_insts);
 #define mfc_get_current_rsn mes_get_current_rsn
@@ -132,19 +123,6 @@ void dms_release_recv_acks_after_broadcast(uint64 recv_insts, char *recv_msg[MES
 #define mfc_get_elapsed_count mes_get_elapsed_count
 #define mfc_register_decrypt_pwd mes_register_decrypt_pwd
 #define mfc_get_max_watting_rooms mes_get_max_watting_rooms
-
-#define DMS_HANDLE_RECV_ACK(head, ret)                                               \
-    do {                                                                             \
-        dms_set_node_proto_version((head)->mes_head.src_inst, (head)->sw_proto_ver); \
-        if ((head)->dms_cmd == MSG_ACK_VERSION_NOT_MATCH) {                          \
-            LOG_RUN_INF("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, " \
-                "dst_sid:%u, msg_proto_ver:%u, my sw_proto_ver:%u",                  \
-                (uint32)(head)->mes_head.src_inst, (uint32)(head)->mes_head.src_sid, \
-                (uint32)(head)->mes_head.dst_inst, (uint32)(head)->mes_head.dst_sid, \
-                (head)->msg_proto_ver, SW_PROTO_VER);                                \
-            (*ret) = ERRNO_DMS_MSG_VERSION_NOT_MATCH;                                \
-        }                                                                            \
-    } while (0)
 
 #ifdef __cplusplus
 }

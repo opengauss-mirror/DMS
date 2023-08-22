@@ -107,49 +107,6 @@ int32 mfc_send_data(dms_message_head_t *msg)
     return mfc_send_data_internal(&msg->mes_head);
 }
 
-static inline int32 mfc_send_data2_req(const mes_message_head_t *head, const void *body)
-{
-    if (!mfc_try_get_ticket(head->dst_inst)) {
-        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
-        return ERRNO_DMS_MFC_NO_TICKETS;
-    }
-
-    int ret = mes_send_data2(head, body);
-    if (ret != CM_SUCCESS) {
-        mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
-    }
-
-    return ret;
-}
-
-static inline int32 mfc_send_data2_ack(mes_message_head_t *head, const void *body)
-{
-    head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
-    int ret = mes_send_data2(head, body);
-    if (ret != CM_SUCCESS) {
-        mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
-    }
-    return ret;
-}
-
-int32 mfc_send_data2_internal(mes_message_head_t *head, const void *body)
-{
-    if (DMS_MFC_OFF) {
-        return mes_send_data2(head, body);
-    }
-
-    if (mfc_msg_is_req(head)) {
-        return mfc_send_data2_req(head, body);
-    } else {
-        return mfc_send_data2_ack(head, body);
-    }
-}
-
-int32 mfc_send_data2(dms_message_head_t *head, const void *body)
-{
-    return mfc_send_data2_internal(&head->mes_head, body);
-}
-
 static inline int32 mfc_send_data3_req(mes_message_head_t *head, uint32 head_size, const void *body)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
@@ -240,21 +197,35 @@ int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *bod
     return mfc_send_data4_internal(&head->mes_head, head_size, body1, len1, body2, len2);
 }
 
+int32 dms_handle_recv_ack_internal(dms_message_head_t *head)
+{
+    dms_set_node_proto_version((head)->mes_head.src_inst, (head)->sw_proto_ver);
+    if ((head)->dms_cmd == MSG_ACK_VERSION_NOT_MATCH) {
+        LOG_RUN_INF("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
+            "dst_sid:%u, msg_proto_ver:%u, my sw_proto_ver:%u",
+            (uint32)(head)->mes_head.src_inst, (uint32)(head)->mes_head.src_sid,
+            (uint32)(head)->mes_head.dst_inst, (uint32)(head)->mes_head.dst_sid,
+            (head)->msg_proto_ver, SW_PROTO_VER);
+        return ERRNO_DMS_MSG_VERSION_NOT_MATCH;
+    }
+    return DMS_SUCCESS;
+}
+
 int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout)
 {
     int ret = mes_allocbuf_and_recv_data(sid, msg, timeout);
     if (DMS_MFC_OFF) {
         DMS_RETURN_IF_ERROR(ret);
         dms_message_head_t *dms_head = get_dms_head(msg);
-        DMS_HANDLE_RECV_ACK(dms_head, &ret);
+        ret = dms_handle_recv_ack_internal(dms_head);
         return ret;
     }
 
     DMS_RETURN_IF_ERROR(ret);
     dms_message_head_t *dms_head = get_dms_head(msg);
-    DMS_HANDLE_RECV_ACK(dms_head, &ret);
+    ret = dms_handle_recv_ack_internal(dms_head);
     mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->head->src_inst], msg->head->tickets);
-    return DMS_SUCCESS;
+    return ret;
 }
 
 static void mfc_wait_acks_add_tickets(uint64 success_inst, char *recv_msg[MES_MAX_INSTANCES])
@@ -295,38 +266,6 @@ static void mfc_wait_acks_add_tickets_and_release_msg2(uint64 *success_inst, cha
             mfc_release_message_buf(&msg);
         }
     }
-}
-
-int32 mfc_broadcast_and_wait(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
-    uint64 *success_inst)
-{
-    uint64 start_stat_time = 0;
-    mes_get_consume_time_start(&start_stat_time);
-    mes_broadcast3(sid, inst_bits, msg_data, success_inst, mfc_send_data_internal);
-    int ret = mfc_wait_acks(sid, timeout, *success_inst);
-    if (ret != CM_SUCCESS) {
-        LOG_RUN_ERR("[mes]mes_wait_acks failed.");
-        return ret;
-    }
-
-    mes_consume_with_time(((mes_message_head_t *)msg_data)->cmd, MES_TIME_TEST_MULTICAST_AND_WAIT, start_stat_time);
-    return CM_SUCCESS;
-}
-
-int32 mfc_broadcast_and_wait2(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
-    uint64 *succ_insts)
-{
-    uint64 start_stat_time = 0;
-    mes_get_consume_time_start(&start_stat_time);
-    mes_broadcast3(sid, inst_bits, msg_data, succ_insts, mfc_send_data_internal);
-    int ret = mfc_wait_acks2(sid, timeout, succ_insts);
-    if (ret != CM_SUCCESS) {
-        LOG_RUN_ERR("[mes]mes_wait_acks failed.");
-        return ret;
-    }
-
-    mes_consume_with_time(((mes_message_head_t *)msg_data)->cmd, MES_TIME_TEST_MULTICAST_AND_WAIT, start_stat_time);
-    return CM_SUCCESS;
 }
 
 int32 mfc_broadcast_and_recv_msg_with_judge(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
@@ -391,16 +330,21 @@ int32 dms_handle_recv_acks_after_broadcast(uint64 send_insts, char *recv_msg[MES
     }
 
     for (int i = 0; i < MES_MAX_INSTANCES; i++) {
-        if (MFC_NODE_IS_IN_BITMAP(send_insts, i)) {
-            dms_message_head_t *head = (dms_message_head_t*)recv_msg[i];
-            DMS_HANDLE_RECV_ACK(head, &ret);
-            if (success_recv_insts != NULL) {
-                dms_common_ack_t *ack_msg = (dms_common_ack_t*)recv_msg[i];
-                if (head->dms_cmd != MSG_ACK_VERSION_NOT_MATCH && ack_msg->ret == DMS_SUCCESS) {
-                    *success_recv_insts |= (0x1 << i);
-                }
+        if (MFC_NODE_IS_IN_BITMAP(send_insts, i) == 0) {
+            continue;
+        }
+        dms_message_head_t *head = (dms_message_head_t*)recv_msg[i];
+        ret = dms_handle_recv_ack_internal(head);
+        if (success_recv_insts != NULL) {
+            dms_common_ack_t *ack_msg = (dms_common_ack_t*)recv_msg[i];
+            if (head->dms_cmd != MSG_ACK_VERSION_NOT_MATCH && ack_msg->ret == DMS_SUCCESS) {
+                *success_recv_insts |= ((uint64)0x1 << i);
             }
         }
+    }
+
+    if (ret == MSG_ACK_VERSION_NOT_MATCH) {
+        dms_release_recv_acks_after_broadcast(send_insts, recv_msg);
     }
     return ret;
 }

@@ -53,7 +53,8 @@ int dms_reform_send_data(dms_message_head_t *msg_head, uint32 sess_id)
         msg_head->mes_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
         ret = mfc_send_data(msg_head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_send_data SEND error: %d, dst_id: %d", ret, msg_head->mes_head.dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_send_data SEND error: %d, dst_id: %d",
+                ret, msg_head->mes_head.dst_inst);
             return ret;
         }
 

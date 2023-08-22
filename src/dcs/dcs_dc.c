@@ -68,7 +68,8 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, uint64 succ_inst, ch
             head = (dms_message_head_t *)recv_msg[i];
             data = recv_msg[i] + sizeof(dms_message_head_t);
             len = (uint32)(head->mes_head.size - sizeof(dms_message_head_t));
-            dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .msg_version = head->msg_proto_ver};
+            dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = NULL,
+                .output_msg_len = NULL, .msg_version = head->msg_proto_ver};
             ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
             if (ret != DMS_SUCCESS) {
                 return ret;
@@ -107,6 +108,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     }
 
     if (!handle_msg) {
+        dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
         return ret;
     }
     ret = dcs_handle_broadcast_msg(dms_ctx, succ_inst, recv_msg);
@@ -299,6 +301,7 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
     }
 
     if (!handle_recv_msg && timeout > 0) {
+        dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
         return ret;
     }
     ret = dcs_handle_broadcast_msg(dms_ctx, succ_inst, recv_msg);

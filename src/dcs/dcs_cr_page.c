@@ -51,7 +51,7 @@ static int dcs_send_pcr_ack(dms_process_context_t *ctx, msg_pcr_request_t *reque
 
     LOG_DEBUG_INF("[PCR][%s][send pcr ack] cr_type %u src_inst %u src_sid %u dst_inst %u dst_sid %u force_cvt %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, (uint32)msg.head.mes_head.src_inst,
-        (uint32)msg.head.mes_head.src_sid, (uint32)msg.head.mes_head.dst_inst, 
+        (uint32)msg.head.mes_head.src_sid, (uint32)msg.head.mes_head.dst_inst,
         (uint32)msg.head.mes_head.dst_sid, (uint32)msg.force_cvt);
 
     if (fb_mark == NULL) {
@@ -74,7 +74,8 @@ static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *r
     LOG_DEBUG_INF("[PCR][%s][send pcr request] cr_type %u query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u force_cvt %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)request->head.mes_head.src_inst, (uint32)request->head.mes_head.src_sid, (uint32)dst_id, (uint32)request->force_cvt);
+        (uint32)request->head.mes_head.src_inst, (uint32)request->head.mes_head.src_sid, (uint32)dst_id,
+        (uint32)request->force_cvt);
 
     int ret = mfc_send_data(&request->head);
     if (ret != DMS_SUCCESS) {
@@ -94,7 +95,7 @@ static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *requ
     DMS_SECUREC_CHECK(err);
 
     LOG_DEBUG_INF("[PCR][%s][send txn wait] wxid %s src_inst %u src_sid %u dst_inst %u dst_sid %u",
-        cm_display_pageid(request->pageid), cm_display_xid(wxid), (uint32)msg.head.mes_head.src_inst, 
+        cm_display_pageid(request->pageid), cm_display_xid(wxid), (uint32)msg.head.mes_head.src_inst,
         (uint32)msg.head.mes_head.src_sid, (uint32)msg.head.mes_head.dst_inst, (uint32)msg.head.mes_head.dst_sid);
 
     int ret = mfc_send_data(&msg.head);

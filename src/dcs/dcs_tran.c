@@ -291,7 +291,7 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, mes_message_t *re
 
     mfc_release_message_buf(receive_msg);
     if (mfc_send_data3(&ack_head, sizeof(dms_message_head_t), &txn_info) != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[TXN] send txn info ack message failed, src_inst = %u, dst_inst = %u", 
+        LOG_DEBUG_ERR("[TXN] send txn info ack message failed, src_inst = %u, dst_inst = %u",
             (uint32)ack_head.mes_head.src_inst, (uint32)ack_head.mes_head.dst_inst);
     }
 #endif
