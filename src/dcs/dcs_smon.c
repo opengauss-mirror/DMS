@@ -234,8 +234,8 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, mes_message_t *re
 
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[SMON] process itl lock message from instance(%u),ret(%d) failed", 
-        (uint32)head->mes_head.dst_inst, ret);
+        LOG_DEBUG_ERR("[SMON] process itl lock message from instance(%u),ret(%d) failed",
+            (uint32)head->mes_head.dst_inst, ret);
         g_dms.callback.mem_free(ctx->db_handle, send_msg);
         return;
     }
@@ -303,7 +303,7 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, mes_message_t *recei
 
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[SMON] process dead lock sql message from instance(%u), sid(%u) failed", 
+        LOG_DEBUG_ERR("[SMON] process dead lock sql message from instance(%u), sid(%u) failed",
             (uint32)head->mes_head.dst_inst, (uint32)sid);
         g_dms.callback.mem_free(ctx->db_handle, send_msg);
         g_dms.callback.mem_free(ctx->db_handle, sql_str);
@@ -680,7 +680,7 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(recv_msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
@@ -752,7 +752,7 @@ int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, 
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(recv_msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
@@ -813,7 +813,7 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(recv_msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
@@ -885,7 +885,7 @@ int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(recv_msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));

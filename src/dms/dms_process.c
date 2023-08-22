@@ -271,12 +271,12 @@ void dms_send_ack_version_not_match(dms_process_context_t *ctx, mes_message_t *r
     if (ret != CM_SUCCESS) {
         LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
             "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
-            ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst, 
+            ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst,
             ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, SW_PROTO_VER);
     }
-    LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
+    LOG_RUN_INF("[DMS] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
         "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
-        ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst, 
+        ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst,
         ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, SW_PROTO_VER);
 }
 

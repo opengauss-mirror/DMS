@@ -2032,7 +2032,8 @@ static int dms_reform_sync_step_send(void)
 
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d", ret, req.head.mes_head.dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d",
+                ret, req.head.mes_head.dst_inst);
             return ret;
         }
 
