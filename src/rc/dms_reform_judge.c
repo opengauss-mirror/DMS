@@ -1745,6 +1745,11 @@ static bool32 dms_reform_judgement_maintain_check(instance_list_t *inst_lists)
 
 static bool32 dms_reform_judgement_rst_recover_check(instance_list_t *inst_lists)
 {
+    // if instance status is not join, finish current judgement, that means last rst recover has finished 
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, new_join: 0");
+        return CM_FALSE;
+    }
     return CM_TRUE;
 }
 
