@@ -58,12 +58,22 @@ void dms_reform_next_step(void)
     dms_reform_set_next_step(step);
 }
 
+static int dms_reform_db_prepare(void)
+{
+#ifdef OPENGAUSS
+    return DMS_SUCCESS;
+#else
+    return g_dms.callback.db_prepare(g_dms.reform_ctx.handle_proc);
+#endif
+}
+
 static int dms_reform_prepare(void)
 {
     dms_reform_proc_stat_start(DRPS_REFORM);
     dms_reform_proc_stat_start(DMS_REFORM_STEP_PREPARE);
     LOG_RUN_FUNC_ENTER;
     dms_scrlock_stop_server();
+    dms_reform_db_prepare();
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
