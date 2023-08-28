@@ -402,9 +402,22 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     DRC_DISPLAY(buf_res, "clean");
     dms_reform_clean_buf_res_fault_inst_info_inner(buf_res);
     if (buf_res->claimed_owner == CM_INVALID_ID8) {
-        dms_reform_proc_stat_times(DRPS_DRC_CLEAN_NO_OWNER);
-        return DMS_SUCCESS;
-    } else if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
+        if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
+            dms_reform_proc_stat_times(DRPS_DRC_CLEAN_NO_OWNER);
+            return DMS_SUCCESS;
+        } else if (bitmap64_exist(&share_info->bitmap_clean, buf_res->converting.req_info.inst_id)) {
+            init_drc_cvt_item(&buf_res->converting);
+            dms_reform_proc_stat_times(DRPS_DRC_CLEAN_NO_OWNER);
+            return DMS_SUCCESS;
+        } else {
+            dms_reform_proc_stat_start(DRPS_DRC_CLEAN_CONFIRM_CVT);
+            ret = dms_reform_confirm_converting(buf_res, sess_id);
+            dms_reform_proc_stat_end(DRPS_DRC_CLEAN_CONFIRM_CVT);
+            return ret;
+        }
+    }
+    
+    if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
         if (bitmap64_exist(&share_info->bitmap_clean, buf_res->claimed_owner)) {
             buf_res->claimed_owner = CM_INVALID_ID8;
         }
