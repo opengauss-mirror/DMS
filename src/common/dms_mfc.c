@@ -334,6 +334,8 @@ int32 dms_handle_recv_acks_after_broadcast(uint64 send_insts, char *recv_msg[MES
             continue;
         }
         dms_message_head_t *head = (dms_message_head_t*)recv_msg[i];
+        cm_panic_log(head != NULL, "caller think all send_insts:%llu send success and ack recvived, but inst:%d ack "
+            "is NULL. please check", send_insts, i);
         ret = dms_handle_recv_ack_internal(head);
         if (success_recv_insts != NULL) {
             dms_common_ack_t *ack_msg = (dms_common_ack_t*)recv_msg[i];
