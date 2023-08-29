@@ -881,6 +881,7 @@ int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, uint64 oldest_xmin, u
         "dst_inst:%u, rsn:%llu",
         send_msg.head.mes_head.src_inst, send_msg.head.mes_head.src_sid, send_msg.head.mes_head.dst_inst,
         send_msg.head.mes_head.rsn);
+    mfc_release_message_buf(&ack_msg);
     return ret;
 }
 
