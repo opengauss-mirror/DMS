@@ -360,6 +360,7 @@ void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, mes_messag
 void dms_cancel_request_res(dms_context_t *dms_ctx);
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 void dms_smon_entry(thread_t *thread);
+void dms_smon_recycle_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, mes_message_t *receive_msg);
 int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id);

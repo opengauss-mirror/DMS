@@ -40,7 +40,6 @@
 extern "C" {
 #endif
 
-#define DMS_DRC_SHORT_SLEEP cm_sleep(10)
 #define DRC_RES_CTX (&g_drc_res_ctx)
 #define DRC_PART_MNGR (&g_drc_res_ctx.part_mngr)
 #define DRC_PART_REMASTER_MNGR (&g_drc_res_ctx.part_mngr.remaster_mngr)
@@ -249,6 +248,7 @@ typedef struct st_drc_res_ctx {
     thread_t                smon_thread;
     uint32                  smon_sid;
     void*                   smon_handle;
+    thread_t                smon_recycle_thread;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;
