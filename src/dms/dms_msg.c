@@ -105,10 +105,9 @@ void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 
 }
 
 static void dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, uint16 len,
-    uint8 type, uint64 invld_insts, dms_session_e sess_type, bool8 is_try)
+    uint8 type, uint64 invld_insts, dms_session_e sess_type, bool8 is_try, uint64 *succ_send_insts)
 {
     dms_invld_req_t req;
-    uint64 succ_insts = 0;
 
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALIDATE_SHARE_COPY, 0, ctx->inst_id, 0, ctx->sess_id, CM_INVALID_ID16);
     req.head.mes_head.size   = (uint16)sizeof(dms_invld_req_t);
@@ -124,24 +123,24 @@ static void dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, uin
     }
 
     dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_REQ, CM_TRUE);
-    mfc_broadcast(ctx->sess_id, invld_insts, (const void *)&req, &succ_insts);
-    if (succ_insts != invld_insts) {
-        LOG_DEBUG_ERR("[DMS][%s]:send failed, invld_insts=%llu, succ_insts=%llu",
-            cm_display_resid(req.resid, req.res_type), invld_insts, succ_insts);
+    mfc_broadcast(ctx->sess_id, invld_insts, (const void *)&req, succ_send_insts);
+    if (*succ_send_insts != invld_insts) {
+        LOG_DEBUG_ERR("[DMS][%s]:send failed, invld_insts=%llu, succ_send_insts=%llu",
+            cm_display_resid(req.resid, req.res_type), invld_insts, *succ_send_insts);
         return;
     }
 
-    LOG_DEBUG_INF("[DMS][%s]:send ok invld_insts=%llu, succ_insts=%llu",
-        cm_display_resid(req.resid, req.res_type), invld_insts, succ_insts);
+    LOG_DEBUG_INF("[DMS][%s]:send ok invld_insts=%llu, succ_send_insts=%llu",
+        cm_display_resid(req.resid, req.res_type), invld_insts, *succ_send_insts);
 }
 
-static inline void dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 invld_insts, uint64 *succ_insts)
+static inline void dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 send_insts, uint64 *succ_insts)
 {
     char *recv_msg[CM_MAX_INSTANCES] = { 0 };
-    int ret = mfc_wait_acks_and_recv_msg_with_judge(ctx->sess_id, DMS_WAIT_MAX_TIME, invld_insts, recv_msg,
+    int ret = mfc_wait_acks_and_recv_msg_with_judge(ctx->sess_id, DMS_WAIT_MAX_TIME, send_insts, recv_msg,
         succ_insts);
     if (ret == DMS_SUCCESS) {
-        dms_release_recv_acks_after_broadcast(invld_insts, recv_msg);
+        dms_release_recv_acks_after_broadcast(send_insts, recv_msg);
     }
     dms_end_stat(ctx->sess_id);
 }
@@ -223,6 +222,7 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
     uint64 succ_insts = 0;
     bool32 invld_local = CM_FALSE;
     uint64 invld_insts = copy_insts;
+    uint64 succ_send_insts = 0;
 
     if (can_direct && bitmap64_exist(&invld_insts, (uint8)ctx->inst_id)) {
         invld_local = CM_TRUE;
@@ -230,7 +230,7 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
     }
 
     if (invld_insts > 0) {
-        dms_send_invalidate_req(ctx, resid, len, type, invld_insts, sess_type, is_try);
+        dms_send_invalidate_req(ctx, resid, len, type, invld_insts, sess_type, is_try, &succ_send_insts);
     }
 
     if (invld_local) {
@@ -241,7 +241,7 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
 
     if (invld_insts > 0) {
         uint64 tmp_result = 0;
-        dms_handle_invalidate_ack(ctx, invld_insts, &tmp_result);
+        dms_handle_invalidate_ack(ctx, succ_send_insts, &tmp_result);
         if (tmp_result > 0) {
             bitmap64_union(&succ_insts, tmp_result);
         }
