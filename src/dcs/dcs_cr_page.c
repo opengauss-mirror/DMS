@@ -412,11 +412,13 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
                 g_dms.page_size);
         }
         if (ret != DMS_SUCCESS) {
+            dms_end_stat(dms_ctx->sess_id);
             break;
         }
 
         ret = mfc_allocbuf_and_recv_data((uint16)dms_ctx->sess_id, &message, DCS_CR_REQ_TIMEOUT);
         if (ret != DMS_SUCCESS) {
+            dms_end_stat(dms_ctx->sess_id);
             break;
         }
 

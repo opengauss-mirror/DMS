@@ -1049,6 +1049,7 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, mes_message_t *receive_
     mfc_release_message_buf(receive_msg);
 
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE)) {
+        dms_end_stat(proc_ctx->sess_id);
         LOG_DEBUG_ERR("[DMS][dms_proc_invld_req]: invalid req message");
         return;
     }
