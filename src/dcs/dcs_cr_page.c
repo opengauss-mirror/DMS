@@ -370,10 +370,6 @@ static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, mes
             *cr_status = DMS_CR_TRY_READ;
             return dcs_proc_msg_ack_txn_wait(dms_cr, message);
         }
-        case MSG_ACK_ERROR:
-            cm_print_error_msg(message->buffer);
-            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, message->buffer + sizeof(msg_error_t));
-            return ERRNO_DMS_COMMON_MSG_ACK;
         case MSG_ACK_GRANT_OWNER:
         case MSG_ACK_ALREADY_OWNER:
             *cr_status = DMS_CR_LOCAL_READ;
@@ -1013,10 +1009,6 @@ static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, mes_message_t *msg, 
             *is_found = *(bool8 *)MES_MESSAGE_BODY(msg);
             *is_empty_itl = CM_TRUE;
             return DMS_SUCCESS;
-        case MSG_ACK_ERROR:
-            cm_print_error_msg(msg->buffer);
-            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg->buffer + sizeof(msg_error_t));
-            return ERRNO_DMS_COMMON_MSG_ACK;
         case MSG_REQ_CHECK_VISIBLE: {
             CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(msg_cr_check_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
             msg_cr_check_t *check = (msg_cr_check_t *)(msg->buffer);

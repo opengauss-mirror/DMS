@@ -206,7 +206,21 @@ int32 dms_handle_recv_ack_internal(dms_message_head_t *head)
             (uint32)(head)->mes_head.src_inst, (uint32)(head)->mes_head.src_sid,
             (uint32)(head)->mes_head.dst_inst, (uint32)(head)->mes_head.dst_sid,
             (head)->msg_proto_ver, SW_PROTO_VER);
+        mfc_release_message_buf((mes_message_t *)head);
         return ERRNO_DMS_MSG_VERSION_NOT_MATCH;
+    }
+    return DMS_SUCCESS;
+}
+
+int32 dms_handle_recv_ack_error(mes_message_t *msg)
+{
+    dms_message_head_t *ack_dms_head = get_dms_head(msg);
+    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(msg->buffer);
+        msg_error_t *error_msg = (msg_error_t *)msg->buffer;
+        DMS_THROW_ERROR(error_msg->code);
+        mfc_release_message_buf(msg);
+        return error_msg->code;
     }
     return DMS_SUCCESS;
 }
@@ -218,14 +232,17 @@ int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout)
         DMS_RETURN_IF_ERROR(ret);
         dms_message_head_t *dms_head = get_dms_head(msg);
         ret = dms_handle_recv_ack_internal(dms_head);
-        return ret;
+        DMS_RETURN_IF_ERROR(ret);
+        return dms_handle_recv_ack_error(msg);
     }
 
     DMS_RETURN_IF_ERROR(ret);
     dms_message_head_t *dms_head = get_dms_head(msg);
     ret = dms_handle_recv_ack_internal(dms_head);
     mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->head->src_inst], msg->head->tickets);
-    return ret;
+    ret = dms_handle_recv_ack_internal(dms_head);
+    DMS_RETURN_IF_ERROR(ret);
+    return dms_handle_recv_ack_error(msg);
 }
 
 static void mfc_wait_acks_add_tickets(uint64 success_inst, char *recv_msg[MES_MAX_INSTANCES])
