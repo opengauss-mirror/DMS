@@ -824,6 +824,15 @@ DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned 
  */
 DMS_DECLARE unsigned int dms_get_send_proto_version(unsigned char is_broadcast, unsigned char dest_id);
 
+/*
+ * @brief retrieve mes statistics of waiting events
+ * @[in]param cmd - the type of mes waiting event
+ * @[out]param event_cnt - the count of the happenings of specified waiting event
+ * @[out]param event_time - the total cost time of specified waiting event
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */   
+DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt, 
+    unsigned long long *event_time);
 #ifdef __cplusplus
 }
 #endif

@@ -25,6 +25,7 @@
 #include "dms_stat.h"
 #include "dms_process.h"
 #include "dms.h"
+#include "mes_func.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -148,6 +149,16 @@ DMS_DECLARE void dms_reset_stat(void)
             stat->wait_count[j] = 0;
         }
     }
+}
+
+DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt, 
+    unsigned long long *event_time) 
+{
+    if (cmd >= CM_MAX_MES_MSG_CMD) {
+        return ERR_MES_CMD_TYPE_ERR;
+    }
+    mes_get_wait_event(cmd, event_cnt, event_time);
+    return DMS_SUCCESS;
 }
 
 #ifdef __cplusplus
