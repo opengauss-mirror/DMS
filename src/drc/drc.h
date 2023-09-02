@@ -249,6 +249,8 @@ typedef struct st_drc_res_ctx {
     uint32                  smon_sid;
     void*                   smon_handle;
     thread_t                smon_recycle_thread;
+    uint32                  smon_recycle_sid;
+    void*                   smon_recycle_handle;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;

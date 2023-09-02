@@ -669,6 +669,7 @@ static void drc_smon_ctx_deinit(void)
     cm_close_thread(&ctx->smon_thread);
     cm_close_thread(&ctx->smon_recycle_thread);
     DMS_RELEASE_DB_HANDLE(ctx->smon_handle);
+    DMS_RELEASE_DB_HANDLE(ctx->smon_recycle_handle);
 }
 
 static int32 init_drc_smon_ctx(void)
@@ -698,6 +699,13 @@ static int32 init_drc_smon_ctx(void)
 
     ctx->smon_handle = g_dms.callback.get_db_handle(&ctx->smon_sid, DMS_SESSION_TYPE_NONE);
     if (ctx->smon_handle == NULL) {
+        LOG_RUN_ERR("[DRC]fail to get db session");
+        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
+        return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
+    }
+
+    ctx->smon_recycle_handle = g_dms.callback.get_db_handle(&ctx->smon_recycle_sid, DMS_SESSION_TYPE_NONE);
+    if (ctx->smon_recycle_handle == NULL) {
         LOG_RUN_ERR("[DRC]fail to get db session");
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
