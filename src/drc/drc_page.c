@@ -671,8 +671,8 @@ uint32 drc_recycle_buf_res_by_part(bilist_t* part_list, uint8 res_type, uint32 t
     uint32 recycled_cnt = 0;
 
     ctx.inst_id   = (uint8)g_dms.inst_id;
-    ctx.sess_id   = resctx->smon_sid;
-    ctx.db_handle = resctx->smon_handle;
+    ctx.sess_id   = resctx->smon_recycle_sid;
+    ctx.db_handle = resctx->smon_recycle_handle;
 
     while (node != NULL) {
         buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);

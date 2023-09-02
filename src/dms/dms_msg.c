@@ -1538,8 +1538,6 @@ void dms_smon_entry(thread_t *thread)
     res_id_t res_id;
 
     while (!thread->closed) {
-        drc_recycle_buf_res_on_demand();
-
         if (cm_chan_recv_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_MSG_SLEEP_TIME) != CM_SUCCESS) {
             continue;
         }
