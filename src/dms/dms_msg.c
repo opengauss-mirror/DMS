@@ -122,7 +122,6 @@ static void dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, uin
         return;
     }
 
-    dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_REQ, CM_TRUE);
     mfc_broadcast(ctx->sess_id, invld_insts, (const void *)&req, succ_send_insts);
     if (*succ_send_insts != invld_insts) {
         LOG_DEBUG_ERR("[DMS][%s]:send failed, invld_insts=%llu, succ_send_insts=%llu",
@@ -142,7 +141,6 @@ static inline void dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 
     if (ret == DMS_SUCCESS) {
         dms_release_recv_acks_after_broadcast(send_insts, recv_msg);
     }
-    dms_end_stat(ctx->sess_id);
 }
 
 int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 len,
@@ -230,6 +228,7 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
     }
 
     if (invld_insts > 0) {
+        dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_REQ, CM_TRUE);
         dms_send_invalidate_req(ctx, resid, len, type, invld_insts, sess_type, is_try, &succ_send_insts);
     }
 
@@ -242,6 +241,7 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
     if (invld_insts > 0) {
         uint64 tmp_result = 0;
         dms_handle_invalidate_ack(ctx, succ_send_insts, &tmp_result);
+        dms_end_stat(ctx->sess_id);
         if (tmp_result > 0) {
             bitmap64_union(&succ_insts, tmp_result);
         }
