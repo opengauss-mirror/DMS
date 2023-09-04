@@ -548,14 +548,6 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
-    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
-        mfc_release_message_buf(&recv_msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
-    }
-
     CM_CHK_RECV_MSG_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + rsp_size), CM_TRUE, CM_FALSE);
     errno_t err = memcpy_s((char *)rsp_content, rsp_size, recv_msg.buffer + sizeof(dms_message_head_t), rsp_size);
     if (err != EOK) {
@@ -615,14 +607,6 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
-    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
-        mfc_release_message_buf(&recv_msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
-    }
-
     CM_ASSERT(ilock_len >= DMS_SMON_ILOCK_MSG_MAX_LEN);
     CM_CHK_RECV_MSG_SIZE(&recv_msg,
         (uint32)(sizeof(dms_message_head_t) + DMS_SMON_ILOCK_MSG_MAX_LEN), CM_TRUE, CM_FALSE);
@@ -678,14 +662,6 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
             (uint32)dst_inst, (uint32)sid, ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_SQL, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
-    }
-
-    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
-    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
-        mfc_release_message_buf(&recv_msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
     CM_CHK_RECV_MSG_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + sizeof(uint32)), CM_TRUE, CM_FALSE);
@@ -752,14 +728,6 @@ int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, 
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
-    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
-        mfc_release_message_buf(&recv_msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
-    }
-
     CM_CHK_RECV_MSG_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + sizeof(bool32)), CM_TRUE, CM_FALSE);
     *in_use = *(bool32 *)(recv_msg.buffer + sizeof(dms_message_head_t));
     mfc_release_message_buf(&recv_msg);
@@ -811,14 +779,6 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
             (uint32)dst_inst, table_id, ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
-    }
-
-    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
-    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
-        mfc_release_message_buf(&recv_msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
     CM_CHK_RECV_MSG_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + sizeof(uint32)), CM_TRUE, CM_FALSE);
@@ -883,14 +843,6 @@ int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_
             (uint32)dst_inst, (uint32)sid, (uint32)rmid, ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
-    }
-
-    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
-    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
-        mfc_release_message_buf(&recv_msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
     CM_CHK_RECV_MSG_SIZE(&recv_msg,
