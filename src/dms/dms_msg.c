@@ -1689,6 +1689,92 @@ void dms_init_cluster_proto_version()
     return;
 }
 
+/*
+* @brief request buffer related information
+* Based on the DRC entry, send broadcast message to all Standby, which held the page copy,
+* to obtain buffer related information, mainly buffdesc.
+* @[in] drc_info->copy_insts: Identify which nodes hold COPY
+* @[in] tag: Uniquely identify a page
+* @[out] drc_info->buf_info[]: Save the information returned by instances
+*/
+void dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info)
+{
+    dms_req_buf_info_t req;
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_NODE_FOR_BUF_INFO, 0,      
+        dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
+    
+    req.head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
+    req.head.mes_head.size = sizeof(dms_req_buf_info_t);
+    req.claimed_owner = drc_info->claimed_owner;
+    req.copy_insts = drc_info->copy_insts;
+    req.master_id = drc_info->master_id;
+    errno_t err = memcpy_s(req.resid, DMS_RESID_SIZE, drc_info->data, DMS_RESID_SIZE);
+    DMS_SECUREC_CHECK(err);
+    req.from_inst = dms_ctx->inst_id;
+    
+    uint64 inst_list = drc_info->copy_insts;
+    if (drc_info->claimed_owner != dms_ctx->inst_id) {
+        inst_list |= ((uint64)0x1 << (drc_info->claimed_owner));
+    }
+    if (drc_info->master_id != dms_ctx->inst_id) {
+        inst_list |= ((uint64)0x1 << (drc_info->master_id));
+    }
+    
+    uint64 succ_inst = 0;
+    mfc_broadcast(dms_ctx->sess_id, inst_list, (const void*)&req, &succ_inst);
+    
+    char* recv_msg[CM_MAX_INSTANCES] = {0};
+    int32 ret = mfc_wait_acks_and_recv_msg(dms_ctx->sess_id, DMS_MSG_SLEEP_TIME, succ_inst, recv_msg);
+    if (ret != DMS_SUCCESS || inst_list != succ_inst) {
+        if (ret == DMS_SUCCESS) {
+            dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
+        }
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
+    }
+
+    // handle messages from other instance
+    for (uint32 i = 0; i < CM_MAX_INSTANCES; i++) {
+        if ((succ_inst & (1 << i)) && recv_msg[i] != NULL) {
+            dms_ack_buf_info_t *ack = (dms_ack_buf_info_t *)recv_msg[i];
+            err = memcpy_s(&drc_info->buf_info[i], sizeof(stat_buf_info_t), &ack->buf_info, sizeof(stat_buf_info_t));
+            DMS_SECUREC_CHECK(err);
+        }
+    }
+    dms_release_recv_acks_after_broadcast(succ_inst, recv_msg);
+}
+
+/*
+* @brief Process the request information from the Master and return relevant information
+* Obtain the information of the corresponding page in the local buffer pool based on the received resid
+*/
+void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, mes_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_req_buf_info_t), CM_TRUE, CM_TRUE);
+    dms_req_buf_info_t req = *(dms_req_buf_info_t *)(receive_msg->buffer);
+    
+    stat_buf_info_t buf_info;
+    errno_t err = memcpy_s(&buf_info, sizeof(stat_buf_info_t), 0, sizeof(stat_buf_info_t));
+    DMS_SECUREC_CHECK(err);
+    if (req.copy_insts & ((uint64)0x1 << proc_ctx->inst_id) || 
+        req.master_id == proc_ctx->inst_id || 
+        req.claimed_owner == proc_ctx->inst_id) {
+
+        g_dms.callback.get_buf_info(req.resid, &buf_info);
+    }
+
+    dms_ack_buf_info_t ack;
+    DMS_INIT_MESSAGE_HEAD(&ack.head, MSG_ACK_NODE_FOR_BUF_INFO, 0, proc_ctx->inst_id,
+        receive_msg->head->src_inst, proc_ctx->sess_id, receive_msg->head->src_sid);
+    ack.head.mes_head.rsn = receive_msg->head->rsn;
+    ack.head.mes_head.size = sizeof(dms_ack_buf_info_t);
+    ack.buf_info = buf_info;
+
+    mfc_release_message_buf(receive_msg);
+    if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS]dms_proc_ask_node_buf_info send error, dst_id: %d", proc_ctx->inst_id);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif

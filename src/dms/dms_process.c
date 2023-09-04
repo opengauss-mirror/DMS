@@ -121,6 +121,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
         CM_TRUE, CM_FALSE,  "req opengauss page hit buffer" },
     { MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN, dcs_proc_send_opengauss_oldest_xmin,
         CM_TRUE, CM_TRUE, "send primary openGauss self oldest xmin"},
+    { MSG_REQ_NODE_FOR_BUF_INFO,      dms_proc_ask_node_buf_info,      CM_TRUE, CM_FALSE, "ask node for buffer related info"},
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -171,6 +172,8 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_PAGE_STATUS,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss page hit buffer" },
     { MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN,   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack oldest xmin received"},
     { MSG_ACK_VERSION_NOT_MATCH,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack msg version is not match"},
+    { MSG_ACK_NODE_FOR_BUF_INFO,            dms_proc_broadcast_ack2,
+            CM_FALSE, CM_TRUE, "ack request for buffer information" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)

@@ -638,3 +638,47 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_mast
 
     return options;
 }
+
+/*
+* @brief userd by server to obtain DRC entry from DMS
+* @[in] tag: Uniquely identify a page
+* @[out] is_found: is_found = 0 means that there are no requested buffer in the buffer pool of the cluster currently
+* @[out] drc_info: Save the DRC information of the current page, 
+*        including page related information in Standby which held the COPY
+*/
+int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
+{
+    drc_buf_res_t *buf_res = NULL;
+    int32 ret = drc_enter_buf_res(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        drc_info = NULL;
+        return ret;
+    }
+    if (buf_res == NULL) {
+        *is_found = 0;
+        return DMS_SUCCESS;
+    }
+    *is_found = 1;
+    drc_info->claimed_owner = buf_res->claimed_owner;
+    drc_info->copy_insts = buf_res->copy_insts;
+    drc_info->copy_promote = buf_res->copy_promote;
+    drc_info->edp_map = buf_res->edp_map;
+    drc_info->in_recovery = buf_res->in_recovery;
+    drc_info->last_edp = buf_res->last_edp;
+    drc_info->len = buf_res->len;
+    drc_info->lock_mode = buf_res->lock_mode;
+    drc_info->lsn = buf_res->lsn;
+    drc_info->part_id = buf_res->part_id;
+    drc_info->recovery_skip = buf_res->recovery_skip;
+    drc_info->type = buf_res->type;
+    drc_leave_buf_res(buf_res);
+
+    ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
+    if (drc_info->copy_insts != 0 || 
+        drc_info->claimed_owner != drc_info->dms_ctx.inst_id || 
+        drc_info->master_id != drc_info->dms_ctx.inst_id) {
+        
+        dms_send_request_buf_info(&drc_info->dms_ctx, drc_info);
+    }
+    return DMS_SUCCESS;
+}
