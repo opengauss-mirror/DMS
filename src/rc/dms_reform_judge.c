@@ -933,35 +933,6 @@ static void dms_reform_judgement_recovery(instance_list_t *inst_lists)
     dms_reform_add_step(DMS_REFORM_STEP_CTL_RCY_CLEAN);
 }
 
-static void dms_reform_judgement_file_orglsn_recovery_part1(instance_list_t *inst_lists)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0) {
-        share_info->file_orglsn_recovery_info.bitmap_old_join = 0L;
-        share_info->file_orglsn_recovery_info.bitmap_new_join = 0L;
-        dms_reform_list_to_bitmap(&share_info->file_orglsn_recovery_info.bitmap_old_join,
-            &inst_lists[INST_LIST_OLD_JOIN]);
-        dms_reform_list_to_bitmap(&share_info->file_orglsn_recovery_info.bitmap_new_join,
-            &inst_lists[INST_LIST_NEW_JOIN]);
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY_PART1);
-    }
-}
-
-static void dms_reform_judgement_file_orglsn_recovery_part2(instance_list_t *inst_lists)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    if (inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
-        share_info->file_orglsn_recovery_info.bitmap_old_remove = 0L;
-        dms_reform_list_to_bitmap(&share_info->file_orglsn_recovery_info.bitmap_old_remove,
-            &inst_lists[INST_LIST_OLD_REMOVE]);
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY_PART2);
-    }
-}
-
 // Notice: must be used before DRC_ACCESS
 static void dms_reform_judgement_dw_recovery(instance_list_t *inst_lists)
 {
@@ -1335,7 +1306,6 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery_part1(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
@@ -1350,7 +1320,6 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
     dms_reform_judgement_set_remove_point(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery_part2(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1409,7 +1378,6 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery_part1(inst_lists);
     dms_reform_judgement_flush_copy();
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
@@ -1425,7 +1393,6 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
     dms_reform_judgement_set_remove_point(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery_part2(inst_lists);
     dms_reform_judgement_done();
 }
 
@@ -1520,7 +1487,6 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery_part1(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_rollback(inst_lists);
@@ -1532,7 +1498,6 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
     dms_reform_judgement_set_remove_point(inst_lists);
-    dms_reform_judgement_file_orglsn_recovery_part2(inst_lists);
     dms_reform_judgement_done();
 }
 

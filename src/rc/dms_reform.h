@@ -134,8 +134,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
     DMS_REFORM_STEP_DW_RECOVERY,                    // recovery the dw area
     DMS_REFORM_STEP_DF_RECOVERY,
-    DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY_PART1,     // recovery the file org lsn for old-join or new-join node
-    DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY_PART2,     // recovery the file org lsn for old-remove join node
     DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
@@ -249,7 +247,6 @@ typedef struct st_share_info {
     uint8               unused[2];
     uint64              version_num;
     dw_recovery_info_t  dw_recovery_info;
-    file_orglsn_recovery_info_t  file_orglsn_recovery_info;
     uint64              start_times[DMS_MAX_INSTANCES];
     date_t              judge_time;
 } share_info_t;

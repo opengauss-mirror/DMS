@@ -442,12 +442,6 @@ typedef struct st_dw_recovery_info {
     unsigned long long bitmap_new_join;     // the new-join-inst bitmap in dw_recovery phase
 } dw_recovery_info_t;
 
-typedef struct st_file_orglsn_recovery_info {
-    unsigned long long bitmap_old_join;     // the old-join-inst bitmap in dw_recovery phase
-    unsigned long long bitmap_old_remove;   // the old-remove-inst bitmap in dw_recovery phase
-    unsigned long long bitmap_new_join;     // the new-join-inst bitmap in dw_recovery phase
-} file_orglsn_recovery_info_t;
-
 typedef struct st_inst_list {
     unsigned char inst_id_list[DMS_MAX_INSTANCES];
     unsigned char inst_id_count;
@@ -602,7 +596,6 @@ typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *ls
 typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int is_reformer);
 typedef int(*dms_dw_recovery)(void *db_handle, void *recovery_list, int is_reformer);
 typedef int(*dms_df_recovery)(void *db_handle);
-typedef int(*dms_file_orglsn_recovery)(void *db_handle, void *recovery_list, int is_reformer);
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
 typedef int(*dms_opengauss_recovery_primary)(void *db_handle, int inst_id);
@@ -761,8 +754,6 @@ typedef struct st_dms_callback {
     dms_recovery recovery;
     dms_dw_recovery dw_recovery;
     dms_df_recovery df_recovery;
-    dms_file_orglsn_recovery file_orglsn_recovery_part1;
-    dms_file_orglsn_recovery file_orglsn_recovery_part2;
     dms_db_is_primary db_is_primary;
     dms_get_open_status get_open_status;
     dms_undo_init undo_init;
@@ -975,7 +966,7 @@ typedef enum st_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           89
+#define DMS_LOCAL_VERSION           90
 
 #ifdef __cplusplus
 }
