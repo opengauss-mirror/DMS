@@ -1323,6 +1323,29 @@ static int dms_reform_repair(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_recovery_analyse_inner(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    return g_dms.callback.recovery_analyse(g_dms.reform_ctx.handle_proc, (void *)&share_info->list_recovery,
+        DMS_IS_SHARE_REFORMER);
+}
+
+static int dms_reform_recovery_analyse(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = dms_reform_recovery_analyse_inner();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res, void *handle, uint32 sess_id)
 {
     int ret = DMS_SUCCESS;
@@ -2473,6 +2496,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel },
     [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL },
     [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel },
+    [DMS_REFORM_STEP_RECOVERY_ANALYSE] = { "RECOVERY_ANALYSE", dms_reform_recovery_analyse, NULL },
     [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL },
     [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL },
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL },

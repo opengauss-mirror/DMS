@@ -699,7 +699,7 @@ DMS_DECLARE int dms_get_ssl_param(const char *param_name, char *param_value, uns
  * @[out]skip--need skip or not
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip);
+DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc);
 
 /*
  * @brief check reform if failed
