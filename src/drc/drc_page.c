@@ -568,6 +568,16 @@ static inline bool32 buf_res_is_recyclable(drc_buf_res_t* buf_res)
     return CM_TRUE;
 }
 
+static inline bool8 buf_res_set_recycling(drc_buf_res_t *buf_res, bool8 do_recycle, bool8 released)
+{
+    // if drc in recovery, page can be released but drc can not be recycled
+    if (do_recycle && released && !buf_res->in_recovery) {
+        buf_res->recycling = CM_TRUE;
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
+
 bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 do_recycle, bool8 *released)
 {
     drc_buf_res_t *buf_res = NULL;
@@ -591,9 +601,9 @@ bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 do_recy
 
     // owner
     *released = buf_res_is_recyclable(buf_res);
-    buf_res->recycling = do_recycle && (*released);
+    bool8 ret = buf_res_set_recycling(buf_res, do_recycle, *released);
     drc_leave_buf_res(buf_res);
-    return (*released);
+    return ret;
 }
 
 int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len)
@@ -749,11 +759,11 @@ void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
     }
 }
 
-int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip)
+int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc)
 {
     dms_reset_error();
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
+    uint8 options = drc_build_options(alloc, DMS_SESSION_REFORM, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -763,6 +773,7 @@ int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *ski
         return DMS_SUCCESS;
     }
     if (buf_res->in_recovery || buf_res->claimed_owner == CM_INVALID_ID8) {
+        buf_res->in_recovery = CM_TRUE;
         *skip = CM_FALSE;
     } else {
 #ifndef OPENGAUSS

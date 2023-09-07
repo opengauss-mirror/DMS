@@ -153,6 +153,7 @@ drps_desc_t g_drps_desc_t[DRPS_COUNT] = {
     {DRPS_DRC_REPAIR_WITH_EDP_MAP,                  DRPS_LEVEL_TWO,     "WITH_EDP_MAP"},
     {DRPS_DRC_REPAIR_PAGE,                          DRPS_LEVEL_TWO,     "PAGE"},
     {DRPS_DRC_REPAIR_LOCK,                          DRPS_LEVEL_TWO,     "LOCK"},
+    {DMS_REFORM_STEP_RECOVERY_ANALYSE,              DRPS_LEVEL_ONE,     "RECOVERY_ANALYSE"},
     {DMS_REFORM_STEP_SWITCH_LOCK,                   DRPS_LEVEL_ONE,     "SWITCH_LOCK"},
     {DMS_REFORM_STEP_SWITCHOVER_DEMOTE,             DRPS_LEVEL_ONE,     "DEMOTE"},
     {DMS_REFORM_STEP_SWITCHOVER_PROMOTE,            DRPS_LEVEL_ONE,     "PROMOTE"},

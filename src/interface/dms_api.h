@@ -752,6 +752,7 @@ typedef struct st_dms_callback {
     dms_edp_lsn edp_lsn;
     dms_disk_lsn disk_lsn;
     dms_recovery recovery;
+    dms_recovery recovery_analyse;
     dms_dw_recovery dw_recovery;
     dms_df_recovery df_recovery;
     dms_db_is_primary db_is_primary;
@@ -966,7 +967,7 @@ typedef enum st_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           90
+#define DMS_LOCAL_VERSION           91
 
 #ifdef __cplusplus
 }
