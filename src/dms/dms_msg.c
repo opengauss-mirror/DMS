@@ -355,6 +355,10 @@ static int32 dms_handle_ask_owner_ack(dms_context_t *dms_ctx, void *res,
         return dms_handle_grant_owner_ack(dms_ctx, res, master_id, mode, msg);
     }
 
+    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
+        msg_error_t error_ack = *(msg_error_t*)msg->buffer;
+        return error_ack.code;
+    }
     LOG_DEBUG_ERR("[DMS][dms_handle_ask_owner_ack]recieve unexpected message,cmd:%u", (uint32)ack_dms_head->dms_cmd);
     return ERRNO_DMS_MES_INVALID_MSG;
 }
@@ -440,6 +444,15 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
             ret = dms_handle_already_owner_ack(dms_ctx, res, master_id, mode, &msg);
             break;
 
+        case MSG_ACK_ERROR: {
+            msg_error_t msg_error = *(msg_error_t*)msg.buffer;
+            ret = msg_error.code;
+            LOG_DEBUG_ERR("[DMS][%s][%s]:src_id=%u, src_sid=%u, dst_id=%u, dst_sid =%u, flag=%u, rsn=%llu, ret=%d",
+                cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(ack_dms_head->dms_cmd),
+                (uint32)msg.head->src_inst, (uint32)msg.head->src_sid, (uint32)msg.head->dst_inst,
+                (uint32)msg.head->dst_sid, (uint32)msg.head->flags, msg.head->rsn, ret);
+            break;
+        }
         case MSG_ACK_EDP_LOCAL:
             CM_ASSERT(dms_ctx->type == DRC_RES_PAGE_TYPE);
             ret = dcs_handle_ack_edp_local(dms_ctx, (dms_buf_ctrl_t*)res, master_id, &msg, mode);
@@ -677,6 +690,15 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
             cm_display_resid(dms_ctx->resid, dms_ctx->type), DMS_WAIT_MAX_TIME);
         return ret;
     }
+    
+    dms_message_head_t *ack_dms_head = get_dms_head(&msg);
+    if (ack_dms_head->dms_cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(msg.buffer);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        mfc_release_message_buf(&msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
+    }
+
     CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_FALSE, CM_FALSE);
     dms_ask_res_owner_id_ack_t *ack = (dms_ask_res_owner_id_ack_t *)msg.buffer;
     *owner_id = ack->owner_id;
