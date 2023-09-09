@@ -245,11 +245,12 @@ typedef struct st_share_info {
     uint8               promote_id;             // instance promote to primary
     uint8               demote_id;              // instance demote to standy;
     uint8               last_reformer;          // last reformer
-    uint8               unused[2];
+    uint8               unused;
     uint64              version_num;
     dw_recovery_info_t  dw_recovery_info;
     uint64              start_times[DMS_MAX_INSTANCES];
     date_t              judge_time;
+    uint32              proto_version;
 } share_info_t;
 
 typedef struct st_rebuild_info {

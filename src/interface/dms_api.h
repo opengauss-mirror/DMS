@@ -955,19 +955,19 @@ typedef enum en_dms_info_id {
     DMS_INFO_REFORM_LAST = 1,
 } dms_info_id_e;
 
-typedef enum st_protocol_version {
-    PROTO_VER_0 = 0,    // invalid version
-    PROTO_VER_1 = 1,    // first version
-} protocol_version_e;
+typedef enum st_dms_protocol_version {
+    DMS_PROTO_VER_0 = 0,    // invalid version
+    DMS_PROTO_VER_1 = 1,    // first version
+} dms_protocol_version_e;
 
-#define INVALID_PROTO_VER PROTO_VER_0
-#define SW_PROTO_VER PROTO_VER_1
+#define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
+#define DMS_SW_PROTO_VER      DMS_PROTO_VER_1
 
 #define DMS_LOCAL_MAJOR_VER_WEIGHT  1000000
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           91
+#define DMS_LOCAL_VERSION           92
 
 #ifdef __cplusplus
 }

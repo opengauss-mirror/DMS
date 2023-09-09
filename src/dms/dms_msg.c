@@ -1581,6 +1581,7 @@ bool8 dms_cmd_is_broadcast(uint32 cmd)
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
         case MSG_REQ_SYNC_SHARE_INFO:
+        case MSG_REQ_NODE_FOR_BUF_INFO:
             res = CM_TRUE;
             break;
         default:
@@ -1591,13 +1592,13 @@ bool8 dms_cmd_is_broadcast(uint32 cmd)
 
 static uint32 dms_get_broadcast_proto_version()
 {
-    uint32 msg_version = SW_PROTO_VER;
+    uint32 msg_version = DMS_SW_PROTO_VER;
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         if (i == g_dms.inst_id) {
             continue;
         }
         uint32 node_version = dms_get_node_proto_version(i);
-        if (node_version != INVALID_PROTO_VER && node_version < msg_version) {
+        if (node_version != DMS_INVALID_PROTO_VER && node_version < msg_version) {
             msg_version = node_version;
         }
     }
@@ -1608,12 +1609,12 @@ static uint32 dms_get_broadcast_proto_version()
 static uint32 dms_get_p2p_proto_version(uint8 dst_id)
 {
     if (dst_id == g_dms.inst_id) {
-        return SW_PROTO_VER;
+        return DMS_SW_PROTO_VER;
     }
 
-    uint32 msg_version = SW_PROTO_VER;
+    uint32 msg_version = DMS_SW_PROTO_VER;
     uint32 node_version = dms_get_node_proto_version(dst_id);
-    if (node_version != INVALID_PROTO_VER && node_version < msg_version) {
+    if (node_version != DMS_INVALID_PROTO_VER && node_version < msg_version) {
         msg_version = node_version;
     }
     return msg_version;
@@ -1637,7 +1638,7 @@ uint32 dms_get_send_proto_version(bool8 is_broadcast, uint8 dest_id)
 
 void dms_init_message_dms_head(dms_message_head_t *dms_head, uint32 cmd, uint32 msg_version)
 {
-    dms_head->sw_proto_ver = SW_PROTO_VER;
+    dms_head->sw_proto_ver = DMS_SW_PROTO_VER;
     dms_head->dms_cmd = cmd;
     dms_head->msg_proto_ver = msg_version;
     int32 ret = memset_s(dms_head->unused, DMS_MSG_HEAD_UNUSED_SIZE, 0, DMS_MSG_HEAD_UNUSED_SIZE);
@@ -1679,7 +1680,7 @@ void dms_set_node_proto_version(uint8 inst_id, uint32 version)
 uint32 dms_get_node_proto_version(uint8 inst_id)
 {
     if (inst_id == g_dms.inst_id) {
-        return SW_PROTO_VER;
+        return DMS_SW_PROTO_VER;
     }
     return (uint32)cm_atomic32_get(&g_dms.cluster_proto_vers[inst_id]);
 }
@@ -1687,13 +1688,13 @@ uint32 dms_get_node_proto_version(uint8 inst_id)
 void dms_init_cluster_proto_version()
 {
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        dms_set_node_proto_version(i, INVALID_PROTO_VER);
+        dms_set_node_proto_version(i, DMS_INVALID_PROTO_VER);
     }
 
     int ret = CM_FALSE;
     do {
         atomic32_t cur_version = cm_atomic32_get(&g_dms.cluster_proto_vers[g_dms.inst_id]);
-        ret = cm_atomic32_cas(&g_dms.cluster_proto_vers[g_dms.inst_id], cur_version, SW_PROTO_VER);
+        ret = cm_atomic32_cas(&g_dms.cluster_proto_vers[g_dms.inst_id], cur_version, DMS_SW_PROTO_VER);
     } while (!ret);
     return;
 }

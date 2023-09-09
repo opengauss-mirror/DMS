@@ -275,12 +275,12 @@ void dms_send_ack_version_not_match(dms_process_context_t *ctx, mes_message_t *r
         LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
             "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
             ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst,
-            ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, SW_PROTO_VER);
+            ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
     }
     LOG_RUN_INF("[DMS] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
         "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
         ack_msg.mes_head.src_inst, ack_msg.mes_head.src_sid, ack_msg.mes_head.dst_inst,
-        ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, SW_PROTO_VER);
+        ack_msg.mes_head.dst_sid, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
 }
 
 static bool8 dms_check_message_proto_version(dms_process_context_t *ctx, mes_message_t *msg)
@@ -291,14 +291,14 @@ static bool8 dms_check_message_proto_version(dms_process_context_t *ctx, mes_mes
     dms_set_node_proto_version(send_inst, head->sw_proto_ver);
 
     if (dms_cmd_is_broadcast(head->dms_cmd)) {
-        if (head->msg_proto_ver > SW_PROTO_VER) {
+        if (head->msg_proto_ver > DMS_SW_PROTO_VER) {
             pass_check = CM_FALSE;
             dms_send_ack_version_not_match(ctx, msg);
         }
     } else {
         uint32 node_version = dms_get_node_proto_version(send_inst);
-        uint32 nego_version = SW_PROTO_VER;
-        if (node_version != INVALID_PROTO_VER && node_version < nego_version) {
+        uint32 nego_version = DMS_SW_PROTO_VER;
+        if (node_version != DMS_INVALID_PROTO_VER && node_version < nego_version) {
             nego_version = node_version;
         }
         if (nego_version != head->msg_proto_ver) {
