@@ -2048,6 +2048,7 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     dms_reform_judgement_proc_t reform_judgement_proc;
     uint32 len = (uint32)(sizeof(instance_list_t) * INST_LIST_TYPE_COUNT);
 
+    share_info->proto_version = dms_get_send_proto_version_by_cmd(MSG_REQ_SYNC_SHARE_INFO, CM_INVALID_ID8);
     if (share_info->list_offline.inst_id_count != 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, offline inst count: %d",
             share_info->list_offline.inst_id_count);

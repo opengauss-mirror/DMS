@@ -205,9 +205,8 @@ int32 dms_handle_recv_ack_internal(dms_message_head_t *head)
             "dst_sid:%u, msg_proto_ver:%u, my sw_proto_ver:%u",
             (uint32)(head)->mes_head.src_inst, (uint32)(head)->mes_head.src_sid,
             (uint32)(head)->mes_head.dst_inst, (uint32)(head)->mes_head.dst_sid,
-            (head)->msg_proto_ver, SW_PROTO_VER);
-        mfc_release_message_buf((mes_message_t *)head);
-        return ERRNO_DMS_MSG_VERSION_NOT_MATCH;
+            (head)->msg_proto_ver, DMS_SW_PROTO_VER);
+        return ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH;
     }
     return DMS_SUCCESS;
 }
@@ -219,13 +218,19 @@ int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout)
         DMS_RETURN_IF_ERROR(ret);
         dms_message_head_t *dms_head = get_dms_head(msg);
         ret = dms_handle_recv_ack_internal(dms_head);
+        if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+            mfc_release_message_buf(msg);
+        }
         return ret;
     }
 
     DMS_RETURN_IF_ERROR(ret);
+    mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->head->src_inst], msg->head->tickets);
     dms_message_head_t *dms_head = get_dms_head(msg);
     ret = dms_handle_recv_ack_internal(dms_head);
-    mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->head->src_inst], msg->head->tickets);
+    if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+        mfc_release_message_buf(msg);
+    }
     return ret;
 }
 

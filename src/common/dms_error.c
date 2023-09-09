@@ -43,7 +43,8 @@ const char *g_dms_errno_common_desc[] = {
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_MES_INVALID_MSG)] = "dms invalid msg",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_RES_INVALID_VERSION)] = "dms res invalid version",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_INIT_LOG_FAILED)] = "dms init log failed",
-    [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_MSG_VERSION_NOT_MATCH)] = "dms message version not match",
+    [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH)] = "dms message protocol version not match",
+    [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT)] = "dms message protocol version not support",
 };
 
 const char *g_dms_errno_dcs_desc[] = {
