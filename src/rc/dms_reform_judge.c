@@ -762,12 +762,6 @@ static void dms_reform_judgement_switchover_promote(void)
 {
 #ifndef OPENGAUSS
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
-        if (DMS_CATALOG_IS_PRIMARY_STANDBY && !g_dms.callback.db_is_primary(g_dms.reform_ctx.handle_judge)) {
-            share_info_t *share_info = DMS_SHARE_INFO;
-            share_info->promote_id = (uint8)g_dms.inst_id;
-            dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-            dms_reform_add_step(DMS_REFORM_STEP_SWITCHOVER_PROMOTE);
-        }
         return;
     }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
@@ -878,12 +872,6 @@ static void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
             dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
     }
 #else
-    // primary_standby and centralized no need to rebuild
-    if (DMS_CATALOG_IS_CENTRALIZED && DMS_CATALOG_IS_PRIMARY_STANDBY &&
-        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
-        return;
-    }
-
     dms_reform_list_init(&share_info->list_rebuild);
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
         dms_reform_list_cancat(&share_info->list_rebuild, &inst_lists[INST_LIST_OLD_JOIN]);
@@ -1577,10 +1565,6 @@ static bool32 dms_reform_judgement_normal_check(instance_list_t *inst_lists)
         return CM_FALSE;
     }
 
-    if (DMS_CATALOG_IS_PRIMARY_STANDBY && dms_reform_judgement_switchover_check(inst_lists)) {
-        return CM_TRUE;
-    }
-
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_OLD_REMOVE].inst_id_count == 0 &&
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, old_remove: 0, new_join: 0");
@@ -1856,26 +1840,8 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
     }
 
     // switchover & fail over are not allowed at multi_write
-    if (!DMS_CATALOG_IS_PRIMARY_STANDBY) {
-        share_info->reform_type = DMS_REFORM_TYPE_FOR_NORMAL;
-        return;
-    }
-
-    // db restart with reformer lock, treat as fail over
-    if (!DMS_FIRST_REFORM_FINISH) {
-        share_info->reform_type = DMS_REFORM_TYPE_FOR_FAILOVER;
-        return;
-    }
-
-    // db is primary & reformer, it is normal situation, check if should reform for standby
-    // if all nodes are normal, then check if there is switchover request
-    if (g_dms.callback.db_is_primary(g_dms.reform_ctx.handle_judge)) {
-        share_info->reform_type = DMS_REFORM_TYPE_FOR_NORMAL;
-        return;
-    }
-
-    // db is not primary but reformer, it seems that original reformer is abnormal
-    share_info->reform_type = DMS_REFORM_TYPE_FOR_FAILOVER;
+    share_info->reform_type = DMS_REFORM_TYPE_FOR_NORMAL;
+    return;
 }
 #endif
 

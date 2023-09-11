@@ -265,7 +265,6 @@ int dms_reform_init(dms_profile_t *dms_profile)
     }
 
     reform_context->catalog_centralized = (bool8)dms_profile->resource_catalog_centralized;
-    reform_context->primary_standby = (bool8)dms_profile->load_balance_mode;
     reform_context->channel_cnt = dms_profile->channel_cnt;
     reform_context->mes_has_init = (bool8)dms_profile->conn_created_during_init;
     reform_context->share_info_lock = 0;
