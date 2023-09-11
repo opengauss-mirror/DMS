@@ -900,6 +900,8 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
     }
 
     if (lock_res->latch_stat.lock_mode == DMS_LOCK_NULL) {
+        LOG_DEBUG_INF("[DRC][lock rebuild](%s) lock skip, is_owner(%d), lock_mode: %d",
+            cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode);
         return DMS_SUCCESS;
     }
 
@@ -995,7 +997,9 @@ static int dms_reform_rebuild_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thr
         DMS_BREAK_IF_ERROR(ret);
         if (need_rebuild) {
             drc_get_lock_remaster_id(&lock_res->resid, &remaster_id);
+            drc_lock_local_resx(lock_res);
             ret = dms_reform_rebuild_lock_inner(lock_res, remaster_id, thread_index);
+            drc_unlock_local_resx(lock_res);
             DMS_BREAK_IF_ERROR(ret);
         }
         node = BINODE_NEXT(node);
