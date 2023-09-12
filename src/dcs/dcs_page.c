@@ -934,7 +934,7 @@ static int dcs_release_owner_r(dms_context_t *dms_ctx, uint8 master_id, unsigned
 
 static inline int dcs_release_owner_l(dms_context_t *dms_ctx, unsigned char *released)
 {
-    (void)drc_chk_4_rlse_owner(dms_ctx->resid, DMS_PAGEID_SIZE, (uint8)dms_ctx->inst_id, CM_FALSE, released);
+    *released = drc_chk_4_release(dms_ctx->resid, DMS_PAGEID_SIZE, (uint8)dms_ctx->inst_id);
 
     LOG_DEBUG_INF("[DCS][%s][local release owner]: src_id=%d, src_sid=%d, released=%d",
         cm_display_pageid(dms_ctx->resid), dms_ctx->inst_id, dms_ctx->sess_id, (int32)*released);
@@ -996,8 +996,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, mes_message_t *recei
     g_dms.callback.update_global_scn(ctx->db_handle, req.owner_scn);
 #endif
 
-    bool8 released = CM_FALSE;
-    (void)drc_chk_4_rlse_owner(req.pageid, DMS_PAGEID_SIZE, req.head.mes_head.src_inst, CM_FALSE, &released);
+    bool8 released = drc_chk_4_release(req.pageid, DMS_PAGEID_SIZE, req.head.mes_head.src_inst);
     (void)dcs_send_rls_owner_ack(ctx, &req, released);
 }
 
