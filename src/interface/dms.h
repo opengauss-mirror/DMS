@@ -101,40 +101,40 @@ DMS_DECLARE void dms_uninit(void);
 DMS_DECLARE int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode);
 
 /*
-* @brief construct heap consistency page.
+* @brief forward to specified node to construct heap CR page.
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[in&out]param dms_cr -  Properties required to construct a consistent page.
+* @[in]param dst_inst_id - the instance id that continues to construct heap CR page.
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr);
+DMS_DECLARE int dms_forward_heap_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id);
 
 /*
-* @brief construct index consistency read page.
+* @brief forward to specified node to construct btree CR page.
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[in&out]param dms_cr -  Properties required to construct a consistent page.
+* @[in]param dst_inst_id - the instance id that continues to construct btree CR page.
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_construct_index_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr);
+DMS_DECLARE int dms_forward_btree_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id);
 
 /*
-* @brief specify instance to construct heap consistency read page.
+* @brief request master or owner heap consistent-read page.
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[in&out]param dms_cr -  Properties required to construct a consistent page.
-* @[in]param dst_inst_id -  Notify dst_inst_id(instance id) to construct a consistent page.
-* @[in&out]param cr_status -  the status of the construct cr page.
+* @[in]param dst_inst_id -  master or owner id.
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr,
-    unsigned int dst_inst_id, dms_cr_status_t *cr_status);
+DMS_DECLARE int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id);
 
 /*
 * @brief get the instance id to construct consistency read page .
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[out]param dst_inst_id -  Notify dst_inst_id(instance id) to construct a consistent page.
-* @[in&out]param cr_status -  the status of the construct cr page.
+* @[in&out]param cr_phase -  the phase of the construct cr page.
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_cr_status_t *cr_status);
+DMS_DECLARE int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_cr_phase_t *cr_phase);
 
 /*
  * @brief check current row is the row we are reading or not.
