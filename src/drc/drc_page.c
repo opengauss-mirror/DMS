@@ -715,9 +715,7 @@ void drc_recycle_buf_res_on_demand()
 
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
         part_list = &ctx->global_buf_res.res_parts[part_id];
-        cm_spin_lock(&ctx->global_buf_res.res_parts_lock[part_id], NULL);
         part_recycled = drc_recycle_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE, target_cnt, greedy);
-        cm_spin_unlock(&ctx->global_buf_res.res_parts_lock[part_id]);
         target_cnt -= (target_cnt == DRC_RECYCLE_GREEDY_CNT) ? 0 : part_recycled;
         total_recycled += part_recycled;
         LOG_DEBUG_INF("[DRC][drc_recycle_buf_res_on_demand%d]: part:%u recycled:%u, remaining:%u",
