@@ -55,7 +55,6 @@ extern "C" {
 #define DMS_PARALLEL_INFO               (&g_dms.reform_ctx.parallel_info)
 #define DRC_PART_REMASTER_ID(part_id)   (g_dms.reform_ctx.share_info.remaster_info.part_map[(part_id)].inst_id)
 #define DMS_CATALOG_IS_CENTRALIZED      (g_dms.reform_ctx.catalog_centralized)
-#define DMS_CATALOG_IS_PRIMARY_STANDBY  (g_dms.reform_ctx.primary_standby)
 
 #define LOG_DEBUG_FUNC_SUCCESS          LOG_DEBUG_INF("[DMS REFORM]%s success", __FUNCTION__)
 #define LOG_DEBUG_FUNC_FAIL             LOG_DEBUG_ERR("[DMS REFORM]%s fail, error: %d", __FUNCTION__, ret)
@@ -421,9 +420,9 @@ typedef struct st_reform_context {
     parallel_info_t     parallel_info;
     uint32              channel_cnt;            // used for channel check
     bool8               catalog_centralized;    // centralized or distributed
-    bool8               primary_standby;        // primary_standby or not
     bool8               ignore_offline;         // treat old off-line as old remove
     bool8               mes_has_init;
+    bool8               unused;
     reform_scrlock_context_t scrlock_reinit_ctx;
 } reform_context_t;
 
