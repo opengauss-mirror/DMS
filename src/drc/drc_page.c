@@ -559,51 +559,65 @@ void drc_release_buf_res(drc_buf_res_t *buf_res, drc_res_map_t *buf_map, drc_res
     drc_res_pool_free_item(&buf_map->res_pool, (char*)buf_res);
 }
 
-static inline bool32 buf_res_is_recyclable(drc_buf_res_t* buf_res)
-{
-    if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
-        buf_res->edp_map != 0 || buf_res->recovery_skip) {
-        return CM_FALSE;
-    }
-    return CM_TRUE;
-}
-
-static inline bool8 buf_res_set_recycling(drc_buf_res_t *buf_res, bool8 do_recycle, bool8 released)
-{
-    // if drc in recovery, page can be released but drc can not be recycled
-    if (do_recycle && released && !buf_res->in_recovery) {
-        buf_res->recycling = CM_TRUE;
-        return CM_TRUE;
-    }
-    return CM_FALSE;
-}
-
-bool8 drc_chk_4_rlse_owner(char* resid, uint16 len, uint8 inst_id, bool8 do_recycle, bool8 *released)
+static bool8 drc_chk_4_recycle(char *resid, uint16 len)
 {
     drc_buf_res_t *buf_res = NULL;
     uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
     if (drc_enter_buf_res(resid, len, DRC_RES_PAGE_TYPE, options, &buf_res) != DMS_SUCCESS) {
-        *released = CM_FALSE;
         return CM_FALSE;
     }
 
+    // DRC not exists, no need to recycle
     if (buf_res == NULL) {
-        *released = CM_TRUE;
         return CM_FALSE;
     }
 
-    // copy instances or buf_res is being recycled
-    if (buf_res->claimed_owner != inst_id || buf_res->recycling) {
+    if (buf_res->recycling ||
+        buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
+        buf_res->edp_map != 0 ||
+        buf_res->recovery_skip ||
+        buf_res->copy_promote != DMS_COPY_PROMOTE_NONE ||
+        buf_res->in_recovery) {
         drc_leave_buf_res(buf_res);
-        *released = CM_TRUE;
         return CM_FALSE;
     }
 
-    // owner
-    *released = buf_res_is_recyclable(buf_res);
-    bool8 ret = buf_res_set_recycling(buf_res, do_recycle, *released);
+    buf_res->recycling = CM_TRUE;
     drc_leave_buf_res(buf_res);
-    return ret;
+    return CM_TRUE;
+}
+
+bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
+{
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
+    if (drc_enter_buf_res(resid, len, DRC_RES_PAGE_TYPE, options, &buf_res) != DMS_SUCCESS) {
+        return CM_FALSE;
+    }
+
+    // DRC not exists, page can be released, Notice, it is abnormal
+    if (buf_res == NULL) {
+        LOG_DEBUG_WAR("(%s)drc_chk_4_release, but DRC not exists", cm_display_pageid(resid));
+        return CM_TRUE;
+    }
+
+    // copy instance or DRC is being recycled
+    if (buf_res->claimed_owner != inst_id ||
+        buf_res->recycling) {
+        drc_leave_buf_res(buf_res);
+        return CM_TRUE;
+    }
+
+    if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
+        buf_res->edp_map != 0 ||
+        buf_res->recovery_skip ||
+        buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
+        drc_leave_buf_res(buf_res);
+        return CM_FALSE;
+    }
+
+    drc_leave_buf_res(buf_res);
+    return CM_TRUE;
 }
 
 int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len)
@@ -687,8 +701,7 @@ uint32 drc_recycle_buf_res_by_part(bilist_t* part_list, uint8 res_type, uint32 t
     while (node != NULL) {
         buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
         node = BINODE_NEXT(node);
-        bool8 released = CM_FALSE;
-        if (drc_chk_4_rlse_owner(buf_res->data, DMS_PAGEID_SIZE, buf_res->claimed_owner, CM_TRUE, &released)) {
+        if (drc_chk_4_recycle(buf_res->data, DMS_PAGEID_SIZE)) {
             ret = drc_recycle_buf_res(&ctx, DMS_SESSION_NORMAL, buf_res->data, DMS_PAGEID_SIZE);
             if (ret == DMS_SUCCESS && ++recycled_cnt >= target_cnt && !greedy) {
                 break;
