@@ -184,7 +184,6 @@ typedef struct st_drc_global_res_map {
     bool32 data_access; // data access means we can modify data control by this drc
     drc_res_map_t res_map;
     bilist_t res_parts[DRC_MAX_PART_NUM];
-    spinlock_t res_parts_lock[DRC_MAX_PART_NUM];
 } drc_global_res_map_t;
 
 typedef enum en_drc_mgrt_res_type {
