@@ -217,38 +217,6 @@ DMS_DECLARE unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t
 DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, unsigned int timeout_ticks);
 
 /*
-* @brief distributed spin lock acquire by self.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE unsigned char dms_spin_lock_by_self(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
-* @brief distributed spin lock add reference count.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE void dms_spin_add(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
-* @brief distributed spin lock dec reference count.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE void dms_spin_dec(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
-* @brief distributed spin lock dec reference count and do not release ref-count lock.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE void dms_spin_dec_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
 * @brief init distributed latch.
 * @param dlatch - distributed resource lock identifier.
 * @param type - distributed resource type.

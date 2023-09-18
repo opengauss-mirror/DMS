@@ -80,11 +80,6 @@ drc_local_lock_res_t *drc_get_local_resx(dms_drid_t *lock_id)
     return lock_res;
 }
 
-bool32 drc_try_lock_local_resx(drc_local_lock_res_t *lock_res)
-{
-    return cm_spin_try_lock(&lock_res->lock);
-}
-
 void drc_lock_local_resx(drc_local_lock_res_t *lock_res)
 {
     cm_spin_lock(&lock_res->lock, NULL);
