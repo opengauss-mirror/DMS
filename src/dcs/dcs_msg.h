@@ -26,7 +26,8 @@
 
 #include "cm_atomic.h"
 #include "dms.h"
-#include "mes_type.h"
+#include "mes_interface.h"
+#include "dms_mfc.h"
 #include "dms_msg.h"
 
 #ifdef __cplusplus

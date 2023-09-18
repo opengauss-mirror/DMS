@@ -28,7 +28,7 @@
 #include "dms_reform.h"
 #include "dms_process.h"
 #include "mes_rdma_rpc.h"
-#include "mes_func.h"
+#include "mes_interface.h"
 
 #define OCK_SCRLOCK_ENV_PATH "OCK_SCRLOCK_LIB_PATH"
 #define OCK_SCRLOCK_SO_NAME "libscrlock.so"
@@ -42,7 +42,7 @@ typedef struct {
     SCRLockUninit uninit;
     SCRTrylock trylock;
     SCRUnlock unlock;
-    SCRLGetEvent getevent;    
+    SCRLGetEvent getevent;
 } dms_scrlock_func_t;
 
 dms_scrlock_func_t g_scrlock_func;
@@ -231,17 +231,15 @@ unsigned char dms_scrlock_init(dms_profile_t *dms_profile)
 
 unsigned char dms_scrlock_reinit()
 {
-    int ret;
+    int ret = DMS_SUCCESS;
     reform_scrlock_context_t *scrlock_ctx = &g_dms.reform_ctx.scrlock_reinit_ctx;
-    
+
     SCRLockOptions scrlock_options;
     SCRLockClientOptions client_options;
     SCRLockServerOptions server_options;
 
     scrlock_options.logLevel = scrlock_ctx->log_level;
     scrlock_options.serverAddr.port = scrlock_ctx->scrlock_server_port;
-    ret = memcpy_s(scrlock_options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, MES_GLOBAL_INST_MSG.profile.inst_net_addr[scrlock_ctx->scrlock_server_id].ip, MES_MAX_IP_LEN);
-    DMS_SECUREC_CHECK(ret);
     scrlock_options.sslCfg.enable = scrlock_ctx->enable_ssl;
     ret = scrlock_get_ssl_param(&scrlock_options);
     if (ret != DMS_SUCCESS) {
@@ -249,8 +247,6 @@ unsigned char dms_scrlock_reinit()
     }
 
     ret = memcpy_s(client_options.logPath, DMS_OCK_LOG_PATH_LEN, scrlock_ctx->log_path, DMS_OCK_LOG_PATH_LEN);
-    DMS_SECUREC_CHECK(ret);
-    ret = memcpy_s(scrlock_options.clientAddr.ip, SCRLOCK_MAX_IP_LEN, MES_GLOBAL_INST_MSG.profile.inst_net_addr[g_dms.inst_id].ip, MES_MAX_IP_LEN);
     DMS_SECUREC_CHECK(ret);
     client_options.workerNum = scrlock_ctx->worker_num;
     client_options.workerBindCore = scrlock_ctx->worker_bind_core;
@@ -306,8 +302,8 @@ unsigned char dms_scrlock_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch,
                 cm_spin_sleep();
                 count = 0;
                 ticks++;
-            }   
-        }  
+            }
+        }
     } while (ticks < wait_ticks && ret != SCRL_SUCCESS);
 
     return ret == SCRL_SUCCESS ? CM_TRUE : CM_FALSE;
@@ -329,8 +325,8 @@ unsigned char dms_scrlock_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch,
                 cm_spin_sleep();
                 count = 0;
                 ticks++;
-            }   
-        }   
+            }
+        }
     } while (ticks < wait_ticks && ret != SCRL_SUCCESS);
 
     return ret == SCRL_SUCCESS ? CM_TRUE : CM_FALSE;

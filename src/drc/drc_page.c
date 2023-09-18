@@ -37,11 +37,11 @@ static inline bool32 chk_conflict_with_x_lock(char *resid, uint8 type, drc_reque
 {
     if (req1->req_mode == DMS_LOCK_EXCLUSIVE &&
         req2->curr_mode == DMS_LOCK_SHARE && req2->req_mode == DMS_LOCK_EXCLUSIVE) {
-        LOG_DEBUG_INF("[DRC][%s] conflicted with other, [req1:inst_id=%u, sid=%u, rsn=%llu, "
-            "req_mode=%u, curr_mode=%u], [req2:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u]",
-            cm_display_resid(resid, type), (uint32)req1->inst_id, (uint32)req1->sess_id, req1->rsn,
+        LOG_DEBUG_INF("[DRC][%s] conflicted with other, [req1:inst_id=%u, sid=%u, ruid=%llu, "
+            "req_mode=%u, curr_mode=%u], [req2:inst_id=%u, sid=%u, ruid=%llu, req_mode=%u, curr_mode=%u]",
+            cm_display_resid(resid, type), (uint32)req1->inst_id, (uint32)req1->sess_id, req1->ruid,
             (uint32)req1->req_mode, (uint32)req1->curr_mode, (uint32)req2->inst_id, (uint32)req2->sess_id,
-            req2->rsn, (uint32)req2->req_mode, (uint32)req2->curr_mode);
+            req2->ruid, (uint32)req2->req_mode, (uint32)req2->curr_mode);
         return CM_TRUE;
     }
     return CM_FALSE;
@@ -63,11 +63,11 @@ static int32 chk_if_valid_retry_request(drc_buf_res_t *buf_res, drc_request_info
     drc_request_info_t *old_req, drc_lock_item_t *next)
 {
     if (new_req->req_time <= old_req->req_time) {
-        LOG_DEBUG_INF("[DRC][%s] invalid request, [new:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, "
-            "curr_mode=%u, req_time=%lld], [old:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u, "
+        LOG_DEBUG_INF("[DRC][%s] invalid request, [new:inst_id=%u, sid=%u, ruid=%llu, req_mode=%u, "
+            "curr_mode=%u, req_time=%lld], [old:inst_id=%u, sid=%u, ruid=%llu, req_mode=%u, curr_mode=%u, "
             "req_time=%lld]", cm_display_resid(buf_res->data, buf_res->type), (uint32)new_req->inst_id,
-            (uint32)new_req->sess_id, new_req->rsn, (uint32)new_req->req_mode, (uint32)new_req->curr_mode,
-            new_req->req_time, (uint32)old_req->inst_id, (uint32)old_req->sess_id, old_req->rsn,
+            (uint32)new_req->sess_id, new_req->ruid, (uint32)new_req->req_mode, (uint32)new_req->curr_mode,
+            new_req->req_time, (uint32)old_req->inst_id, (uint32)old_req->sess_id, old_req->ruid,
             (uint32)old_req->req_mode, (uint32)old_req->curr_mode, old_req->req_time);
         return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
     }
@@ -122,20 +122,20 @@ static int32 drc_check_req_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t
     if (buf_res->lock_mode == DMS_LOCK_SHARE && converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE &&
         bitmap64_exist(&buf_res->copy_insts, req->inst_id)) {
         LOG_DEBUG_INF("[DRC][%s]:conflicted with other, [buf_res:owner=%u, mode=%u, cvt:inst_id=%u, req_mode=%u], "
-            "[req:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u]",
+            "[req:inst_id=%u, sid=%u, ruid=%llu, req_mode=%u, curr_mode=%u]",
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
             (uint32)buf_res->lock_mode, (uint32)converting->req_info.inst_id, (uint32)converting->req_info.req_mode,
-            (uint32)req->inst_id, (uint32)req->sess_id, req->rsn, (uint32)req->req_mode, (uint32)req->curr_mode);
+            (uint32)req->inst_id, (uint32)req->sess_id, req->ruid, (uint32)req->req_mode, (uint32)req->curr_mode);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
 
     if (buf_res->claimed_owner == req->inst_id) {
         // for example: owner:0, converting:1, new request inst:0
         LOG_DEBUG_INF("[DRC][%s]:conflicted with other, [buf_res:owner=%u, mode=%u], "
-            "[req:inst_id=%u, sid=%u, rsn=%llu, req_mode=%u, curr_mode=%u]",
+            "[req:inst_id=%u, sid=%u, ruid=%llu, req_mode=%u, curr_mode=%u]",
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
             (uint32)buf_res->lock_mode, (uint32)req->inst_id, (uint32)req->sess_id,
-            req->rsn, (uint32)req->req_mode, (uint32)req->curr_mode);
+            req->ruid, (uint32)req->req_mode, (uint32)req->curr_mode);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
     *can_cvt = CM_FALSE;
@@ -183,7 +183,7 @@ static int32 drc_enq_req_item(drc_buf_res_t *buf_res, drc_request_info_t *req_in
 
 uint8 drc_lookup_owner_id(uint64 *owner_map)
 {
-    for (uint8 i = 0; i < CM_MAX_INSTANCES; ++i) {
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; ++i) {
         // currently, for multiple owners, return the owner with the smallest id
         if (bitmap64_exist(owner_map, i)) {
             return i;
@@ -236,9 +236,9 @@ static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
         return;
     }
     buf_res->converting.begin_time = g_timer()->now;
-    LOG_DEBUG_WAR("[DRC][%s] converting [inst:%u sid:%u rsn:%llu req_mode:%u] prepare confirm",
+    LOG_DEBUG_WAR("[DRC][%s] converting [inst:%u sid:%u ruid:%llu req_mode:%u] prepare confirm",
         cm_display_resid(buf_res->data, buf_res->type), (uint32)cvt_req->inst_id,
-        (uint32)cvt_req->sess_id, cvt_req->rsn, (uint32)cvt_req->req_mode);
+        (uint32)cvt_req->sess_id, cvt_req->ruid, (uint32)cvt_req->req_mode);
     (void)cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id);
 }
 
@@ -350,14 +350,15 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
 
     cvt_info->req_id = req_info->inst_id;
     cvt_info->req_sid = req_info->sess_id;
-    cvt_info->req_rsn = req_info->rsn;
+    cvt_info->req_ruid = req_info->ruid;
     cvt_info->curr_mode = req_info->curr_mode;
     cvt_info->req_mode = req_info->req_mode;
     cvt_info->res_type = buf_res->type;
     cvt_info->len = buf_res->len;
     cvt_info->is_try = req_info->is_try;
+    cvt_info->sess_type = req_info->sess_type;
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
-    CM_ASSERT(cvt_info->req_id < CM_MAX_INSTANCES);
+    CM_ASSERT(cvt_info->req_id < DMS_MAX_INSTANCES);
 
     cvt_info->owner_id = buf_res->claimed_owner;
 
@@ -398,11 +399,11 @@ void drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cv
 
     if (buf_res->converting.req_info.inst_id != claim_info->new_id ||
         buf_res->converting.req_info.sess_id != claim_info->sess_id ||
-        claim_info->rsn < buf_res->converting.req_info.rsn) {
-        LOG_DEBUG_WAR("[DMS][%s]invalid claim req, drc:[inst=%u sid=%u rsn=%llu] claim:[inst=%u sid=%u rsn=%llu]",
+        claim_info->srsn < buf_res->converting.req_info.srsn) {
+        LOG_DEBUG_WAR("[DMS][%s]invalid claim req, drc:[inst=%u sid=%u srsn=%u] claim:[inst=%u sid=%u srsn=%u]",
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->converting.req_info.inst_id,
-            (uint32)buf_res->converting.req_info.sess_id, buf_res->converting.req_info.rsn,
-            (uint32)claim_info->new_id, claim_info->sess_id, claim_info->rsn);
+            (uint32)buf_res->converting.req_info.sess_id, buf_res->converting.req_info.srsn,
+            (uint32)claim_info->new_id, claim_info->sess_id, claim_info->srsn);
         return;
     }
 
@@ -464,7 +465,7 @@ static inline bool8 if_req_can_be_canceled(drc_request_info_t *cvt_req, drc_requ
 {
     if (req->inst_id != cvt_req->inst_id ||
         req->sess_id != cvt_req->sess_id ||
-        req->rsn < cvt_req->rsn) {
+        req->srsn < cvt_req->srsn) {
         return CM_FALSE;
     }
     return CM_TRUE;
@@ -477,8 +478,8 @@ bool8 drc_cancel_converting(drc_buf_res_t *buf_res, drc_request_info_t *req, cvt
     }
 
     if (if_req_can_be_canceled(&buf_res->converting.req_info, req)) {
-        LOG_DEBUG_INF("[DRC][%s][drc_cancel_converting]: cancel converting src_inst =%u, src_sid=%u, rsn=%llu",
-            cm_display_resid(buf_res->data, buf_res->type), (uint32)req->inst_id, (uint32)req->sess_id, req->rsn);
+        LOG_DEBUG_INF("[DRC][%s][drc_cancel_converting]: cancel converting src_inst =%u, src_sid=%u, ruid=%llu",
+            cm_display_resid(buf_res->data, buf_res->type), (uint32)req->inst_id, (uint32)req->sess_id, req->ruid);
         if (cm_bilist_empty(&buf_res->convert_q)) {
             init_drc_cvt_item(&buf_res->converting);
         } else {
@@ -500,12 +501,12 @@ static void drc_cancel_convert_q(drc_buf_res_t *buf_res, drc_request_info_t *req
     drc_lock_item_t *tmp = (drc_lock_item_t *)cm_bilist_head(&buf_res->convert_q);
     while (tmp != NULL) {
         if (if_req_can_be_canceled(&tmp->req_info, req)) {
-            LOG_DEBUG_INF("[DRC][%s][drc_cancel_convert_q]: cancel convert_q src_inst =%u, src_sid=%u, rsn=%llu",
-                cm_display_resid(buf_res->data, buf_res->type), (uint32)req->inst_id, (uint32)req->sess_id, req->rsn);
+            LOG_DEBUG_INF("[DRC][%s][drc_cancel_convert_q]: cancel convert_q src_inst =%u, src_sid=%u, ruid=%llu",
+                cm_display_resid(buf_res->data, buf_res->type), (uint32)req->inst_id, (uint32)req->sess_id, req->ruid);
             cm_bilist_del(&tmp->node, &buf_res->convert_q);
             drc_res_pool_free_item(&DRC_RES_CTX->lock_item_pool, (char*)tmp);
-            LOG_DEBUG_INF("[DRC][%s][drc_cancel_convert_q]: cancel convert_q src_inst =%u, src_sid=%u, rsn=%llu",
-                cm_display_resid(buf_res->data, buf_res->type), (uint32)req->inst_id, (uint32)req->sess_id, req->rsn);
+            LOG_DEBUG_INF("[DRC][%s][drc_cancel_convert_q]: cancel convert_q src_inst =%u, src_sid=%u, ruid=%llu",
+                cm_display_resid(buf_res->data, buf_res->type), (uint32)req->inst_id, (uint32)req->sess_id, req->ruid);
             return;
         }
         tmp = (drc_lock_item_t*)tmp->node.next;
@@ -514,8 +515,8 @@ static void drc_cancel_convert_q(drc_buf_res_t *buf_res, drc_request_info_t *req
 
 void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request_info_t *req, cvt_info_t* cvt_info)
 {
-    LOG_DEBUG_INF("[DRC][%s][drc_cancel_request_res]: src_inst =%u, src_sid=%u, rsn=%llu",
-        cm_display_resid(resid, res_type), (uint32)req->inst_id, (uint32)req->sess_id, req->rsn);
+    LOG_DEBUG_INF("[DRC][%s][drc_cancel_request_res]: src_inst =%u, src_sid=%u, ruid=%llu",
+        cm_display_resid(resid, res_type), (uint32)req->inst_id, (uint32)req->sess_id, req->ruid);
 
     cvt_info->req_id = CM_INVALID_ID8;
     cvt_info->invld_insts = 0;
@@ -527,8 +528,8 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
         return;
     }
     if (buf_res == NULL) {
-        LOG_DEBUG_WAR("[DRC][%s][drc_cancel_request_res]: buf_res is NULL src_inst =%u, src_sid=%u, rsn=%llu",
-            cm_display_resid(resid, res_type), (uint32)req->inst_id, (uint32)req->sess_id, req->rsn);
+        LOG_DEBUG_WAR("[DRC][%s][drc_cancel_request_res]: buf_res is NULL src_inst =%u, src_sid=%u, ruid=%llu",
+            cm_display_resid(resid, res_type), (uint32)req->inst_id, (uint32)req->sess_id, req->ruid);
         return;
     }
 

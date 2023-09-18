@@ -231,7 +231,7 @@ static void dms_reform_parallel_assign_migrate_task(void)
 
 static int dms_reform_reconnect_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
-    return mes_connect_batch(&res_id->node_id, 1);
+    return mfc_add_instance_batch(&res_id->node_id, 1, CM_FALSE);
 }
 
 static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)

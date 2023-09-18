@@ -30,7 +30,7 @@
 #include "dms_msg.h"
 #include "drc.h"
 #include "drc_res_mgr.h"
-#include "mes_func.h"
+#include "mes_interface.h"
 #include "dcs_page.h"
 
 static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint32 cmd, dms_edp_info_t *pages, uint32 count)
@@ -39,16 +39,15 @@ static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint32 cmd, dms
     dms_message_head_t head;
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
     uint32 left_cnt = count;
-    uint32 max_send_cnt = (uint32)(((MES_MESSAGE_BUFFER_SIZE - sizeof(dms_message_head_t)) - sizeof(unsigned int)) /
+    uint32 max_send_cnt = (uint32)(((DMS_MESSAGE_BUFFER_SIZE - sizeof(dms_message_head_t)) - sizeof(unsigned int)) /
         sizeof(dms_edp_info_t));
 
     while (left_cnt > 0) {
         uint32 send_cnt = MIN(max_send_cnt, left_cnt);
         uint32 size = (uint32)(sizeof(dms_message_head_t) + sizeof(unsigned int) + send_cnt * sizeof(dms_edp_info_t));
-        head.mes_head.rsn = mfc_get_rsn(dms_ctx->sess_id);
-        head.mes_head.size = (uint16)size;
+        head.size = (uint16)size;
 
-        if ((ret = mfc_send_data4(&head, sizeof(dms_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
+        if ((ret = mfc_send_data4_async(&head, sizeof(dms_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
             pages, send_cnt * (uint32)sizeof(dms_edp_info_t))) != CM_SUCCESS) {
             LOG_DEBUG_ERR("[DMS]send edp failed, errno = %d", ret);
             DMS_THROW_ERROR(ERRNO_DMS_DCS_SEND_EDP_FAILED);
@@ -227,7 +226,7 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
     }
 
     edp->edp_map = buf_res->edp_map;
-    if (MES_IS_INST_SEND(edp->edp_map, g_dms.inst_id) && g_dms.callback.ckpt_session(dms_ctx->db_handle)) {
+    if (DMS_IS_INST_SEND(edp->edp_map, g_dms.inst_id) && g_dms.callback.ckpt_session(dms_ctx->db_handle)) {
         drc_leave_buf_res(buf_res);
         return CM_FALSE;
     }
@@ -311,7 +310,7 @@ int dms_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int co
         dcs_get_page_master_id, dcs_master_clean_edp, dcs_send_edp_to_master_clean);
 }
 
-void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
 #ifndef OPENGAUSS
     dms_context_t dms_ctx;
@@ -328,11 +327,11 @@ void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, mes_messag
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    mfc_release_message_buf(receive_msg);
+    dms_release_recv_message(receive_msg);
     return;
 }
 
-void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
 #ifndef OPENGAUSS
     dms_context_t dms_ctx;
@@ -348,11 +347,11 @@ void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, mes_message
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    mfc_release_message_buf(receive_msg);
+    dms_release_recv_message(receive_msg);
     return;
 }
 
-void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
 #ifndef OPENGAUSS
     dms_context_t dms_ctx;
@@ -368,11 +367,11 @@ void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, mes_messa
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    mfc_release_message_buf(receive_msg);
+    dms_release_recv_message(receive_msg);
     return;
 }
 
-void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg)
+void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
 #ifndef OPENGAUSS
     dms_context_t dms_ctx;
@@ -388,6 +387,6 @@ void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, mes_messag
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    mfc_release_message_buf(receive_msg);
+    dms_release_recv_message(receive_msg);
     return;
 }

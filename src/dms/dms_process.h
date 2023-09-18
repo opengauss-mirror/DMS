@@ -34,18 +34,13 @@
 extern "C" {
 #endif
 
-typedef void (*dms_message_proc_t)(dms_process_context_t *ctx, mes_message_t *message);
+typedef void (*dms_message_proc_t)(dms_process_context_t *ctx, dms_message_t *message);
 typedef struct st_dms_processor {
     dms_message_proc_t proc;
     bool32 is_enqueue;
     bool32 is_enable_before_reform;
     char name[CM_MAX_NAME_LEN];
 } dms_processor_t;
-
-typedef struct st_dms_cntlr {
-    uint64     rsn;
-    spinlock_t lock;
-}dms_cntlr_t;
 
 typedef struct st_ock_scrlock_context {
     unsigned char enable;
@@ -81,7 +76,7 @@ typedef struct st_dms_instance {
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)
 #define DMS_FIRST_BUFFER_LENGTH (64)
 #define DMS_SECOND_BUFFER_LENGTH (128)
-#define DMS_THIRD_BUFFER_LENGTH (SIZE_K(32) + 64)
+#define DMS_THIRD_BUFFER_LENGTH (SIZE_K(32) + 256)
 #define DMS_CKPT_NOTIFY_TASK_RATIO (1.0f / 4)
 #define DMS_CLEAN_EDP_TASK_RATIO (1.0f / 4)
 #define DMS_TXN_INFO_TASK_RATIO (1.0f / 16)
@@ -90,36 +85,39 @@ typedef struct st_dms_instance {
 #define DMS_THIRDLY_BUFFER_RATIO (1.0f / 2)
 #define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
 
+#define DMS_CM_MAX_SESSIONS 16320
+#define DMS_CS_TYPE_TCP (1)
+#define DMS_CS_TYPE_RDMA (7)
+
 extern dms_instance_t g_dms;
 
-static inline void dms_proc_msg_ack(dms_process_context_t *process_ctx, mes_message_t *msg)
+static inline void dms_proc_msg_ack(dms_process_context_t *process_ctx, dms_message_t *msg)
 {
-    mfc_notify_msg_recv(msg);
+    /* pass */
 }
 
-static inline void dms_proc_broadcast_ack(dms_process_context_t *process_ctx, mes_message_t *msg)
+static inline void dms_proc_broadcast_ack(dms_process_context_t *process_ctx, dms_message_t *msg)
 {
-    if (DMS_MFC_OFF) {
-        mfc_notify_broadcast_msg_recv_and_release(msg);
-    } else {
-        mfc_notify_broadcast_msg_recv_and_cahce(msg);
-    }
+    /* pass */
 }
 
-static inline void dms_proc_broadcast_ack2(dms_process_context_t *process_ctx, mes_message_t *msg)
+static inline void dms_proc_broadcast_ack2(dms_process_context_t *process_ctx, dms_message_t *msg)
 {
-    mfc_notify_broadcast_msg_recv_and_cahce(msg);
+    /* pass */
 }
 
-static inline void dms_proc_broadcast_ack3(dms_process_context_t *process_ctx, mes_message_t *msg)
+static inline void dms_proc_broadcast_ack3(dms_process_context_t *process_ctx, dms_message_t *msg)
 {
-    mfc_notify_broadcast_msg_recv_with_errcode(msg);
+    /* pass */
 }
 
 static inline const char *dms_get_mescmd_msg(uint32 cmd)
 {
     return (cmd < MSG_CMD_CEIL) ? g_dms.processors[cmd].name : "INVALID";
 }
+
+mes_task_group_id_t dms_msg_group_id(uint32 cmd);
+
 #ifdef __cplusplus
 }
 #endif

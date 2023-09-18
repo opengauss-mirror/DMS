@@ -44,12 +44,12 @@ typedef struct st_dcs_check_tlock_status {
     char resv[2];
 } dcs_check_tlock_status_t;
 
-void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, mes_message_t *receive_msg);
-void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, mes_message_t *receive_msg);
-void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, mes_message_t *receive_msg);
-void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, mes_message_t *receive_msg);
-void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, mes_message_t *receive_msg);
-void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, mes_message_t *receive_msg);
+void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

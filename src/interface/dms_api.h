@@ -221,6 +221,7 @@ typedef struct st_dms_context {
     unsigned char is_try;
     unsigned char type;
     unsigned short len;
+    unsigned long long ctx_ruid; /* this ruid indicates one message ack is pending recv */
     union {
         char resid[DMS_RESID_SIZE];
         dms_drid_t lock_id;
@@ -607,6 +608,7 @@ typedef int(*dms_tx_area_load)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_rollback_finish)(void *db_handle, unsigned char inst_id);
 typedef unsigned char(*dms_recovery_in_progress)(void *db_handle);
 typedef unsigned int(*dms_get_page_hash_val)(const char pageid[DMS_PAGEID_SIZE]);
+typedef unsigned int(*dms_inc_and_get_srsn)(unsigned int sess_id);
 typedef unsigned long long(*dms_get_page_lsn)(const dms_buf_ctrl_t *buf_ctrl);
 typedef int(*dms_set_buf_load_status)(dms_buf_ctrl_t *buf_ctrl, dms_buf_load_status_t dms_buf_load_status);
 typedef int(*dms_remove_buf_load_status)(dms_buf_ctrl_t *buf_ctrl, dms_buf_load_status_t dms_buf_load_status);
@@ -778,6 +780,7 @@ typedef struct st_dms_callback {
     dms_reform_start_notify reform_start_notify;
     dms_reform_set_dms_role reform_set_dms_role;
 
+    dms_inc_and_get_srsn inc_and_get_srsn;
     dms_get_page_hash_val get_page_hash_val;
     dms_get_page_lsn get_page_lsn;
     dms_set_buf_load_status set_buf_load_status;
@@ -885,6 +888,7 @@ typedef struct st_dms_callback {
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
+    unsigned int inst_id;
     char ip[DMS_MAX_IP_LEN];
     unsigned short port;
     unsigned char reserved[2];
@@ -922,7 +926,7 @@ typedef struct st_dms_profile {
     // ock scrlock configs
     unsigned char enable_scrlock;
     unsigned int primary_inst_id;
-    unsigned char enable_ssl;  
+    unsigned char enable_ssl;
     unsigned int scrlock_log_level;
     unsigned char enable_scrlock_worker_bind_core;
     unsigned int scrlock_worker_cnt;
