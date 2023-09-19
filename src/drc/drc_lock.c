@@ -85,11 +85,6 @@ void drc_lock_local_resx(drc_local_lock_res_t *lock_res)
     cm_spin_lock(&lock_res->lock, NULL);
 }
 
-bool32 drc_timed_lock_local_resx(drc_local_lock_res_t *lock_res, uint32 timeout_ticks)
-{
-    return cm_spin_timed_lock(&lock_res->lock, timeout_ticks);
-}
-
 void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
 {
     cm_spin_unlock(&lock_res->lock);
@@ -136,26 +131,11 @@ int drc_confirm_owner(char* resid, uint8 *lock_mode)
 
 int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode)
 {
-    bool32 is_locked = CM_FALSE;
     drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);
-    date_t begin = g_timer()->now;
 
-    while (CM_TRUE) {
-        is_locked = drc_timed_lock_local_resx(lock_res, DMS_MSG_CONFIRM_TIMES);
-        if (is_locked || (g_timer()->now - begin > DMS_REFORM_CONFIRM_TIMEOUT)) {
-            break;
-        }
-        DMS_REFORM_SHORT_SLEEP;
-    }
-    if (is_locked) {
-        *lock_mode = lock_res->latch_stat.lock_mode;
-        drc_unlock_local_resx(lock_res);
-        return DMS_SUCCESS;
-    }
-    if (smon_chk) {
-        return CM_TIMEDOUT;
-    }
-
+    drc_lock_local_resx(lock_res);
     *lock_mode = lock_res->latch_stat.lock_mode;
+    drc_unlock_local_resx(lock_res);
+
     return DMS_SUCCESS;
 }
