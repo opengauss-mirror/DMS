@@ -46,15 +46,7 @@ static bool8 dls_request_spin_lock(dms_context_t *dms_ctx, drc_local_lock_res_t 
         if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
             return CM_FALSE;
         }
-#ifndef WIN32
-        fas_cpu_pause();
-#endif
-        spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == DLS_SPIN_COUNT)) {
-            cm_spin_sleep();
-            spin_times = 0;
-            wait_ticks++;
-        }
+        dls_sleep(&spin_times, &wait_ticks);
     } while (CM_TRUE);
 }
 
@@ -206,16 +198,8 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
             dls_cancel_request_lock(dms_ctx, &dlock->drid);
             return CM_FALSE;
         }
-
-#ifndef WIN32
-        fas_cpu_pause();
-#endif // !WIN32
-
-        spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
-            cm_spin_sleep();
-            spin_times = 0;
-        }
+        
+        dls_sleep(&spin_times, NULL);
     }
 }
 
@@ -238,15 +222,6 @@ unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, u
             return CM_FALSE;
         }
 
-#ifndef WIN32
-        fas_cpu_pause();
-#endif // !WIN32
-
-        spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
-            cm_spin_sleep();
-            spin_times = 0;
-            wait_ticks++;
-        }
+        dls_sleep(&spin_times, &wait_ticks);
     }
 }
