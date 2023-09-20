@@ -190,7 +190,7 @@ int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigne
     if (*success_inst == all_inst) {
         return DMS_SUCCESS;
     }
-    DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, all_inst, *success_inst);
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, all_inst, *success_inst);
     return DMS_ERROR;
 }
 
@@ -233,8 +233,8 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
     mfc_broadcast(inval_insts, (void *)&boc_req, success_inst);
     *ruid = boc_req.head.ruid;
     if (*success_inst != inval_insts) {
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_BOC_FAILED, inval_insts, *success_inst);
-        return ERRNO_DMS_DCS_BOC_FAILED;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, inval_insts, *success_inst);
+        return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
     return DMS_SUCCESS;
 }
