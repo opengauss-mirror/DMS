@@ -110,11 +110,9 @@ void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked, b
 {
     lock_res->is_locked = is_locked;
     lock_res->is_owner = is_owner;
-    if (is_owner) {
-        lock_res->latch_stat.lock_mode = DMS_LOCK_EXCLUSIVE; // only user for spin lock, so we set lock mode X here
-    } else {
-        lock_res->latch_stat.lock_mode = DMS_LOCK_NULL;
-    }
+    // only user for spin lock, so we set lock mode X here
+    lock_res->latch_stat.stat = is_locked ? LATCH_STATUS_X : LATCH_STATUS_IDLE;
+    lock_res->latch_stat.lock_mode = is_owner ? DMS_LOCK_EXCLUSIVE : DMS_LOCK_NULL;
 }
 
 void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t **latch_stat)

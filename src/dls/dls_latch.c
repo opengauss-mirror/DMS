@@ -62,15 +62,7 @@ static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *loc
             return CM_FALSE;
         }
 
-#ifndef WIN32
-        fas_cpu_pause();
-#endif // !WIN32
-        spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == DLS_SPIN_COUNT)) {
-            cm_spin_sleep();
-            spin_times = 0;
-            wait_ticks++;
-        }
+        dls_sleep(&spin_times, &wait_ticks);
     } while (CM_TRUE);
 }
 
@@ -718,15 +710,7 @@ unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
             return CM_FALSE;
         }
 
-#ifndef WIN32
-        fas_cpu_pause();
-#endif // !WIN32
-
-        spin_times++;
-        if (SECUREC_UNLIKELY(spin_times == GS_SPIN_COUNT)) {
-            cm_spin_sleep();
-            spin_times = 0;
-        }
+        dls_sleep(&spin_times, NULL);
     }
 }
 
