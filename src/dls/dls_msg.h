@@ -78,13 +78,13 @@ static inline void dms_wait4releasing(const drc_local_lock_res_t *lock_res)
     }
 }
 
-static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks)
+static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks, uint32 spin_step)
 {
 #ifndef WIN32
     fas_cpu_pause();
 #endif // !WIN32
     (*spin_times)++;
-    if (SECUREC_UNLIKELY(*spin_times == GS_SPIN_COUNT)) {
+    if (SECUREC_UNLIKELY(*spin_times == spin_step)) {
         cm_spin_sleep();
         *spin_times = 0;
         if (wait_ticks != NULL) {

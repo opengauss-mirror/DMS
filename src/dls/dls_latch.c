@@ -62,7 +62,7 @@ static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *loc
             return CM_FALSE;
         }
 
-        dls_sleep(&spin_times, &wait_ticks);
+        dls_sleep(&spin_times, &wait_ticks, DLS_SPIN_COUNT);
     } while (CM_TRUE);
 }
 
@@ -710,7 +710,7 @@ unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
             return CM_FALSE;
         }
 
-        dls_sleep(&spin_times, NULL);
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
     }
 }
 

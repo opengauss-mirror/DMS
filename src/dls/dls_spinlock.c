@@ -46,7 +46,7 @@ static bool8 dls_request_spin_lock(dms_context_t *dms_ctx, drc_local_lock_res_t 
         if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
             return CM_FALSE;
         }
-        dls_sleep(&spin_times, &wait_ticks);
+        dls_sleep(&spin_times, &wait_ticks, DLS_SPIN_COUNT);
     } while (CM_TRUE);
 }
 
@@ -199,7 +199,7 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
             return CM_FALSE;
         }
         
-        dls_sleep(&spin_times, NULL);
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
     }
 }
 
@@ -222,6 +222,6 @@ unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, u
             return CM_FALSE;
         }
 
-        dls_sleep(&spin_times, &wait_ticks);
+        dls_sleep(&spin_times, &wait_ticks, GS_SPIN_COUNT);
     }
 }

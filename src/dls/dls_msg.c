@@ -82,12 +82,14 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool
         if (g_lock_matrix[lock_mode][lock_res->latch_stat.stat]) {
             return lock_res;
         }
-        drc_unlock_local_resx(lock_res);
         if ((g_timer()->now - begin) / MICROSECS_PER_MILLISEC >= DMS_WAIT_MAX_TIME) {
+            lock_res->releasing = CM_FALSE;
+            drc_unlock_local_resx(lock_res);
             LOG_DEBUG_WAR("[DLS] release lock(%s) timeout", cm_display_lockid(lockid));
             return NULL;
         }
-        dls_sleep(&spin_times, NULL);
+        drc_unlock_local_resx(lock_res);
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
         drc_lock_local_resx(lock_res);
     } while (CM_TRUE);
 }
@@ -119,7 +121,7 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
             req_info->req_id, req_info->req_sid, req_info->req_ruid, ret);
-        return DMS_SUCCESS;
+        return ret;
     }
 
     dms_ask_res_ack_t page_ack;
