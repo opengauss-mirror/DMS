@@ -433,6 +433,7 @@ static inline void dms_init_ack_head(const dms_message_head_t *req_head, dms_mes
         (head)->msg_proto_ver = dms_get_send_proto_version_by_cmd((v_cmd), ((uint8)v_dst_inst));                \
         (head)->cluster_ver = DMS_GLOBAL_CLUSTER_VER;                                                           \
         (head)->ruid = 0;                                                                                       \
+        DMS_SECUREC_CHECK(memset_s((head)->reserved, DMS_MSG_HEAD_UNUSED_SIZE, 0, DMS_MSG_HEAD_UNUSED_SIZE));   \
     } while (0)
 
 #define DMS_MESSAGE_BODY(msg) ((msg)->buffer + sizeof(dms_message_head_t))
