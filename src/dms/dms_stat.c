@@ -38,7 +38,8 @@ void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
     uint32 curr_level = stat->level++;
     if (stat->level > DMS_STAT_MAX_LEVEL) {
-        LOG_RUN_WAR("[DMS][dms_begin_stat]: stat level exceeds the upper limit");
+        LOG_RUN_WAR("[DMS][dms_begin_stat]: stat level exceeds the upper limit, sid %u, current level %u",
+            sid, curr_level);
         return;
     }
 
@@ -47,6 +48,8 @@ void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
     stat->wait[curr_level].usecs = 0;
     stat->wait[curr_level].pre_spin_usecs = cm_total_spin_usecs();
     stat->wait[curr_level].immediate = immediate;
+    LOG_DEBUG_INF("[DMS][dms_begin_stat]: stat event %u, immediate %d, sid %u, current level %u",
+        event, immediate, sid, curr_level);
 
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
@@ -58,6 +61,17 @@ void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
 void dms_end_stat(uint32 sid)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
+
+    if (stat->level == 0) {
+        LOG_RUN_ERR("[DMS][dms_end_stat]: stat level is already meet the low limit, sid %u", sid);
+        return;
+    } else if (stat->level > DMS_STAT_MAX_LEVEL) {
+        uint32 curr_level = --stat->level;
+        LOG_RUN_WAR("[DMS][dms_end_stat]: stat level exceeds the upper limit, sid %u, current level %u",
+            sid, curr_level);
+        return;
+    }
+
     dms_end_stat_ex(sid, stat->wait[stat->level - 1].event);
 }
 
@@ -65,12 +79,8 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
 
-    uint32 curr_level = stat->level--;
-    if (curr_level > DMS_STAT_MAX_LEVEL) {
-        LOG_RUN_WAR("[DMS][dms_end_stat_ex]: use end of stat more or less");
-        return;
-    }
-
+    uint32 curr_level = --stat->level;
+    LOG_DEBUG_INF("[DMS][dms_end_stat_ex]: stat event %u, sid %u, current level %u", event, sid, curr_level);
 
     timeval_t tv_end;
 
