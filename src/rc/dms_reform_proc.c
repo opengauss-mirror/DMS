@@ -753,6 +753,7 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         } else { // is not dirty, should notify to flush copy
             drc_rebuild_set_copy(buf_res, inst_id, ctrl->is_remote_dirty);
         }
+        buf_res->in_recovery = ctrl->in_rcy; // recover session may read page during recovery
     }
 
     if (ctrl->is_edp) {
