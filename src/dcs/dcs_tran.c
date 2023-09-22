@@ -853,8 +853,8 @@ int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, uint64 oldest_xmin, u
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
         LOG_DEBUG_WAR("[OG XMIN] send openGauss oldest xmin failed, src_inst:%u, src_sid:%u, "
-            "dst_inst:%u, ruid:%llu",
-            send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.ruid);
+            "dst_inst:%u, ruid:%llu, oldest_xmin:%llu",
+            send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.ruid, oldest_xmin);
         return ret;
     }
     LOG_DEBUG_INF("[OG XMIN] send openGauss oldest xmin success, src_inst:%u, src_sid:%u, "
@@ -874,6 +874,7 @@ int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, uint64 oldest_xmin, u
     LOG_DEBUG_INF("[OG XMIN] receive openGauss oldest xmin ack success, src_inst:%u, src_sid:%u, "
         "dst_inst:%u, ruid:%llu",
         send_msg.head.src_inst, send_msg.head.src_sid, send_msg.head.dst_inst, send_msg.head.ruid);
+    dms_release_recv_message(&ack_msg);
     return ret;
 }
 
@@ -884,8 +885,9 @@ void dcs_proc_send_opengauss_oldest_xmin(dms_process_context_t *process_ctx, dms
     dms_release_recv_message(receive_msg);
 
     uint64 oldest_xmin = recv_msg.oldest_xmin;
-    LOG_DEBUG_INF("[OG XMIN] receive openGauss oldest xmin, src_inst:%u, src_sid:%u, dst_inst:%u, ruid:%llu",
-        recv_msg.head.src_inst, recv_msg.head.src_sid, recv_msg.head.dst_inst, recv_msg.head.ruid);
+    LOG_DEBUG_INF("[OG XMIN] receive openGauss oldest xmin, src_inst:%u, src_sid:%u, dst_inst:%u, ruid:%llu, "
+        "oldest_xmin:%llu",
+        recv_msg.head.src_inst, recv_msg.head.src_sid, recv_msg.head.dst_inst, recv_msg.head.ruid, oldest_xmin);
     g_dms.callback.update_node_oldest_xmin(process_ctx->db_handle, recv_msg.head.src_inst, oldest_xmin);
 
     dms_message_head_t ack_msg;
