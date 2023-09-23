@@ -141,6 +141,12 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
         if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd) == DMS_SUCCESS) {
             return DMS_SUCCESS;
         }
+#ifndef OPENGAUSS
+        if (g_dms.callback.check_session_invalid(dms_ctx->sess_id)) {
+            LOG_RUN_INF("[DCS] session %u is killed or canneled during the broadcast process.", dms_ctx->sess_id);
+            return DMS_ERROR;
+        }
+#endif
         cm_sleep(DMS_MSG_RETRY_TIME);
     }
 }
