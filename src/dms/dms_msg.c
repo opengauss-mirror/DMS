@@ -360,7 +360,7 @@ static int32 dms_handle_ask_owner_ack(dms_context_t *dms_ctx, void *res,
 static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, drc_req_owner_result_t *result)
 {
-    dms_ask_res_req_t req;
+    dms_ask_res_req_t req = { 0 };
     DMS_INIT_MESSAGE_HEAD(&req.head,
         MSG_REQ_ASK_OWNER_FOR_PAGE, 0, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_ask_res_req_t);
@@ -587,7 +587,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
 static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode)
 {
-    dms_ask_res_req_t req;
+    dms_ask_res_req_t req = { 0 };
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_MASTER_FOR_PAGE,
         0, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
 
@@ -657,7 +657,7 @@ int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_
 
 static int32 dms_send_ask_res_owner_id_req(dms_context_t *dms_ctx, uint8 master_id, uint64 *ruid)
 {
-    dms_ask_res_owner_id_req_t req;
+    dms_ask_res_owner_id_req_t req = { 0 };
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_RES_OWNER_ID,
         0, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
 
@@ -768,7 +768,7 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
     int ret;
 
     if (req_info->owner_id != req_info->req_id) {
-        dms_ask_res_req_t req;
+        dms_ask_res_req_t req = { 0 };
         DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_OWNER_FOR_PAGE, 0,
             req_info->req_id, req_info->owner_id, req_info->req_sid, CM_INVALID_ID16);
         req.req_mode  = req_info->req_mode;
@@ -856,7 +856,7 @@ static int dms_notify_owner_for_res(dms_process_context_t *ctx, dms_res_req_info
 
 static int dms_send_req2owner(dms_process_context_t *ctx, dms_ask_res_req_t *req_msg, drc_req_owner_result_t *result)
 {
-    dms_res_req_info_t req_info;
+    dms_res_req_info_t req_info = { 0 };
     req_info.owner_id = result->curr_owner_id;
     req_info.req_id   = req_msg->head.src_inst;
     req_info.req_sid  = req_msg->head.src_sid;
@@ -988,7 +988,7 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *proc_ctx, dms_message_t *r
         drc_leave_buf_res(buf_res);
     }
 
-    dms_ask_res_owner_id_ack_t ack;
+    dms_ask_res_owner_id_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_RES_OWNER_ID,
         sizeof(dms_ask_res_owner_id_ack_t), proc_ctx->sess_id);
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: src_id=%u, src_sid=%u",
@@ -1034,7 +1034,7 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *
         "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type), (uint32)proc_ctx->inst_id,
         (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
 
-    dms_res_req_info_t req_info;
+    dms_res_req_info_t req_info = { 0 };
     req_info.owner_id = req.head.dst_inst;
     req_info.req_id   = req.head.src_inst;
     req_info.req_sid  = req.head.src_sid;
@@ -1097,7 +1097,7 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
 
 static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *cvt_info)
 {
-    dms_res_req_info_t req_info;
+    dms_res_req_info_t req_info = { 0 };
     req_info.owner_id = cvt_info->owner_id;
     req_info.req_id   = cvt_info->req_id;
     req_info.req_sid  = (uint16)(cvt_info->req_sid);
@@ -1260,7 +1260,7 @@ void dms_cancel_request_res(dms_context_t *dms_ctx)
         return;
     }
 
-    dms_cancel_request_res_t req;
+    dms_cancel_request_res_t req = { 0 };
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CANCEL_REQUEST_RES, 0,
         dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_cancel_request_res_t);

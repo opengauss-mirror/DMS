@@ -787,7 +787,7 @@ static void dms_reform_migrate_task_inner(uint8 part_id, drc_part_t *part_now, d
     uint64 bitmap_online)
 {
     migrate_info_t *migrate_info = DMS_MIGRATE_INFO;
-    migrate_task_t migrate_task;
+    migrate_task_t migrate_task = { 0 };
 
     if (part_now->inst_id == part_remaster->inst_id) {
         return;

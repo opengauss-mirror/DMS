@@ -654,7 +654,7 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
 static int dms_reform_migrate(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
-    migrate_info_t local_migrate_info;
+    migrate_info_t local_migrate_info = { 0 };
     migrate_task_t *migrate_task = NULL;
     int ret = DMS_SUCCESS;
 
