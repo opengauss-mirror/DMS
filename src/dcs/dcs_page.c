@@ -134,7 +134,7 @@ static inline int32 dcs_handle_ask_edp_ack(dms_context_t *dms_ctx,
 int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 remote_id, dms_lock_mode_t req_mode)
 {
-    dms_ask_res_req_t page_req;
+    dms_ask_res_req_t page_req = { 0 };
     DMS_INIT_MESSAGE_HEAD(&page_req.head,
         MSG_REQ_ASK_EDP_REMOTE, 0, dms_ctx->inst_id, remote_id, dms_ctx->sess_id, CM_INVALID_ID16);
     page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
@@ -380,7 +380,7 @@ void dcs_send_requester_edp_local(dms_process_context_t *ctx, dms_ask_res_req_t 
 static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
     uint32 cmd)
 {
-    dms_ask_res_ack_t page_ack;
+    dms_ask_res_ack_t page_ack = { 0 };
 
     DMS_INIT_MESSAGE_HEAD(&page_ack.head, cmd, 0, req_info->owner_id,
         req_info->req_id, ctx->sess_id, req_info->req_sid);
@@ -554,7 +554,7 @@ static int dcs_notify_remote_for_edp_r(dms_process_context_t *ctx, dms_res_req_i
     int ret;
 
     if (req_info->owner_id != req_info->req_id) {
-        dms_ask_res_req_t page_req;
+        dms_ask_res_req_t page_req = { 0 };
         DMS_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_ASK_EDP_REMOTE, 0, req_info->req_id, req_info->owner_id,
             req_info->req_sid, CM_INVALID_ID16);
         page_req.req_mode = req_info->req_mode;
@@ -623,7 +623,7 @@ static int dcs_notify_remote_for_edp(dms_process_context_t *ctx, dms_res_req_inf
 int dcs_send_requester_edp_remote(dms_process_context_t *ctx, dms_ask_res_req_t *page_req,
     drc_req_owner_result_t *result)
 {
-    dms_res_req_info_t req_info;
+    dms_res_req_info_t req_info = { 0 };
     req_info.owner_id = result->curr_owner_id;
     req_info.req_id = page_req->head.src_inst;
     req_info.req_sid = page_req->head.src_sid;
@@ -696,7 +696,7 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
 void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
-    dms_ask_res_req_t page_req;
+    dms_ask_res_req_t page_req = { 0 };
     page_req = *(dms_ask_res_req_t *)(receive_msg->buffer);
     dms_release_recv_message(receive_msg);
 
@@ -785,7 +785,7 @@ static inline void dcs_set_page_req_parameter(dms_context_t *dms_ctx, dms_buf_ct
 static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
     uint8 master_id, uint8 *owner_id)
 {
-    dms_ask_res_req_t page_req;
+    dms_ask_res_req_t page_req = { 0 };
     DMS_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, 0, dms_ctx->inst_id, master_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     page_req.srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
@@ -842,7 +842,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
         *owner_id = (uint8)(*(uint32 *)DMS_MESSAGE_BODY(&msg));
     } else {
         cm_print_error_msg(msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(msg.buffer) + sizeof(msg_error_t)));
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
         dms_release_recv_message(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -1039,7 +1039,7 @@ void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *rece
         cm_display_pageid(page_req.resid), ctx->inst_id, page_req.head.src_inst, page_req.head.src_sid,
         page_req.head.ruid, page_req.req_mode);
 
-    dms_res_req_info_t req_info;
+    dms_res_req_info_t req_info = { 0 };
     req_info.owner_id = page_req.head.dst_inst;
     req_info.req_id = page_req.head.src_inst;
     req_info.req_sid = page_req.head.src_sid;

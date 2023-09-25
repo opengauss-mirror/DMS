@@ -219,7 +219,7 @@ static void dms_reform_parallel_assign_thread(void)
 
 static void dms_reform_parallel_assign_migrate_task(void)
 {
-    migrate_info_t local_migrate_info;
+    migrate_info_t local_migrate_info = { 0 };
     resource_id_t res_id = { 0 };
 
     dms_reform_migrate_collect_local_task(&local_migrate_info);

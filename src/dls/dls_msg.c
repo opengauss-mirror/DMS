@@ -124,7 +124,7 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
         return ret;
     }
 
-    dms_ask_res_ack_t page_ack;
+    dms_ask_res_ack_t page_ack = { 0 };
     DMS_INIT_MESSAGE_HEAD(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
         req_info->req_id, proc_ctx->sess_id, req_info->req_sid);
     page_ack.head.ruid = req_info->req_ruid;
