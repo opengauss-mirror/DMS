@@ -598,6 +598,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     req.is_try    = dms_ctx->is_try;
     req.res_type  = dms_ctx->type;
     req.len       = dms_ctx->len;
+    req.req_time  = g_timer()->now;
     req.srsn      = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
     int32 ret = memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, dms_ctx->len);
 
