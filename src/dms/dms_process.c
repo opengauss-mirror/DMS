@@ -274,14 +274,17 @@ void dms_send_ack_version_not_match(dms_process_context_t *ctx, dms_message_t *r
     int32 ret = mfc_send_data(&ack_msg);
     if (ret != CM_SUCCESS) {
         LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
-            "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
+            "recv msg: cmd:%d, msg_proto_ver:%u, my sw_proto_ver:%u",
             ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, 
-            ack_msg.dst_sid, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
+            ack_msg.dst_sid, dms_head->cmd, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
+        dms_release_recv_message(receive_msg);
+        return;
     }
     LOG_RUN_INF("[DMS] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
-        "recv msg msg_proto_ver:%u, my sw_proto_ver:%u",
+        "recv msg: cmd:%d, msg_proto_ver:%u, my sw_proto_ver:%u",
         ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, 
-        ack_msg.dst_sid, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
+        ack_msg.dst_sid, dms_head->cmd, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
+    dms_release_recv_message(receive_msg);
 }
 
 static bool8 dms_check_message_proto_version(dms_process_context_t *ctx, dms_message_t *msg)
