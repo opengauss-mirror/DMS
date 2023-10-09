@@ -980,6 +980,17 @@ static void dms_reform_judgement_rollback(instance_list_t *inst_lists)
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
+    
+    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_FAILOVER) {
+        for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            remaster_info->deposit_map[inst_id] = share_info->reformer_id;
+            dms_reform_list_add(&share_info->list_rollback, inst_id);
+        }
+
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK);
+        return;
+    }
 
     for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
         remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
@@ -1289,6 +1300,30 @@ static void dms_reform_judgement_bcast_enable(void)
     dms_reform_add_step(DMS_REFORM_STEP_BCAST_ENABLE);
 }
 
+static void dms_reform_judgement_collect_xaowners(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_COLLECT_XA_OWNER);
+}
+
+static void dms_reform_judgement_sync_xaowners(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_MERGE_XA_OWNERS);
+}
+
+static void dms_reform_judgement_recovery_xa(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_RECOVERY_XA);
+}
+
+static void dms_reform_judgement_xa_access(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_XA_DRC_ACCESS);
+}
+
 static void dms_reform_judgement_normal(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
@@ -1317,6 +1352,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_xa_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_success();
@@ -1339,6 +1375,10 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
+    dms_reform_judgement_collect_xaowners();
+    dms_reform_judgement_sync_xaowners();
+    dms_reform_judgement_recovery_xa();
+    dms_reform_judgement_xa_access();
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
@@ -1391,6 +1431,7 @@ static void dms_reform_judgement_failover(instance_list_t *inst_lists)
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_xa_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_success();
@@ -1456,6 +1497,7 @@ static void dms_reform_judgement_build(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_page_access();
+    dms_reform_judgement_xa_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
@@ -1477,6 +1519,7 @@ static void dms_reform_judgement_full_clean(instance_list_t *inst_lists)
     dms_reform_judgement_reset_user();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
+    dms_reform_judgement_xa_access();
     dms_reform_judgement_switchover_promote();
     dms_reform_judgement_success();
     dms_reform_judgement_done();
@@ -1495,6 +1538,7 @@ static void dms_reform_judgement_maintain(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_xa_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();
     dms_reform_judgement_switchover_promote();

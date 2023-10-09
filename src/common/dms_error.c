@@ -74,6 +74,10 @@ const char *g_dms_errno_drc_desc[] = {
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST)] = "invalid repeat request",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_INVALID)] = "invalid drc: %s",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_IS_RECYCLING)] = "drc: %s is recycling",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_MASTER_NOT_FOUND)] = "the master of global xid not found, xid is %s",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_POOL_CAPACITY_NOT_ENOUGH)] = "global xa pool has not enough capacity",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS)] = "global xa res %s already exists",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_RES_NOT_EXISTS)] = "global xa res %s does not exiets",
 };
 
 const char *g_dms_errno_dls_desc[] = {

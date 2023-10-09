@@ -31,6 +31,7 @@
 #include "dms_mfc.h"
 #include "dms_stat.h"
 #include "dcs_page.h"
+#include "dms_reform_xa.h"
 
 static int dms_reform_req_common_wait(uint64 ruid)
 {
@@ -553,7 +554,8 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 
     int ret = DMS_SUCCESS;
     drc_buf_res_t *buf_res = NULL;
-    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(type);
+    drc_global_xa_res_t *xa_res = NULL;
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
     bilist_t *res_list = &global_res_map->res_parts[migrate_task->part_id];
     bilist_node_t *node = cm_bilist_head(res_list);
     uint32 offset = (uint32)sizeof(dms_reform_req_migrate_t);
@@ -564,9 +566,15 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
     }
 
     for (uint32 i = 0; i < res_list->count; i++) {
-        buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
-        DRC_DISPLAY(buf_res, "migrate");
-        ret = dms_reform_req_migrate_add_buf_res(buf_res, req, &offset, sess_id);
+        if (type == DRC_RES_GLOBAL_XA_TYPE) {
+            xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);
+            ret = dms_reform_req_migrate_xa(xa_res, req, &offset, sess_id);
+        } else {
+            buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
+            DRC_DISPLAY(buf_res, "migrate");
+            ret = dms_reform_req_migrate_add_buf_res(buf_res, req, &offset, sess_id);
+        }
+        
         if (ret != DMS_SUCCESS) {
             g_dms.callback.mem_free(handle, req);
             LOG_DEBUG_FUNC_FAIL;
@@ -654,7 +662,7 @@ static int dms_reform_proc_req_migrate_res(dms_process_context_t *process_ctx, d
     return DMS_SUCCESS;
 }
 
-static void dms_reform_ack_req_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result)
+void dms_reform_ack_req_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result)
 {
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
@@ -676,6 +684,11 @@ void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message
     if (SECUREC_UNLIKELY(req->part_id > DRC_MAX_PART_NUM)) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_req_migrate invalid migrate request");
         dms_release_recv_message(receive_msg);
+        return;
+    }
+    
+    if (req->res_type == DRC_RES_GLOBAL_XA_TYPE) {
+        dms_reform_proc_req_xa_migrate(process_ctx, receive_msg);
         return;
     }
 

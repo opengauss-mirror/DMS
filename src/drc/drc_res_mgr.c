@@ -313,18 +313,17 @@ static drc_buf_res_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint
     return buf_res;
 }
 
-bool32 drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
+void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
 {
     cm_latch_x(&res_map->res_latch, g_dms.reform_ctx.sess_proc, NULL);
     res_map->drc_access = CM_FALSE;
     res_map->data_access = CM_FALSE;
     cm_unlatch(&res_map->res_latch, NULL);
-    return CM_TRUE;
 }
 
 drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
-    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(res_type);
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;
     drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
 
@@ -354,7 +353,7 @@ drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 op
 
 static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
 {
-    drc_global_res_map_t *res_map = DRC_GLOBAL_RES_MAP(res_type);
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     uint8 master_id = CM_INVALID_ID8;
 
     if (!cm_latch_timed_s(&res_map->res_latch, 1, CM_FALSE, NULL)) {
@@ -395,7 +394,7 @@ static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
 
 void drc_buf_res_unlatch(uint8 res_type)
 {
-    drc_global_res_map_t *res_map = DRC_GLOBAL_RES_MAP(res_type);
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
@@ -481,6 +480,11 @@ void drc_destroy(void)
     drc_res_map_destroy(&ctx->global_lock_res.res_map);
     for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
         cm_bilist_init(&ctx->global_lock_res.res_parts[i]);
+    }
+
+    drc_res_map_destroy(&ctx->global_xa_res.res_map);
+    for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
+        cm_bilist_init(&ctx->global_xa_res.res_parts[i]);
     }
 
     drc_res_map_destroy(&ctx->local_lock_res);
@@ -611,6 +615,11 @@ int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
     if (type == DRC_RES_PAGE_TYPE) {
         return drc_get_page_master_id(resid, master_id);
     }
+
+    if (type == DRC_RES_GLOBAL_XA_TYPE) {
+        return drc_get_xa_master_id((drc_global_xid_t *)resid, master_id);
+    }
+
     return drc_get_lock_master_id((dms_drid_t*)resid, master_id);
 }
 

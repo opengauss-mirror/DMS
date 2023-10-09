@@ -45,6 +45,7 @@
 #include "dms_reform_msg.h"
 #include "scrlock_adapter.h"
 #include "cm_log.h"
+#include "dms_reform_xa.h"
 
 dms_instance_t g_dms = { 0 };
 
@@ -123,6 +124,14 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN, dcs_proc_send_opengauss_oldest_xmin,
         CM_TRUE, CM_TRUE, "send primary openGauss self oldest xmin"},
     { MSG_REQ_NODE_FOR_BUF_INFO,      dms_proc_ask_node_buf_info,      CM_TRUE, CM_FALSE, "ask node for buffer related info"},
+    { MSG_REQ_CREATE_GLOBAL_XA_RES,   dms_proc_create_xa_res,          CM_TRUE, CM_TRUE,  "create xa res remote" },
+    { MSG_REQ_DELETE_GLOBAL_XA_RES,   dms_proc_delete_xa_res,          CM_TRUE, CM_TRUE,  "delete xa res remote" },
+    { MSG_REQ_ASK_XA_OWNER_ID,        dms_proc_ask_xa_owner,           CM_TRUE, CM_TRUE,  "ask xa res owner id" },
+    { MSG_REQ_END_XA,                 dms_proc_end_xa,                 CM_TRUE, CM_TRUE,  "request to end the xa" },
+    { MSG_REQ_ASK_XA_IN_USE,          dms_proc_ask_xa_inuse,           CM_TRUE, CM_TRUE,  "ask xa in use or not" },
+    { MSG_REQ_MERGE_XA_OWNERS,        dms_reform_proc_xa_merge,        CM_TRUE, CM_TRUE,  "dms reform merge xa owners" },
+    { MSG_REQ_XA_REBUILD,             dms_reform_proc_xa_rebuild,      CM_TRUE, CM_TRUE,  "xa res rebuild" },
+    { MSG_REQ_XA_OWNERS,              dms_reform_proc_req_xaowners,    CM_TRUE, CM_TRUE,  "ask xa owners" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -175,6 +184,11 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_VERSION_NOT_MATCH,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack msg version is not match"},
     { MSG_ACK_NODE_FOR_BUF_INFO,            dms_proc_broadcast_ack2,
             CM_FALSE, CM_TRUE, "ack request for buffer information" },
+    { MSG_ACK_CREATE_GLOBAL_XA_RES,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack create xa res remote" },
+    { MSG_ACK_DELETE_GLOBAL_XA_RES,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack delete xa res remote" },
+    { MSG_ACK_ASK_XA_OWNER_ID,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack ask xa res owner id" },
+    { MSG_ACK_END_XA,                       dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack end xa transactions" },
+    { MSG_ACK_XA_IN_USE,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack ask xa in use or not" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -209,6 +223,39 @@ static bool32 dms_same_txn(char *res, const char *res_id, uint32 len)
         return CM_TRUE;
     }
     return CM_FALSE;
+}
+
+static bool32 dms_same_global_xid(char *res, const char *res_id, uint32 len)
+{
+    drc_global_xa_res_t *xa_res = (drc_global_xa_res_t *)res;
+    drc_global_xid_t *global_xid1 = &xa_res->xid;
+    drc_global_xid_t *global_xid2 = (drc_global_xid_t *)res_id;
+    if (global_xid1->fmt_id != global_xid2->fmt_id) {
+        return CM_FALSE;
+    }
+
+    if (global_xid1->gtrid_len != global_xid2->gtrid_len || global_xid1->bqual_len != global_xid2->bqual_len) {
+        return CM_FALSE;
+    }
+
+    text_t text1, text2;
+    text1.str = global_xid1->gtrid;
+    text1.len = global_xid1->gtrid_len;
+    text2.str = global_xid2->gtrid;
+    text2.len = global_xid2->gtrid_len;
+    if (!cm_text_equal_ins(&text1, &text2)) {
+        return CM_FALSE;
+    }
+
+    text1.str = global_xid1->bqual;
+    text1.len = global_xid1->bqual_len;
+    text2.str = global_xid2->bqual;
+    text2.len = global_xid2->bqual_len;
+    if (!cm_text_equal_ins(&text1, &text2)) {
+        return CM_FALSE;
+    }
+
+    return CM_TRUE;
 }
 
 /* Reform-related messages are exempt from GCV check or instance lock. */
@@ -639,6 +686,19 @@ static int32 init_lock_res_ctx(dms_profile_t *dms_profile)
     return DMS_SUCCESS;
 }
 
+static int32 init_xa_res_ctx(dms_profile_t *dms_profile)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    uint32 res_num = dms_profile->max_session_cnt;
+    int32 ret = dms_global_res_init(&ctx->global_xa_res, DMS_RES_TYPE_IS_XA, res_num, sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]global xid resource pool init fail, return error:%d", ret);
+        return ret;
+    }
+
+    return DMS_SUCCESS;
+}
+
 static int32 init_txn_res_ctx(const dms_profile_t *dms_profile)
 {
     int32 ret;
@@ -733,6 +793,10 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
         }
 
         if ((ret = init_lock_res_ctx(dms_profile)) != DMS_SUCCESS) {
+            break;
+        }
+        
+        if ((ret = init_xa_res_ctx(dms_profile)) != DMS_SUCCESS) {
             break;
         }
 
@@ -1116,3 +1180,83 @@ unsigned int dms_get_mes_max_watting_rooms(void)
     return DMS_MAX_MES_ROOMS;
 }
 
+int dms_create_global_xa_res(dms_context_t *dms_ctx, uint8 owner_id, uint8 undo_set_id, uint32 *remote_result,
+    bool8 ignore_exist)
+{
+    uint8 master_id = 0xFF;
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+
+    int ret = drc_get_master_id((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE, &master_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS][%s]: get master id for xa res failed", cm_display_resid((char *)global_xid,
+            DRC_RES_GLOBAL_XA_TYPE));
+        return ret;
+    }
+
+    if (master_id == dms_ctx->inst_id) {
+        *remote_result = DMS_SUCCESS;
+        bool32 check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
+        ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, global_xid, owner_id, undo_set_id, check_xa_drc);
+        if (ret == ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS && ignore_exist) {
+            return DMS_SUCCESS;
+        } else {
+            return ret;
+        }
+    }
+
+    ret = dms_request_create_xa_res(dms_ctx, master_id, undo_set_id, remote_result);
+    if (ret == DMS_SUCCESS && *remote_result == ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS && ignore_exist) {
+        *remote_result = DMS_SUCCESS;
+    }
+
+    return ret;
+}
+
+int dms_delete_global_xa_res(dms_context_t *dms_ctx, uint32 *remote_result) 
+{
+    uint8 master_id = 0xFF;
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+
+    int ret = drc_get_master_id((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE, &master_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DMS][%s]: get master id for xa res failed", cm_display_resid((char *)global_xid,
+            DRC_RES_GLOBAL_XA_TYPE));
+        return ret;
+    }
+
+    if (master_id == dms_ctx->inst_id) {
+        *remote_result = DMS_SUCCESS;
+        bool32 check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
+        return drc_delete_xa_res(global_xid, check_xa_drc);
+    }
+    
+    return dms_request_delete_xa_res(dms_ctx, master_id, remote_result);
+}
+
+int dms_end_global_xa(dms_context_t *dms_ctx, uint64 flags, uint64 scn, bool8 is_commit, int32 *remote_result)
+{
+    uint8 owner_id = CM_INVALID_ID8;
+    drc_global_xid_t *xid = &dms_ctx->global_xid;
+
+    LOG_DEBUG_INF("[DMS][%s]: enter dms_end_global_xa", cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+    int ret = dms_request_xa_owner(dms_ctx, &owner_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s] get owner for xa failed", cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+        return ret;
+    }
+
+    ret = DMS_SUCCESS;
+    if (owner_id == dms_ctx->inst_id) {
+        ret = g_dms.callback.end_xa(dms_ctx->db_handle, xid, flags, scn, is_commit);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_ERR("[DMS][%s] end xa local failed, errcode = %d", cm_display_resid((char *)xid,
+                DRC_RES_GLOBAL_XA_TYPE), ret);
+        } else {
+            LOG_DEBUG_INF("[DMS][%s]: end xa local success", cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+        }
+
+        return ret;
+    }
+
+    return dms_request_end_xa(dms_ctx, owner_id, flags, scn, is_commit, remote_result);
+}

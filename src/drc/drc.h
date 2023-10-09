@@ -53,8 +53,6 @@ extern "C" {
 #define DRC_BUF_RES_POOL (&g_drc_res_ctx.global_buf_res.res_map.res_pool)
 #define DRC_LOCK_RES_MAP (&g_drc_res_ctx.global_lock_res.res_map)
 #define DRC_LOCK_RES_POOL (&g_drc_res_ctx.global_lock_res.res_map.res_pool)
-#define DRC_GLOBAL_RES_MAP(res_type) ((res_type) == (uint8)DRC_RES_PAGE_TYPE ? &g_drc_res_ctx.global_buf_res : \
-    &g_drc_res_ctx.global_lock_res)
 #define DRC_RECYCLE_THRESHOLD 0.8 /* hardcoded to 80% res pool usage */
 #define DRC_RECYCLE_GREEDY_CNT 0 /* recycle as many as possible */
 #define DRC_RECYCLE_ONE_CNT 1
@@ -63,7 +61,8 @@ typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,
     DMS_RES_TYPE_IS_LOCK = 1,
     DMS_RES_TYPE_IS_TXN = 2,
-    DMS_RES_TYPE_IS_LOCAL_TXN = 3
+    DMS_RES_TYPE_IS_LOCAL_TXN = 3,
+    DMS_RES_TYPE_IS_XA = 4,
 } dms_res_type_e;
 
 typedef struct st_drc_res_pool {
@@ -239,6 +238,7 @@ typedef struct st_drc_res_ctx {
     drc_res_pool_t          lock_item_pool;     /* enqueue item pool */
     drc_global_res_map_t    global_buf_res;     /* page resource map */
     drc_global_res_map_t    global_lock_res;
+    drc_global_res_map_t    global_xa_res;      /* global xa resource map */
     drc_res_map_t           local_lock_res;
     drc_part_mngr_t         part_mngr;
     drc_res_map_t           txn_res_map;
@@ -315,6 +315,22 @@ typedef struct st_res_id {
     uint8   unused;
 } res_id_t;
 
+typedef struct st_drc_global_xid_res {
+    bilist_node_t    node;               /* used for link drc_global_xa_res_t in free list or bucket list, must be first */
+    uint8            owner_id;           /* node the xa trans rm in */
+    uint8            undo_set_id;        /* undo set the xa trans save in */
+    bool8            in_recovery;        /* in recovery or not */
+    uint16           part_id;            /* which partition id that current xa trans belongs to */
+    bilist_node_t    part_node;          /* used for link drc_global_xa_res_t that belongs to the same partition id */
+    drc_global_xid_t xid;
+} drc_global_xa_res_t;
+
+typedef struct st_drc_xa_res_msg {
+    uint8            owner_id;           /* owner */
+    uint8            undo_set_id;        /* undo set tha xa trans save in */
+    drc_global_xid_t xa_xid;
+} drc_xa_res_msg_t;
+
 static inline bool32 dms_same_page(char *res, const char *resid, uint32 len)
 {
     drc_buf_res_t *buf_res = (drc_buf_res_t *)res;
@@ -329,6 +345,22 @@ static inline uint32 dms_res_hash(int32 res_type, char *resid, uint32 len)
     return cm_hash_bytes((uint8 *)resid, len, INFINITE_HASH_RANGE);
 }
 
+static inline uint32 dms_xa_res_hash(int32 res_type, char *resid, uint32 len)
+{
+    uint32 offset = 0;
+    drc_global_xid_t *xid = (drc_global_xid_t *)resid;
+    char buffer[DMS_MAX_XA_BASE16_GTRID_LEN + DMS_MAX_XA_BASE16_BQUAL_LEN + sizeof(uint64)] = { 0 };
+    char *xid_pointer = buffer;
+    *(uint64 *)xid_pointer = xid->fmt_id;
+    offset += sizeof(uint64);
+    int32 ret = memcpy_sp(xid_pointer + offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
+    DMS_SECUREC_CHECK(ret);
+    offset += xid->gtrid_len;
+    ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
+    DMS_SECUREC_CHECK(ret);
+    return cm_hash_bytes((uint8 *)buffer, offset, INFINITE_HASH_RANGE);
+}
+
 static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
 {
     converting->begin_time = 0;
@@ -338,6 +370,19 @@ static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
     converting->req_info.curr_mode = DMS_LOCK_NULL;
     converting->req_info.req_mode = DMS_LOCK_NULL;
     converting->req_info.is_try = 0;
+}
+
+static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_type)
+{
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        return &g_drc_res_ctx.global_buf_res;
+    }
+
+    if (res_type == DRC_RES_LOCK_TYPE) {
+        return &g_drc_res_ctx.global_lock_res;
+    }
+
+    return &g_drc_res_ctx.global_xa_res;
 }
 
 /* page resource related API */
@@ -436,6 +481,13 @@ static inline uint64 bitmap64_intersect(uint64 bitmap1, uint64 bitmap2)
 }
 
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
+int32 drc_get_xa_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
+int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *global_xid, uint8 owner_id,
+    uint8 undo_set_id, bool32 check_xa_drc);
+int32 drc_delete_xa_res(drc_global_xid_t *global_xid, bool32 check_xa_drc);
+int32 drc_enter_xa_res(drc_global_xid_t *global_xid, drc_global_xa_res_t **xa_res, bool32 check_xa_drc);
+void drc_leave_xa_res(drc_global_res_map_t *xa_res_map, drc_res_bucket_t *bucket);
+void drc_release_xa_by_part(bilist_t *part_list);
 
 // [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
 #define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, "        \

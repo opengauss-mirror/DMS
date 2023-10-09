@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 // Displaying a hexadecimal byte requires two digits and one space, the end-of-string character need one byte
-#define DMS_DISPLAY_SIZE 128 // > MAX(DMS_PAGEID_SIZE, DMS_XID_SIZE, DMS_ROWID_SIZE) * 3 + 1
+#define DMS_DISPLAY_SIZE 512 // > MAX(DMS_PAGEID_SIZE, DMS_XID_SIZE, DMS_ROWID_SIZE) * 3 + 1
 
 #ifdef WIN32
     __declspec(thread) char g_display_buf[DMS_DISPLAY_SIZE];
@@ -59,10 +59,36 @@ char *cm_display_lockid(dms_drid_t *lockid)
     return g_display_buf;
 }
 
+char *cm_display_global_xid(drc_global_xid_t *global_xid)
+{
+    text_t gtrid, bqual;
+    cm_str2text_safe(global_xid->gtrid, global_xid->gtrid_len, &gtrid);
+    cm_str2text_safe(global_xid->bqual, global_xid->bqual_len, &bqual);
+    int ret = sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%llu.%s.", global_xid->fmt_id, T2S(&gtrid));
+    if (ret < 0) {
+        g_display_buf[0] = '\0';
+        return g_display_buf;
+    }
+
+    unsigned int str_len = strlen(g_display_buf);
+    ret = memcpy_sp(g_display_buf + str_len, DMS_DISPLAY_SIZE - str_len, bqual.str, bqual.len);
+    if (ret != EOK) {
+        g_display_buf[0] = '\0';
+        return g_display_buf;
+    }
+
+    g_display_buf[str_len + bqual.len] = '\0';
+    return g_display_buf;
+}
+
 char *cm_display_resid(char *resid, uint8 res_type)
 {
     if (res_type == DRC_RES_PAGE_TYPE) {
         return cm_display_pageid(resid);
+    }
+
+    if (res_type == DRC_RES_GLOBAL_XA_TYPE) {
+        return cm_display_global_xid((drc_global_xid_t *)resid);
     }
     return cm_display_lockid((dms_drid_t *)resid);
 }

@@ -28,6 +28,7 @@
 #include "dms_process.h"
 #include "drc_page.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_reform_xa.h"
 
 static void dms_reform_parallel_thread_inner(parallel_thread_t *parallel)
 {
@@ -247,6 +248,8 @@ static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_th
         drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
         part_list = &ctx->global_buf_res.res_parts[part_id];
         drc_release_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE);
+        part_list = &ctx->global_xa_res.res_parts[part_id];
+        drc_release_xa_by_part(part_list);
     } else {
         part_list = &ctx->global_lock_res.res_parts[part_id];
         ret = dms_reform_clean_buf_res_by_part(part_list, parallel->sess_id);
@@ -254,6 +257,8 @@ static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_th
         part_list = &ctx->global_buf_res.res_parts[part_id];
         ret = dms_reform_clean_buf_res_by_part(part_list, parallel->sess_id);
         DMS_RETURN_IF_ERROR(ret);
+        part_list = &ctx->global_xa_res.res_parts[part_id];
+        dms_reform_clean_xa_res_by_part(part_list);
     }
 
     return DMS_SUCCESS;

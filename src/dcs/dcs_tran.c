@@ -902,3 +902,479 @@ void dcs_proc_send_opengauss_oldest_xmin(dms_process_context_t *process_ctx, dms
     LOG_DEBUG_INF("[OG XMIN] send openGauss oldest xmin ack success, src_inst:%u, src_sid:%u, dst_inst:%u, ruid:%llu",
         ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, ack_msg.ruid);
 }
+
+static bool8 dms_proc_check_xid_valid(drc_global_xid_t *xid)
+{
+    if (xid->bqual_len > DMS_MAX_XA_BASE16_BQUAL_LEN || xid->gtrid_len > DMS_MAX_XA_BASE16_GTRID_LEN) {
+        LOG_RUN_ERR("[DMS][%s]: invalid xid", cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+        return CM_FALSE;
+    }
+
+    text_t gtrid, bqual;
+    cm_str2text_safe(xid->gtrid, xid->gtrid_len, &gtrid);
+    cm_str2text_safe(xid->bqual, xid->bqual_len, &bqual);
+    if (cm_chk_and_upper_base16(&gtrid) != CM_SUCCESS) {
+        LOG_RUN_ERR("[DMS][%s]: invalid global transaction ID", cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+        return CM_FALSE;
+    }
+
+    if (cm_chk_and_upper_base16(&bqual) != CM_SUCCESS) {
+        LOG_RUN_ERR("[DMS][%s]: invalid global transaction branch ID", cm_display_resid((char *)xid,
+            DRC_RES_GLOBAL_XA_TYPE));
+        return CM_FALSE;
+    }
+
+    return CM_TRUE;
+}
+
+int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 undo_set_id, uint32 *result_code)
+{
+    dms_xa_res_req_t req;
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES, CM_TRUE);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CREATE_GLOBAL_XA_RES, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id,
+        CM_INVALID_ID16);
+    req.head.size = (uint16)sizeof(dms_xa_res_req_t);
+    req.oper_type = DMS_XA_OPER_CREATE;
+    req.undo_set_id = undo_set_id;
+    req.check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
+    errno_t ret = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
+    if (ret != EOK) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        return ret;
+    }
+
+    LOG_DEBUG_INF("[DMS][%s][dms_request_create_xa_res]: src_id = %u, dst_id = %u",
+        cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, (uint32)master_id);
+    int32 ret_code = mfc_send_data(&req.head);
+    if (ret_code != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_request_create_xa_res]: failed to send create xa res request",
+            cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE));
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        return ret_code;
+    }
+
+    dms_message_t recv_msg = { 0 };
+    ret_code = mfc_get_response(req.head.ruid, &recv_msg, DMS_WAIT_MAX_TIME);
+    if (ret_code != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_request_create_xa_res]: wait master node ack timeout, timeout = %u ms",
+            cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        return ret_code;
+    }
+
+    if (recv_msg.head->cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(recv_msg.buffer);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(recv_msg.buffer) + sizeof(msg_error_t)));
+        dms_release_recv_message(&recv_msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
+    }
+
+    LOG_DEBUG_INF("[DMS][%s]: src_id = %u, src_sid = %u, dst_id = %u, dts_sid = %u, flag = %u, ruid = %llu",
+        cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), (uint32)recv_msg.head->src_inst,
+        (uint32)recv_msg.head->src_sid, (uint32)recv_msg.head->dst_inst,
+        (uint32)recv_msg.head->dst_sid, (uint32)recv_msg.head->flags, recv_msg.head->ruid);
+
+    dms_xa_res_ack_t *result_msg = (dms_xa_res_ack_t *)recv_msg.buffer;
+    *result_code = result_msg->return_code;
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+    dms_release_recv_message(&recv_msg);
+    LOG_DEBUG_INF("[DMS][%s][dms_request_create_xa_res]: create xa res remote success, master_id = %u",
+        cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), (uint32)master_id);
+    return DMS_SUCCESS;
+}
+
+void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_xa_res_req_t), CM_TRUE, CM_TRUE);
+    dms_xa_res_req_t req = *(dms_xa_res_req_t *)receive_msg->buffer;
+    dms_release_recv_message(receive_msg);
+
+    drc_global_xid_t *xid = &req.xa_xid;
+    if (dms_proc_check_xid_valid(xid)) {
+        return;
+    }
+
+    int32 ret = drc_create_xa_res(proc_ctx->db_handle, proc_ctx->sess_id, xid, req.head.src_inst, req.undo_set_id,
+        req.check_xa_drc);
+    dms_xa_res_ack_t ack = { 0 };
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_CREATE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
+        proc_ctx->sess_id);
+    ack.return_code = ret;
+
+    ret = mfc_send_data(&ack.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_proc_create_xa_res]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %d",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid, ret);
+    } else {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_create_xa_res]: finished, dst_id = %u, dst_sid = %u",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
+    }
+}
+
+int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 *result_code)
+{
+    dms_xa_res_req_t req;
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES, CM_TRUE);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_DELETE_GLOBAL_XA_RES, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id,
+        CM_INVALID_ID16);
+    req.head.size = (uint16)sizeof(dms_xa_res_req_t);
+    errno_t ret = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
+    if (ret != EOK) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
+        return ret;
+    }
+
+    LOG_DEBUG_INF("[DMS][%s][dms_request_delete_xa_res]: src_id = %u, dst_id = %u",
+        cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, (uint32)master_id);
+    int32 ret_code = mfc_send_data(&req.head);
+    if (ret_code != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_request_delete_xa_res]: failed to send delete xa res request",
+            cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE));
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
+        return ret_code;
+    }
+
+    dms_message_t recv_msg = { 0 };
+    ret_code = mfc_get_response(req.head.ruid, &recv_msg, DMS_WAIT_MAX_TIME);
+    if (ret_code != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_request_delete_xa_res]: wait master node ack timeout, timeout = %u ms",
+            cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
+        return ret_code;
+    }
+
+    if (recv_msg.head->cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(recv_msg.buffer);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(recv_msg.buffer) + sizeof(msg_error_t)));
+        dms_release_recv_message(&recv_msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
+    }
+
+    LOG_DEBUG_INF("[DMS][%s]: src_id = %u, src_sid = %u, dst_id = %u, dts_sid = %u, flag = %u, ruid = %llu",
+        cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), (uint32)recv_msg.head->src_inst,
+        (uint32)recv_msg.head->src_sid, (uint32)recv_msg.head->dst_inst,
+        (uint32)recv_msg.head->dst_sid, (uint32)recv_msg.head->flags, recv_msg.head->ruid);
+
+    dms_xa_res_ack_t *result_msg = (dms_xa_res_ack_t *)recv_msg.buffer;
+    *result_code = result_msg->return_code;
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
+    dms_release_recv_message(&recv_msg);
+    LOG_DEBUG_INF("[DMS][%s][dms_request_delete_xa_res]: delete xa res remote success, master_id = %u",
+        cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), (uint32)master_id);
+    return DMS_SUCCESS;
+}
+
+void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_xa_res_req_t), CM_TRUE, CM_TRUE);
+    dms_xa_res_req_t req = *(dms_xa_res_req_t *)receive_msg->buffer;
+    dms_release_recv_message(receive_msg);
+
+    drc_global_xid_t *xid = &req.xa_xid;
+    if (dms_proc_check_xid_valid(xid)) {
+        return;
+    }
+
+    int32 ret = drc_delete_xa_res(xid, req.check_xa_drc);
+    dms_xa_res_ack_t ack = { 0 };
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_DELETE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
+        proc_ctx->sess_id);
+    ack.return_code = ret;
+
+    ret = mfc_send_data(&ack.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_proc_delete_xa_res]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %d",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid, ret);
+    } else {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_delete_xa_res]: finished, dst_id = %u, dst_sid = %u",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
+    }
+}
+
+void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_xa_owner_req_t), CM_TRUE, CM_TRUE);
+    dms_ask_xa_owner_req_t req = *(dms_ask_xa_owner_req_t *)receive_msg->buffer;
+    dms_release_recv_message(receive_msg);
+
+    drc_global_xid_t *xid = &req.xa_xid;
+    if (dms_proc_check_xid_valid(xid)) {
+        return;
+    }
+    
+    uint8 owner_id = CM_INVALID_ID8;
+    drc_global_xa_res_t *xa_res = NULL;
+    int32 ret = drc_enter_xa_res(xid, &xa_res, req.check_xa_drc);
+    if (ret != DMS_SUCCESS) {
+        dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id, req.head.src_inst, req.head.src_sid, req.head.ruid, ret);
+        return;
+    }
+
+    if (xa_res != NULL) {
+        owner_id = xa_res->owner_id;
+    }
+
+    drc_global_res_map_t *xa_res_map = drc_get_global_res_map(DRC_RES_GLOBAL_XA_TYPE);
+    drc_res_bucket_t *bucket = drc_res_map_get_bucket(&xa_res_map->res_map, (char *)xid, sizeof(drc_global_xid_t));
+    drc_leave_xa_res(xa_res_map, bucket);
+
+    dms_ask_xa_owner_ack_t ack = { 0 };
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_XA_OWNER_ID, sizeof(dms_xa_res_ack_t),
+        proc_ctx->sess_id);
+    ack.owner_id = owner_id;
+
+    LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_owner]: src_id = %u, src_sid = %u",
+        cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
+
+    ret = mfc_send_data(&ack.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_proc_ask_xa_owner]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %d",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid, ret);
+    } else {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_owner]: finished, dst_id = %u, dst_sid = %u",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
+    }
+}
+
+static int32 dms_ask_xa_owner_local(dms_context_t *dms_ctx, uint8 *owner_id)
+{
+    drc_global_xa_res_t *xa_res = NULL;
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+    drc_global_res_map_t *res_map = drc_get_global_res_map(DRC_RES_GLOBAL_XA_TYPE);
+    drc_res_bucket_t *bucket = drc_res_map_get_bucket(&res_map->res_map, (char *)global_xid, sizeof(drc_global_xid_t));
+    bool32 check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
+
+    int32 ret = drc_enter_xa_res(global_xid, &xa_res, check_xa_drc);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    if (xa_res == NULL) {
+        LOG_DEBUG_ERR("[DMS][%s][dms_ask_xa_owner_local]: xa res not exists", cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
+        drc_leave_xa_res(res_map, bucket);
+        return ERRNO_DMS_DRC_XA_RES_NOT_EXISTS;
+    }
+
+    *owner_id = xa_res->owner_id;
+    drc_leave_xa_res(res_map, bucket);
+    return DMS_SUCCESS;
+}
+
+static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id)
+{
+    dms_ask_xa_owner_req_t req = { 0 };
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID, CM_TRUE);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_XA_OWNER_ID, 0, dms_ctx->inst_id, master_id, dms_ctx->sess_id,
+        CM_INVALID_ID16);
+    req.head.size = (uint16)sizeof(dms_ask_xa_owner_req_t);
+    req.sess_type = dms_ctx->sess_type;
+    req.check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
+    errno_t err = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
+    if (err != EOK) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
+        return err;
+    }
+
+    int32 ret = mfc_send_data(&req.head);
+    if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
+        return err;
+    }
+
+    LOG_DEBUG_INF("[TXN][%s][dms_ask_xa_owner_remote]: src_id = %u, dst_id = %u", cm_display_resid((char *)global_xid,
+        DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, master_id);
+    dms_message_t msg = { 0 };
+    ret = mfc_get_response(req.head.ruid, &msg, DMS_WAIT_MAX_TIME);
+    if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
+        LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_owner_remote]: wait owner ack of xa res timeout timeout = %d ms", cm_display_resid((char *)global_xid,
+        DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
+        return ERRNO_DMS_DCS_MSG_EAGAIN;
+    }
+
+    CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_owner_ack_t), CM_FALSE, CM_FALSE);
+    dms_ask_xa_owner_ack_t *ack = (dms_ask_xa_owner_ack_t *)msg.buffer;
+    *owner_id = ack->owner_id;
+    dms_release_recv_message(&msg);
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
+    return DMS_SUCCESS;
+}
+
+int32 dms_request_xa_owner(dms_context_t *dms_ctx, unsigned char *owner_id)
+{
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+
+    LOG_DEBUG_INF("[TXN][%s] dms_request_xa_owner", cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
+    uint8 master_id = 0xFF;
+    int32 ret = drc_get_master_id((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE, &master_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[TXN][%s] failed to get master id when get xa owner id", cm_display_resid((char *)global_xid,
+            DRC_RES_GLOBAL_XA_TYPE));
+        return ret;
+    }
+
+    if (master_id == dms_ctx->inst_id) {
+        return dms_ask_xa_owner_local(dms_ctx, owner_id);
+    } else {
+        return dms_ask_xa_owner_remote(dms_ctx, master_id, owner_id);
+    }
+}
+
+int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, uint64 scn, bool8 is_commit, int32 *return_code)
+{
+    dms_end_xa_req_t req = { 0 };
+    drc_global_xid_t *xid = &dms_ctx->global_xid;
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA, CM_TRUE);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_END_XA, 0, dms_ctx->inst_id, owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    req.head.size = (uint16)sizeof(dms_end_xa_req_t);
+    req.commit_scn = scn;
+    req.flags = flags;
+    req.is_commit = is_commit;
+    errno_t err = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), xid, sizeof(drc_global_xid_t));
+    if (err != EOK) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
+        return err;
+    }
+
+    LOG_DEBUG_INF("[TXN][%s] end the xa remote, src_id = %u, dst_id = %u", cm_display_resid((char *)xid,
+        DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, owner_id);
+    int32 ret = mfc_send_data(&req.head);
+    if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
+        return ret;
+    }
+
+    dms_message_t msg = { 0 };
+    ret = mfc_get_response(req.head.ruid, &msg, DMS_WAIT_MAX_TIME);
+    if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
+        LOG_DEBUG_ERR("[TXN][%s] wait owner ack timeout while end xa, timeout = %u ms", cm_display_resid((char *)xid,
+            DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
+        return ERRNO_DMS_DCS_MSG_EAGAIN;
+    }
+
+    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_end_xa_ack_t), CM_FALSE, CM_FALSE);
+    dms_end_xa_ack_t *ack = (dms_end_xa_ack_t *)msg.buffer;
+    *return_code = ack->return_code;
+    dms_release_recv_message(&msg);
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
+    return DMS_SUCCESS;
+}
+
+void dms_proc_end_xa(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_end_xa_req_t), CM_TRUE, CM_TRUE);
+    dms_end_xa_req_t req = *(dms_end_xa_req_t *)receive_msg->buffer;
+    dms_release_recv_message(receive_msg);
+
+    drc_global_xid_t *xid = &req.xa_xid;
+    if (!dms_proc_check_xid_valid(xid)) {
+        return;
+    }
+
+    int32 ret = g_dms.callback.end_xa(proc_ctx->db_handle, xid, req.flags, req.commit_scn, req.is_commit);
+    dms_end_xa_ack_t ack = { 0 };
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_END_XA, sizeof(dms_end_xa_ack_t), proc_ctx->sess_id);
+    ack.return_code = ret;
+
+    LOG_DEBUG_INF("[DMS][%s][dms_proc_end_xa]: src_id = %u, src_sid = %u", 
+        cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
+    
+    ret = mfc_send_data(&ack.head);
+    if (ret == DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_end_xa]: finished, dst_id = %u, dst_sid = %u", cm_display_resid((char *)xid,
+            DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
+    } else {
+        LOG_DEBUG_ERR("[DMS][%s][dms_proc_end_xa]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %u",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid, ret);
+    }
+}
+
+static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, bool8 *inuse)
+{
+    dms_ask_xa_inuse_req_t req = { 0 };
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE, CM_TRUE);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_XA_IN_USE, 0, dms_ctx->inst_id, owner_id, dms_ctx->sess_id,
+        CM_INVALID_ID16);
+    req.head.size = (uint16)sizeof(dms_ask_xa_inuse_req_t);
+    req.sess_type = dms_ctx->sess_type;
+    errno_t err = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), global_xid, sizeof(drc_global_xid_t));
+    if (err != EOK) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
+        return err;
+    }
+
+    LOG_DEBUG_INF("[TXN][%s][dms_ask_xa_inuse_remote]: src_id = %u, dst_id = %u", cm_display_resid((char *)global_xid,
+        DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, owner_id);
+    int32 ret = mfc_send_data(&req.head);
+    if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
+        return ret;
+    }
+
+    dms_message_t msg = { 0 };
+    ret = mfc_get_response(req.head.ruid, &msg, DMS_WAIT_MAX_TIME);
+    if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
+        LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_inuse_remote]: wait if in use ack of xa res timeout, timeout = %d ms",
+            cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
+        return ERRNO_DMS_DCS_MSG_EAGAIN;
+    }
+
+    CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_inuse_ack_t), CM_FALSE, CM_FALSE);
+    dms_ask_xa_inuse_ack_t *ack = (dms_ask_xa_inuse_ack_t *)msg.buffer;
+    *inuse = ack->inuse;
+    
+    dms_release_recv_message(&msg);
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
+    return DMS_SUCCESS;
+}
+
+int32 dms_request_xa_inuse(dms_context_t *dms_ctx, uint8 owner_id, bool8 *inuse)
+{
+    drc_global_xid_t *global_xid = &dms_ctx->global_xid;
+    LOG_DEBUG_INF("[TXN][%s] enter dms_request_xa_inuse", cm_display_resid((char *)global_xid,
+        DRC_RES_GLOBAL_XA_TYPE));
+    
+    if (owner_id == dms_ctx->inst_id) {
+        *inuse = g_dms.callback.xa_inuse(dms_ctx->db_handle, (void *)global_xid);
+        return DMS_SUCCESS;
+    } else {
+        return dms_ask_xa_inuse_remote(dms_ctx, owner_id, inuse);
+    }
+}
+
+void dms_proc_ask_xa_inuse(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_xa_inuse_req_t), CM_TRUE, CM_TRUE);
+    dms_ask_xa_inuse_req_t req = *(dms_ask_xa_inuse_req_t *)receive_msg->buffer;
+    dms_release_recv_message(receive_msg);
+
+    drc_global_xid_t *xid = &req.xa_xid;
+    if (!dms_proc_check_xid_valid(xid)) {
+        return;
+    }
+
+    dms_ask_xa_inuse_ack_t ack = { 0 };
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_XA_IN_USE, sizeof(dms_ask_xa_inuse_ack_t), proc_ctx->sess_id);
+    ack.inuse = g_dms.callback.xa_inuse(proc_ctx->db_handle, (void *)xid);
+
+    LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: src_id = %u, src_sid = %u",
+        cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
+
+    int32 ret = mfc_send_data(&ack.head);
+    if (ret == DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: finished, dst_id = %u, dst_sid = %u", cm_display_resid((char *)xid,
+            DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
+    } else {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %u",
+            cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst,
+            (uint16)ack.head.dst_sid, ret);
+    }
+}

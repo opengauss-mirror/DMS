@@ -130,6 +130,8 @@ int dms_reform_cm_res_init(void)
     ctx->global_buf_res.data_access = CM_TRUE;
     ctx->global_lock_res.drc_access = CM_TRUE;
     ctx->global_lock_res.data_access = CM_TRUE;
+    ctx->global_xa_res.drc_access = CM_TRUE;
+    ctx->global_xa_res.data_access = CM_TRUE;
     printf("DMS FOR UT TEST.\n");
     LOG_RUN_INF("[DMS REFORM]cm_res_init success(FOR UT TEST)");
 #else

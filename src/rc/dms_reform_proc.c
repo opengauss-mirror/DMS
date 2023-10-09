@@ -33,6 +33,7 @@
 #include "cm_timer.h"
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_reform_xa.h"
 
 static void dms_reform_set_next_step(uint8 step)
 {
@@ -489,6 +490,8 @@ static int dms_reform_drc_clean_fault_inst(void)
         part_list = &ctx->global_buf_res.res_parts[part_id];
         ret = dms_reform_clean_buf_res_by_part(part_list, reform_ctx->sess_proc);
         DMS_RETURN_IF_ERROR(ret);
+        part_list = &ctx->global_xa_res.res_parts[part_id];
+        dms_reform_clean_xa_res_by_part(part_list);
         part_id = part_mngr->part_map[part_id].next;
     }
 
@@ -505,6 +508,8 @@ static int dms_reform_drc_clean_full(void)
         drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
         part_list = &ctx->global_buf_res.res_parts[part_id];
         drc_release_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE);
+        part_list = &ctx->global_buf_res.res_parts[part_id];
+        drc_release_xa_by_part(part_list);
     }
 
     return DMS_SUCCESS;
@@ -564,11 +569,13 @@ static void dms_reform_remaster_inner(void)
 {
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
-    drc_global_res_map_t *page_res = DRC_GLOBAL_RES_MAP(DRC_RES_PAGE_TYPE);
-    drc_global_res_map_t *lock_res = DRC_GLOBAL_RES_MAP(DRC_RES_LOCK_TYPE);
+    drc_global_res_map_t *page_res = drc_get_global_res_map(DRC_RES_PAGE_TYPE);
+    drc_global_res_map_t *lock_res = drc_get_global_res_map(DRC_RES_LOCK_TYPE);
+    drc_global_res_map_t *xa_res = drc_get_global_res_map(DRC_RES_GLOBAL_XA_TYPE);
 
     cm_latch_x(&page_res->res_latch, g_dms.reform_ctx.sess_proc, NULL);
     cm_latch_x(&lock_res->res_latch, g_dms.reform_ctx.sess_proc, NULL);
+    cm_latch_x(&xa_res->res_latch, g_dms.reform_ctx.sess_proc, NULL);
 
     dms_reform_part_info_print();
 
@@ -584,6 +591,7 @@ static void dms_reform_remaster_inner(void)
 
     cm_unlatch(&lock_res->res_latch, NULL);
     cm_unlatch(&page_res->res_latch, NULL);
+    cm_unlatch(&xa_res->res_latch, NULL);
 }
 
 static int dms_reform_remaster(void)
@@ -647,7 +655,14 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
     }
     part_list = &ctx->global_lock_res.res_parts[migrate_task->part_id];
     drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
-
+    
+    ret = dms_reform_req_migrate_res(migrate_task, DRC_RES_GLOBAL_XA_TYPE, handle, sess_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_FUNC_FAIL;
+        return ret;
+    }
+    part_list = &ctx->global_xa_res.res_parts[migrate_task->part_id];
+    drc_release_xa_by_part(part_list);
     return DMS_SUCCESS;
 }
 
@@ -1091,6 +1106,14 @@ static int dms_reform_rebuild(void)
 
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
     ret = dms_reform_rebuild_lock(reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
+    dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+    
+    dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
+    ret = dms_reform_rebuild_xa_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
@@ -1716,6 +1739,8 @@ static int dms_reform_txn_deposit(void)
         if (!dms_reform_wait_rollback(inst_id)) {
             return DMS_SUCCESS;
         }
+
+        dms_reform_delete_xa_rms(inst_id);
     }
 
     int ret = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info->deposit_map, DMS_MAX_INSTANCES);
@@ -1729,7 +1754,7 @@ static int dms_reform_txn_deposit(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_undo_init(instance_list_t *list)
+int dms_reform_undo_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
         if (g_dms.callback.undo_init(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
@@ -1740,7 +1765,7 @@ static int dms_reform_undo_init(instance_list_t *list)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_tx_area_init(instance_list_t *list)
+int dms_reform_tx_area_init(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
         if (g_dms.callback.tx_area_init(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
@@ -1751,7 +1776,7 @@ static int dms_reform_tx_area_init(instance_list_t *list)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_tx_area_load(instance_list_t *list)
+int dms_reform_tx_area_load(instance_list_t *list)
 {
     for (uint8 i = 0; i < list->inst_id_count; i++) {
         if (g_dms.callback.tx_area_load(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
@@ -1766,16 +1791,21 @@ static int dms_reform_rollback(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_rollback = &share_info->list_rollback;
-    int ret = DMS_SUCCESS;
 
     LOG_RUN_FUNC_ENTER;
+    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_FAILOVER) {
+        for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            g_drc_res_ctx.deposit_map[inst_id] = share_info->reformer_id;
+        }
+    }
+
     if (DMS_IS_SHARE_PARTNER || list_rollback->inst_id_count == 0) {
         dms_reform_next_step();
         LOG_RUN_FUNC_SKIP;
         return DMS_SUCCESS;
     }
 
-    ret = dms_reform_undo_init(list_rollback);
+    int ret = dms_reform_undo_init(list_rollback);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -2318,13 +2348,14 @@ static int dms_reform_drc_inaccess(void)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
 
     if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN)) {
-        if (!drc_buf_res_set_inaccess(&ctx->global_lock_res)) {
-            return DMS_SUCCESS;
+        drc_buf_res_set_inaccess(&ctx->global_lock_res);
+
+        if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
+            drc_buf_res_set_inaccess(&ctx->global_xa_res);
         }
     }
-    if (!drc_buf_res_set_inaccess(&ctx->global_buf_res)) {
-        return DMS_SUCCESS;
-    }
+    
+    drc_buf_res_set_inaccess(&ctx->global_buf_res);
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
 
@@ -2525,6 +2556,10 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
     [DMS_REFORM_STEP_SET_REMOVE_POINT] = { "SET_REMOVE_POINT", dms_reform_set_remove_point, NULL},
     [DMS_REFORM_STEP_RESET_USER] = { "RESET_USER", dms_reform_reset_user, NULL },
+    [DMS_REFORM_STEP_COLLECT_XA_OWNER] = { "COLLECT_XA_OWNER", dms_reform_collect_xa_owner, NULL },
+    [DMS_REFORM_STEP_MERGE_XA_OWNERS] = { "SYNC_XA_OWNER", dms_reform_merge_xa_owners, NULL },
+    [DMS_REFORM_STEP_RECOVERY_XA] = { "RECOVERY_XA", dms_reform_recovery_xa, NULL },
+    [DMS_REFORM_STEP_XA_DRC_ACCESS] = { "XA_DRC_ACCESS", dms_reform_xa_drc_access, NULL },
 };
 
 static void dms_reform_inner(void)
@@ -2625,4 +2660,14 @@ void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point)
             reform_info->curr_points[node_id] = *point;
         }
     }
+}
+
+int dms_reform_rebuild_xa_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num)
+{
+    int ret = g_dms.callback.dms_reform_rebuild_xa_res(handle, thread_index, thread_num);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    return dms_reform_rebuild_send_rest(sess_id, thread_index);
 }

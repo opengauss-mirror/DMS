@@ -71,7 +71,7 @@ void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res);
 void drc_add_lock_res_in_part_list(drc_buf_res_t *lock_res);
 void drc_del_lock_res_in_part_list(drc_buf_res_t *lock_res);
 void drc_release_convert_q(bilist_t *convert_q);
-bool32 drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
+void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
 int drc_enter_buf_res(char *resid, uint16 len, uint8 res_type, uint8 options, drc_buf_res_t **buf_res);
 void drc_leave_buf_res(drc_buf_res_t *buf_res);
 void drc_buf_res_unlatch(uint8 res_type);

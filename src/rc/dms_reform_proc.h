@@ -50,7 +50,10 @@ void dms_reform_rebuild_buffer_init(uint8 thread_index);
 void dms_reform_rebuild_buffer_free(void *handle, uint8 thread_index);
 int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num);
 char *dms_reform_get_step_desc(uint32 step);
-
+int dms_reform_rebuild_xa_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
+int dms_reform_undo_init(instance_list_t *list);
+int dms_reform_tx_area_init(instance_list_t *list);
+int dms_reform_tx_area_load(instance_list_t *list);
 #ifdef __cplusplus
 }
 #endif
