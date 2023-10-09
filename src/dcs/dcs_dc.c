@@ -107,8 +107,8 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     mfc_broadcast2(all_inst, &head, (const void *)data, &succ_inst);
 
     if (!handle_msg) {
-        (void)mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, &succ_inst);
-        if (all_inst == succ_inst) {
+        int32 ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, &succ_inst);
+        if (ret == DMS_SUCCESS && all_inst == succ_inst) {
             return DMS_SUCCESS;
         }
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
@@ -117,7 +117,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 
     mes_msg_list_t recv_msg = { 0 };
     int32 ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, &recv_msg);
-    if (ret != DMS_SUCCESS) {
+    if (ret != DMS_SUCCESS || all_inst != succ_inst) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
