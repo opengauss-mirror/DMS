@@ -163,6 +163,67 @@ typedef enum en_dms_session {
     DMS_SESSION_RECOVER_HOT_STANDBY = 3, // can access DRC when pmstate = PM_HOT_STANDBY
 } dms_session_e;
 
+/*
+ * before construct CR page, we need to obtain the basic page,
+ * and rollback those unvisible transaction on the basic page's content,
+ * it represents where the basic page comes from.
+ */
+typedef enum st_dms_cr_version_t {
+    DMS_CR_VERSION_NONE = 0,
+    DMS_CR_VERSION_CURR_PAGE,
+    DMS_CR_VERSION_EDP_PAGE,
+    DMS_CR_VERSION_CR_PAGE,
+} dms_cr_version_t;
+
+/*
+ * CR construct state machine:
+ * first try to read page from local node's data buffer (DMS_CR_PHASE_TRY_READ_PAGE),
+ * if the current page or edp page is usable, we use it to construct CR;
+ * otherwise, check status from the master node (DMS_CR_PHASE_CHECK_MASTER),
+ * if master is remote node, the request CR to the master (DMS_CR_PHASE_REQ_MASTER),
+ * otherwise obtain the owner's position, the either request CR to the remote owner (DMS_CR_PHASE_REQ_OWNER),
+ * or trigger local node to read current page and do the CR construct (DMS_CR_PHASE_READ_PAGE);
+ * the master receives CR request, it will route the request to the owner,
+ * and the owner will do CR construct operations,
+ * meanwhile it will decide whether the other node needs to continue CR construct (DMS_CR_PHASE_CONSTRUCT).
+ * if all CR construct operations have done, the phase will be DMS_CR_PHASE_DONE.
+ */
+typedef enum st_dms_cr_phase_t {
+    DMS_CR_PHASE_TRY_READ_PAGE = 0,
+    DMS_CR_PHASE_CHECK_MASTER,
+    DMS_CR_PHASE_REQ_MASTER,
+    DMS_CR_PHASE_REQ_OWNER,
+    DMS_CR_PHASE_READ_PAGE,
+    DMS_CR_PHASE_CONSTRUCT,
+    DMS_CR_PHASE_DONE,
+} dms_cr_phase_t;
+
+typedef enum st_dms_cr_status_t {
+    DMS_CR_STATUS_ABORT = 0,
+    DMS_CR_STATUS_INVISIBLE_TXN,            /* local node invisible transaction */
+    DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN, /* other node invisible transaction */
+    DMS_CR_STATUS_PENDING_TXN,              /* prepared transaction */
+    DMS_CR_STATUS_ALL_VISIBLE,
+} dms_cr_status_t;
+
+typedef struct st_dms_cr_assist_t {
+    void *handle;                           /* IN parameter */
+    unsigned long long query_scn;           /* IN parameter */
+    unsigned int ssn;                       /* IN parameter */
+    unsigned int relay_inst;                /* OUT parameter */
+    char *page;                             /* IN & OUT parameter */
+    char *fb_mark;                          /* IN & OUT parameter */
+    char page_id[DMS_PAGEID_SIZE];          /* IN parameter */
+    char curr_xid[DMS_XID_SIZE];            /* IN parameter */
+    char wxid[DMS_XID_SIZE];                /* OUT parameter */
+    char entry[DMS_PAGEID_SIZE];            /* IN parameter */
+    char profile[DMS_INDEX_PROFILE_SIZE];   /* IN parameter */
+    unsigned int check_restart;             /* IN parameter */
+    unsigned int *check_found;              /* IN & OUT parameter */
+    dms_cr_phase_t phase;                   /* OUT parameter */
+    dms_cr_status_t status;                 /* OUT parameter */
+} dms_cr_assist_t;
+
 #define DMS_RESID_SIZE  32
 #define DMS_DRID_SIZE   sizeof(dms_drid_t)
 
@@ -238,6 +299,8 @@ typedef struct st_dms_cr {
     unsigned int ssn;
     char *page;
     unsigned char *fb_mark;
+    dms_cr_status_t status;
+    dms_cr_phase_t phase;
 } dms_cr_t;
 
 typedef struct st_dms_opengauss_xid_csn {
@@ -375,18 +438,6 @@ typedef enum en_dms_buf_load_status {
     DMS_BUF_LOAD_FAILED = 0x02,
     DMS_BUF_NEED_TRANSFER = 0x04,          // used only in DTC, means need ask master/coordinator for latest version
 } dms_buf_load_status_t;
-
-typedef enum en_dms_cr_status {
-    DMS_CR_TRY_READ = 0,
-    DMS_CR_LOCAL_READ,
-    DMS_CR_READ_PAGE,
-    DMS_CR_READ_EDP_PAGE,
-    DMS_CR_CONSTRUCT,
-    DMS_CR_PAGE_VISIBLE,
-    DMS_CR_CHECK_MASTER,
-    DMS_CR_REQ_MASTER,
-    DMS_CR_REQ_OWNER,
-} dms_cr_status_t;
 
 typedef enum en_dms_log_level {
     DMS_LOG_LEVEL_ERROR = 0,  // error conditions
@@ -631,28 +682,15 @@ typedef char *(*dms_get_page)(dms_buf_ctrl_t *buf_ctrl);
 typedef int (*dms_invalidate_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE], unsigned char invld_owner);
 typedef void *(*dms_get_db_handle)(unsigned int *db_handle_index, dms_session_type_e session_type);
 typedef void (*dms_release_db_handle)(void *db_handle);
-typedef void *(*dms_stack_push_cr_cursor)(void *db_handle);
-typedef void (*dms_stack_pop_cr_cursor)(void *db_handle);
-typedef int(*dms_init_cr_cursor)(void *cr_cursor, char pageid[DMS_PAGEID_SIZE], char xid[DMS_XID_SIZE],
-    unsigned long long query_scn, unsigned int ssn);
-typedef void(*dms_init_index_cr_cursor)(void *cr_cursor, char pageid[DMS_PAGEID_SIZE], char xid[DMS_XID_SIZE],
-    unsigned long long query_scn, unsigned int ssn, char entry[DMS_PAGEID_SIZE], char *index_profile);
-typedef void(*dms_init_check_cr_cursor)(void *cr_cursor, char rowid[DMS_ROWID_SIZE], char xid[DMS_XID_SIZE],
-    unsigned long long query_scn, unsigned int ssn);
 typedef char *(*dms_get_wxid_from_cr_cursor)(void *cr_cursor);
-typedef unsigned char(*dms_get_instid_of_xid_from_cr_cursor)(void *db_handle, void *cr_cursor);
-typedef int(*dms_get_page_invisible_txn_list)(void *db_handle, void *cr_cursor, void *cr_page,
-    unsigned char *is_empty_txn_list, unsigned char *exist_waiting_txn);
-typedef int(*dms_reorganize_heap_page_with_undo)(void *db_handle, void *cr_cursor, void *cr_page,
-    unsigned char *fb_mark);
-typedef int(*dms_reorganize_index_page_with_undo)(void *db_handle, void *cr_cursor, void *cr_page);
-typedef int(*dms_check_heap_page_visible_with_undo_snapshot)(void *db_handle, void *cr_cursor, void *page,
-    unsigned char *is_found);
 typedef void(*dms_set_page_force_request)(void *db_handle, char pageid[DMS_PAGEID_SIZE]);
 typedef void(*dms_get_entry_pageid_from_cr_cursor)(void *cr_cursor, char index_entry_pageid[DMS_PAGEID_SIZE]);
 typedef void(*dms_get_index_profile_from_cr_cursor)(void *cr_cursor, char index_profile[DMS_INDEX_PROFILE_SIZE]);
 typedef void(*dms_get_xid_from_cr_cursor)(void *cr_cursor, char xid[DMS_XID_SIZE]);
 typedef void(*dms_get_rowid_from_cr_cursor)(void *cr_cursor, char rowid[DMS_ROWID_SIZE]);
+typedef int (*dms_heap_construct_cr_page)(dms_cr_assist_t *pcr);
+typedef int (*dms_btree_construct_cr_page)(dms_cr_assist_t *pcr);
+typedef int (*dms_check_heap_page_visible)(dms_cr_assist_t *pcr);
 typedef int(*dms_read_page)(void *db_handle, dms_read_page_assist_t *assist, char **page_addr, unsigned int *status);
 typedef void(*dms_leave_page)(void *db_handle, unsigned char changed, unsigned int status);
 typedef char *(*dms_mem_alloc)(void *context, unsigned int size);
@@ -802,23 +840,15 @@ typedef struct st_dms_callback {
     dms_invalidate_page invalidate_page;
     dms_get_db_handle get_db_handle;
     dms_release_db_handle release_db_handle;
-    dms_stack_push_cr_cursor stack_push_cr_cursor;
-    dms_stack_pop_cr_cursor stack_pop_cr_cursor;
-    dms_init_cr_cursor init_heap_cr_cursor;
-    dms_init_index_cr_cursor init_index_cr_cursor;
-    dms_init_check_cr_cursor init_check_cr_cursor;
     dms_get_wxid_from_cr_cursor get_wxid_from_cr_cursor;
-    dms_get_instid_of_xid_from_cr_cursor get_instid_of_xid_from_cr_cursor;
-    dms_get_page_invisible_txn_list get_heap_invisible_txn_list;
-    dms_get_page_invisible_txn_list get_index_invisible_txn_list;
-    dms_reorganize_heap_page_with_undo reorganize_heap_page_with_undo;
-    dms_reorganize_index_page_with_undo reorganize_index_page_with_undo;
-    dms_check_heap_page_visible_with_undo_snapshot check_heap_page_visible_with_udss;
     dms_set_page_force_request set_page_force_request;
     dms_get_entry_pageid_from_cr_cursor get_entry_pageid_from_cr_cursor;
     dms_get_index_profile_from_cr_cursor get_index_profile_from_cr_cursor;
     dms_get_xid_from_cr_cursor get_xid_from_cr_cursor;
     dms_get_rowid_from_cr_cursor get_rowid_from_cr_cursor;
+    dms_heap_construct_cr_page heap_construct_cr_page;
+    dms_btree_construct_cr_page btree_construct_cr_page;
+    dms_check_heap_page_visible check_heap_page_visible;
     dms_read_page read_page;
     dms_leave_page leave_page;
     dms_verify_page verify_page;
@@ -970,7 +1000,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           95
+#define DMS_LOCAL_VERSION           96
 
 #ifdef __cplusplus
 }

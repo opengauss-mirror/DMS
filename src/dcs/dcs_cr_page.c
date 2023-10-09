@@ -104,76 +104,59 @@ static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *requ
     }
     return ret;
 }
-#endif
 
-static inline uint8 dcs_get_inst_id(void *db_handle, void *cr_cursor, uint32 curr_inst_id)
+static void dcs_init_pcr_assist(dms_cr_assist_t *pcr, void *handle, uint64 query_scn,
+    uint32 ssn, char *cr_page, char *xid, char *pageid)
 {
-    uint8 inst_id = g_dms.callback.get_instid_of_xid_from_cr_cursor(db_handle, cr_cursor);
-    if (inst_id == curr_inst_id) {
-        return inst_id;
+    errno_t ret = memset_s(pcr, sizeof(dms_cr_assist_t), 0, sizeof(dms_cr_assist_t));
+    DMS_SECUREC_CHECK(ret);
+    pcr->handle = handle;
+    pcr->query_scn = query_scn;
+    pcr->ssn = ssn;
+    pcr->page = cr_page;
+    ret = memcpy_s(pcr->curr_xid, DMS_XID_SIZE, xid, DMS_XID_SIZE);
+    DMS_SECUREC_CHECK(ret);
+    if (pageid != NULL) {
+        ret = memcpy_s(pcr->pageid, DMS_PAGEID_SIZE, pageid, DMS_PAGEID_SIZE);
+        DMS_SECUREC_CHECK(ret);
     }
-
-    return drc_get_deposit_id(inst_id);
 }
 
-#ifndef OPENGAUSS
-static int dcs_construct_cr_page(dms_process_context_t *ctx, msg_pcr_request_t *request, void *cr_cursor,
-    void *cr_page, bool8 *fb_mark)
+static int dcs_handle_pcr_result(dms_process_context_t *ctx,
+    msg_pcr_request_t *request, dms_cr_assist_t *pcr)
 {
-    uint8 inst_id;
-    bool8 is_empty_txn_list;
-    bool8 exist_waiting_txn;
-    int ret = DMS_SUCCESS;
-
-    for (;;) {
-        if (request->cr_type == CR_TYPE_HEAP) {
-            ret = g_dms.callback.get_heap_invisible_txn_list(ctx->db_handle, cr_cursor, cr_page,
-                &is_empty_txn_list, &exist_waiting_txn);
-        } else {
-            ret = g_dms.callback.get_index_invisible_txn_list(ctx->db_handle, cr_cursor, cr_page,
-                &is_empty_txn_list, &exist_waiting_txn);
-        }
-
-        if (ret != DMS_SUCCESS) {
-            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_HEAP_INVISIBLE_TXN_LIST, ret);
-            ret = ERRNO_DMS_CALLBACK_GET_HEAP_INVISIBLE_TXN_LIST;
+    int ret;
+    /* send message according to CR construct result */
+    switch (pcr->status) {
+        case DMS_CR_STATUS_ALL_VISIBLE:
+            ret = dcs_send_pcr_ack(ctx, request, pcr->page, (bool8 *)pcr->fb_mark);
             break;
-        }
-
-        if (is_empty_txn_list) {
-            ret = dcs_send_pcr_ack(ctx, request, (char *)cr_page, fb_mark);
+        case DMS_CR_STATUS_PENDING_TXN:
+            ret = dcs_send_txn_wait(ctx, request, pcr->wxid);
             break;
-        }
-
-        if (exist_waiting_txn) {
-            ret = dcs_send_txn_wait(ctx, request, g_dms.callback.get_wxid_from_cr_cursor(cr_cursor));
+        case DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN:
+            ret = dcs_send_pcr_request(ctx, request, pcr->relay_inst);
             break;
-        }
-
-        inst_id = dcs_get_inst_id(ctx->db_handle, cr_cursor, ctx->inst_id);
-        if (inst_id == ctx->inst_id) {
-            if (request->cr_type == CR_TYPE_HEAP) {
-                ret = g_dms.callback.reorganize_heap_page_with_undo(ctx->db_handle, cr_cursor, cr_page, fb_mark);
-            } else {
-                ret = g_dms.callback.reorganize_index_page_with_undo(ctx->db_handle, cr_cursor, cr_page);
-            }
-            if (ret != DMS_SUCCESS) {
-                DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_REORGANIZE_HEAP_PAGE_WITH_UNDO, ret);
-                ret = ERRNO_DMS_CALLBACK_REORGANIZE_HEAP_PAGE_WITH_UNDO;
-                break;
-            }
-        } else {
-            ret = dcs_send_pcr_request(ctx, request, inst_id);
+        case DMS_CR_STATUS_ABORT:
+            ret = DMS_ERROR;
             break;
-        }
+        case DMS_CR_STATUS_INVISIBLE_TXN:
+            /* it's impossible here, because local invisible transaction has been rollbacked */
+            /* fall-through */
+        default:
+            cm_panic_log(0, "invalid consistent-read construct status: %d", pcr->status);
+            break;
     }
     return ret;
 }
 
 static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_request_t *request)
 {
+    char *cr_page = NULL;
     bool8 *fb_mark = NULL;
-    void *cr_page = (void *)((char *)request + sizeof(msg_pcr_request_t));
+    dms_cr_assist_t pcr;
+
+    cr_page = (char *)((char *)request + sizeof(msg_pcr_request_t));
     if (request->head.size > sizeof(msg_pcr_request_t) + g_dms.page_size) {
         if (request->head.size < sizeof(msg_pcr_request_t) + 2 * g_dms.page_size) {
             DMS_THROW_ERROR(ERRNO_DMS_MES_INVALID_MSG);
@@ -182,46 +165,42 @@ static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reques
         fb_mark = (bool8 *)((char *)request + sizeof(msg_pcr_request_t) + g_dms.page_size);
     }
 
-    void *cr_cursor = g_dms.callback.stack_push_cr_cursor(ctx->db_handle);
-    if (cr_cursor == NULL) {
-        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR);
-        return ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR;
+    dcs_init_pcr_assist(&pcr, ctx->db_handle, request->query_scn, request->sscn, cr_page,
+        request->xid, request->pageid);
+    pcr.fb_mark = (char *)fb_mark;
+    if (g_dms.callback.heap_construct_cr_page(&pcr) != DMS_SUCCESS) {
+        return DMS_ERROR;
     }
 
-    int ret = g_dms.callback.init_heap_cr_cursor(
-        cr_cursor, request->pageid, request->xid, request->query_scn, request->ssn);
-    if (ret != DMS_SUCCESS) {
-        g_dms.callback.stack_pop_cr_cursor(ctx->db_handle);
-        return ret;
-    }
-
-    ret = dcs_construct_cr_page(ctx, request, cr_cursor, cr_page, fb_mark);
-    g_dms.callback.stack_pop_cr_cursor(ctx->db_handle);
-    return ret;
+    return dcs_handle_pcr_result(ctx, request, &pcr);
 }
 
 static int dcs_btree_construct_cr_page(dms_process_context_t *ctx, msg_pcr_request_t *request)
 {
+    errno_t ret;
     msg_index_pcr_request_t *index_pcr_req = (msg_index_pcr_request_t *)request;
-    void *cr_page = (void *)((char *)request + sizeof(msg_index_pcr_request_t));
+    char *cr_page = (char *)((char *)request + sizeof(msg_index_pcr_request_t));
 
-    void *cr_cursor = g_dms.callback.stack_push_cr_cursor(ctx->db_handle);
-    if (cr_cursor == NULL) {
-        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR);
-        return ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR;
+    dms_cr_assist_t pcr;
+    dcs_init_pcr_assist(&pcr, ctx->db_handle, index_pcr_req->pcr_request.query_scn,
+        index_pcr_req->pcr_request.ssn, cr_page, index_pcr_req->pcr_request.xid,
+        index_pcr_req->pcr_request.pageid);
+    ret = memcpy_s(pcr.entry, DMS_PAGEID_SIZE, index_pcr_req->entry, DMS_PAGEID_SIZE);
+    DMS_SECUREC_CHECK(ret);
+    ret = memcpy_s(pcr.profile, DMS_INDEX_PROFILE_SIZE, index_pcr_req->profile, DMS_INDEX_PROFILE_SIZE);
+    DMS_SECUREC_CHECK(ret);
+
+    if (g_dms.callback.btree_construct_cr_page(&pcr) != DMS_SUCCESS) {
+        return DMS_ERROR;
     }
-
-    g_dms.callback.init_index_cr_cursor(cr_cursor, request->pageid, request->xid, request->query_scn, request->ssn,
-        index_pcr_req->entry, index_pcr_req->profile);
-
-    int ret = dcs_construct_cr_page(ctx, request, cr_cursor, cr_page, NULL);
-    g_dms.callback.stack_pop_cr_cursor(ctx->db_handle);
-    return ret;
+    
+    return dcs_handle_pcr_result(ctx, request, &pcr);
 }
 
 static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *msg)
 {
-    int ret;
+    int ret = DMS_SUCCESS;
+    const char *err_msg = NULL;
 
     CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_TRUE);
     msg_pcr_request_t *request = (msg_pcr_request_t *)(msg->buffer);
@@ -230,21 +209,25 @@ static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *ms
     total_size += g_dms.page_size;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, total_size, CM_FALSE, CM_TRUE);
 
-    /* sync scn before construct cr page */
+    /*
+     * NOTE:
+     * synchronize SCN before construct CR page is vitally important here,
+     * it decides whether cross-instance-read is consistent-read or not!
+     */
     g_dms.callback.update_global_scn(ctx->db_handle, request->query_scn);
 
-    if (request->cr_type == CR_TYPE_HEAP) {
-        ret = dcs_heap_construct_cr_page(ctx, request);
-        if (ret != DMS_SUCCESS) {
-            cm_send_error_msg(msg->head, ret, "failed to construct heap cr page");
-        }
-    } else if (request->cr_type == CR_TYPE_BTREE) {
-        ret = dcs_btree_construct_cr_page(ctx, request);
-        if (ret != DMS_SUCCESS) {
-            cm_send_error_msg(msg->head, ret, "failed to construct btree cr page");
-        }
-    } else {
-        cm_send_error_msg(msg->head, ERRNO_DMS_CAPABILITY_NOT_SUPPORT, "capability not support");
+    switch (request->cr_type) {
+        case CR_TYPE_HEAP:
+            ret = dcs_heap_construct_cr_page(ctx, request);
+            err_msg = "failed to construct heap CR page";
+            break;
+        case CR_TYPE_BTREE:
+            ret = dcs_btree_construct_cr_page(ctx, request);
+            err_msg = "failed to constrcut btree CR page";
+            break;
+        default:
+            cm_send_error_msg(msg->head, ERRNO_DMS_CAPABILITY_NOT_SUPPORT, "capability not support");
+            break;
     }
 }
 #endif
@@ -348,25 +331,23 @@ static inline int dcs_proc_msg_ack_txn_wait(dms_cr_t *dms_cr, dms_message_t *mes
     return DMS_SUCCESS;
 }
 
-static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message,
-    dms_cr_status_t *cr_status, bool8 *is_empty_txn_list, bool8 *exist_waiting_txn)
+static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message)
 {
-    *exist_waiting_txn = CM_FALSE;
-    *is_empty_txn_list = CM_FALSE;
     dms_message_head_t *dms_head = get_dms_head(message);
     switch (dms_head->cmd) {
         case MSG_REQ_CR_PAGE: {
-            *cr_status = DMS_CR_CONSTRUCT;
+            dms_cr->status = DMS_CR_STATUS_INVISIBLE_TXN;
+            dms_cr->phase = DMS_CR_PHASE_CONSTRUCT;
             return dcs_proc_msg_req_cr_page(dms_ctx, dms_cr, message);
         }
         case MSG_ACK_CR_PAGE: {
-            *is_empty_txn_list = CM_TRUE;
-            *cr_status = DMS_CR_PAGE_VISIBLE;
+            dms_cr->status = DMS_CR_STATUS_ALL_VISIBLE;
+            dms_cr->phase = DMS_CR_PHASE_DONE;
             return dcs_proc_msg_ack_cr_page(dms_ctx, dms_cr, message);
         }
         case MSG_ACK_TXN_WAIT: {
-            *exist_waiting_txn = CM_TRUE;
-            *cr_status = DMS_CR_TRY_READ;
+            dms_cr->status = DMS_CR_STATUS_PENDING_TXN;
+            dms_cr->phase = DMS_CR_PHASE_TRY_READ_PAGE;
             return dcs_proc_msg_ack_txn_wait(dms_cr, message);
         }
         case MSG_ACK_ERROR:
@@ -375,10 +356,10 @@ static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms
             return ERRNO_DMS_COMMON_MSG_ACK;
         case MSG_ACK_GRANT_OWNER:
         case MSG_ACK_ALREADY_OWNER:
-            *cr_status = DMS_CR_LOCAL_READ;
+            dms_cr->phase = DMS_CR_PHASE_READ_PAGE;
             break;
         case MSG_REQ_ASK_MASTER_FOR_CR_PAGE:
-            *cr_status = DMS_CR_CHECK_MASTER;
+            dms_cr->phase = DMS_CR_PHASE_CHECK_MASTER;
             break;
         default:
             break;
@@ -388,11 +369,10 @@ static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms
 }
 
 static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id, msg_pcr_request_t *request,
-    uint32 head_size, bool8 *is_empty_txn_list, bool8 *exist_waiting_txn, bool8 for_heap)
+    uint32 head_size, bool8 for_heap)
 {
     int ret;
     dms_message_t message;
-    dms_cr_status_t cr_status;
 
     LOG_DEBUG_INF("[PCR][%s][request cr page] cr_type %u query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
@@ -423,7 +403,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
 
         dms_end_stat(dms_ctx->sess_id);
 
-        ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message, &cr_status, is_empty_txn_list, exist_waiting_txn);
+        ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message);
         dms_release_recv_message(&message);
         return ret;
     }
@@ -438,8 +418,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
     return DMS_SUCCESS;
 }
 
-static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id, bool8 *is_empty_txn_list,
-    bool8 *exist_waiting_txn)
+static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id)
 {
     msg_pcr_request_t request;
     int ret;
@@ -455,53 +434,16 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
         return ret;
     }
 
-    return dcs_request_cr_page(dms_ctx, dms_cr, dst_id, &request, sizeof(msg_pcr_request_t),
-        is_empty_txn_list, exist_waiting_txn, CM_TRUE);
+    return dcs_request_cr_page(dms_ctx, dms_cr, dst_id, &request, sizeof(msg_pcr_request_t), CM_TRUE);
 }
 
-int dms_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr)
+int dms_forward_heap_cr_page_reqeust(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
 {
     dms_reset_error();
-    uint8 inst_id;
-    bool8 is_empty_txn_list;
-    bool8 exist_waiting_txn;
-    int ret;
-
-    for (;;) {
-        ret = g_dms.callback.get_heap_invisible_txn_list(dms_ctx->db_handle, dms_cr->cr_cursor, dms_cr->page,
-            &is_empty_txn_list, &exist_waiting_txn);
-        if (ret != DMS_SUCCESS) {
-            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_HEAP_INVISIBLE_TXN_LIST, ret);
-            return ERRNO_DMS_CALLBACK_GET_HEAP_INVISIBLE_TXN_LIST;
-        }
-
-        if (is_empty_txn_list || exist_waiting_txn) {
-            return DMS_SUCCESS;
-        }
-
-        inst_id = dcs_get_inst_id(dms_ctx->db_handle, dms_cr->cr_cursor, dms_ctx->inst_id);
-        if (inst_id == dms_ctx->inst_id) {
-            ret = g_dms.callback.reorganize_heap_page_with_undo(dms_ctx->db_handle, dms_cr->cr_cursor, dms_cr->page,
-                dms_cr->fb_mark);
-            if (ret != DMS_SUCCESS) {
-                DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_REORGANIZE_HEAP_PAGE_WITH_UNDO, ret);
-                return ERRNO_DMS_CALLBACK_REORGANIZE_HEAP_PAGE_WITH_UNDO;
-            }
-        } else {
-            ret = dcs_heap_request_cr_page(dms_ctx, dms_cr, inst_id, &is_empty_txn_list, &exist_waiting_txn);
-            if (ret != DMS_SUCCESS) {
-                return ret;
-            }
-
-            if (is_empty_txn_list || exist_waiting_txn) {
-                return DMS_SUCCESS;
-            }
-        }
-    }
+    return dcs_heap_request_cr_page(dms_ctx, dms_cr, (uint8)dst_inst_id);
 }
 
-static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id, bool8 *is_empty_txn_list,
-    bool8 *exist_waiting_txn)
+static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id)
 {
     msg_index_pcr_request_t msg;
     msg_pcr_request_t *request = &msg.pcr_request;
@@ -518,48 +460,13 @@ static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
 
     g_dms.callback.get_entry_pageid_from_cr_cursor(dms_cr->cr_cursor, msg.entry);
     g_dms.callback.get_index_profile_from_cr_cursor(dms_cr->cr_cursor, msg.profile);
-    return dcs_request_cr_page(dms_ctx, dms_cr, dst_id, request, sizeof(msg_index_pcr_request_t),
-        is_empty_txn_list, exist_waiting_txn, CM_FALSE);
+    return dcs_request_cr_page(dms_ctx, dms_cr, dst_id, request, sizeof(msg_index_pcr_request_t), CM_FALSE);
 }
 
-int dms_construct_index_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr)
+int dms_forward_btree_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
 {
     dms_reset_error();
-    uint8 inst_id;
-    bool8 is_empty_txn_list;
-    bool8 exist_waiting_txn;
-    int ret;
-
-    for (;;) {
-        ret = g_dms.callback.get_index_invisible_txn_list(dms_ctx->db_handle, dms_cr->cr_cursor, dms_cr->page,
-            &is_empty_txn_list, &exist_waiting_txn);
-        if (ret != DMS_SUCCESS) {
-            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_INDEX_INVISIBLE_TXN_LIST, ret);
-            return ERRNO_DMS_CALLBACK_GET_INDEX_INVISIBLE_TXN_LIST;
-        }
-
-        if (is_empty_txn_list || exist_waiting_txn) {
-            return DMS_SUCCESS;
-        }
-
-        inst_id = dcs_get_inst_id(dms_ctx->db_handle, dms_cr->cr_cursor, dms_ctx->inst_id);
-        if (inst_id == dms_ctx->inst_id) {
-            ret = g_dms.callback.reorganize_index_page_with_undo(dms_ctx->db_handle, dms_cr->cr_cursor, dms_cr->page);
-            if (ret != DMS_SUCCESS) {
-                DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_REORGANIZE_INDEX_PAGE_WITH_UNDO, ret);
-                return ERRNO_DMS_CALLBACK_REORGANIZE_INDEX_PAGE_WITH_UNDO;
-            }
-        } else {
-            ret = dcs_index_request_cr_page(dms_ctx, dms_cr, inst_id, &is_empty_txn_list, &exist_waiting_txn);
-            if (ret != DMS_SUCCESS) {
-                return ret;
-            }
-
-            if (is_empty_txn_list || exist_waiting_txn) {
-                return DMS_SUCCESS;
-            }
-        }
-    }
+    return dcs_index_request_cr_page(dms_ctx, dms_cr, (uint8)dst_inst_id);
 }
 
 #ifndef OPENGAUSS
@@ -645,13 +552,13 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     dms_read_page_assist_t assist;
     msg_pcr_request_t *new_req = NULL;
     char *page = NULL;
-    uint32 status = 0;
+    uint32 cr_version = 0;
     int ret;
 
     *local_route = CM_FALSE;
     dcs_read_page_init(&assist, request->pageid, DMS_PAGE_LATCH_MODE_S, DMS_ENTER_PAGE_NORMAL, request->query_scn, 1);
 
-    if (g_dms.callback.read_page(ctx->db_handle, &assist, &page, &status) != DMS_SUCCESS) {
+    if (g_dms.callback.read_page(ctx->db_handle, &assist, &page, &cr_version) != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_READ_PAGE);
         return ERRNO_DMS_CALLBACK_READ_PAGE;
     }
@@ -665,7 +572,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     new_req = (msg_pcr_request_t *)g_dms.callback.mem_alloc(ctx->db_handle,
         sizeof(msg_pcr_request_t) + g_dms.page_size);
     if (new_req == NULL) {
-        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, status);
+        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, cr_version);
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_STACK_PUSH);
         return ERRNO_DMS_CALLBACK_STACK_PUSH;
     }
@@ -676,12 +583,12 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     ret = memcpy_sp((char *)new_req + sizeof(msg_pcr_request_t), g_dms.page_size, page, g_dms.page_size);
     if (ret != EOK) {
         g_dms.callback.mem_free(ctx->db_handle, new_req);
-        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, status);
+        g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, cr_version);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(new_req->pageid));
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
 
-    g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, status);
+    g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, cr_version);
 
     /* sync scn before construct CR page */
     g_dms.callback.update_global_scn(ctx->db_handle, request->query_scn);
@@ -818,56 +725,34 @@ static int dcs_send_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
 
 static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *check)
 {
-    char *page = (char *)check + sizeof(msg_cr_check_t);
-    bool8 is_found = CM_TRUE;
-    uint8 inst_id;
-    bool8 is_empty_txn_list;
-    bool8 exist_waiting_txn;
     int ret;
+    char *page = (char *)check + sizeof(msg_cr_check_t);
+    bool32 is_found = CM_TRUE;
+    dms_cr_assist_t pcr;
+    dcs_init_pcr_assist(&pcr, ctx->db_handle, check->query_scn, check->ssn, page, check->xid, NULL);
+    pcr.check_restart = CM_FALSE;
+    pcr.check_found = &is_found;
 
-    void *cr_cursor = g_dms.callback.stack_push_cr_cursor(ctx->db_handle);
-    if (cr_cursor == NULL) {
-        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR);
-        return ERRNO_DMS_CALLBACK_ALLOC_CR_CURSOR;
+    ret = g_dms.callback.check_heap_page_visible(&pcr);
+    if (ret != DMS_SUCCESS) {
+        return ret;
     }
 
-    g_dms.callback.init_check_cr_cursor(cr_cursor, check->rowid, check->xid, check->query_scn, check->ssn);
-
-    for (;;) {
-        ret = g_dms.callback.get_heap_invisible_txn_list(ctx->db_handle, cr_cursor, page,
-            &is_empty_txn_list, &exist_waiting_txn);
-        if (ret != DMS_SUCCESS) {
-            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_HEAP_INVISIBLE_TXN_LIST, ret);
-            ret = ERRNO_DMS_CALLBACK_GET_HEAP_INVISIBLE_TXN_LIST;
+    switch (pcr.status) {
+        case DMS_CR_STATUS_ALL_VISIBLE:
+        case DMS_CR_STATUS_INVISIBLE_TXN:
+            ret = dcs_send_check_visible_ack(ctx, check, pcr.check_found);
             break;
-        }
-
-        if (is_empty_txn_list) {
-            ret = dcs_send_check_visible_ack(ctx, check, is_found);
+        case DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN:
+            ret = dcs_send_check_visible(ctx, check, pcr.relay_inst);
             break;
-        }
-
-        inst_id = dcs_get_inst_id(ctx->db_handle, cr_cursor, ctx->inst_id);
-        if (inst_id == ctx->inst_id) {
-            ret = g_dms.callback.check_heap_page_visible_with_udss(ctx->db_handle, cr_cursor, page, &is_found);
-            if (ret != DMS_SUCCESS) {
-                DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_REORGANIZE_HEAP_PAGE_WITH_UNDO, ret);
-                ret = ERRNO_DMS_CALLBACK_REORGANIZE_HEAP_PAGE_WITH_UNDO;
-                break;
-            }
-
-            if (!is_found) {
-                ret = dcs_send_check_visible_ack(ctx, check, is_found);
-                break;
-            }
-        } else {
-            ret = dcs_send_check_visible(ctx, check, inst_id);
+        case DMS_CR_STATUS_PENDING_TXN:
+            /* DMS_CR_STATUS_PENDING_TXN will be ignored in check_heap_page_visible callback function */
+            /* fall-through */
+        default:
+            cm_panic_log(0, "Invalid CR status for heap visible check: %d", pcr.status);
             break;
-        }
     }
-
-    g_dms.callback.stack_pop_cr_cursor(ctx->db_handle);
-
     return ret;
 }
 #endif
@@ -890,34 +775,35 @@ void dcs_proc_check_visible(dms_process_context_t *process_ctx, dms_message_t *r
     dms_release_recv_message(recv_msg);
 }
 
-static inline void dcs_get_msg_cmd_by_cr_status(dms_cr_status_t cr_status, msg_command_t *msg_cmd,
+static inline void dcs_get_msg_cmd_by_cr_status(dms_cr_phase_t cr_phase, msg_command_t *msg_cmd,
     const char **log_info)
 {
-    if (cr_status == DMS_CR_REQ_MASTER) {
-        *msg_cmd = MSG_REQ_ASK_MASTER_FOR_CR_PAGE;
-        *log_info = "master";
-    } else if (cr_status == DMS_CR_REQ_OWNER) {
-        *msg_cmd = MSG_REQ_ASK_OWNER_FOR_CR_PAGE;
-        *log_info = "owner";
-    } else {
-        *msg_cmd = MSG_CMD_CEIL;
-        CM_ASSERT(0);
+    switch (cr_phase) {
+        case DMS_CR_PHASE_REQ_MASTER:
+            *msg_cmd = MSG_REQ_ASK_MASTER_FOR_CR_PAGE;
+            *log_info = "master";
+            break;
+        case DMS_CR_PHASE_REQ_OWNER:
+            *msg_cmd = MSG_REQ_ASK_OWNER_FOR_CR_PAGE;
+            *log_info = "owner";
+            break;
+        default:
+            *msg_cmd = MSG_CMD_CEIL;
+            CM_ASSERT(0);
+            break;
     }
 }
 
-int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id,
-    dms_cr_status_t *cr_status)
+int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
 {
     dms_reset_error();
     msg_pcr_request_t request;
     dms_message_t message;
     int ret;
-    bool8 is_empty_txn_list;
-    bool8 exist_waiting_txn;
     msg_command_t msg_cmd;
     const char *log_info = NULL;
 
-    dcs_get_msg_cmd_by_cr_status(*cr_status, &msg_cmd, &log_info);
+    dcs_get_msg_cmd_by_cr_status(dms_cr->phase, &msg_cmd, &log_info);
 
     DMS_INIT_MESSAGE_HEAD(&request.head, msg_cmd, 0, dms_ctx->inst_id, dst_inst_id, dms_ctx->sess_id, CM_INVALID_ID16);
     request.head.size = (uint16)sizeof(msg_pcr_request_t);
@@ -932,7 +818,8 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
         (uint32)dms_ctx->inst_id, dms_ctx->sess_id, (uint32)dst_inst_id);
 
     for (;;) {
-        dms_wait_event_t event = (*cr_status == DMS_CR_REQ_MASTER) ? DMS_EVT_PCR_REQ_MASTER : DMS_EVT_PCR_REQ_OWNER;
+        dms_wait_event_t event = (dms_cr->phase == DMS_CR_PHASE_REQ_MASTER) ?
+            DMS_EVT_PCR_REQ_MASTER : DMS_EVT_PCR_REQ_OWNER;
         dms_begin_stat(dms_ctx->sess_id, event, CM_TRUE);
 
         if (mfc_send_data(&request.head) != CM_SUCCESS) {
@@ -949,7 +836,7 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
         session_stat_t *stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
         stat->stat[DMS_STAT_NET_TIME] += stat->wait[stat->level].usecs;
 
-        ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message, cr_status, &is_empty_txn_list, &exist_waiting_txn);
+        ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message);
         if (ret != DMS_SUCCESS) {
             dms_release_recv_message(&message);
             return ret;
@@ -964,18 +851,18 @@ int dms_specify_instance_construct_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t
         cm_display_pageid(request.pageid), log_info, (uint32)CR_TYPE_HEAP, request.query_scn, request.ssn,
         dms_ctx->inst_id, dms_ctx->sess_id, (uint32)dst_inst_id);
 
-    *cr_status = DMS_CR_CHECK_MASTER;
+    dms_cr->phase = DMS_CR_PHASE_CHECK_MASTER;
     cm_sleep(DMS_MSG_RETRY_TIME);
 
     return DMS_SUCCESS;
 }
 
-int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_cr_status_t *cr_status)
+int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_cr_phase_t *cr_phase)
 {
     dms_reset_error();
     uint8 master_id, owner_id;
 
-    CM_ASSERT(*cr_status == DMS_CR_CHECK_MASTER);
+    CM_ASSERT(*cr_phase == DMS_CR_PHASE_CHECK_MASTER);
 
     int ret = drc_get_page_master_id(dms_ctx->resid, &master_id);
     if (ret != DMS_SUCCESS) {
@@ -989,14 +876,14 @@ int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_inst_id, dms_c
         }
 
         if (owner_id == CM_INVALID_ID8 || owner_id == dms_ctx->inst_id) {
-            *cr_status = DMS_CR_LOCAL_READ;
+            *cr_phase = DMS_CR_PHASE_READ_PAGE;
         } else {
             *dst_inst_id = owner_id;
-            *cr_status = DMS_CR_REQ_OWNER;
+            *cr_phase = DMS_CR_PHASE_REQ_OWNER;
         }
     } else {
         *dst_inst_id = master_id;
-        *cr_status = DMS_CR_REQ_MASTER;
+        *cr_phase = DMS_CR_PHASE_REQ_MASTER;
     }
 
     return DMS_SUCCESS;
