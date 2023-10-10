@@ -424,7 +424,7 @@ static inline void dms_init_ack_head(const dms_message_head_t *req_head, dms_mes
 #define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \
     do {                                                                                                        \
         (head)->cmd = (uint32)(v_cmd);                                                                          \
-        (head)->flags = (uint32)((v_flags) | dms_msg_group_id(v_cmd));                                          \
+        (head)->flags = (uint32)(v_flags);                                                                      \
         (head)->src_inst = (uint8)(v_src_inst);                                                                 \
         (head)->dst_inst = (uint8)(v_dst_inst);                                                                 \
         (head)->src_sid = (uint16)(v_src_sid);                                                                  \
