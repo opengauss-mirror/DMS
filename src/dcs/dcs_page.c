@@ -96,6 +96,9 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
         DMS_STAT_INC_BUFFER_GETS(dms_ctx->sess_id);
     }
 
+    if (ack->edp_map > 0) {
+        ctrl->edp_map = (ack->edp_map) & (~(1ULL << dms_ctx->inst_id));
+    }
     ctrl->is_remote_dirty = 1;
     ctrl->lock_mode = mode;
     CM_MFENCE;
@@ -638,7 +641,7 @@ int dcs_send_requester_edp_remote(dms_process_context_t *ctx, dms_ask_res_req_t 
     return dcs_notify_remote_for_edp(ctx, &req_info);
 }
 
-static void dcs_change_lock_mode_after_transfer(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
+static void dcs_change_page_status(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     dms_res_req_info_t *req_info)
 {
     if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
@@ -646,7 +649,6 @@ static void dcs_change_lock_mode_after_transfer(dms_process_context_t *ctx, dms_
         // If multiple S-readings come later, BUF_LOAD_FAILED can ensure only one invokes DCS page request.
         g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_LOAD_FAILED);
         ctrl->is_remote_dirty = 0;
-        ctrl->edp_map = 0;
         ctrl->need_flush = 0;
 
         if (g_dms.callback.page_is_dirty(ctrl)) {
@@ -685,10 +687,10 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
         return dcs_owner_send_granted_ack(ctx, req_info);
     }
 
+    dcs_change_page_status(ctx, ctrl, req_info);
+
     ret = dcs_owner_transfer_page_ack(ctx, ctrl, req_info, MSG_ACK_PAGE_READY);
-    if (ret == DMS_SUCCESS) {
-        dcs_change_lock_mode_after_transfer(ctx, ctrl, req_info);
-    }
+
     g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
     return ret;
 }
