@@ -107,13 +107,12 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 
-    LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"
-        "dest_sid=%d, dirty=%d, remote diry=%d, page_lsn=%llu, page_scn=%llu", cm_display_pageid(dms_ctx->resid),
+    uint64 page_lsn = g_dms.callback.get_page_lsn(ctrl);
+    LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d, dest_sid=%d, dirty=%d,"
+        "remote diry=%d, global_lsn=%llu, global_scn=%llu, page_lsn=%llu", cm_display_pageid(dms_ctx->resid),
         dms_get_mescmd_msg(ack->head.cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst, msg->head->src_sid,
         msg->head->dst_inst, msg->head->dst_sid, DCS_ACK_PAGE_IS_DIRTY(msg), DCS_ACK_PAGE_IS_REMOTE_DIRTY(msg),
-        ack->lsn, ack->scn);
-
-    uint64 page_lsn = g_dms.callback.get_page_lsn(ctrl);
+        ack->lsn, ack->scn, page_lsn);
     dms_claim_ownership(dms_ctx, (uint8)master_id, mode, CM_FALSE, page_lsn);
     return DMS_SUCCESS;
 }
@@ -496,11 +495,11 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
-    LOG_DEBUG_INF("[DCS][%s][%s]:send ok, dest_id=%d, dest_sid=%d, req_mode=%u, remote dirty=%d,\
-             ctrl_lock_mode=%d, ctrl_is_edp=%d, page_lsn=%llu, page_scn=%llu, edp_map=%llu",
+    LOG_DEBUG_INF("[DCS][%s][%s]:send ok, dest_id=%d, dest_sid=%d, req_mode=%u, remote dirty=%d, ctrl_lock_mode=%d,"
+        "ctrl_is_edp=%d, global_lsn=%llu, global_scn=%llu, page_lsn=%llu, edp_map=%llu, flags=%u, msg_size=%d",
         cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.cmd), page_ack.head.dst_inst,
-        page_ack.head.dst_sid, req_info->req_mode, ctrl->is_remote_dirty, ctrl->lock_mode,
-        ctrl->is_edp, page_ack.lsn, page_ack.scn, page_ack.edp_map);
+        page_ack.head.dst_sid, req_info->req_mode, ctrl->is_remote_dirty, ctrl->lock_mode, ctrl->is_edp, page_ack.lsn,
+        page_ack.scn, g_dms.callback.get_page_lsn(ctrl), page_ack.edp_map, page_ack.head.flags, page_ack.head.size);
 
     return DMS_SUCCESS;
 }
@@ -1037,9 +1036,9 @@ void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *rece
     dms_release_recv_message(receive_msg);
 
     LOG_DEBUG_INF("[DCS][%s][dcs_proc_ask_remote_for_edp]: started, owner_id=%d, req_id=%d, "
-        "req_sid=%d, req_ruid=%llu, mode=%u",
+        "req_sid=%d, req_ruid=%llu, req_mode=%u, curr_mode=%u",
         cm_display_pageid(page_req.resid), ctx->inst_id, page_req.head.src_inst, page_req.head.src_sid,
-        page_req.head.ruid, page_req.req_mode);
+        page_req.head.ruid, page_req.req_mode, page_req.curr_mode);
 
     dms_res_req_info_t req_info = { 0 };
     req_info.owner_id = page_req.head.dst_inst;
