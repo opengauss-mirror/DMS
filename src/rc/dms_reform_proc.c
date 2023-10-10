@@ -1445,7 +1445,7 @@ static int dms_reform_recovery_inner(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     return g_dms.callback.recovery(g_dms.reform_ctx.handle_proc, (void *)&share_info->list_recovery,
-        DMS_IS_SHARE_REFORMER);
+        share_info->reform_type, DMS_IS_SHARE_REFORMER);
 }
 
 static int dms_reform_dw_recovery_inner(void)
@@ -1457,8 +1457,10 @@ static int dms_reform_dw_recovery_inner(void)
 
 static int dms_reform_df_recovery_inner(void)
 {
+    share_info_t *share_info = DMS_SHARE_INFO;
     if (DMS_IS_SHARE_REFORMER) {
-        return g_dms.callback.df_recovery(g_dms.reform_ctx.handle_proc);
+        return g_dms.callback.df_recovery(g_dms.reform_ctx.handle_proc,
+		    share_info->bitmap_in, (void *)&share_info->list_recovery);
     }
     return DMS_SUCCESS;
 }

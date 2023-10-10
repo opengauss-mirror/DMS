@@ -157,28 +157,6 @@ typedef enum en_reform_step {
 
 #define DMS_REFORM_STEP_DESC_STR_LEN 30
 
-typedef enum en_dms_reform_type {
-    // for multi_write
-    DMS_REFORM_TYPE_FOR_NORMAL = 0,
-
-    // for Gauss100
-    DMS_REFORM_TYPE_FOR_BUILD,
-    DMS_REFORM_TYPE_FOR_FAILOVER,
-    DMS_REFORM_TYPE_FOR_SWITCHOVER,
-
-    // for openGauss
-    DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS,
-    DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS,
-    DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS,
-
-    // common
-    DMS_REFORM_TYPE_FOR_FULL_CLEAN, // for all instances are online and stable, and all instances status is IN
-    DMS_REFORM_TYPE_FOR_MAINTAIN,   // for start database without CM, every instance is supported
-    // New type need to be added start from here
-    DMS_REFORM_TYPE_FOR_RST_RECOVER,
-    DMS_REFORM_TYPE_COUNT
-} dms_reform_type_t;
-
 typedef enum en_dms_thread_status {
     DMS_THREAD_STATUS_IDLE = 0,
     DMS_THREAD_STATUS_RUNNING,
