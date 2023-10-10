@@ -100,10 +100,21 @@ static bool8 mfc_try_get_ticket(uint8 dst_inst)
     }
 }
 
+/*
+ * currently groupd id is equivalent to MES priority number
+ * further flagbits are added after priority and serial bits
+ */
+static unsigned int inline mfc_get_mes_flag(dms_message_head_t *msg)
+{
+    unsigned int flag = dms_msg_group_id(msg->cmd);
+    CM_ASSERT(flag <= MES_FLAG_SERIAL);
+    return flag;
+}
+
 
 int32 mfc_forward_request(dms_message_head_t *msg)
 {
-    return mes_forward_request_x(msg->dst_inst, msg->flags, msg->ruid,
+    return mes_forward_request_x(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid,
         DMS_ONE, (char *)msg, msg->size);
 }
 
@@ -116,9 +127,9 @@ static inline int32 mfc_send_data_req(dms_message_head_t *msg, bool8 is_sync)
 
     int ret = DMS_SUCCESS;
     if (is_sync) {
-        ret = mes_send_request(msg->dst_inst, msg->flags, &msg->ruid, (char *)msg, msg->size);
+        ret = mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
     } else {
-        ret = mes_send_data(msg->dst_inst, msg->flags, (char *)msg, msg->size);
+        ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
     }
 
     if (ret != CM_SUCCESS) {
@@ -133,9 +144,9 @@ static inline int32 mfc_send_data_ack(dms_message_head_t *msg, bool8 is_sync)
 
     int ret = DMS_SUCCESS;
     if (is_sync) {
-        ret = mes_send_response(msg->dst_inst, msg->flags, msg->ruid, (char *)msg, msg->size);
+        ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
     } else {
-        ret = mes_send_data(msg->dst_inst, msg->flags, (char *)msg, msg->size);
+        ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
     }
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[msg->dst_inst], msg->tickets);
@@ -146,7 +157,7 @@ static inline int32 mfc_send_data_ack(dms_message_head_t *msg, bool8 is_sync)
 int32 mfc_send_data_async(dms_message_head_t *msg)
 {
     if (DMS_MFC_OFF) {
-        return mes_send_data(msg->dst_inst, msg->flags, (char *)msg, msg->size);
+        return mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
     }
 
     if (mfc_msg_is_req(msg)) {
@@ -161,9 +172,9 @@ int32 mfc_send_data(dms_message_head_t *msg)
 {
     if (DMS_MFC_OFF) {
         if (mfc_msg_is_req(msg)) {
-            return mes_send_request(msg->dst_inst, msg->flags, &msg->ruid, (char *)msg, msg->size);
+            return mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
         } else {
-            return mes_send_response(msg->dst_inst, msg->flags, msg->ruid, (char *)msg, msg->size);
+            return mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
         }
     }
 
@@ -176,7 +187,7 @@ int32 mfc_send_data(dms_message_head_t *msg)
 
 int32 mfc_send_response(dms_message_head_t *msg)
 {
-    return mes_send_response(msg->dst_inst, msg->flags, msg->ruid, (char *)msg, msg->size);
+    return mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
 }
 
 static inline int32 mfc_send_data3_req(dms_message_head_t *head, uint32 head_size, const void *body)
