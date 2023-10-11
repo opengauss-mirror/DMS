@@ -90,7 +90,7 @@ static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 time
 }
 
 static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32 len, uint32 timeout, bool8 handle_msg,
-    msg_command_t cmd)
+    msg_command_t cmd, dms_broadcast_scope_e scope)
 {
     uint64 succ_inst = 0;
     dms_message_head_t head;
@@ -99,7 +99,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(dms_message_head_t) + len);
 
-    uint64 all_inst = reform_info->bitmap_connect;
+    uint64 all_inst = (scope == DMS_BROADCAST_ONLINE_LIST) ?  DMS_SHARE_INFO->bitmap_online : reform_info->bitmap_connect;
 #ifdef OPENGAUSS
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
@@ -128,17 +128,17 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 }
 
 int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
-    unsigned int timeout, msg_command_t cmd)
+    unsigned int timeout, msg_command_t cmd, dms_broadcast_scope_e scope)
 {
     int ret = DMS_SUCCESS;
 
     if (timeout != CM_INFINITE_TIMEOUT) {
-        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd);
+        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd, scope);
         return ret;
     }
 
     while (CM_TRUE) {
-        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd) == DMS_SUCCESS) {
+        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd, scope) == DMS_SUCCESS) {
             return DMS_SUCCESS;
         }
 #ifndef OPENGAUSS
@@ -151,11 +151,19 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
     }
 }
 
+int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data, unsigned int len,
+    unsigned char handle_recv_msg, unsigned int timeout, dms_broadcast_scope_e scope)
+{
+    dms_reset_error();
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST, scope);
+}
+
 int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
     unsigned char handle_recv_msg, unsigned int timeout)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST);
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST,
+        DMS_BROADCAST_OLDIN_LIST);
 }
 
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -307,7 +315,8 @@ int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int 
     unsigned int timeout)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC);
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC,
+        DMS_BROADCAST_OLDIN_LIST);
 }
 
 #ifdef __cplusplus

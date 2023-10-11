@@ -632,6 +632,11 @@ typedef struct st_stat_drc_info {
     char                    data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
 } stat_drc_info_t;
 
+typedef enum en_broadcast_scope {
+    DMS_BROADCAST_OLDIN_LIST = 0,    // default value
+    DMS_BROADCAST_ONLINE_LIST = 1,
+} dms_broadcast_scope_e;
+
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
