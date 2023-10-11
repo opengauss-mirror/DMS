@@ -28,6 +28,7 @@ SYMBOL_PACKAGE_NAME="${PACKAGE_PRE_NAME}_${PACKAGE_OS_VERSION}_SYMBOL"
 PACKAGE_HOME="${OUTPUT_DIR}/"
 
 use_ss_cbb=0
+dms_test=0
 
 function func_pkg_symbol()
 {
@@ -175,6 +176,9 @@ function build_debug()
     if [ ${openGauss_flag} -eq 1 ];then
         CMAKE_OPT="$CMAKE_OPT -DOPENGAUSS=yes"
     fi
+    if [ ${dms_test} -eq 1 ];then
+        CMAKE_OPT="$CMAKE_OPT -D DMS_TEST=ON"
+    fi
     export BUILD_MODE=Debug
     cmake . -DCMAKE_BUILD_TYPE=Debug ${CMAKE_OPT} -B ${TMP_DIR}
     cd "${TMP_DIR}"/
@@ -191,6 +195,9 @@ function build_release()
     CMAKE_OPT=""
     if [ ${openGauss_flag} -eq 1 ];then
         CMAKE_OPT="$CMAKE_OPT -DOPENGAUSS=yes"
+    fi
+    if [ ${dms_test} -eq 1 ];then
+        CMAKE_OPT="$CMAKE_OPT -D DMS_TEST=ON"
     fi
     export BUILD_MODE=Release
     cmake . -DCMAKE_BUILD_TYPE=Release ${CMAKE_OPT} -B ${TMP_DIR}
@@ -478,8 +485,8 @@ function build_usage() {
     echo " sh build.sh ut < Compiling the Test Version. It is independent on CMS. CBB is not hidden >"
     echo " sh build.sh test < Compiling the Test Version. It is independent on CMS. CBB is hidden >"
     echo " sh build.sh test-cov < Compiling the Test Version. It is independent on CMS. CBB is hidden,Compiling the Debug version, but measure the code coverage >"
-    echo " sh build.sh debug [ openGauss ] < Compiling the Debug Version >"
-    echo " sh build.sh release [ openGauss ] < Compiling the Release Version >"
+    echo " sh build.sh debug [ openGauss ] [ test ] < Compiling the Debug Version >"
+    echo " sh build.sh release [ openGauss ] [ test ] < Compiling the Release Version >"
     echo " sh build.sh clean < Clear compilation information >"
     echo " sh build.sh package | sh build.sh package-debug < Package the debug version >"
     echo " sh build.sh cov < Compiling the Debug version, but measure the code coverage.>"
@@ -506,6 +513,9 @@ function main() {
                 use_ss_cbb=1
                 CBB_DIR="${DMS_DIR}/../CBB"
                 echo "Build DMS with CBB in shared_storage"
+            elif [ x"${str}" == x"test" ];then
+                dms_test=1
+                echo "Build DMS with test"
             fi
         fi
     done

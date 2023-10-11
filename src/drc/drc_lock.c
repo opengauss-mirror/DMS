@@ -80,19 +80,9 @@ drc_local_lock_res_t *drc_get_local_resx(dms_drid_t *lock_id)
     return lock_res;
 }
 
-bool32 drc_try_lock_local_resx(drc_local_lock_res_t *lock_res)
-{
-    return cm_spin_try_lock(&lock_res->lock);
-}
-
 void drc_lock_local_resx(drc_local_lock_res_t *lock_res)
 {
     cm_spin_lock(&lock_res->lock, NULL);
-}
-
-bool32 drc_timed_lock_local_resx(drc_local_lock_res_t *lock_res, uint32 timeout_ticks)
-{
-    return cm_spin_timed_lock(&lock_res->lock, timeout_ticks);
 }
 
 void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
@@ -120,6 +110,9 @@ void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked, b
 {
     lock_res->is_locked = is_locked;
     lock_res->is_owner = is_owner;
+    // only user for spin lock, so we set lock mode X here
+    lock_res->latch_stat.stat = is_locked ? LATCH_STATUS_X : LATCH_STATUS_IDLE;
+    lock_res->latch_stat.lock_mode = is_owner ? DMS_LOCK_EXCLUSIVE : DMS_LOCK_NULL;
 }
 
 void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t **latch_stat)
@@ -136,26 +129,11 @@ int drc_confirm_owner(char* resid, uint8 *lock_mode)
 
 int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode)
 {
-    bool32 is_locked = CM_FALSE;
     drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);
-    date_t begin = g_timer()->now;
 
-    while (CM_TRUE) {
-        is_locked = drc_timed_lock_local_resx(lock_res, DMS_MSG_CONFIRM_TIMES);
-        if (is_locked || (g_timer()->now - begin > DMS_REFORM_CONFIRM_TIMEOUT)) {
-            break;
-        }
-        DMS_REFORM_SHORT_SLEEP;
-    }
-    if (is_locked) {
-        *lock_mode = lock_res->latch_stat.lock_mode;
-        drc_unlock_local_resx(lock_res);
-        return DMS_SUCCESS;
-    }
-    if (smon_chk) {
-        return CM_TIMEDOUT;
-    }
-
+    drc_lock_local_resx(lock_res);
     *lock_mode = lock_res->latch_stat.lock_mode;
+    drc_unlock_local_resx(lock_res);
+
     return DMS_SUCCESS;
 }

@@ -68,9 +68,7 @@ static inline bool32 drc_owner_table_lock_shared(dms_context_t *dms_ctx, drc_loc
 
 /* local lock resource API */
 drc_local_lock_res_t* drc_get_local_resx(dms_drid_t *lock_id);
-bool32 drc_try_lock_local_resx(drc_local_lock_res_t *lock_res);
 void drc_lock_local_resx(drc_local_lock_res_t *lock_res);
-bool32 drc_timed_lock_local_resx(drc_local_lock_res_t *lock_res, uint32 timeout_ticks);
 void drc_unlock_local_resx(drc_local_lock_res_t *lock_res);
 void drc_lock_local_res_count(drc_local_lock_res_t *lock_res);
 void drc_unlock_local_res_count(drc_local_lock_res_t *lock_res);
