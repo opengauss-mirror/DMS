@@ -217,38 +217,6 @@ DMS_DECLARE unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t
 DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, unsigned int timeout_ticks);
 
 /*
-* @brief distributed spin lock acquire by self.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE unsigned char dms_spin_lock_by_self(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
-* @brief distributed spin lock add reference count.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE void dms_spin_add(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
-* @brief distributed spin lock dec reference count.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE void dms_spin_dec(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
-* @brief distributed spin lock dec reference count and do not release ref-count lock.
-* @param dms_ctx - dms_context_t structure.
-* @param dlock - distributed resource lock identifier.
-* @return CM_TRUE acquire success; CM_FALSE acquire fail.
-*/
-DMS_DECLARE void dms_spin_dec_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
-
-/*
 * @brief init distributed latch.
 * @param dlatch - distributed resource lock identifier.
 * @param type - distributed resource type.
@@ -369,16 +337,16 @@ DMS_DECLARE int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, u
 * @return DMS_SUCCESS - success;otherwise: failed
 */
 DMS_DECLARE int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
-    unsigned long long *success_inst);
+    unsigned long long *success_inst, unsigned long long *ruid);
 
 /*
 * @brief wait boc ack from other instances.
-* @param sid - session id.
+* @param ruid - ruid returned from message sending api.
 * @param timeout - wait response msg in timeout
 * @param success_inst - instances in which the broadcast message was successfully sent
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_wait_boc(unsigned int sid, unsigned int timeout, unsigned long long success_inst);
+DMS_DECLARE int dms_wait_boc(unsigned long long ruid, unsigned int timeout, unsigned long long success_inst);
 
 /*
 * @brief get openGauss multixactid's update xid.
@@ -417,6 +385,22 @@ DMS_DECLARE int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms
  */
 DMS_DECLARE int dms_request_opengauss_txn_snapshot(dms_context_t *dms_ctx,
     dms_opengauss_txn_snapshot_t *dms_txn_snapshot);
+
+/*
+ * @brief get openGauss transaction id and command id of primary for standby write feature.
+ * @[in] dms_ctx - Obtains the context information required by txn info
+ * @return DMS_SUCCESS - success; otherwise failed
+ */
+DMS_DECLARE int dms_request_opengauss_txn_of_master(dms_context_t *dms_ctx,
+    dms_opengauss_txn_sw_info_t *dms_txn_swinfo);
+
+/*
+ * @brief get openGauss page buffer status.
+ * @[in] dms_ctx - Obtains the context information required by page status
+ * @return DMS_SUCCESS - success; otherwise failed
+ */
+DMS_DECLARE int dms_request_opengauss_page_status(dms_context_t *dms_ctx,
+    unsigned int page, int page_num, unsigned long int *page_map, int *bit_count);
 
 /*
  * @brief get openGauss buffer lock mode and lock the buffer.
@@ -635,11 +619,8 @@ DMS_DECLARE int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsign
  * @[in]param is_dirty -  page is dirty or not.
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_buf_res_rebuild_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn,
-    unsigned char is_dirty);
-
 DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
-    unsigned char thread_index, unsigned char for_rebuild, unsigned char can_release, unsigned char *release);
+    unsigned char thread_index);
 
 /*
  * @brief check if session is recovery session or not.
@@ -686,7 +667,7 @@ DMS_DECLARE int dms_get_ssl_param(const char *param_name, char *param_value, uns
  * @[out]skip--need skip or not
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip);
+DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc);
 
 /*
  * @brief check reform if failed
@@ -747,8 +728,8 @@ DMS_DECLARE void dms_file_enter(void);
 DMS_DECLARE void dms_file_leave(void);
 
 DMS_DECLARE int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
-    unsigned long long *success_inst);
-DMS_DECLARE int dms_wait_bcast(unsigned int sid, unsigned int inst_id, unsigned int timeout,
+    unsigned long long *success_inst, unsigned long long *ruid);
+DMS_DECLARE int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout,
     unsigned long long *success_inst);
 /*
  * @brief thorough check for DRC and bufferpool buffer befor reform ends
@@ -785,8 +766,43 @@ DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms
 
 DMS_DECLARE int dms_info(char *buf, unsigned int len, unsigned int curr);
 
+DMS_DECLARE int dms_reform_res_need_rebuild(char *res, unsigned char res_type, unsigned int *need_rebuild);
+
 DMS_DECLARE unsigned int dms_get_mes_max_watting_rooms(void);
 
+DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point);
+
+/*
+ * @brief send oldest_xmin
+ * @[in]param dms_ctx -  context information.
+ * @[in]param oldest_xmin -  oldest xmin during snapshot in node 
+ * @[in]param dest_id -  destination instance id
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned long long oldest_xmin,
+    unsigned char dest_id);
+    
+DMS_DECLARE int dms_get_drc_info(int *is_found, stat_drc_info_t* drc_info);
+
+/*
+ * @brief get message protocol version before send
+ * @[in]param is_broadcast -  broadcast msg or not
+ * @[in]param dest_id - if not broadcast, represent destination node
+ *                      if broadcast, this param not work, 255 is recommended
+ * @[in]param dest_id -  destination instance id
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE unsigned int dms_get_send_proto_version(unsigned char is_broadcast, unsigned char dest_id);
+
+/*
+ * @brief retrieve mes statistics of waiting events
+ * @[in]param cmd - the type of mes waiting event
+ * @[out]param event_cnt - the count of the happenings of specified waiting event
+ * @[out]param event_time - the total cost time of specified waiting event
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */   
+DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt, 
+    unsigned long long *event_time);
 #ifdef __cplusplus
 }
 #endif

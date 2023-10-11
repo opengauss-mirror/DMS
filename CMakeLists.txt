@@ -6,7 +6,7 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug"
      OR ${CMAKE_BUILD_TYPE} STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is Debug")
     set(CMAKE_BUILD_TYPE Debug)
-    add_compile_definitions(_DEBUG)
+    add_compile_definitions(_DEBUG DB_DEBUG_VERSION)
 elseif (${CMAKE_BUILD_TYPE} STREQUAL "Release")
     message(STATUS "CMAKE_BUILD_TYPE is Release")
     set(CMAKE_BUILD_TYPE Release)

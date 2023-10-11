@@ -30,8 +30,8 @@
 extern "C" {
 #endif
 
-void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
-void dcs_proc_boc(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

@@ -57,11 +57,11 @@ int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_re
     dms_lock_mode_t curr_mode, dms_lock_mode_t mode);
 int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try);
 int32 dls_handle_grant_owner_ack(dms_context_t *dms_ctx,
-    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
+    drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode);
 int32 dls_handle_already_owner_ack(dms_context_t *dms_ctx,
-    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
+    drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode);
 int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
-    drc_local_lock_res_t *lock_res, uint8 master_id, mes_message_t *msg, dms_lock_mode_t mode);
+    drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode);
 
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info);
 void dls_cancel_request_lock(dms_context_t *dms_ctx, dms_drid_t *lock_id);
@@ -74,6 +74,21 @@ static inline void dms_wait4releasing(const drc_local_lock_res_t *lock_res)
         if (count >= GS_SPIN_COUNT) {
             cm_spin_sleep();
             count = 0;
+        }
+    }
+}
+
+static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks, uint32 spin_step)
+{
+#ifndef WIN32
+    fas_cpu_pause();
+#endif // !WIN32
+    (*spin_times)++;
+    if (SECUREC_UNLIKELY(*spin_times == spin_step)) {
+        cm_spin_sleep();
+        *spin_times = 0;
+        if (wait_ticks != NULL) {
+            (*wait_ticks)++;    
         }
     }
 }

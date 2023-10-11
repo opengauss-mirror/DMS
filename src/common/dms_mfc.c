@@ -25,13 +25,55 @@
 #include "dms_mfc.h"
 #include "dms_process.h"
 #include "dms_error.h"
-#include "mes_func.h"
+#include "mes_interface.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DMS_MFC_SEND_WAIT_TIME 10 // ms
+#define DMS_MFC_SEND_WAIT_TIME (10) /* ms */
+#define MFC_CONNECT_TIMEOUT (2000) /* us */
+#define DMS_ONE 1
+#define DMS_TWO 2
+#define DMS_THREE 3
+
+static inline void dms_msg_list_to_inst_bits(mes_msg_list_t *res, uint64 *success_inst)
+{
+    uint32 src_inst;
+    *success_inst = 0;
+    for (uint32 i = 0; i < res->count; i++) {
+        src_inst = res->messages[i].src_inst;
+        *success_inst |= ((uint64)0x1 << src_inst);
+    }
+}
+
+static inline uint32 dms_count_bits(uint64 bits)
+{
+    uint32 c = 0;
+    while (bits) {
+        bits &= (bits - 1);
+        c++;
+    }
+    return c;
+}
+
+static inline void dms_inst_bits_to_list(uint64 bits, uint32 *list)
+{
+    uint32 idx = 0;
+    for (uint32 node_id = 0; node_id < DMS_MAX_INSTANCES; node_id++) {
+        if (bits & 1) {
+            list[idx] = node_id;
+            idx++;
+        }
+        bits >>= 1;
+    }
+}
+
+/* is request in MFC sense, meaning will consume a ticket */
+static inline bool32 mfc_msg_is_req(dms_message_head_t *head)
+{
+    return head->cmd < MSG_REQ_END;
+}
 
 static bool8 mfc_try_get_ticket(uint8 dst_inst)
 {
@@ -58,57 +100,95 @@ static bool8 mfc_try_get_ticket(uint8 dst_inst)
     }
 }
 
-static inline bool32 mfc_msg_is_req(mes_message_head_t *head)
+
+int32 mfc_forward_request(dms_message_head_t *msg)
 {
-    return g_dms.processors[head->cmd].is_enqueue;
+    return mes_forward_request_x(msg->dst_inst, msg->flags, msg->ruid,
+        DMS_ONE, (char *)msg, msg->size);
 }
 
-static inline int32 mfc_send_data_req(mes_message_head_t *msg)
+static inline int32 mfc_send_data_req(dms_message_head_t *msg, bool8 is_sync)
 {
     if (!mfc_try_get_ticket(msg->dst_inst)) {
         DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
-    int ret = mes_send_data(msg);
+    int ret = DMS_SUCCESS;
+    if (is_sync) {
+        ret = mes_send_request(msg->dst_inst, msg->flags, &msg->ruid, (char *)msg, msg->size);
+    } else {
+        ret = mes_send_data(msg->dst_inst, msg->flags, (char *)msg, msg->size);
+    }
+
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->dst_inst], 1);
     }
-
     return ret;
 }
 
-static inline int32 mfc_send_data_ack(mes_message_head_t *msg)
+static inline int32 mfc_send_data_ack(dms_message_head_t *msg, bool8 is_sync)
 {
     msg->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[msg->dst_inst]);
-    int ret = mes_send_data(msg);
+
+    int ret = DMS_SUCCESS;
+    if (is_sync) {
+        ret = mes_send_response(msg->dst_inst, msg->flags, msg->ruid, (char *)msg, msg->size);
+    } else {
+        ret = mes_send_data(msg->dst_inst, msg->flags, (char *)msg, msg->size);
+    }
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[msg->dst_inst], msg->tickets);
     }
     return ret;
 }
 
-int32 mfc_send_data(mes_message_head_t *msg)
+int32 mfc_send_data_async(dms_message_head_t *msg)
 {
     if (DMS_MFC_OFF) {
-        return mes_send_data(msg);
+        return mes_send_data(msg->dst_inst, msg->flags, (char *)msg, msg->size);
     }
 
     if (mfc_msg_is_req(msg)) {
-        return mfc_send_data_req(msg);
+        return mfc_send_data_req(msg, CM_FALSE);
     } else {
-        return mfc_send_data_ack(msg);
+        return mfc_send_data_ack(msg, CM_FALSE);
     }
 }
 
-static inline int32 mfc_send_data2_req(const mes_message_head_t *head, const void *body)
+/* 1-BODY SYNC MESSAGE */
+int32 mfc_send_data(dms_message_head_t *msg)
+{
+    if (DMS_MFC_OFF) {
+        if (mfc_msg_is_req(msg)) {
+            return mes_send_request(msg->dst_inst, msg->flags, &msg->ruid, (char *)msg, msg->size);
+        } else {
+            return mes_send_response(msg->dst_inst, msg->flags, msg->ruid, (char *)msg, msg->size);
+        }
+    }
+
+    if (mfc_msg_is_req(msg)) {
+        return mfc_send_data_req(msg, CM_TRUE);
+    } else {
+        return mfc_send_data_ack(msg, CM_TRUE);
+    }
+}
+
+int32 mfc_send_response(dms_message_head_t *msg)
+{
+    return mes_send_response(msg->dst_inst, msg->flags, msg->ruid, (char *)msg, msg->size);
+}
+
+static inline int32 mfc_send_data3_req(dms_message_head_t *head, uint32 head_size, const void *body)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
         DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
-    int ret = mes_send_data2(head, body);
+    int ret = DMS_SUCCESS;
+    ret = mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+        DMS_TWO, head, head_size, body, head->size - head_size);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
     }
@@ -116,58 +196,31 @@ static inline int32 mfc_send_data2_req(const mes_message_head_t *head, const voi
     return ret;
 }
 
-static inline int32 mfc_send_data2_ack(mes_message_head_t *head, const void *body)
+static inline int32 mfc_send_data3_ack(dms_message_head_t *head, uint32 head_size, const void *body)
 {
     head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
-    int ret = mes_send_data2(head, body);
+
+    int ret = DMS_SUCCESS;
+    ret = mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+        DMS_TWO, head, head_size, body, head->size - head_size);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
     }
     return ret;
 }
 
-int32 mfc_send_data2(mes_message_head_t *head, const void *body)
+/* 2-BODY SYNC MESSAGE, with 1st body as user-customized head. */
+int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body)
 {
     if (DMS_MFC_OFF) {
-        return mes_send_data2(head, body);
-    }
-
-    if (mfc_msg_is_req(head)) {
-        return mfc_send_data2_req(head, body);
-    } else {
-        return mfc_send_data2_ack(head, body);
-    }
-}
-
-static inline int32 mfc_send_data3_req(mes_message_head_t *head, uint32 head_size, const void *body)
-{
-    if (!mfc_try_get_ticket(head->dst_inst)) {
-        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
-        return ERRNO_DMS_MFC_NO_TICKETS;
-    }
-
-    int ret = mes_send_data3(head, head_size, body);
-    if (ret != CM_SUCCESS) {
-        mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
-    }
-
-    return ret;
-}
-
-static inline int32 mfc_send_data3_ack(mes_message_head_t *head, uint32 head_size, const void *body)
-{
-    head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
-    int ret = mes_send_data3(head, head_size, body);
-    if (ret != CM_SUCCESS) {
-        mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
-    }
-    return ret;
-}
-
-int32 mfc_send_data3(mes_message_head_t *head, uint32 head_size, const void *body)
-{
-    if (DMS_MFC_OFF) {
-        return mes_send_data3(head, head_size, body);
+        if (mfc_msg_is_req(head)) {
+            return mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+                DMS_TWO, head, head_size, body, head->size - head_size);
+        } else {
+            MFC_RETURN_IF_BAD_RUID(head->ruid);
+            return mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+                DMS_TWO, head, head_size, body, head->size - head_size);
+        }
     }
 
     if (mfc_msg_is_req(head)) {
@@ -177,7 +230,7 @@ int32 mfc_send_data3(mes_message_head_t *head, uint32 head_size, const void *bod
     }
 }
 
-static inline int32 mfc_send_data4_req(mes_message_head_t *head, uint32 head_size,
+static inline int32 mfc_send_data4_req(dms_message_head_t *head, uint32 head_size,
     const void *body1, uint32 len1, const void *body2, uint32 len2)
 {
     if (!mfc_try_get_ticket(head->dst_inst)) {
@@ -185,7 +238,9 @@ static inline int32 mfc_send_data4_req(mes_message_head_t *head, uint32 head_siz
         return ERRNO_DMS_MFC_NO_TICKETS;
     }
 
-    int ret = mes_send_data4(head, head_size, body1, len1, body2, len2);
+    int ret = DMS_SUCCESS;
+    ret = mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+            DMS_THREE, head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
     }
@@ -193,22 +248,32 @@ static inline int32 mfc_send_data4_req(mes_message_head_t *head, uint32 head_siz
     return ret;
 }
 
-static inline int32 mfc_send_data4_ack(mes_message_head_t *head, uint32 head_size,
+static inline int32 mfc_send_data4_ack(dms_message_head_t *head, uint32 head_size,
     const void *body1, uint32 len1, const void *body2, uint32 len2)
 {
+    int ret = DMS_SUCCESS;
     head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
-    int ret = mes_send_data4(head, head_size, body1, len1, body2, len2);
+    ret = mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+        DMS_THREE, head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
     }
     return ret;
 }
 
-int32 mfc_send_data4(mes_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+/* 3-BODY SYNC MESSAGE, with 1st body as user-customized head. */
+int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
     if (DMS_MFC_OFF) {
-        return mes_send_data4(head, head_size, body1, len1, body2, len2);
+        if (mfc_msg_is_req(head)) {
+            return mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+                DMS_THREE, head, head_size, body1, len1, body2, len2);
+        } else {
+            MFC_RETURN_IF_BAD_RUID(head->ruid);
+            return mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+                DMS_THREE, head, head_size, body1, len1, body2, len2);
+        }
     }
 
     if (mfc_msg_is_req(head)) {
@@ -218,136 +283,274 @@ int32 mfc_send_data4(mes_message_head_t *head, uint32 head_size, const void *bod
     }
 }
 
-int32 mfc_allocbuf_and_recv_data(uint16 sid, mes_message_t *msg, uint32 timeout)
+/* 3-BODY ASYNC MESSAGE, with 1st body as user-customized head. */
+int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+    const void *body2, uint32 len2)
 {
-    int ret = mes_allocbuf_and_recv_data(sid, msg, timeout);
-    if (DMS_MFC_OFF || ret != CM_SUCCESS) {
-        return ret;
+    if (DMS_MFC_OFF) {
+        return mes_send_data_x(head->dst_inst, head->flags,
+            DMS_THREE, head, head_size, body1, len1, body2, len2);
     }
-
-    CM_ASSERT(msg->head->cmd >= MSG_ACK_BEGIN);
-
-    mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->head->src_inst], msg->head->tickets);
+    /* Need to adapt if MFC to be enabled */
     return DMS_SUCCESS;
 }
 
-static void mfc_wait_acks_add_tickets(uint64 success_inst, char *recv_msg[MES_MAX_INSTANCES])
+static inline int32 dms_handle_recv_ack_internal(dms_message_head_t *head)
 {
-    for (uint32 i = 0; i < CM_MAX_INSTANCES; i++) {
-        if (MES_IS_INST_SEND(success_inst, i) && recv_msg[i] != NULL) {
-            mes_message_head_t *head = (mes_message_head_t *)recv_msg[i];
-            mfc_add_tickets(&g_dms.mfc.remain_tickets[head->src_inst], head->tickets);
+    dms_set_node_proto_version((head)->src_inst, (head)->sw_proto_ver);
+    if ((head)->cmd == MSG_ACK_VERSION_NOT_MATCH) {
+        LOG_RUN_INF("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
+            "dst_sid:%u, msg_proto_ver:%u, my sw_proto_ver:%u",
+            (uint32)(head)->src_inst, (uint32)(head)->src_sid,
+            (uint32)(head)->dst_inst, (uint32)(head)->dst_sid,
+            (head)->msg_proto_ver, DMS_SW_PROTO_VER);
+        return ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH;
+    }
+    return DMS_SUCCESS;
+}
+
+/* previously mfc_allocbuf_and_recv_data */
+int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
+{
+    if (response == NULL && timeout_ms == 0) {
+        return mes_get_response(ruid, NULL, 0);
+    }
+    mes_msg_t msg = { 0 };
+    int ret = mes_get_response(ruid, &msg, timeout_ms);
+    DMS_RETURN_IF_ERROR(ret);
+    response->buffer = msg.buffer;
+    response->head = (dms_message_head_t *)msg.buffer;
+    ret = dms_handle_recv_ack_internal(response->head);
+    if (DMS_MFC_OFF) {
+        if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+            mfc_release_mes_msg(&msg);
         }
+        return ret;
+    }
+
+    CM_ASSERT(response->head->cmd >= MSG_ACK_BEGIN);
+    mfc_add_tickets(&g_dms.mfc.remain_tickets[response->head->src_inst], response->head->tickets);
+    if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+        mfc_release_mes_msg(&msg);
+    }
+    return ret;
+}
+
+/* were mfc to be used, further adaptation is needed */
+static void mfc_wait_acks_add_tickets(mes_msg_list_t *recv_msg)
+{
+    for (uint32 i = 0; i < recv_msg->count; i++) {
+        dms_message_head_t *head = (dms_message_head_t *)recv_msg->messages[i].buffer;
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[head->src_inst], head->tickets);
     }
 }
 
-static void mfc_wait_acks_add_tickets_and_release_msg(uint64 success_inst, char *recv_msg[MES_MAX_INSTANCES])
+static void mfc_add_tickets_and_release_msg(mes_msg_list_t *recv_msg)
 {
-    mes_message_t msg;
-    for (uint32 i = 0; i < CM_MAX_INSTANCES; i++) {
-        if (MES_IS_INST_SEND(success_inst, i) && recv_msg[i] != NULL) {
-            msg.head = (mes_message_head_t *)recv_msg[i];
-            msg.buffer = recv_msg[i];
-            mfc_add_tickets(&g_dms.mfc.remain_tickets[msg.head->src_inst], msg.head->tickets);
-            mfc_release_message_buf(&msg);
-        }
+    dms_message_t msg;
+    for (uint8 i = 0; i < recv_msg->count; i++) {
+        msg.head = (dms_message_head_t *)recv_msg->messages[i].buffer;
+        msg.buffer = recv_msg->messages[i].buffer;
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[msg.head->src_inst], msg.head->tickets);
+        dms_release_recv_message(&msg);
     }
 }
 
-static void mfc_wait_acks_add_tickets_and_release_msg2(uint64 *success_inst, char *recv_msg[MES_MAX_INSTANCES])
+void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
 {
-    mes_message_t msg;
-    for (uint8 i = 0; i < CM_MAX_INSTANCES; i++) {
-        if (MES_IS_INST_SEND(*success_inst, i) && recv_msg[i] != NULL) {
-            msg.head = (mes_message_head_t *)recv_msg[i];
-            msg.buffer = recv_msg[i];
-            mfc_add_tickets(&g_dms.mfc.remain_tickets[msg.head->src_inst], msg.head->tickets);
-            int32 ret = *(int32 *)(msg.buffer + sizeof(mes_message_head_t));
-            if (ret != CM_SUCCESS) {
-                bitmap64_clear(success_inst, i);
+    *success_inst = inst_bits; /* cannot tell success insts until get response */
+    if (inst_bits == 0) {
+        return;
+    }
+
+    uint32 count = dms_count_bits(inst_bits);
+    dms_message_head_t *head = (dms_message_head_t *)msg_data;
+    uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
+    dms_inst_bits_to_list(inst_bits, inst_list);
+    (void)mes_broadcast_request_sp(inst_list, count, head->flags, &head->ruid, msg_data, head->size);
+}
+
+/* 2-BODY SYNC BROADCAST */
+void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body, uint64 *success_inst)
+{
+    *success_inst = inst_bits; /* cannot tell success insts until get response */
+    if (inst_bits == 0) {
+        *success_inst = 0;
+        return;
+    }
+
+    uint32 count = dms_count_bits(inst_bits);
+    uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
+    dms_inst_bits_to_list(inst_bits, inst_list);
+    (void)mes_broadcast_request_spx(inst_list, count, head->flags, &head->ruid,
+        DMS_TWO, head, sizeof(dms_message_head_t), body, head->size - sizeof(dms_message_head_t));
+}
+
+int32 mfc_check_bcast_res_compatibility(mes_msg_list_t *msg_list, bool8 ret_insts, uint64 *success_recv_insts)
+{
+    int32 ret = CM_SUCCESS;
+    if (ret_insts) {
+        *success_recv_insts = 0;
+    }
+
+    for (uint32 i = 0; i < msg_list->count; i++) {
+        dms_message_head_t *head = (dms_message_head_t*)msg_list->messages[i].buffer;
+        ret = dms_handle_recv_ack_internal(head);
+        if (ret_insts) {
+            dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
+            if (head->cmd != MSG_ACK_VERSION_NOT_MATCH && ack_msg->ret == DMS_SUCCESS) {
+                *success_recv_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
             }
-            mfc_release_message_buf(&msg);
         }
     }
+    return ret;
 }
 
-int32 mfc_broadcast_and_wait(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
-    uint64 *success_inst)
+/*
+ * previously mfc_wait_acks. return status only
+ */
+int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms)
 {
-    uint64 start_stat_time = 0;
-    mes_get_consume_time_start(&start_stat_time);
-    mes_broadcast3(sid, inst_bits, msg_data, success_inst, mfc_send_data);
-    int ret = mfc_wait_acks(sid, timeout, *success_inst);
-    if (ret != CM_SUCCESS) {
-        LOG_RUN_ERR("[mes]mes_wait_acks failed.");
-        return ret;
+    if (ruid == 0) {
+        return DMS_SUCCESS;
     }
-
-    mes_consume_with_time(((mes_message_head_t *)msg_data)->cmd, MES_TIME_TEST_MULTICAST_AND_WAIT, start_stat_time);
-    return CM_SUCCESS;
-}
-
-int32 mfc_broadcast_and_wait2(uint32 sid, uint64 inst_bits, const void *msg_data, uint32 timeout,
-    uint64 *succ_insts)
-{
-    uint64 start_stat_time = 0;
-    mes_get_consume_time_start(&start_stat_time);
-    mes_broadcast3(sid, inst_bits, msg_data, succ_insts, mfc_send_data);
-    int ret = mfc_wait_acks2(sid, timeout, succ_insts);
-    if (ret != CM_SUCCESS) {
-        LOG_RUN_ERR("[mes]mes_wait_acks failed.");
-        return ret;
-    }
-
-    mes_consume_with_time(((mes_message_head_t *)msg_data)->cmd, MES_TIME_TEST_MULTICAST_AND_WAIT, start_stat_time);
-    return CM_SUCCESS;
-}
-
-int32 mfc_wait_acks(uint32 sid, uint32 timeout, uint64 success_inst)
-{
+    mes_msg_list_t responses = { 0 };
+    int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
-        return mes_wait_acks(sid, timeout);
-    }
-
-    char *recv_msg[CM_MAX_INSTANCES] = { 0 };
-    int32 ret = mes_wait_acks_and_recv_msg2(sid, timeout, success_inst, recv_msg, mfc_wait_acks_add_tickets);
-    if (ret != CM_SUCCESS) {
+        ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_bcast_res_compatibility(&responses, CM_FALSE, NULL);
+        mfc_release_mes_msglist(&responses);
         return ret;
     }
 
-    mfc_wait_acks_add_tickets_and_release_msg(success_inst, recv_msg);
+    /* were mfc to be used, further adaptation is needed */
+    ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+    if (ret != CM_SUCCESS) {
+        mfc_wait_acks_add_tickets(&responses);
+        return ret;
+    }
+    ret = mfc_check_bcast_res_compatibility(&responses, CM_FALSE, NULL);
+
+    mfc_add_tickets_and_release_msg(&responses);
+    return ret;
+}
+
+/*
+ * previously mfc_wait_acks2. returns ret and succ_insts
+ */
+int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 *succ_insts)
+{
+    if (ruid == 0) {
+        *succ_insts = 0;
+        return DMS_SUCCESS;
+    }
+    int ret = DMS_SUCCESS;
+    mes_msg_list_t responses = { 0 };
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        dms_msg_list_to_inst_bits(&responses, succ_insts);
+        ret = mfc_check_bcast_res_compatibility(&responses, CM_TRUE, succ_insts);
+        mfc_release_mes_msglist(&responses);
+        return ret;
+    }
+
+    ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+    DMS_RETURN_IF_ERROR(ret);
+    ret = mfc_check_bcast_res_compatibility(&responses, CM_TRUE, succ_insts);
+    DMS_RETURN_IF_ERROR(ret);
+
+    mfc_add_tickets_and_release_msg(&responses);
     return DMS_SUCCESS;
 }
 
-int32 mfc_wait_acks2(uint32 sid, uint32 timeout, uint64 *succ_insts)
+/*
+ * previously mfc_wait_acks_and_recv_msg. returns ret and msglist
+ */
+int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, mes_msg_list_t *msg_list)
 {
-    if (DMS_MFC_OFF) {
-        return mes_wait_acks2(sid, timeout, succ_insts);
+    if (ruid == 0) {
+        return DMS_SUCCESS;
     }
-
-    char *recv_msg[CM_MAX_INSTANCES] = { 0 };
-    int32 ret = mes_wait_acks_and_recv_msg2(sid, timeout, *succ_insts, recv_msg, mfc_wait_acks_add_tickets);
-    if (ret != CM_SUCCESS) {
+    int ret = DMS_SUCCESS;
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_bcast_res_compatibility(msg_list, CM_FALSE, NULL);
         return ret;
     }
 
-    mfc_wait_acks_add_tickets_and_release_msg2(succ_insts, recv_msg);
+    ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+    DMS_RETURN_IF_ERROR(ret);
+    ret = mfc_check_bcast_res_compatibility(msg_list, CM_FALSE, NULL);
+    DMS_RETURN_IF_ERROR(ret);
+
+    mfc_wait_acks_add_tickets(msg_list);
     return DMS_SUCCESS;
 }
 
-int32 mfc_wait_acks_and_recv_msg(uint32 sid, uint32 timeout, uint64 success_inst, char *recv_msg[MES_MAX_INSTANCES])
+/* previously mes_connect_batch; add instance and wait for connection */
+int mfc_add_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt, bool8 is_sync)
 {
-    if (DMS_MFC_OFF) {
-        return mes_wait_acks_and_recv_msg(sid, timeout, success_inst, recv_msg);
-    }
+    int ret = DMS_SUCCESS;
+    unsigned char inst_id;
 
-    int32 ret = mes_wait_acks_and_recv_msg2(sid, timeout, success_inst, recv_msg, mfc_wait_acks_add_tickets);
-    if (ret != CM_SUCCESS) {
-        return ret;
+    for (uint8 i = 0; i < inst_id_cnt; i++) {
+        inst_id = inst_id_list[i];
+        if (g_dms.inst_id == inst_id) {
+            continue;
+        }
+        ret = mes_add_instance(inst_id, 0, 0);
+        if (ret != CM_SUCCESS && ret != ERR_MES_IS_CONNECTED) {
+            LOG_RUN_ERR("failed to add instance %d", inst_id);
+            return ret;
+        }
     }
+    if (is_sync) {
+        ret = mfc_check_connection_batch(inst_id_list, inst_id_cnt);
+    }
+    return ret;
+}
 
-    mfc_wait_acks_add_tickets(success_inst, recv_msg);
+int mfc_check_connection_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt)
+{
+    uint8 inst_id;
+    uint32 wait_time = 0;
+    for (uint8 i = 0; i < inst_id_cnt; i++) {
+        inst_id = inst_id_list[i];
+        if (g_dms.inst_id == inst_id) {
+            continue;
+        }
+        while (!mes_connection_ready(inst_id)) {
+            const uint8 once_wait_time = 10;
+            cm_sleep(once_wait_time);
+            wait_time += once_wait_time;
+            if (wait_time > MFC_CONNECT_TIMEOUT) {
+                LOG_RUN_INF("connect to instance %hhu time out.", inst_id);
+                return DMS_ERROR;
+            }
+        }
+    }
     return DMS_SUCCESS;
+}
+
+int mfc_del_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt)
+{
+    int ret = DMS_SUCCESS;
+    unsigned char inst_id;
+    for (uint8 i = 0; i < inst_id_cnt; i++) {
+        inst_id = inst_id_list[i];
+        if (g_dms.inst_id == inst_id) {
+            continue;
+        }
+        ret = mes_del_instance(inst_id);
+        if (ret != CM_SUCCESS) {
+            LOG_RUN_ERR("failed to del instance %d", inst_id);
+            return ret;
+        }
+    }
+    return ret;
 }
 
 #ifdef __cplusplus

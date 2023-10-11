@@ -292,43 +292,15 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     DMS_SECUREC_CHECK(ret);
 }
 
-static uint32 drc_recycle_buf_res_directly(char *resid)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = NULL;
-    uint16 part_id = drc_page_partid(resid);
-    uint16 part_cnt = 0;
-    do {
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        cm_spin_lock(&ctx->global_buf_res.res_parts_lock[part_id], NULL);
-        uint32 recycled = drc_recycle_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE, 1, CM_FALSE);
-        cm_spin_unlock(&ctx->global_buf_res.res_parts_lock[part_id]);
-        if (recycled != 0) {
-            return recycled;
-        }
-        part_id++;
-        part_id = part_id % DRC_MAX_PART_NUM;
-        part_cnt++;
-    } while (part_cnt < DRC_MAX_PART_NUM);
-    return 0;
-}
-
 static drc_buf_res_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
     drc_res_bucket_t *bucket)
 {
-    drc_buf_res_t* buf_res;
-    do {
-        buf_res = (drc_buf_res_t *)drc_res_pool_alloc_item(pool);
-        if (buf_res != NULL) {
-            break;
-        }
+    drc_buf_res_t* buf_res = (drc_buf_res_t *)drc_res_pool_alloc_item(pool);
+    if (buf_res == NULL) {
         LOG_DEBUG_WAR("[DRC][%s]buf_res create fail", cm_display_pageid(resid));
-        uint32 recycled = drc_recycle_buf_res_directly(resid);
-        if (recycled == 0) {
-                LOG_DEBUG_WAR("[DRC][%s]buf_res recycle fail", cm_display_pageid(resid));
-                DMS_DRC_SHORT_SLEEP;
-        }
-    } while (CM_TRUE);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
+        return NULL;
+    }
     LOG_DEBUG_INF("[DRC][%s]buf_res create successful", cm_display_pageid(resid));
 
     init_buf_res(buf_res, resid, len, res_type);
@@ -665,4 +637,48 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_mast
     }
 
     return options;
+}
+
+/*
+* @brief userd by server to obtain DRC entry from DMS
+* @[in] tag: Uniquely identify a page
+* @[out] is_found: is_found = 0 means that there are no requested buffer in the buffer pool of the cluster currently
+* @[out] drc_info: Save the DRC information of the current page, 
+*        including page related information in Standby which held the COPY
+*/
+int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
+{
+    drc_buf_res_t *buf_res = NULL;
+    int32 ret = drc_enter_buf_res(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        drc_info = NULL;
+        return ret;
+    }
+    if (buf_res == NULL) {
+        *is_found = 0;
+        return DMS_SUCCESS;
+    }
+    *is_found = 1;
+    drc_info->claimed_owner = buf_res->claimed_owner;
+    drc_info->copy_insts = buf_res->copy_insts;
+    drc_info->copy_promote = buf_res->copy_promote;
+    drc_info->edp_map = buf_res->edp_map;
+    drc_info->in_recovery = buf_res->in_recovery;
+    drc_info->last_edp = buf_res->last_edp;
+    drc_info->len = buf_res->len;
+    drc_info->lock_mode = buf_res->lock_mode;
+    drc_info->lsn = buf_res->lsn;
+    drc_info->part_id = buf_res->part_id;
+    drc_info->recovery_skip = buf_res->recovery_skip;
+    drc_info->type = buf_res->type;
+    drc_leave_buf_res(buf_res);
+
+    ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
+    if (drc_info->copy_insts != 0 || 
+        drc_info->claimed_owner != drc_info->dms_ctx.inst_id || 
+        drc_info->master_id != drc_info->dms_ctx.inst_id) {
+        
+        dms_send_request_buf_info(&drc_info->dms_ctx, drc_info);
+    }
+    return DMS_SUCCESS;
 }

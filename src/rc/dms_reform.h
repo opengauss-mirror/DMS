@@ -55,7 +55,6 @@ extern "C" {
 #define DMS_PARALLEL_INFO               (&g_dms.reform_ctx.parallel_info)
 #define DRC_PART_REMASTER_ID(part_id)   (g_dms.reform_ctx.share_info.remaster_info.part_map[(part_id)].inst_id)
 #define DMS_CATALOG_IS_CENTRALIZED      (g_dms.reform_ctx.catalog_centralized)
-#define DMS_CATALOG_IS_PRIMARY_STANDBY  (g_dms.reform_ctx.primary_standby)
 
 #define LOG_DEBUG_FUNC_SUCCESS          LOG_DEBUG_INF("[DMS REFORM]%s success", __FUNCTION__)
 #define LOG_DEBUG_FUNC_FAIL             LOG_DEBUG_ERR("[DMS REFORM]%s fail, error: %d", __FUNCTION__, ret)
@@ -72,6 +71,7 @@ extern "C" {
 #define DMS_IS_SHARE_PARTNER            (g_dms.reform_ctx.share_info.reformer_id != g_dms.inst_id)
 
 #define DMS_REFORMER_ID_FOR_BUILD       0
+#define DMS_REFORMER_ID_FOR_RST_RECOVER DMS_REFORMER_ID_FOR_BUILD
 #define DMS_FIRST_REFORM_FINISH         (g_dms.reform_ctx.reform_info.first_reform_finish)
 
 #define DMS_MAINTAIN_ENV                "DMS_MAINTAIN"
@@ -133,7 +133,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
     DMS_REFORM_STEP_DW_RECOVERY,                    // recovery the dw area
     DMS_REFORM_STEP_DF_RECOVERY,
-    DMS_REFORM_STEP_FILE_ORGLSN_RECOVERY,           // recovery the file org lsn
     DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
     DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
@@ -149,6 +148,9 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
     DMS_REFORM_STEP_DRC_VALIDATE,
     DMS_REFORM_STEP_LOCK_INSTANCE,                  // get X mode instance lock for reform
+    DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
+    DMS_REFORM_STEP_RESET_USER,
+    DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
@@ -173,16 +175,9 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_FOR_FULL_CLEAN, // for all instances are online and stable, and all instances status is IN
     DMS_REFORM_TYPE_FOR_MAINTAIN,   // for start database without CM, every instance is supported
     // New type need to be added start from here
+    DMS_REFORM_TYPE_FOR_RST_RECOVER,
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
-
-typedef enum en_db_open_status {
-    DB_OPEN_STATUS_NORMAL = 0,
-    DB_OPEN_STATUS_RESTRICT = 1,
-    DB_OPEN_STATUS_EMERGENCY = 2,
-    DB_OPEN_STATUS_UPGRADE = 3,
-    DB_OPEN_STATUS_UPGRADE_PHASE_2 = 4,
-} db_open_status_t;
 
 typedef enum en_dms_thread_status {
     DMS_THREAD_STATUS_IDLE = 0,
@@ -236,6 +231,7 @@ typedef struct st_share_info {
     uint64              bitmap_clean;
     uint64              bitmap_recovery;
     uint64              bitmap_in;
+    uint64              bitmap_remove;
     remaster_info_t     remaster_info;
     migrate_info_t      migrate_info;
     version_info_t      reformer_version;       // record reformer version, find reformer restart in time
@@ -248,11 +244,12 @@ typedef struct st_share_info {
     uint8               promote_id;             // instance promote to primary
     uint8               demote_id;              // instance demote to standy;
     uint8               last_reformer;          // last reformer
-    uint8               unused[2];
+    uint8               unused;
     uint64              version_num;
     dw_recovery_info_t  dw_recovery_info;
-    file_orglsn_recovery_info_t  file_orglsn_recovery_info;
     uint64              start_times[DMS_MAX_INSTANCES];
+    date_t              judge_time;
+    uint32              proto_version;
 } share_info_t;
 
 typedef struct st_rebuild_info {
@@ -263,6 +260,13 @@ typedef struct st_reformer_ctrl {
     bool8               instance_fail[DMS_MAX_INSTANCES];
     uint8               instance_step[DMS_MAX_INSTANCES];
 } reformer_ctrl_t;
+
+typedef struct st_log_point {
+    uint32              asn;
+    uint32              block_id;
+    uint64              rst_id : 18;
+    uint64              lfn : 46;
+} log_point_t;
 
 typedef struct st_reform_info {
     latch_t             ddl_latch;
@@ -302,7 +306,9 @@ typedef struct st_reform_info {
     bool8               file_unable;
     bool8               parallel_enable;        // dms reform proc parallel enable
     bool8               use_default_map;        // if use default part_map in this judgement
-    uint8               unused[2];
+    bool8               rst_recover;            // recover after restore for Gauss100
+    uint8               unused[1];
+    log_point_t         curr_points[DMS_MAX_INSTANCES];
 } reform_info_t;
 
 typedef struct st_switchover_info {
@@ -360,6 +366,7 @@ typedef union st_resource_id {
 } resource_id_t;
 
 typedef struct st_parallel_thread {
+    cm_sem_t            sem;
     thread_t            thread;
     dms_thread_status_t thread_status;
     void                *handle;
@@ -374,10 +381,10 @@ typedef void(*dms_assign_proc)(void);
 typedef int(*dms_parallel_proc)(resource_id_t *res_id, parallel_thread_t *parallel);
 
 typedef struct st_parallel_info {
+    cm_sem_t            parallel_sem;
     parallel_thread_t   parallel[DMS_PARALLEL_MAX_THREAD];
     dms_parallel_proc   parallel_proc;          // parallel callback function
     uint32              parallel_num;           // parallel thread total num
-    atomic32_t          parallel_active;        // parallel thread active num
     atomic32_t          parallel_fail;          // parallel thread proc fail num
     uint32              parallel_res_num;       // parallel total res num
 } parallel_info_t;
@@ -396,6 +403,8 @@ typedef struct st_reform_context {
     void                *handle_proc;           // used in reform, and set recovery flag in buf_res
     void                *handle_normal;
     void                *handle_health;
+    cm_sem_t            sem_proc;
+    cm_sem_t            sem_health;
     uint32              sess_judge;             // used to send message in reform judgment
     uint32              sess_proc;              // used to send message in reform proc
     uint32              sess_normal;
@@ -411,9 +420,9 @@ typedef struct st_reform_context {
     parallel_info_t     parallel_info;
     uint32              channel_cnt;            // used for channel check
     bool8               catalog_centralized;    // centralized or distributed
-    bool8               primary_standby;        // primary_standby or not
     bool8               ignore_offline;         // treat old off-line as old remove
     bool8               mes_has_init;
+    bool8               unused;
     reform_scrlock_context_t scrlock_reinit_ctx;
 } reform_context_t;
 

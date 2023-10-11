@@ -31,10 +31,10 @@
 extern "C" {
 #endif
 
-void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
-void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
-void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
-void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, mes_message_t *receive_msg);
+void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }
