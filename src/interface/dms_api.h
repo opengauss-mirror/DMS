@@ -571,6 +571,28 @@ typedef enum en_reform_phase {
     DMS_PHASE_END = 5,
 } reform_phase_t;
 
+typedef enum en_dms_reform_type {
+    // for multi_write
+    DMS_REFORM_TYPE_FOR_NORMAL = 0,
+
+    // for Gauss100
+    DMS_REFORM_TYPE_FOR_BUILD,
+    DMS_REFORM_TYPE_FOR_FAILOVER,
+    DMS_REFORM_TYPE_FOR_SWITCHOVER,
+
+    // for openGauss
+    DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS,
+    DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS,
+    DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS,
+
+    // common
+    DMS_REFORM_TYPE_FOR_FULL_CLEAN, // for all instances are online and stable, and all instances status is IN
+    DMS_REFORM_TYPE_FOR_MAINTAIN,   // for start database without CM, every instance is supported
+    // New type need to be added start from here
+    DMS_REFORM_TYPE_FOR_RST_RECOVER,
+    DMS_REFORM_TYPE_COUNT
+} dms_reform_type_t;
+
 typedef enum en_dms_status {
     DMS_STATUS_OUT = 0,
     DMS_STATUS_JOIN = 1,
@@ -650,9 +672,10 @@ typedef int(*dms_flush_copy)(void *db_handle, char *pageid);
 typedef int(*dms_need_flush)(void *db_handle, char *pageid);
 typedef int(*dms_edp_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
-typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int is_reformer);
+typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int reform_type, int is_reformer);
+typedef int(*dms_recovery_analyse)(void *db_handle, void *recovery_list, int is_reformer);
 typedef int(*dms_dw_recovery)(void *db_handle, void *recovery_list, int is_reformer);
-typedef int(*dms_df_recovery)(void *db_handle);
+typedef int(*dms_df_recovery)(void *db_handle, unsigned long long list_in, void *recovery_list);
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
 typedef int(*dms_opengauss_recovery_primary)(void *db_handle, int inst_id);
@@ -797,7 +820,7 @@ typedef struct st_dms_callback {
     dms_edp_lsn edp_lsn;
     dms_disk_lsn disk_lsn;
     dms_recovery recovery;
-    dms_recovery recovery_analyse;
+    dms_recovery_analyse recovery_analyse;
     dms_dw_recovery dw_recovery;
     dms_df_recovery df_recovery;
     dms_db_is_primary db_is_primary;
@@ -1005,7 +1028,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           96
+#define DMS_LOCAL_VERSION           97
 
 #ifdef __cplusplus
 }
