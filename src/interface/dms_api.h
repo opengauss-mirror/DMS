@@ -387,6 +387,7 @@ typedef struct st_dms_buf_ctrl {
     volatile unsigned char need_flush;      // for recovery, owner is abort, copy instance should flush before release
     volatile unsigned char been_loaded;     // first alloc ctrl:FALSE, after successfully loaded: TRUE
     volatile unsigned char in_rcy;          // if drc lost, we can rebuild in_recovery flag according buf_ctrl
+    volatile unsigned char break_wal;
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
@@ -1019,16 +1020,17 @@ typedef enum en_dms_info_id {
 typedef enum st_dms_protocol_version {
     DMS_PROTO_VER_0 = 0,    // invalid version
     DMS_PROTO_VER_1 = 1,    // first version
+    DMS_PROTO_VER_2 = 2,
 } dms_protocol_version_e;
 
 #define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
-#define DMS_SW_PROTO_VER      DMS_PROTO_VER_1
+#define DMS_SW_PROTO_VER      DMS_PROTO_VER_2
 
 #define DMS_LOCAL_MAJOR_VER_WEIGHT  1000000
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           97
+#define DMS_LOCAL_VERSION           98
 
 #ifdef __cplusplus
 }
