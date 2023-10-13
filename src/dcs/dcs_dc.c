@@ -41,6 +41,7 @@ void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *r
     uint32 output_msg_len = 0;
     char output_msg[DCS_BROADCAST_OUTPUT_MSG_LEN] = {0};
     dms_message_head_t *head = (dms_message_head_t *)(receive_msg->buffer);
+    LOG_DEBUG_INF("Receive broadcast, cmd: %d", head->cmd);
     char *data = receive_msg->buffer + sizeof(dms_message_head_t);
     uint32 len = (uint32)(head->size - sizeof(dms_message_head_t));
     dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = output_msg,
@@ -52,6 +53,7 @@ void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *r
     } else {
         cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BROADCAST, ret);
     }
+    LOG_DEBUG_INF("Succeed to send ack to inst %u", receive_msg->head->src_inst);
 }
 
 static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv_msg)
@@ -105,7 +107,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 #endif
     all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
     mfc_broadcast2(all_inst, &head, (const void *)data, &succ_inst);
-
+    LOG_DEBUG_INF("Succeed to broadcast cmd: %d, all inst: %llu, success inst: %llu", cmd, all_inst, succ_inst);
     if (!handle_msg) {
         int32 ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, &succ_inst);
         if (ret == DMS_SUCCESS && all_inst == succ_inst) {
@@ -121,7 +123,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
-
+    LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
     ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
     mfc_release_mes_msglist(&recv_msg);
     return ret;
