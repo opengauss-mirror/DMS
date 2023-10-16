@@ -338,6 +338,7 @@ typedef struct st_reform_scrlock_context {
     bool8 enable_ssl;
     bool8 is_server;
     uint8 recovery_node_num;
+    dms_instance_net_addr_t inst_net_addr[DMS_MAX_INSTANCES];
 } reform_scrlock_context_t;
 
 typedef struct st_health_info {
