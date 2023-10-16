@@ -123,9 +123,9 @@ int32 mfc_send_response(dms_message_head_t *msg);
 /* MES broadcast */
 void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst);
 void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body, uint64 *success_inst);
-int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout);
-int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout, uint64 *succ_insts);
-int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, mes_msg_list_t *msg_list);
+int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts);
+int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts);
+int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, mes_msg_list_t *msg_list);
 
 #define mfc_release_mes_msg mes_release_msg
 #define mfc_release_mes_msglist mes_release_msg_list

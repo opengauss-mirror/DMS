@@ -77,12 +77,13 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
     return DMS_SUCCESS;
 }
 
-static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 timeout, uint64 ruid)
+static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 timeout, uint64 ruid,
+    uint64 expect_inst)
 {
     int ret;
     mes_msg_list_t recv_msg = { 0 };
 
-    ret = mfc_get_broadcast_res_with_msg(ruid, timeout, &recv_msg);
+    ret = mfc_get_broadcast_res_with_msg(ruid, timeout, expect_inst, &recv_msg);
     if (ret == DMS_SUCCESS) {
         ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
     }
@@ -96,6 +97,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 {
     uint64 succ_inst = 0;
     dms_message_head_t head;
+    int ret = DMS_SUCCESS;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
@@ -107,25 +109,21 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 #endif
     all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
     mfc_broadcast2(all_inst, &head, (const void *)data, &succ_inst);
-    LOG_DEBUG_INF("Succeed to broadcast cmd: %d, all inst: %llu, success inst: %llu", cmd, all_inst, succ_inst);
+    LOG_DEBUG_INF("Send broadcast cmd: %d, all inst: %llu, expect succ inst: %llu", cmd, all_inst, succ_inst);
     if (!handle_msg) {
-        int32 ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, &succ_inst);
-        if (ret == DMS_SUCCESS && all_inst == succ_inst) {
-            return DMS_SUCCESS;
+        ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, all_inst, &succ_inst);
+    } else {
+        mes_msg_list_t recv_msg = { 0 };
+        int32 ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, succ_inst, &recv_msg);
+        if (ret == DMS_SUCCESS) {
+            LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
+            ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
         }
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
-        return ERRNO_DMS_DCS_BROADCAST_FAILED;
+        mfc_release_mes_msglist(&recv_msg);
     }
-
-    mes_msg_list_t recv_msg = { 0 };
-    int32 ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, &recv_msg);
-    if (ret != DMS_SUCCESS || all_inst != succ_inst) {
+    if (ret != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
-        return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
-    LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
-    ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
-    mfc_release_mes_msglist(&recv_msg);
     return ret;
 }
 
@@ -219,11 +217,11 @@ int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int t
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
     all_inst = all_inst & (~((uint64)0x1 << inst_id));
-    (void)mfc_get_broadcast_res_with_succ_insts(ruid, timeout, success_inst);
-    if (all_inst == *success_inst) {
-        return DMS_SUCCESS;
+    int ret = mfc_get_broadcast_res_with_succ_insts(ruid, timeout, all_inst, success_inst);
+    if (ret != DMS_SUCCESS) {
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, all_inst, *success_inst);
     }
-    return DMS_SUCCESS;
+    return ret;
 }
 
 int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
@@ -258,7 +256,7 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
 int dms_wait_boc(uint64 ruid, unsigned int timeout, unsigned long long success_inst)
 {
     dms_reset_error();
-    return mfc_get_broadcast_res(ruid, timeout);
+    return mfc_get_broadcast_res(ruid, timeout, success_inst);
 }
 
 int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned int len,
@@ -307,9 +305,9 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
     mfc_broadcast2(invld_insts, &head, (const void *)data, &succ_inst);
 
     if (!handle_recv_msg && timeout > 0) {
-        return mfc_get_broadcast_res(head.ruid, timeout);
+        return mfc_get_broadcast_res(head.ruid, timeout, succ_inst);
     } else {
-        return dcs_recv_and_handle_broadcast_msg(dms_ctx, timeout, head.ruid);
+        return dcs_recv_and_handle_broadcast_msg(dms_ctx, timeout, head.ruid, succ_inst);
     }
 }
 
