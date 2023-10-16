@@ -194,7 +194,7 @@ typedef struct st_dms_ask_res_ack {
     uint32 seg_blockno;
 #endif
     bool8 enable_cks; // enable checksum
-    uint8 unused;
+    uint8 break_wal;
     uint16 checksum;
 } dms_ask_res_ack_t;
 
