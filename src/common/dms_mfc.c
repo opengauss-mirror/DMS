@@ -37,16 +37,6 @@ extern "C" {
 #define DMS_TWO 2
 #define DMS_THREE 3
 
-static inline void dms_msg_list_to_inst_bits(mes_msg_list_t *res, uint64 *success_inst)
-{
-    uint32 src_inst;
-    *success_inst = 0;
-    for (uint32 i = 0; i < res->count; i++) {
-        src_inst = res->messages[i].src_inst;
-        *success_inst |= ((uint64)0x1 << src_inst);
-    }
-}
-
 static inline uint32 dms_count_bits(uint64 bits)
 {
     uint32 c = 0;
@@ -397,40 +387,44 @@ void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body
         DMS_TWO, head, sizeof(dms_message_head_t), body, head->size - sizeof(dms_message_head_t));
 }
 
-int32 mfc_check_bcast_res_compatibility(mes_msg_list_t *msg_list, bool8 ret_insts, uint64 *success_recv_insts)
+static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
+    uint64 expect_insts, uint64 *recv_success_insts)
 {
     int32 ret = CM_SUCCESS;
-    if (ret_insts) {
-        *success_recv_insts = 0;
-    }
-
+    *recv_success_insts = 0;
     for (uint32 i = 0; i < msg_list->count; i++) {
         dms_message_head_t *head = (dms_message_head_t*)msg_list->messages[i].buffer;
         ret = dms_handle_recv_ack_internal(head);
-        if (ret_insts) {
-            dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
-            if (head->cmd != MSG_ACK_VERSION_NOT_MATCH && ack_msg->ret == DMS_SUCCESS) {
-                *success_recv_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
-            }
+        dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
+        if (head->cmd != MSG_ACK_VERSION_NOT_MATCH && (!check_ret || ack_msg->ret == DMS_SUCCESS)) {
+            *recv_success_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
         }
+    }
+    if (ret == DMS_SUCCESS && expect_insts != *recv_success_insts) {
+        ret = ERRNO_DMS_DCS_BROADCAST_FAILED;
+    }
+    if (ret == CM_SUCCESS) {
+        LOG_DEBUG_INF("Succeed to recv bcast ack from all nodes");
     }
     return ret;
 }
 
 /*
  * previously mfc_wait_acks. return status only
+ * mes buf is released before return
  */
-int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms)
+int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 {
     if (ruid == 0) {
         return DMS_SUCCESS;
     }
     mes_msg_list_t responses = { 0 };
     int ret = DMS_SUCCESS;
+    uint64 recv_succ_insts = 0;
     if (DMS_MFC_OFF) {
         ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
         DMS_RETURN_IF_ERROR(ret);
-        ret = mfc_check_bcast_res_compatibility(&responses, CM_FALSE, NULL);
+        ret = mfc_check_broadcast_res(&responses, CM_FALSE, expect_insts, &recv_succ_insts);
         mfc_release_mes_msglist(&responses);
         return ret;
     }
@@ -441,7 +435,7 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms)
         mfc_wait_acks_add_tickets(&responses);
         return ret;
     }
-    ret = mfc_check_bcast_res_compatibility(&responses, CM_FALSE, NULL);
+    ret = mfc_check_broadcast_res(&responses, CM_FALSE, expect_insts, &recv_succ_insts);
 
     mfc_add_tickets_and_release_msg(&responses);
     return ret;
@@ -449,8 +443,9 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms)
 
 /*
  * previously mfc_wait_acks2. returns ret and succ_insts
+ * mes buf is released before return
  */
-int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 *succ_insts)
+int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts)
 {
     if (ruid == 0) {
         *succ_insts = 0;
@@ -461,15 +456,14 @@ int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint
     if (DMS_MFC_OFF) {
         ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
         DMS_RETURN_IF_ERROR(ret);
-        dms_msg_list_to_inst_bits(&responses, succ_insts);
-        ret = mfc_check_bcast_res_compatibility(&responses, CM_TRUE, succ_insts);
+        ret = mfc_check_broadcast_res(&responses, CM_TRUE, expect_insts, succ_insts);
         mfc_release_mes_msglist(&responses);
         return ret;
     }
 
     ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
-    ret = mfc_check_bcast_res_compatibility(&responses, CM_TRUE, succ_insts);
+    ret = mfc_check_broadcast_res(&responses, CM_TRUE, expect_insts, succ_insts);
     DMS_RETURN_IF_ERROR(ret);
 
     mfc_add_tickets_and_release_msg(&responses);
@@ -478,23 +472,25 @@ int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint
 
 /*
  * previously mfc_wait_acks_and_recv_msg. returns ret and msglist
+ * make sure mes buf is released by caller!
  */
-int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, mes_msg_list_t *msg_list)
+int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, mes_msg_list_t *msg_list)
 {
     if (ruid == 0) {
         return DMS_SUCCESS;
     }
     int ret = DMS_SUCCESS;
+    uint64 recv_succ_insts = 0;
     if (DMS_MFC_OFF) {
         ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
         DMS_RETURN_IF_ERROR(ret);
-        ret = mfc_check_bcast_res_compatibility(msg_list, CM_FALSE, NULL);
+        ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
         return ret;
     }
 
     ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
-    ret = mfc_check_bcast_res_compatibility(msg_list, CM_FALSE, NULL);
+    ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
     DMS_RETURN_IF_ERROR(ret);
 
     mfc_wait_acks_add_tickets(msg_list);

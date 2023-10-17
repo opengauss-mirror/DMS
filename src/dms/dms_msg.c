@@ -137,7 +137,7 @@ static uint64 dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, u
 static inline void dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 invld_insts,
     uint64 ruid, uint64 *succ_insts)
 {
-    (void)mfc_get_broadcast_res_with_succ_insts(ruid, (uint32)DMS_WAIT_MAX_TIME, succ_insts);
+    (void)mfc_get_broadcast_res_with_succ_insts(ruid, (uint32)DMS_WAIT_MAX_TIME, invld_insts, succ_insts);
 }
 
 int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 len,
@@ -1724,7 +1724,7 @@ void dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info
     mfc_broadcast(inst_list, (void*)&req, &succ_inst);
 
     mes_msg_list_t recv_msg = {0};
-    int32 ret = mfc_get_broadcast_res_with_msg(req.head.ruid, DMS_MSG_SLEEP_TIME, &recv_msg);
+    int32 ret = mfc_get_broadcast_res_with_msg(req.head.ruid, DMS_MSG_SLEEP_TIME, succ_inst, &recv_msg);
     if (ret != DMS_SUCCESS) {
         mfc_release_mes_msglist(&recv_msg);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
@@ -1743,7 +1743,7 @@ void dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info
 * @brief Process the request information from the Master and return relevant information
 * Obtain the information of the corresponding page in the local buffer pool based on the received resid
 */
-void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+void dms_proc_ask_node_buf_info(dms_process_context_t * proc_ctx, dms_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_req_buf_info_t), CM_TRUE, CM_TRUE);
     dms_req_buf_info_t req = *(dms_req_buf_info_t *)(receive_msg->buffer);
