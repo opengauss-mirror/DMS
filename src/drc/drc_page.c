@@ -670,7 +670,7 @@ int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, c
  */
 static int32 dms_calc_buf_res_recycle_cnt(bool32* greedy)
 {
-    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(DRC_RES_PAGE_TYPE);
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(DRC_RES_PAGE_TYPE);
     drc_res_map_t *res_map = &global_res_map->res_map;
     drc_res_pool_t *pool = &res_map->res_pool;
     *greedy = CM_FALSE;
@@ -714,7 +714,7 @@ uint32 drc_recycle_buf_res_by_part(bilist_t* part_list, uint8 res_type, uint32 t
 
 void drc_recycle_buf_res_on_demand()
 {
-    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(DRC_RES_PAGE_TYPE);
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(DRC_RES_PAGE_TYPE);
     drc_res_map_t *res_map = &global_res_map->res_map;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     bilist_t *part_list = NULL;
@@ -754,7 +754,7 @@ void drc_recycle_buf_res_on_demand()
 
 void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type)
 {
-    drc_global_res_map_t *global_res_map = DRC_GLOBAL_RES_MAP(type);
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
     drc_res_map_t *res_map = &global_res_map->res_map;
     bilist_node_t *node = cm_bilist_head(part_list);
     drc_res_bucket_t *bucket = NULL;

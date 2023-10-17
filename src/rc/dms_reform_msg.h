@@ -45,6 +45,7 @@ typedef struct st_dms_reform_ack_common {
     bool8               is_edp;
     uint64              lsn;
     uint64              start_time;
+    uint64              bitmap_has_xa;
 } dms_reform_ack_common_t;
 
 typedef struct st_dms_reform_req_sync_step {
@@ -67,6 +68,12 @@ typedef struct st_dms_reform_req_sync_share_info {
     dms_message_head_t  head;
     share_info_t        share_info;
 } dms_reform_req_sync_share_info_t;
+
+typedef struct st_dms_reform_req_sync_xa_owners {
+    dms_message_head_t head;
+    uint64 bitmap_has_xa;
+} dms_reform_req_sync_xa_owners_t;
+
 void dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id);
 int dms_reform_req_sync_share_info_wait(uint64 ruid);
 void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
@@ -109,6 +116,7 @@ typedef struct st_dms_reform_req_migrate {
 } dms_reform_req_migrate_t;
 int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *handle, uint32 sess_id);
 void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dms_reform_ack_req_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result);
 
 typedef struct st_dms_reform_req_rebuild {
     dms_message_head_t head;
@@ -169,6 +177,8 @@ typedef struct st_dms_reform_req_opengauss_ondemand_redo {
     uint16 len;
 } dms_reform_req_opengauss_ondemand_redo_t;
 void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dms_reform_ack_req_rebuild(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result);
+
 #ifdef __cplusplus
 }
 #endif

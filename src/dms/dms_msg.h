@@ -102,6 +102,14 @@ typedef enum en_msg_command {
     MSG_REQ_OPENGAUSS_PAGE_STATUS = 53,
     MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN = 54,
     MSG_REQ_NODE_FOR_BUF_INFO = 55,
+    MSG_REQ_CREATE_GLOBAL_XA_RES = 56,
+    MSG_REQ_DELETE_GLOBAL_XA_RES = 57,
+    MSG_REQ_ASK_XA_OWNER_ID = 58,
+    MSG_REQ_END_XA = 59,
+    MSG_REQ_ASK_XA_IN_USE = 60,
+    MSG_REQ_MERGE_XA_OWNERS = 61,
+    MSG_REQ_XA_REBUILD = 62,
+    MSG_REQ_XA_OWNERS = 63,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -153,6 +161,11 @@ typedef enum en_msg_command {
     MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN = 173,
     MSG_ACK_VERSION_NOT_MATCH = 174,
     MSG_ACK_NODE_FOR_BUF_INFO = 175,
+    MSG_ACK_CREATE_GLOBAL_XA_RES = 176,
+    MSG_ACK_DELETE_GLOBAL_XA_RES = 177,
+    MSG_ACK_ASK_XA_OWNER_ID = 178,
+    MSG_ACK_END_XA = 179,
+    MSG_ACK_XA_IN_USE = 180,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
@@ -291,6 +304,62 @@ typedef struct st_dms_query_owner_ack  {
     dms_message_head_t head;
     uint8 owner_id;
 } dms_query_owner_ack_t;
+
+typedef enum en_dms_xa_oper_type {
+    DMS_XA_OPER_CREATE = 0,
+    DMS_XA_OPER_DELETE = 1
+} dms_xa_oper_type_t;
+
+typedef struct st_dms_xa_res_req {
+    dms_message_head_t head;
+    uint8 undo_set_id;
+    drc_global_xid_t xa_xid;
+    dms_xa_oper_type_t oper_type;
+    bool32 check_xa_drc;
+} dms_xa_res_req_t;
+
+typedef struct st_dms_xa_res_ack {
+    dms_message_head_t head;
+    uint32 return_code;
+} dms_xa_res_ack_t;
+
+typedef struct st_dms_ask_xa_owner_req {
+    dms_message_head_t head;
+    dms_session_e sess_type;
+    drc_global_xid_t xa_xid;
+    bool32 check_xa_drc;
+} dms_ask_xa_owner_req_t;
+
+typedef struct st_dms_ask_xa_owner_ack {
+    dms_message_head_t head;
+    uint8 owner_id;
+    uint8 unused[3];
+} dms_ask_xa_owner_ack_t;
+
+typedef struct st_dms_ask_xa_inuse_req {
+    dms_message_head_t head;
+    dms_session_e sess_type;
+    drc_global_xid_t xa_xid;
+} dms_ask_xa_inuse_req_t;
+
+typedef struct st_dms_ask_xa_inuse_ack {
+    dms_message_head_t head;
+    bool8 inuse;
+    uint8 unused[3];
+} dms_ask_xa_inuse_ack_t;
+
+typedef struct st_dms_end_xa_req {
+    dms_message_head_t head;
+    drc_global_xid_t xa_xid;
+    bool8 is_commit;
+    uint64 flags;
+    uint64 commit_scn;
+} dms_end_xa_req_t;
+
+typedef struct st_dms_end_xa_ack {
+    dms_message_head_t head;
+    int32 return_code;
+} dms_end_xa_ack_t;
 
 typedef struct st_dms_common_ack {
     dms_message_head_t head;

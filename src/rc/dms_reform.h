@@ -151,6 +151,11 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
     DMS_REFORM_STEP_RESET_USER,
     DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
+    DMS_REFORM_STEP_COLLECT_XA_OWNER,               // for Gauss100, collect xa owner
+    DMS_REFORM_STEP_MERGE_XA_OWNERS,                // for Gauss100, merge xa owners from all nodes
+    DMS_REFORM_STEP_SYNC_XA_OWNERS,                 // for Gauss100, sync xa owners to all nodes
+    DMS_REFORM_STEP_RECOVERY_XA,                    // for Gauss100, recovery xa
+    DMS_REFORM_STEP_XA_DRC_ACCESS,                  // for Gauss100, set xa drc access
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
@@ -252,8 +257,10 @@ typedef struct st_reform_info {
     uint64              max_scn;
     spinlock_t          version_lock;
     spinlock_t          mes_lock;
+    spinlock_t          xa_bitmap_lock;
     uint64              bitmap_mes;
     uint64              bitmap_connect;
+    uint64              bitmap_has_xa;
     rebuild_info_t      rebuild_info;
     version_info_t      reformer_version;
     uint64              start_time;

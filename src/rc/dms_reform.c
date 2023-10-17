@@ -79,11 +79,13 @@ int dms_drc_accessible(unsigned char res_type)
         return CM_TRUE;
     }
 #endif
-    drc_global_res_map_t *res_map = DRC_GLOBAL_RES_MAP(res_type);
-    if (res_type == (uint8)DRC_RES_LOCK_TYPE) {
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
+    if (res_type == (uint8)DRC_RES_PAGE_TYPE) {
+        return (int)res_map->data_access;
+    } else if (res_type == (uint8)DRC_RES_LOCK_TYPE) {
         return (int)res_map->drc_access;
     } else {
-        return (int)res_map->data_access;
+        return (int)res_map->drc_access;
     }
 }
 
@@ -198,6 +200,7 @@ static void dms_reform_init_for_maintain(void)
     }
 
     ctx->global_lock_res.drc_access = CM_TRUE;
+    ctx->global_xa_res.drc_access = CM_TRUE;
     inst_part->count = DRC_MAX_PART_NUM;
     inst_part->expected_num = DRC_MAX_PART_NUM;
     inst_part->first = CM_INVALID_ID16;

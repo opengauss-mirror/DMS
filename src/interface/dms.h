@@ -815,6 +815,16 @@ DMS_DECLARE unsigned int dms_get_send_proto_version(unsigned char is_broadcast, 
  */   
 DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt, 
     unsigned long long *event_time);
+
+DMS_DECLARE int dms_create_global_xa_res(dms_context_t *dms_ctx, unsigned char owner_id, unsigned char undo_set_id,
+    unsigned int *remote_result, unsigned char ignore_exist);
+
+DMS_DECLARE int dms_end_global_xa(dms_context_t *dms_ctx, unsigned long long flags, unsigned long long scn,
+    unsigned char is_commit, int *remote_result);
+
+DMS_DECLARE int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
+    unsigned char thread_index);
+
 #ifdef __cplusplus
 }
 #endif

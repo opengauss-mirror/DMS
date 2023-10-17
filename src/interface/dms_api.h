@@ -46,6 +46,11 @@ extern "C" {
 #define DMS_VERSION_MAX_LEN     256
 #define DMS_OCK_LOG_PATH_LEN    256
 #define DMS_LOG_PATH_LEN        (256)
+
+// The values of the following two macros must be same with (GS_MAX_XA_BASE16_GTRID_LEN GS_MAX_XA_BASE16_BQUAL_LEN)
+#define DMS_MAX_XA_BASE16_GTRID_LEN    (128)
+#define DMS_MAX_XA_BASE16_BQUAL_LEN    (128)
+
 typedef enum en_dms_online_status {
     DMS_ONLINE_STATUS_OUT = 0,
     DMS_ONLINE_STATUS_JOIN = 1,
@@ -154,6 +159,7 @@ typedef enum en_drc_res_type {
     DRC_RES_TXN_TYPE,
     DRC_RES_LOCAL_TXN_TYPE,
     DRC_RES_LOCK_ITEM_TYPE,
+    DRC_RES_GLOBAL_XA_TYPE,
 } drc_res_type_e;
 
 typedef enum en_dms_session {
@@ -268,6 +274,14 @@ typedef struct st_dms_process_context {
     unsigned int inst_id;  // current instance id
 } dms_process_context_t;
 
+typedef struct st_drc_global_xid {
+    unsigned long long fmt_id;
+    char   gtrid[DMS_MAX_XA_BASE16_GTRID_LEN];
+    char   bqual[DMS_MAX_XA_BASE16_BQUAL_LEN];
+    unsigned char gtrid_len;
+    unsigned char bqual_len;
+} drc_global_xid_t;
+
 typedef struct st_dms_context {
     union {
         struct {
@@ -290,6 +304,7 @@ typedef struct st_dms_context {
         dms_xmap_ctx_t xmap_ctx;
         dms_rfn_t rfn;
         unsigned char edp_inst;
+        drc_global_xid_t global_xid;
     };
 } dms_context_t;
 
@@ -541,7 +556,11 @@ typedef enum en_dms_wait_event {
     DMS_EVT_ONDEMAND_REDO,
     DMS_EVT_PAGE_STATUS_INFO,
     DMS_EVT_OPENGAUSS_SEND_XMIN,
-
+    DMS_EVT_DCS_REQ_CREATE_XA_RES,
+    DMS_EVT_DCS_REQ_DELETE_XA_RES,
+    DMS_EVT_DCS_REQ_XA_OWNER_ID,
+    DMS_EVT_DCS_REQ_XA_IN_USE,
+    DMS_EVT_DCS_REQ_END_XA,
 
     DMS_EVT_COUNT,
 } dms_wait_event_t;
@@ -765,6 +784,8 @@ typedef int (*dms_mount_to_recovery)(void *db_handle, unsigned int *has_offline)
 typedef int(*dms_get_open_status)(void *db_handle);
 typedef void (*dms_reform_set_dms_role)(void *db_handle, unsigned int reformer_id);
 typedef void (*dms_reset_user)(void *db_handle, unsigned long long list_in);
+typedef int (*dms_drc_xa_res_rebuild)(void *db_handle, unsigned char thread_index, unsigned char parall_num);
+typedef void (*dms_reform_shrink_xa_rms)(unsigned char undo_seg_id);
 
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
@@ -807,7 +828,9 @@ typedef int (*dms_update_node_oldest_xmin)(void *db_handle, unsigned char inst_i
 typedef void (*dms_set_inst_behavior)(void *db_handle, dms_inst_behavior_t inst_behavior);
 typedef int (*dms_db_prepare)(void *db_handle);
 typedef void (*dms_get_buf_info)(char* resid, stat_buf_info_t *buf_info);
-
+typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long flags, unsigned long long scn,
+    unsigned char is_commit);
+typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -837,6 +860,8 @@ typedef struct st_dms_callback {
     dms_check_if_build_complete check_if_build_complete;
     dms_check_if_restore_recover check_if_restore_recover;
     dms_reset_user reset_user;
+    dms_drc_xa_res_rebuild dms_reform_rebuild_xa_res;
+    dms_reform_shrink_xa_rms dms_shrink_xa_rms;
 
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
@@ -946,6 +971,8 @@ typedef struct st_dms_callback {
     dms_db_prepare db_prepare;
 
     dms_get_buf_info get_buf_info;
+    dms_end_xa end_xa;
+    dms_xa_inuse xa_inuse;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1030,8 +1057,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           98
-
+#define DMS_LOCAL_VERSION           99
 #ifdef __cplusplus
 }
 #endif
