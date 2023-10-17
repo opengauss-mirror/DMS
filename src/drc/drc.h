@@ -356,8 +356,11 @@ static inline uint32 dms_xa_res_hash(int32 res_type, char *resid, uint32 len)
     int32 ret = memcpy_sp(xid_pointer + offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
     DMS_SECUREC_CHECK(ret);
     offset += xid->gtrid_len;
-    ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
-    DMS_SECUREC_CHECK(ret);
+    if (xid->bqual_len > 0) {
+        ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
+        DMS_SECUREC_CHECK(ret);
+    }
+    
     return cm_hash_bytes((uint8 *)buffer, offset, INFINITE_HASH_RANGE);
 }
 

@@ -321,12 +321,14 @@ int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrat
         return ret;
     }
     *offset += xid->gtrid_len;
-
-    ret = memcpy_sp((char *)req + *offset, xid->bqual_len, xid->bqual, xid->bqual_len);
-    if (ret != EOK) {
-        return ret;
+    if (xid->bqual_len > 0) {
+        ret = memcpy_sp((char *)req + *offset, xid->bqual_len, xid->bqual, xid->bqual_len);
+        if (ret != EOK) {
+            return ret;
+        }
+        *offset += xid->bqual_len;
     }
-    *offset += xid->bqual_len;
+    
     req->res_num++;
     return DMS_SUCCESS;
 }
@@ -353,9 +355,12 @@ void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_mess
         ret = memcpy_sp(xid.gtrid, DMS_MAX_XA_BASE16_GTRID_LEN, (uint8 *)receive_msg->buffer + offset, xid.gtrid_len);
         DMS_SECUREC_CHECK(ret);
         offset += xid.gtrid_len;
-        ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset, xid.bqual_len);
-        DMS_SECUREC_CHECK(ret);
-        offset += xid.bqual_len;
+        if (xid.bqual_len > 0) {
+            ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset, xid.bqual_len);
+            DMS_SECUREC_CHECK(ret);
+            offset += xid.bqual_len;
+        }
+        
 
         ret = drc_create_xa_res(process_ctx->db_handle, process_ctx->sess_id, &xid, owner_id, undo_set_id, CM_FALSE);
         if (ret != DMS_SUCCESS) {
@@ -417,12 +422,14 @@ static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild
         return ret;
     }
     req_rebuild->offset += xid->gtrid_len;
-    
-     ret = memcpy_sp((char *)req_rebuild + req_rebuild->offset, xid->bqual_len, xid->bqual, xid->bqual_len);
-    if (ret != EOK) {
-        return ret;
+    if (xid->bqual_len > 0) {
+        ret = memcpy_sp((char *)req_rebuild + req_rebuild->offset, xid->bqual_len, xid->bqual, xid->bqual_len);
+        if (ret != EOK) {
+            return ret;
+        }
+        req_rebuild->offset += xid->bqual_len;
     }
-    req_rebuild->offset += xid->bqual_len;
+     
     return DMS_SUCCESS;
 }
 
@@ -497,9 +504,12 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
         ret = memcpy_sp(xid.gtrid, DMS_MAX_XA_BASE16_GTRID_LEN, (uint8 *)receive_msg->buffer + offset, xid.gtrid_len);
         DMS_SECUREC_CHECK(ret);
         offset += xid.gtrid_len;
-        ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset, xid.bqual_len);
-        DMS_SECUREC_CHECK(ret);
-        offset += xid.bqual_len;
+        if (xid.bqual_len > 0) {
+            ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset, xid.bqual_len);
+            DMS_SECUREC_CHECK(ret);
+            offset += xid.bqual_len;
+        }
+        
 
         ret = drc_create_xa_res(ctx->db_handle, ctx->sess_id, &xid, owner_id, undo_set_id, CM_FALSE);
         if (ret != DMS_SUCCESS) {

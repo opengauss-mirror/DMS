@@ -177,9 +177,12 @@ static uint16 drc_get_global_xid_partid(drc_global_xid_t *global_xid)
     errno_t ret = memcpy_sp(bytes + sizeof(uint64), DMS_MAX_XA_BASE16_GTRID_LEN, global_xid->gtrid,
         global_xid->gtrid_len);
     DMS_SECUREC_CHECK(ret);
-    ret = memcpy_sp(bytes + sizeof(uint64) + global_xid->gtrid_len, DMS_MAX_XA_BASE16_BQUAL_LEN, global_xid->bqual,
-        global_xid->bqual_len);
-    DMS_SECUREC_CHECK(ret);
+    if (global_xid->bqual) {
+        ret = memcpy_sp(bytes + sizeof(uint64) + global_xid->gtrid_len, DMS_MAX_XA_BASE16_BQUAL_LEN, global_xid->bqual,
+            global_xid->bqual_len);
+        DMS_SECUREC_CHECK(ret);
+    }
+    
     uint32 bytes_size = sizeof(uint64) + global_xid->gtrid_len + global_xid->bqual_len;
     uint32 part_id = cm_hash_bytes(bytes, bytes_size, DRC_MAX_PART_NUM);
     return part_id;
