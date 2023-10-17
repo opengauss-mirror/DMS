@@ -71,10 +71,12 @@ char *cm_display_global_xid(drc_global_xid_t *global_xid)
     }
 
     unsigned int str_len = strlen(g_display_buf);
-    ret = memcpy_sp(g_display_buf + str_len, DMS_DISPLAY_SIZE - str_len, bqual.str, bqual.len);
-    if (ret != EOK) {
-        g_display_buf[0] = '\0';
-        return g_display_buf;
+    if (bqual.len > 0) {
+        ret = memcpy_sp(g_display_buf + str_len, DMS_DISPLAY_SIZE - str_len, bqual.str, bqual.len);
+        if (ret != EOK) {
+            g_display_buf[0] = '\0';
+            return g_display_buf;
+        }
     }
 
     g_display_buf[str_len + bqual.len] = '\0';
