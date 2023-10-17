@@ -546,10 +546,8 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
 static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t *req_info)
 {
     dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE_LATCH, CM_TRUE);
-
     dms_buf_ctrl_t *ctrl = NULL;
     int ret = g_dms.callback.read_local_page4transfer(ctx->db_handle, req_info->resid, req_info->req_mode, &ctrl);
-
     dms_end_stat(ctx->sess_id);
 
     if (ret != DMS_SUCCESS) {
@@ -558,8 +556,12 @@ static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t
     }
 
     if (ctrl == NULL) {
-        return dcs_owner_send_granted_ack(ctx, req_info);
+        g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
+        LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: ctrl is NULL", cm_display_pageid(req_info->resid));
+        return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
+
     ret = dcs_owner_transfer_page_ack(ctx, ctrl, req_info, MSG_ACK_EDP_READY);
     g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
     return ret;
