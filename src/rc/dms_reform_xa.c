@@ -377,25 +377,10 @@ void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_mess
 static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild, drc_global_xid_t *xid,
     uint8 master_id, uint8 undo_set_id)
 {
-    rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
     /* fmt_id + gtrid_len + bqual_len + unso_set_id + gtrid + bqual 
      * 3 * sizeof(uint8): undo_set_id + gtrid_len + bqual_len
      */
     uint32 append_size = (uint32)(sizeof(uint64) + xid->bqual_len + xid->gtrid_len + 3 * sizeof(uint8));
-    if (req_rebuild == NULL) {
-        req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
-            DMS_REFORM_MSG_MAX_LENGTH);
-        if (req_rebuild == NULL) {
-            DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
-            return ERRNO_DMS_ALLOC_FAILED;
-        }
-
-        rebuild_info->rebuild_data[master_id] = req_rebuild;
-        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_XA_REBUILD, 0, g_dms.inst_id, master_id,
-            g_dms.reform_ctx.sess_proc, CM_INVALID_ID16);
-        req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
-    }
 
     int ret = DMS_SUCCESS;
     if (req_rebuild->offset + append_size > DMS_REFORM_MSG_MAX_LENGTH) {
@@ -437,16 +422,36 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
     uint8 master_id, uint8 thread_index)
 {
     dms_reform_req_rebuild_t *req_rebuild = NULL;
+    rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
 
     if (thread_index == CM_INVALID_ID8) {
-        rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
         req_rebuild = (dms_reform_req_rebuild_t *)rebuild_info->rebuild_data[master_id];
     } else {
-        parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
-        parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
         req_rebuild = (dms_reform_req_rebuild_t *)parallel->data[master_id];
     }
+    
+    if (req_rebuild == NULL) {
+        req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
+            DMS_REFORM_MSG_MAX_LENGTH);
+        if (req_rebuild == NULL) {
+            DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
+            return ERRNO_DMS_ALLOC_FAILED;
+        }
+        
+        if (thread_index == CM_INVALID_ID8) {
+            rebuild_info->rebuild_data[master_id] = req_rebuild;
+        } else {
+            parallel->data[master_id] = req_rebuild;
+        }
 
+        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_XA_REBUILD, 0, g_dms.inst_id, master_id,
+            g_dms.reform_ctx.sess_proc, CM_INVALID_ID16);
+        req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
+        req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+    }
+    
     return dms_reform_rebuild_append_xid(req_rebuild, xid, master_id, undo_set_id);
 }
 
@@ -489,7 +494,7 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
-    uint8 owner_id = req_rebuild->head.dst_inst;
+    uint8 owner_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
 
     while (offset < req_rebuild->offset) {
