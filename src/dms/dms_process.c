@@ -197,7 +197,7 @@ static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
     dms_drid_t *lockid1 = (dms_drid_t*)buf_res->data;
     dms_drid_t *lockid2 = (dms_drid_t *)res;
 
-    if (lockid1->key1 == lockid2->key1 && lockid1->key2 == lockid2->key2) {
+    if (lockid1->key1 == lockid2->key1 && lockid1->key2 == lockid2->key2 && lockid1->key3 == lockid2->key3) {
         return CM_TRUE;
     }
     return CM_FALSE;
@@ -208,7 +208,8 @@ static bool32 dms_same_local_lock(char *res_id, const char *res, uint32 len)
     drc_local_lock_res_t *local_lock = (drc_local_lock_res_t *)res_id;
     dms_drid_t *lock_id = (dms_drid_t *)res;
 
-    if (local_lock->resid.key1 == lock_id->key1 && local_lock->resid.key2 == lock_id->key2) {
+    if (local_lock->resid.key1 == lock_id->key1 && local_lock->resid.key2 == lock_id->key2 &&
+        local_lock->resid.key3 == lock_id->key3) {
         return CM_TRUE;
     }
     return CM_FALSE;

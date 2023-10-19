@@ -138,6 +138,7 @@ typedef struct st_dms_drid {
         struct {
             unsigned long long key1;
             unsigned long long key2;
+            unsigned int key3;
         };
         struct {
             unsigned short  type;  // lock type
@@ -1057,7 +1058,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           99
+#define DMS_LOCAL_VERSION           100
 #ifdef __cplusplus
 }
 #endif
