@@ -1845,6 +1845,15 @@ int dms_reform_tx_area_load(instance_list_t *list)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_convert_to_readwrite(void)
+{
+#ifndef OPENGAUSS
+    return g_dms.callback.convert_to_readwrite(g_dms.reform_ctx.handle_normal);
+#else
+    return DMS_SUCCESS;
+#endif
+}
+
 static int dms_reform_rollback(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -1876,6 +1885,12 @@ static int dms_reform_rollback(void)
     }
 
     ret = dms_reform_tx_area_load(list_rollback);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    ret = dms_reform_convert_to_readwrite();
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
