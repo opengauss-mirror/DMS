@@ -178,6 +178,8 @@ drps_desc_t g_drps_desc_t[DRPS_COUNT] = {
     {DMS_REFORM_STEP_FLUSH_COPY,                    DRPS_LEVEL_ONE,     "FLUSH_COPY"},
     {DRPS_DRC_FLUSH_COPY_LOCAL,                     DRPS_LEVEL_TWO,     "LOCAL"},
     {DRPS_DRC_FLUSH_COPY_REMOTE,                    DRPS_LEVEL_TWO,     "REMOTE"},
+    {DRPS_DRC_EDP_TO_OWNER_LOCAL,                   DRPS_LEVEL_TWO,     "EDP_LOCAL"},
+    {DRPS_DRC_EDP_TO_OWNER_REMOTE,                  DRPS_LEVEL_TWO,     "EDP_REMOTE"},
     {DMS_REFORM_STEP_DONE_CHECK,                    DRPS_LEVEL_ONE,     "DONE_CHECK"},
     {DMS_REFORM_STEP_SET_PHASE,                     DRPS_LEVEL_ONE,     "SET_PHASE"},
     {DMS_REFORM_STEP_WAIT_DB,                       DRPS_LEVEL_ONE,     "WAIT_DB"},

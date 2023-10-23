@@ -51,6 +51,8 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_DRC_REPAIR_LOCK,
     DRPS_DRC_FLUSH_COPY_LOCAL,
     DRPS_DRC_FLUSH_COPY_REMOTE,
+    DRPS_DRC_EDP_TO_OWNER_LOCAL,
+    DRPS_DRC_EDP_TO_OWNER_REMOTE,
     DRPS_REFORM,
 
     /* add new item above */

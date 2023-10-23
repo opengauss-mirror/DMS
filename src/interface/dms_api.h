@@ -691,6 +691,7 @@ typedef int(*dms_confirm_owner)(void *db_handle, char *pageid, unsigned char *lo
     unsigned long long *lsn);
 typedef int(*dms_flush_copy)(void *db_handle, char *pageid);
 typedef int(*dms_need_flush)(void *db_handle, char *pageid);
+typedef int(*dms_edp_to_owner)(void *db_handle, char *pageid);
 typedef int(*dms_edp_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int reform_type, int is_reformer);
@@ -842,6 +843,7 @@ typedef struct st_dms_callback {
     dms_confirm_converting confirm_converting;
     dms_flush_copy flush_copy;
     dms_need_flush need_flush;
+    dms_edp_to_owner edp_to_owner;
     dms_edp_lsn edp_lsn;
     dms_disk_lsn disk_lsn;
     dms_recovery recovery;
@@ -1058,7 +1060,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           100
+#define DMS_LOCAL_VERSION           101
 #ifdef __cplusplus
 }
 #endif

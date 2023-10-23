@@ -1054,6 +1054,25 @@ static void dms_reform_proc_req_need_flush(dms_process_context_t *process_ctx, d
     }
 }
 
+static void dms_reform_proc_edp_to_owner(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
+{
+    dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
+    dms_reform_ack_common_t ack_common;
+
+    int ret = g_dms.callback.edp_to_owner(process_ctx->db_handle, req->resid);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][%s]edp_to_owner fail, error: %d", cm_display_pageid(req->resid), ret);
+    }
+
+    dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+        process_ctx->sess_id);
+    ack_common.result = ret;
+    ret = mfc_send_data(&ack_common.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][%s]edp_to_owner ack fail, error: %d", cm_display_pageid(req->resid), ret);
+    }
+}
+
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_res_t), CM_TRUE, CM_TRUE);
@@ -1077,6 +1096,10 @@ void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t 
 
         case DMS_REQ_NEED_FLUSH:
             dms_reform_proc_req_need_flush(process_ctx, receive_msg);
+            break;
+
+        case DMS_REQ_SET_EDP_TO_OWNER:
+            dms_reform_proc_edp_to_owner(process_ctx, receive_msg);
             break;
 
         default:
