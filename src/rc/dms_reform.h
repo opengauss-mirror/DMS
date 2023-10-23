@@ -309,6 +309,7 @@ typedef struct st_reform_info {
     bool8               rst_recover;            // recover after restore for Gauss100
     uint8               unused[1];
     log_point_t         curr_points[DMS_MAX_INSTANCES];
+    uint64              bitmap_online;
 } reform_info_t;
 
 typedef struct st_switchover_info {

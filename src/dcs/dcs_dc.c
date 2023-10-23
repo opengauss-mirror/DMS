@@ -101,7 +101,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(dms_message_head_t) + len);
 
-    uint64 all_inst = (scope == DMS_BROADCAST_ONLINE_LIST) ?  DMS_SHARE_INFO->bitmap_online : reform_info->bitmap_connect;
+    uint64 all_inst = (scope == DMS_BROADCAST_ONLINE_LIST) ?  reform_info->bitmap_online : reform_info->bitmap_connect;
 #ifdef OPENGAUSS
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
