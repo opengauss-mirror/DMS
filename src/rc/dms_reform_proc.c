@@ -311,6 +311,48 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
 }
 
 #ifndef OPENGAUSS
+static int dms_reform_set_edp_to_owner(drc_buf_res_t *buf_res, uint32 sess_id)
+{
+    dms_reform_req_res_t req;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    int ret = DMS_SUCCESS;
+    int result;
+    uint8 lock_mode;
+    bool8 is_edp;
+    uint64 lsn;
+    uint8 dst_id = buf_res->last_edp;
+
+    while (CM_TRUE) {
+        dms_reform_init_req_res(&req, buf_res->type, buf_res->data, dst_id, DMS_REQ_SET_EDP_TO_OWNER, sess_id);
+        if (reform_info->reform_fail) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
+            return ERRNO_DMS_REFORM_FAIL;
+        }
+
+
+        ret = mfc_send_data(&req.head);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_ERR("[DMS REFORM]dms_reform_set_edp_to_owner SEND error: %d, dst_id: %d", ret, dst_id);
+            return ret;
+        }
+
+        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
+        if (ret == ERR_MES_WAIT_OVERTIME) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_reform_set_edp_to_owner WAIT timeout, dst_id: %d", dst_id);
+            continue;
+        } else {
+            break;
+        }
+    }
+
+    if (result != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM]dms_reform_set_edp_to_owner result: %d, dst_id: %d", result, dst_id);
+        return result;
+    }
+
+    return ret;
+}
+
 static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
 {
     dms_reform_req_res_t req;
@@ -1389,7 +1431,22 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res, void *han
     }
     buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
 #else
-    if (buf_res->copy_promote != DMS_COPY_PROMOTE_NONE && buf_res->recovery_skip) {
+    if (buf_res->claimed_owner == CM_INVALID_ID8 && buf_res->last_edp != CM_INVALID_ID8 && !buf_res->in_recovery) {
+        // no owner, has edp and no need to recover,
+        // it shows that original owner does not modify the page before abort
+        // we should change last edp to be owner, otherwise ckpt can not flush the pages
+        if (dms_dst_id_is_self(buf_res->last_edp)) {
+            dms_reform_proc_stat_start(DRPS_DRC_EDP_TO_OWNER_LOCAL);
+            ret = g_dms.callback.edp_to_owner(handle, buf_res->data);
+            dms_reform_proc_stat_end(DRPS_DRC_EDP_TO_OWNER_LOCAL);
+        } else {
+            dms_reform_proc_stat_start(DRPS_DRC_EDP_TO_OWNER_REMOTE);
+            ret = dms_reform_set_edp_to_owner(buf_res, sess_id);
+            dms_reform_proc_stat_end(DRPS_DRC_EDP_TO_OWNER_REMOTE);
+            buf_res->claimed_owner = buf_res->last_edp;
+            buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
+        }
+    } else if (buf_res->copy_promote != DMS_COPY_PROMOTE_NONE && buf_res->recovery_skip) {
         if (dms_dst_id_is_self(buf_res->claimed_owner)) {
             dms_reform_proc_stat_start(DRPS_DRC_FLUSH_COPY_LOCAL);
             ret = g_dms.callback.flush_copy(handle, buf_res->data);
@@ -1492,6 +1549,7 @@ static void dms_reform_recovery_set_flag_by_part_inner(drc_buf_res_t *buf_res)
 {
     DRC_DISPLAY(buf_res, "rcy_clean");
     buf_res->in_recovery = CM_FALSE;
+    buf_res->recovery_skip = CM_FALSE;
 }
 
 void dms_reform_recovery_set_flag_by_part(bilist_t *part_list)

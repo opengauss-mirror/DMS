@@ -136,6 +136,7 @@ enum dms_reform_req_page_action {
     DMS_REQ_EDP_LSN,
     DMS_REQ_FLUSH_COPY,
     DMS_REQ_NEED_FLUSH,
+    DMS_REQ_SET_EDP_TO_OWNER,
 };
 
 typedef struct st_dms_reform_req_res {
