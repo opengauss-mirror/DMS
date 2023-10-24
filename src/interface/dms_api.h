@@ -706,6 +706,7 @@ typedef void(*dms_reform_start_notify)(void *db_handle, dms_role_t role, unsigne
 typedef int(*dms_undo_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_load)(void *db_handle, unsigned char inst_id);
+typedef int(*dms_convert_to_readwrite)(void *db_handle);
 typedef int(*dms_tx_rollback_finish)(void *db_handle, unsigned char inst_id);
 typedef unsigned char(*dms_recovery_in_progress)(void *db_handle);
 typedef unsigned int(*dms_get_page_hash_val)(const char pageid[DMS_PAGEID_SIZE]);
@@ -855,6 +856,7 @@ typedef struct st_dms_callback {
     dms_undo_init undo_init;
     dms_tx_area_init tx_area_init;
     dms_tx_area_load tx_area_load;
+    dms_convert_to_readwrite convert_to_readwrite;
     dms_tx_rollback_finish tx_rollback_finish;
     dms_recovery_in_progress recovery_in_progress;
     dms_drc_buf_res_rebuild dms_reform_rebuild_buf_res;
@@ -1060,7 +1062,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           101
+#define DMS_LOCAL_VERSION           102
 #ifdef __cplusplus
 }
 #endif
