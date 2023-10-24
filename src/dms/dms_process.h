@@ -117,6 +117,7 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
 }
 
 mes_task_group_id_t dms_msg_group_id(uint32 cmd);
+void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
 
 #ifdef __cplusplus
 }

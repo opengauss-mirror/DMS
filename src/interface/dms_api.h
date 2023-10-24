@@ -390,7 +390,6 @@ typedef struct st_dms_broadcast_context {
     unsigned int len;
     char *output_msg;
     unsigned int *output_msg_len;
-    unsigned int msg_version;
 } dms_broadcast_context_t;
 
 typedef struct st_dms_buf_ctrl {
@@ -1053,20 +1052,11 @@ typedef enum en_dms_info_id {
     DMS_INFO_REFORM_LAST = 1,
 } dms_info_id_e;
 
-typedef enum st_dms_protocol_version {
-    DMS_PROTO_VER_0 = 0,    // invalid version
-    DMS_PROTO_VER_1 = 1,    // first version
-    DMS_PROTO_VER_2 = 2,
-} dms_protocol_version_e;
-
-#define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
-#define DMS_SW_PROTO_VER      DMS_PROTO_VER_2
-
 #define DMS_LOCAL_MAJOR_VER_WEIGHT  1000000
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           103
+#define DMS_LOCAL_VERSION           104
 #ifdef __cplusplus
 }
 #endif

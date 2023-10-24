@@ -26,6 +26,7 @@
 
 #include "cm_types.h"
 #include "dms.h"
+#include "cm_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,6 +88,16 @@ typedef struct st_dms_worker_info {
     uint8 inst_id;
     uint32 sess_id;
 } dms_worker_info_t;
+
+const char *dms_get_error_desc(int code);
+
+#define DMS_THROW_ERROR(error_no, ...)                                                                      \
+    do {                                                                                                    \
+        cm_set_error((char *)__FILE_NAME__, (uint32)__LINE__, (cm_errno_t)error_no,                         \
+            dms_get_error_desc(error_no), ##__VA_ARGS__);                                                   \
+    } while (CM_FALSE)
+
+#define dms_reset_error     cm_reset_error
 
 #ifdef __cplusplus
 }

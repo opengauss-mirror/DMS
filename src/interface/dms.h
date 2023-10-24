@@ -797,16 +797,6 @@ DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned 
 DMS_DECLARE int dms_get_drc_info(int *is_found, stat_drc_info_t* drc_info);
 
 /*
- * @brief get message protocol version before send
- * @[in]param is_broadcast -  broadcast msg or not
- * @[in]param dest_id - if not broadcast, represent destination node
- *                      if broadcast, this param not work, 255 is recommended
- * @[in]param dest_id -  destination instance id
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE unsigned int dms_get_send_proto_version(unsigned char is_broadcast, unsigned char dest_id);
-
-/*
  * @brief retrieve mes statistics of waiting events
  * @[in]param cmd - the type of mes waiting event
  * @[out]param event_cnt - the count of the happenings of specified waiting event

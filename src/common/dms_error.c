@@ -25,6 +25,7 @@
 #include "dms_error.h"
 #include "dms.h"
 #include "cm_log.h"
+#include "dms_cm.h"
 
 const char *g_dms_errno_common_desc[] = {
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_SECUREC_CHECK_FAIL)] = "dms securec check fail",

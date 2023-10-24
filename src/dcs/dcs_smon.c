@@ -52,8 +52,8 @@ static void dcs_proc_smon_get_sid(dms_process_context_t *ctx, dms_message_t *rec
     }
     head = (dms_message_head_t *)send_msg;
 
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
-        ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+        (uint16)ctx->sess_id, receive_msg->head->src_sid, receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
     dms_release_recv_message(receive_msg);
@@ -101,8 +101,8 @@ static void dcs_proc_smon_get_txn_dlock(dms_process_context_t *ctx, dms_message_
 
     head = (dms_message_head_t *)send_msg;
 
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
-        ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+        (uint16)ctx->sess_id, receive_msg->head->src_sid, receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
 
@@ -150,8 +150,8 @@ static void dcs_proc_smon_get_rowid(dms_process_context_t *ctx, dms_message_t *r
 
     head = (dms_message_head_t *)send_msg;
 
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
-        ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DLOCK_INFO, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+        (uint16)ctx->sess_id, receive_msg->head->src_sid, receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
 
@@ -222,8 +222,8 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *re
     }
 
     head = (dms_message_head_t *)send_msg;
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_ITL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
-        ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DEADLOCK_ITL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+        (uint16)ctx->sess_id, receive_msg->head->src_sid, receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
 
@@ -283,8 +283,8 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *recei
 
     head = (dms_message_head_t *)send_msg;
 
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_SQL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
-        ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DEADLOCK_SQL, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+        (uint16)ctx->sess_id, receive_msg->head->src_sid, receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
     dms_release_recv_message(receive_msg);
@@ -352,8 +352,9 @@ void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, dms_message_t 
     }
 
     head = (dms_message_head_t *)send_msg;
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_CHECK_STATUS, 0, receive_msg->head->dst_inst,
-        receive_msg->head->src_inst, ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DEADLOCK_CHECK_STATUS, 0, receive_msg->head->dst_inst,
+        receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
+        receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
 
@@ -413,8 +414,9 @@ void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, dms_message_t *
     }
 
     head = (dms_message_head_t *)send_msg;
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, 0, receive_msg->head->dst_inst,
-        receive_msg->head->src_inst, ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, 0, receive_msg->head->dst_inst,
+        receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
+        receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
     dms_release_recv_message(receive_msg);
@@ -481,8 +483,9 @@ void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, dms_message_t *r
     }
 
     head = (dms_message_head_t *)send_msg;
-    DMS_INIT_MESSAGE_HEAD(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM, 0, receive_msg->head->dst_inst,
-        receive_msg->head->src_inst, ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(head, MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM, 0, receive_msg->head->dst_inst,
+        receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
+        receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
     dms_release_recv_message(receive_msg);
@@ -543,6 +546,7 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[SMON] receive dead lock message to instance(%u) failed, type(%u) rmid(%u) errcode(%d)",
             (uint32)dst_inst, (uint32)type, (uint32)rmid, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DLOCK_INFO, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
@@ -610,6 +614,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     ret = mfc_get_response(head->ruid, &recv_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[SMON] receive itl lock message to instance(%u) errcode(%d) failed", (uint32)dst_inst, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_ITL, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
@@ -746,6 +751,7 @@ int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, 
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[SMON] recv check tlock status message to instance(%u) sid(%u) tableid(%llu) errcode(%d) ",
             (uint32)dst_inst, (uint32)sid, table_id, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_CHECK_STATUS, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
@@ -806,6 +812,7 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[SMON] receive table_lock_msg message to instance(%u) table_id(%llu) errcode(%d) failed",
             (uint32)dst_inst, table_id, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
@@ -878,6 +885,7 @@ int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[SMON] receive get table lock rm message to instance(%u) sid(%u) rmid(%u) errcode(%d) failed",
             (uint32)dst_inst, (uint32)sid, (uint32)rmid, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, dst_inst);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }

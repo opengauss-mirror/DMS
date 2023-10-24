@@ -357,6 +357,8 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
     cvt_info->len = buf_res->len;
     cvt_info->is_try = req_info->is_try;
     cvt_info->sess_type = req_info->sess_type;
+    cvt_info->req_proto_ver = req_info->req_proto_ver;
+
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
     CM_ASSERT(cvt_info->req_id < DMS_MAX_INSTANCES);
 

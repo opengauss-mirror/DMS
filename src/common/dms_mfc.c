@@ -296,17 +296,23 @@ int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const voi
     return DMS_SUCCESS;
 }
 
-static inline int32 dms_handle_recv_ack_internal(dms_message_head_t *head)
+static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
 {
+    dms_message_head_t *head = dms_msg->head;
     dms_set_node_proto_version((head)->src_inst, (head)->sw_proto_ver);
-    if ((head)->cmd == MSG_ACK_VERSION_NOT_MATCH) {
+    if ((head)->cmd == MSG_ACK_PROTOCOL_VERSION_NOT_MATCH) {
+        dms_protocol_result_ack_t recv_msg = *(dms_protocol_result_ack_t*)dms_msg->buffer;
         LOG_RUN_INF("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
-            "dst_sid:%u, msg_proto_ver:%u, my sw_proto_ver:%u",
+            "dst_sid:%u, msg_proto_ver:%u, result:%u, my sw_proto_ver:%u",
             (uint32)(head)->src_inst, (uint32)(head)->src_sid,
             (uint32)(head)->dst_inst, (uint32)(head)->dst_sid,
-            (head)->msg_proto_ver, DMS_SW_PROTO_VER);
+            (head)->msg_proto_ver, recv_msg.result, DMS_SW_PROTO_VER);
+        if (recv_msg.result == DMS_PROTOCOL_VERSION_NOT_SUPPORT) {
+            return ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT;
+        }
         return ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH;
     }
+
     return DMS_SUCCESS;
 }
 
@@ -321,9 +327,9 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
     DMS_RETURN_IF_ERROR(ret);
     response->buffer = msg.buffer;
     response->head = (dms_message_head_t *)msg.buffer;
-    ret = dms_handle_recv_ack_internal(response->head);
+    ret = dms_handle_recv_ack_internal(response);
     if (DMS_MFC_OFF) {
-        if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+        if (dms_check_if_protocol_compatibility_error(ret)) {
             mfc_release_mes_msg(&msg);
         }
         return ret;
@@ -331,7 +337,7 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
 
     CM_ASSERT(response->head->cmd >= MSG_ACK_BEGIN);
     mfc_add_tickets(&g_dms.mfc.remain_tickets[response->head->src_inst], response->head->tickets);
-    if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+    if (dms_check_if_protocol_compatibility_error(ret)) {
         mfc_release_mes_msg(&msg);
     }
     return ret;
@@ -392,21 +398,35 @@ static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
 {
     int32 ret = CM_SUCCESS;
     *recv_success_insts = 0;
+    int32 high_priority_ret = DMS_SUCCESS;
+
     for (uint32 i = 0; i < msg_list->count; i++) {
-        dms_message_head_t *head = (dms_message_head_t*)msg_list->messages[i].buffer;
-        ret = dms_handle_recv_ack_internal(head);
+        dms_message_t dms_msg;
+        dms_cast_mes_msg(&msg_list->messages[i], &dms_msg);
+        dms_message_head_t *head = dms_msg.head;
+        cm_panic_log(head != NULL, "inst:%d ack is NULL. please check", i);
+        ret = dms_handle_recv_ack_internal(&dms_msg);
+        if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT) {
+            high_priority_ret = ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT;
+        } else if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH
+            && high_priority_ret != ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT) {
+            high_priority_ret = ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH;
+        }
+
         dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
-        if (head->cmd != MSG_ACK_VERSION_NOT_MATCH && (!check_ret || ack_msg->ret == DMS_SUCCESS)) {
+        if (head->cmd != MSG_ACK_PROTOCOL_VERSION_NOT_MATCH && (!check_ret || ack_msg->ret == DMS_SUCCESS)) {
             *recv_success_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
         }
     }
-    if (ret == DMS_SUCCESS && expect_insts != *recv_success_insts) {
-        ret = ERRNO_DMS_DCS_BROADCAST_FAILED;
+
+    DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(high_priority_ret);
+    if (high_priority_ret == DMS_SUCCESS && expect_insts != *recv_success_insts) {
+        high_priority_ret = ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
-    if (ret == CM_SUCCESS) {
+    if (high_priority_ret == DMS_SUCCESS) {
         LOG_DEBUG_INF("Succeed to recv bcast ack from all nodes");
     }
-    return ret;
+    return high_priority_ret;
 }
 
 /*
@@ -464,10 +484,8 @@ int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint
     ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     ret = mfc_check_broadcast_res(&responses, CM_TRUE, expect_insts, succ_insts);
-    DMS_RETURN_IF_ERROR(ret);
-
     mfc_add_tickets_and_release_msg(&responses);
-    return DMS_SUCCESS;
+    return ret;
 }
 
 /*
@@ -485,16 +503,20 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
         ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
         DMS_RETURN_IF_ERROR(ret);
         ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
+        if (ret != DMS_SUCCESS) {
+            mfc_release_mes_msglist(msg_list);
+        }
         return ret;
     }
 
     ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
-    DMS_RETURN_IF_ERROR(ret);
-
     mfc_wait_acks_add_tickets(msg_list);
-    return DMS_SUCCESS;
+    if (ret != DMS_SUCCESS) {
+        mfc_release_mes_msglist(msg_list);
+    }
+    return ret;
 }
 
 /* previously mes_connect_batch; add instance and wait for connection */

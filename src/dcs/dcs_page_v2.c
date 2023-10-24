@@ -72,8 +72,8 @@ int dcs_owner_transfer_page_ack_v2(dms_process_context_t *ctx, dms_buf_ctrl_t *c
 {
     dms_ask_res_ack_t page_ack = { 0 };
 
-    DMS_INIT_MESSAGE_HEAD(&page_ack.head, cmd, 0, req_info->owner_id,
-        req_info->req_id, ctx->sess_id, req_info->req_sid);
+    dms_init_ack_head2(&page_ack.head, cmd, 0, req_info->owner_id,
+        req_info->req_id, ctx->sess_id, req_info->req_sid, req_info->req_proto_ver);
     page_ack.head.ruid = req_info->req_ruid;
     page_ack.break_wal = CM_FALSE;
 

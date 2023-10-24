@@ -69,6 +69,7 @@ static int dcs_send_pcr_ack(dms_process_context_t *ctx, msg_pcr_request_t *reque
 
 static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *request, uint8 dst_id)
 {
+    int ret = DMS_SUCCESS;
     request->head.dst_inst = dst_id;
 
     LOG_DEBUG_INF("[PCR][%s][send pcr request] cr_type %u query_scn %llu query_ssn %u "
@@ -76,7 +77,11 @@ static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *r
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
         (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)dst_id, (uint32)request->force_cvt);
 
-    int ret = mfc_forward_request(&request->head);
+    if (dst_id == request->head.src_inst) {
+        ret = mfc_send_response(&request->head);
+    } else {
+        ret = mfc_forward_request(&request->head);
+    }
     if (ret != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, request->head.cmd, request->head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
@@ -491,14 +496,16 @@ static void dcs_send_grant_owner(dms_process_context_t *ctx, dms_message_t *msg)
 static void dcs_route_pcr_request_owner(dms_process_context_t *ctx, msg_pcr_request_t *request, uint8 owner_id)
 {
     uint64 ruid = request->head.ruid;
-    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_OWNER_FOR_CR_PAGE, 0, request->head.src_inst, owner_id,
-        request->head.src_sid, CM_INVALID_ID16);
+    /* head size should use original value */
+    uint32 send_proto_ver = dms_get_forward_request_proto_version(owner_id, request->head.msg_proto_ver);
+    DMS_INIT_MESSAGE_HEAD2(&request->head, MSG_REQ_ASK_OWNER_FOR_CR_PAGE, 0, request->head.src_inst, owner_id,
+        request->head.src_sid, CM_INVALID_ID16, send_proto_ver, request->head.size);
 
     request->head.dst_inst = owner_id;
     request->head.dst_sid = CM_INVALID_ID16;
     request->head.ruid = ruid;
 
-    (void)mfc_send_data(&request->head);
+    (void)mfc_forward_request(&request->head);
 }
 
 static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_request_t *request, bool32 *local_route)
@@ -517,8 +524,9 @@ static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_req
     }
 
     uint64 ruid = request->head.ruid;
-    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.src_inst, master_id,
-        request->head.src_sid, CM_INVALID_ID16);
+    uint32 send_proto_ver = dms_get_forward_request_proto_version(master_id, request->head.msg_proto_ver);
+    DMS_INIT_MESSAGE_HEAD2(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.src_inst, master_id,
+        request->head.src_sid, CM_INVALID_ID16, send_proto_ver, request->head.size);
     request->head.ruid = ruid;
 
     LOG_DEBUG_INF("[PCR][%s][reroute request] cr_type %u query_scn %llu query_ssn %u "
@@ -526,7 +534,11 @@ static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_req
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
         (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)master_id);
 
-    ret = mfc_send_data(&request->head);
+    if (master_id == request->head.src_inst) {
+        ret = mfc_send_response(&request->head);
+    } else {
+        ret = mfc_forward_request(&request->head);
+    }
     if (ret != CM_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, request->head.cmd, request->head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
@@ -687,8 +699,8 @@ static int dcs_send_check_visible_ack(dms_process_context_t *ctx, msg_cr_check_t
 {
     msg_cr_check_ack_t msg;
 
-    DMS_INIT_MESSAGE_HEAD(&msg.head, MSG_ACK_CHECK_VISIBLE, 0, ctx->inst_id, check->head.src_inst,
-        ctx->sess_id, check->head.src_sid);
+    dms_init_ack_head2(&msg.head, MSG_ACK_CHECK_VISIBLE, 0, (uint8)ctx->inst_id, check->head.src_inst,
+        (uint16)ctx->sess_id, check->head.src_sid, check->head.msg_proto_ver);
     msg.head.ruid = check->head.ruid;
     msg.head.size = (uint16)sizeof(msg_cr_check_ack_t);
     msg.is_found = is_found;
@@ -708,6 +720,7 @@ static int dcs_send_check_visible_ack(dms_process_context_t *ctx, msg_cr_check_t
 
 static int dcs_send_check_visible(dms_process_context_t *ctx, msg_cr_check_t *check, uint8 dst_id)
 {
+    int ret = DMS_SUCCESS;
     check->head.dst_inst = dst_id;
 
     LOG_DEBUG_INF("[PCR][%s][send check visible] query_scn %llu query_ssn %u "
@@ -715,7 +728,11 @@ static int dcs_send_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
         cm_display_rowid(check->rowid), check->query_scn, check->ssn, (uint32)check->head.src_inst,
         (uint32)check->head.src_sid, (uint32)dst_id);
 
-    int ret = mfc_send_data(&check->head);
+    if (dst_id == check->head.src_inst) {
+        ret = mfc_send_response(&check->head);
+    } else {
+        ret = mfc_forward_request(&check->head);
+    }
     if (ret != CM_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, check->head.cmd, check->head.dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
@@ -935,7 +952,7 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
     dms_reset_error();
     msg_cr_check_t check;
     dms_message_t message;
-    int ret;
+    int ret = DMS_SUCCESS;
 
     dcs_init_msg_cr_check(&check, dms_ctx, dms_cr, (uint8)dst_inst_id);
 
@@ -966,9 +983,10 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
     }
 
     LOG_DEBUG_ERR("[PCR][%s][check current visible failed] query_scn %llu query_ssn %u "
-        "src_inst %u src_sid %u dst_inst %u",
+        "src_inst %u src_sid %u dst_inst %u, ret:%d",
         cm_display_rowid(check.rowid), check.query_scn, check.ssn, (uint32)check.head.src_inst,
-        (uint32)check.head.src_sid, (uint32)dst_inst_id);
+        (uint32)check.head.src_sid, (uint32)dst_inst_id, ret);
+    DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
     return DMS_ERROR;
 }
 
