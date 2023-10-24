@@ -63,7 +63,7 @@ static inline drc_local_lock_res_t* dls_try_get_lock_res_4_release(dms_drid_t *l
     return lock_res;
 }
 
-static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool8 is_try, uint8 lock_mode)
+static drc_local_lock_res_t* dls_get_lock_res_4_release(void *sess, dms_drid_t *lockid, bool8 is_try, uint8 lock_mode)
 {
     if (is_try) {
         return dls_try_get_lock_res_4_release(lockid, lock_mode);
@@ -79,6 +79,14 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool
     lock_res->releasing = !g_lock_matrix[lock_mode][lock_res->latch_stat.stat];	
 	
     do {
+#ifndef OPENGAUSS
+        if (lockid->type == DMS_DR_TYPE_TABLE && g_dms.callback.get_part_changed(sess, lockid)) {
+            lock_res->releasing = CM_FALSE;
+            drc_unlock_local_resx(lock_res);
+            LOG_DEBUG_WAR("[DLS] part with lock(%s) changed", cm_display_lockid(lockid));
+            return NULL;
+        }
+#endif
         if (g_lock_matrix[lock_mode][lock_res->latch_stat.stat]) {
             return lock_res;
         }
@@ -94,13 +102,13 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(dms_drid_t *lockid, bool
     } while (CM_TRUE);
 }
 
-int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try)
+int32 dls_invld_lock_ownership(void *db_handle, char *resid, uint8 req_mode, bool8 is_try)
 {
     dms_drid_t *lockid = (dms_drid_t*)resid;
     LOG_DEBUG_INF("[DLS] dls_invld_lock_ownership(%s) try:%u", cm_display_lockid(lockid), (uint32)is_try);
 
     uint8 lock_mode = (req_mode == DMS_LOCK_SHARE) ? LATCH_STATUS_S : LATCH_STATUS_X;
-    drc_local_lock_res_t *lock_res = dls_get_lock_res_4_release(lockid, is_try, lock_mode);
+    drc_local_lock_res_t *lock_res = dls_get_lock_res_4_release(db_handle, lockid, is_try, lock_mode);
     if (lock_res == NULL) {
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
@@ -117,7 +125,7 @@ int32 dls_invld_lock_ownership(char *resid, uint8 req_mode, bool8 is_try)
 
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info)
 {
-    int32 ret = dls_invld_lock_ownership(req_info->resid, req_info->req_mode, req_info->is_try);
+    int32 ret = dls_invld_lock_ownership(proc_ctx->db_handle, req_info->resid, req_info->req_mode, req_info->is_try);
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
             req_info->req_id, req_info->req_sid, req_info->req_ruid, ret);

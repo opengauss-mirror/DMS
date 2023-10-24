@@ -543,6 +543,8 @@ typedef enum en_dms_wait_event {
     DMS_EVT_TXN_REQ_SNAPSHOT,
     DMS_EVT_DLS_REQ_LOCK,
     DMS_EVT_DLS_REQ_TABLE,
+    DMS_EVT_DLS_REQ_PART_X,
+    DMS_EVT_DLS_REQ_PART_S,
     DMS_EVT_DLS_WAIT_TXN,
     DMS_EVT_DEAD_LOCK_TXN,
     DMS_EVT_DEAD_LOCK_TABLE,
@@ -834,6 +836,7 @@ typedef void (*dms_get_buf_info)(char* resid, stat_buf_info_t *buf_info);
 typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long flags, unsigned long long scn,
     unsigned char is_commit);
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
+typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -978,6 +981,7 @@ typedef struct st_dms_callback {
     dms_get_buf_info get_buf_info;
     dms_end_xa end_xa;
     dms_xa_inuse xa_inuse;
+    dms_get_part_changed get_part_changed;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1062,7 +1066,7 @@ typedef enum st_dms_protocol_version {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           102
+#define DMS_LOCAL_VERSION           103
 #ifdef __cplusplus
 }
 #endif
