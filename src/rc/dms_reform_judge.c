@@ -263,6 +263,7 @@ static int dms_reform_connect(instance_list_t *list_online)
     int ret = DMS_SUCCESS;
 
     dms_reform_list_to_bitmap(&bitmap_online, list_online);
+    reform_info->bitmap_online = bitmap_online;
     bitmap64_minus(&bitmap_online, reform_info->bitmap_mes);
     dms_reform_bitmap_to_list(&list_reconnect, bitmap_online);
 
