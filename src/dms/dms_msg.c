@@ -205,7 +205,7 @@ static inline int32 dms_invalidate_res_l(dms_process_context_t *ctx, char *resid
     if (type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_FALSE);
     } else {
-        ret = dls_invld_lock_ownership(resid, DMS_LOCK_EXCLUSIVE, is_try);
+        ret = dls_invld_lock_ownership(ctx->db_handle, resid, DMS_LOCK_EXCLUSIVE, is_try);
     }
     return ret;
 }
@@ -1081,7 +1081,7 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
     if (req.res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.invalidate_page(proc_ctx->db_handle, req.resid, req.invld_owner);
     } else {
-        ret = dls_invld_lock_ownership(req.resid, DMS_LOCK_EXCLUSIVE, req.is_try);
+        ret = dls_invld_lock_ownership(proc_ctx->db_handle, req.resid, DMS_LOCK_EXCLUSIVE, req.is_try);
     }
     ack.ret = ret;
     if (mfc_send_data(&ack.head) == DMS_SUCCESS) {
