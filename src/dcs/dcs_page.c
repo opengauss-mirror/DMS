@@ -556,7 +556,6 @@ static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t
     }
 
     if (ctrl == NULL) {
-        g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: ctrl is NULL", cm_display_pageid(req_info->resid));
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
