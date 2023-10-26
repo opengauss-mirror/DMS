@@ -479,6 +479,9 @@ int dms_switchover(unsigned int sess_id)
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_switchover WAIT overtime, dst_id: %d", req.head.dst_inst);
             continue;
+        } else if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_switchover protocol version not match, dst_id: %d", req.head.dst_inst);
+            continue;
         } else {
             break;
         }

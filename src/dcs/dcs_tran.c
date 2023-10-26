@@ -63,6 +63,7 @@ int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char reque
         dms_end_stat(dms_ctx->sess_id);
         LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%u)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_OPENGAUSS_TXN_STATUS, head->ruid, (uint32)ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         return ret;
     }
 
@@ -93,8 +94,8 @@ void dcs_proc_opengauss_txn_status_req(dms_process_context_t *process_ctx, dms_m
         return;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_TXN_STATUS, 0, req_head->dst_inst, req_head->src_inst,
-        process_ctx->sess_id, req_head->src_sid);
+    dms_init_ack_head2(&ack_head, MSG_ACK_OPENGAUSS_TXN_STATUS, 0, req_head->dst_inst, req_head->src_inst,
+        (uint16)process_ctx->sess_id, req_head->src_sid, req_head->msg_proto_ver);
     ack_head.size = (uint16)(sizeof(uint64) + sizeof(dms_message_head_t));
     ack_head.ruid = req_head->ruid;
 
@@ -170,8 +171,8 @@ void dcs_proc_opengauss_update_xid_req(dms_process_context_t *process_ctx, dms_m
         return;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_TXN_UPDATE_XID, 0, req_head->dst_inst, req_head->src_inst,
-        process_ctx->sess_id, req_head->src_sid);
+    dms_init_ack_head2(&ack_head, MSG_ACK_OPENGAUSS_TXN_UPDATE_XID, 0, req_head->dst_inst, req_head->src_inst,
+        (uint16)process_ctx->sess_id, req_head->src_sid, req_head->msg_proto_ver);
     ack_head.size = (uint16)(sizeof(uint64) + sizeof(dms_message_head_t));
     ack_head.ruid = req_head->ruid;
 
@@ -251,8 +252,8 @@ void dcs_proc_opengauss_xid_csn_req(dms_process_context_t *process_ctx, dms_mess
         return;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_XID_CSN, 0, req_head->dst_inst, req_head->src_inst,
-        process_ctx->sess_id, req_head->src_sid);
+    dms_init_ack_head2(&ack_head, MSG_ACK_OPENGAUSS_XID_CSN, 0, req_head->dst_inst, req_head->src_inst,
+        (uint16)process_ctx->sess_id, req_head->src_sid, req_head->msg_proto_ver);
     ack_head.size = (uint16)(sizeof(dms_opengauss_xid_csn_t) + sizeof(dms_message_head_t));
     ack_head.ruid = req_head->ruid;
 
@@ -284,8 +285,8 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, dms_message_t *re
         return;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_TXN_INFO, 0, req_head->dst_inst, req_head->src_inst, process_ctx->sess_id,
-        req_head->src_sid);
+    dms_init_ack_head2(&ack_head, MSG_ACK_TXN_INFO, 0, req_head->dst_inst, req_head->src_inst,
+        (uint16)process_ctx->sess_id, req_head->src_sid, req_head->msg_proto_ver);
     ack_head.size = (uint16)(sizeof(dms_txn_info_t) + sizeof(dms_message_head_t));
     ack_head.ruid = req_head->ruid;
 
@@ -317,7 +318,6 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-
         LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->ruid, ret);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_TXN_INFO, xid_ctx->inst_id);
@@ -330,6 +330,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
 
         LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->ruid, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -359,8 +360,9 @@ void dcs_proc_opengauss_txn_snapshot_req(dms_process_context_t *process_ctx, dms
     uint8 src_inst = receive_msg->head->src_inst;
     int32 ret = g_dms.callback.get_opengauss_txn_snapshot(process_ctx->db_handle, &txn_snapshot, src_inst);
     if (ret == DMS_SUCCESS) {
-        DMS_INIT_MESSAGE_HEAD(&ack, MSG_ACK_OPENGAUSS_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst,
-            receive_msg->head->src_inst, process_ctx->sess_id, receive_msg->head->src_sid);
+        dms_init_ack_head2(&ack, MSG_ACK_OPENGAUSS_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst,
+            receive_msg->head->src_inst, (uint16)process_ctx->sess_id, receive_msg->head->src_sid,
+            receive_msg->head->msg_proto_ver);
         ack.ruid = receive_msg->head->ruid;
         ack.size = (uint16)(sizeof(dms_message_head_t) + sizeof(dms_opengauss_txn_snapshot_t));
         dms_release_recv_message(receive_msg);
@@ -382,8 +384,9 @@ void dcs_proc_opengauss_txn_of_master_req(dms_process_context_t *process_ctx, dm
     dms_message_head_t ack;
     int32 ret = g_dms.callback.get_opengauss_txn_of_master(process_ctx->db_handle, &dms_swinfo);
     if (ret == DMS_SUCCESS) {
-        DMS_INIT_MESSAGE_HEAD(&ack, MSG_ACK_OPENGAUSS_TXN_SWINFO, 0, receive_msg->head->dst_inst,
-            receive_msg->head->src_inst, process_ctx->sess_id, receive_msg->head->src_sid);
+        dms_init_ack_head2(&ack, MSG_ACK_OPENGAUSS_TXN_SWINFO, 0, receive_msg->head->dst_inst,
+            receive_msg->head->src_inst, (uint16)process_ctx->sess_id, receive_msg->head->src_sid,
+            receive_msg->head->msg_proto_ver);
         ack.ruid = receive_msg->head->ruid;
         ack.size = (uint16)(sizeof(dms_message_head_t) + sizeof(dms_opengauss_txn_sw_info_t));
         dms_release_recv_message(receive_msg);
@@ -407,8 +410,8 @@ void dcs_proc_txn_snapshot_req(dms_process_context_t *process_ctx, dms_message_t
     uint32 xmap = req->xmap;
     int32 ret = g_dms.callback.get_txn_snapshot(process_ctx->db_handle, xmap, &txn_snapshot);
     if (ret == DMS_SUCCESS) {
-        DMS_INIT_MESSAGE_HEAD(&ack, MSG_ACK_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
-            process_ctx->sess_id, receive_msg->head->src_sid);
+        dms_init_ack_head2(&ack, MSG_ACK_TXN_SNAPSHOT, 0, receive_msg->head->dst_inst, receive_msg->head->src_inst,
+            (uint16)process_ctx->sess_id, (uint16)receive_msg->head->src_sid, req->head.msg_proto_ver);
         ack.ruid = receive_msg->head->ruid;
         ack.size = (uint16)(sizeof(dms_message_head_t) + sizeof(dms_txn_snapshot_t));
         dms_release_recv_message(receive_msg);
@@ -542,9 +545,9 @@ int dms_request_txn_snapshot(dms_context_t *dms_ctx, dms_txn_snapshot_t *dms_txn
     ret = mfc_get_response(req.head.ruid, &message, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
-
         LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)", xmap_ctx->dest_id,
             (uint32)MSG_REQ_TXN_SNAPSHOT, req.head.ruid, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -594,8 +597,9 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, dms_message_t *re
         ret = DMS_REMOTE_TXN_WAIT;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, receive_msg->head->dst_inst,
-        receive_msg->head->src_inst, process_ctx->sess_id, receive_msg->head->src_sid);
+    dms_init_ack_head2(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, receive_msg->head->dst_inst,
+        receive_msg->head->src_inst, (uint16)process_ctx->sess_id, receive_msg->head->src_sid,
+        receive_msg->head->msg_proto_ver);
     txn_wait_ack.head.size = (uint16)sizeof(msg_txn_wait_ack_t);
     txn_wait_ack.head.ruid = receive_msg->head->ruid;
     txn_wait_ack.status = ret;
@@ -709,6 +713,7 @@ int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[TXN] receive message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->ruid, ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_WAIT_TXN, xid_ctx->inst_id);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
@@ -827,8 +832,8 @@ void dcs_proc_opengauss_page_status_req(dms_process_context_t *process_ctx, dms_
         return;
     }
 
-    DMS_INIT_MESSAGE_HEAD(&ack_head, MSG_ACK_OPENGAUSS_PAGE_STATUS, 0, req_head->dst_inst, req_head->src_inst,
-        process_ctx->sess_id, req_head->src_sid);
+    dms_init_ack_head2(&ack_head, MSG_ACK_OPENGAUSS_PAGE_STATUS, 0, req_head->dst_inst, req_head->src_inst,
+        (uint16)process_ctx->sess_id, req_head->src_sid, req_head->msg_proto_ver);
     ack_head.size = (uint16)(sizeof(dms_opengauss_page_status_result_t) + sizeof(dms_message_head_t));
     ack_head.ruid = req_head->ruid;
 
@@ -1107,7 +1112,9 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
     drc_global_xa_res_t *xa_res = NULL;
     int32 ret = drc_enter_xa_res(xid, &xa_res, req.check_xa_drc);
     if (ret != DMS_SUCCESS) {
-        dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id, req.head.src_inst, req.head.src_sid, req.head.ruid, ret);
+        dms_send_error_ack(
+            proc_ctx->inst_id, proc_ctx->sess_id, req.head.src_inst, req.head.src_sid, req.head.ruid, ret,
+            req.head.msg_proto_ver);
         return;
     }
 

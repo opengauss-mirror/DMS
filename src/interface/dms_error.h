@@ -25,7 +25,6 @@
 #ifndef __DMS_ERROR_H__
 #define __DMS_ERROR_H__
 
-#include "cm_error.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -170,16 +169,6 @@ enum en_errno_dms_reform {
 };
 #define ERRNO_DMS_REFORM_INDEX(x)   ((x) - ERRNO_DMS_REFORM_BASE)
 #define ERRNO_IS_DMS_REFORM(x)      ((x) > ERRNO_DMS_REFORM_BASE && (x) < ERRNO_DMS_REFORM_END)
-
-const char *dms_get_error_desc(int code);
-
-#define DMS_THROW_ERROR(error_no, ...)                                                                      \
-    do {                                                                                                    \
-        cm_set_error((char *)__FILE_NAME__, (uint32)__LINE__, (cm_errno_t)error_no,                         \
-            dms_get_error_desc(error_no), ##__VA_ARGS__);                                                   \
-    } while (CM_FALSE)
-
-#define dms_reset_error     cm_reset_error
 
 #ifdef __cplusplus
 }

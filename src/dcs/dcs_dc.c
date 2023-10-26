@@ -45,7 +45,7 @@ void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *r
     char *data = receive_msg->buffer + sizeof(dms_message_head_t);
     uint32 len = (uint32)(head->size - sizeof(dms_message_head_t));
     dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = output_msg,
-        .output_msg_len = &output_msg_len, .msg_version = head->msg_proto_ver};
+        .output_msg_len = &output_msg_len};
     int32 ret = g_dms.callback.process_broadcast(process_ctx->db_handle, &broad_ctx);
     if (output_msg_len != 0) {
         char ack_buf[DCS_BROADCAST_OUTPUT_MSG_LEN + sizeof(dms_message_head_t)];
@@ -68,7 +68,7 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
         head = (dms_message_head_t *)recv_msg->messages[i].buffer;
         data = recv_msg->messages[i].buffer + sizeof(dms_message_head_t);
         len = (uint32)(head->size - sizeof(dms_message_head_t));
-        dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .msg_version = head->msg_proto_ver};
+        dms_broadcast_context_t broad_ctx = {.data = data, .len = len};
         ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
         if (ret != DMS_SUCCESS) {
             return ret;
@@ -86,9 +86,8 @@ static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 time
     ret = mfc_get_broadcast_res_with_msg(ruid, timeout, expect_inst, &recv_msg);
     if (ret == DMS_SUCCESS) {
         ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
+        mfc_release_mes_msglist(&recv_msg);
     }
-
-    mfc_release_mes_msglist(&recv_msg);
     return ret;
 }
 
@@ -118,10 +117,11 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
             ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
+            mfc_release_mes_msglist(&recv_msg);
         }
-        mfc_release_mes_msglist(&recv_msg);
     }
     if (ret != DMS_SUCCESS) {
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
     }
     return ret;
@@ -219,7 +219,9 @@ int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int t
     all_inst = all_inst & (~((uint64)0x1 << inst_id));
     int ret = mfc_get_broadcast_res_with_succ_insts(ruid, timeout, all_inst, success_inst);
     if (ret != DMS_SUCCESS) {
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, all_inst, *success_inst);
+        return DMS_ERROR;
     }
     return ret;
 }

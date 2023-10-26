@@ -124,6 +124,8 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN, dcs_proc_send_opengauss_oldest_xmin,
         CM_TRUE, CM_TRUE, "send primary openGauss self oldest xmin"},
     { MSG_REQ_NODE_FOR_BUF_INFO,      dms_proc_ask_node_buf_info,      CM_TRUE, CM_FALSE, "ask node for buffer related info"},
+    { MSG_REQ_PROTOCOL_MAINTAIN_VERSION, dms_protocol_proc_maintain_version,
+        CM_TRUE, CM_TRUE, "req maintain protocol version"},
     { MSG_REQ_CREATE_GLOBAL_XA_RES,   dms_proc_create_xa_res,          CM_TRUE, CM_TRUE,  "create xa res remote" },
     { MSG_REQ_DELETE_GLOBAL_XA_RES,   dms_proc_delete_xa_res,          CM_TRUE, CM_TRUE,  "delete xa res remote" },
     { MSG_REQ_ASK_XA_OWNER_ID,        dms_proc_ask_xa_owner,           CM_TRUE, CM_TRUE,  "ask xa res owner id" },
@@ -181,7 +183,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_TXN_SWINFO,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss transaction swinfo" },
     { MSG_ACK_OPENGAUSS_PAGE_STATUS,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss page hit buffer" },
     { MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN,   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack oldest xmin received"},
-    { MSG_ACK_VERSION_NOT_MATCH,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack msg version is not match"},
+    { MSG_ACK_PROTOCOL_VERSION_NOT_MATCH,   dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack msg version is not match"},
     { MSG_ACK_NODE_FOR_BUF_INFO,            dms_proc_broadcast_ack2,
             CM_FALSE, CM_TRUE, "ack request for buffer information" },
     { MSG_ACK_CREATE_GLOBAL_XA_RES,         dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack create xa res remote" },
@@ -313,55 +315,44 @@ static void dms_unlock_instance_s(unsigned char cmd)
     }
 }
 
-void dms_send_ack_version_not_match(dms_process_context_t *ctx, dms_message_t *receive_msg)
+void dms_protocol_send_ack_version_not_match(dms_process_context_t *ctx, dms_message_t *receive_msg, bool8 support_cmd)
 {
-    dms_message_head_t ack_msg;
-    dms_init_ack_head(receive_msg->head, &ack_msg, MSG_ACK_VERSION_NOT_MATCH, sizeof(dms_message_head_t),
-        ctx->sess_id);
-    dms_message_head_t *dms_head = get_dms_head(receive_msg);
-    int32 ret = mfc_send_data(&ack_msg);
+    dms_protocol_result_ack_t ack_msg;
+    dms_message_head_t *recv_head = get_dms_head(receive_msg);
+    uint32 send_proto_ver = dms_get_send_proto_version_by_cmd(MSG_ACK_PROTOCOL_VERSION_NOT_MATCH,
+        receive_msg->head->src_inst);
+    dms_init_ack_head(recv_head, &ack_msg.head, MSG_ACK_PROTOCOL_VERSION_NOT_MATCH,
+        sizeof(dms_protocol_result_ack_t), (uint16)ctx->sess_id);
+    ack_msg.head.msg_proto_ver = send_proto_ver;
+
+    if (support_cmd) {
+        ack_msg.result = DMS_PROTOCOL_VERSION_NOT_MATCH;
+    } else {
+        ack_msg.result = DMS_PROTOCOL_VERSION_NOT_SUPPORT;
+    }
+
+    int32 ret = mfc_send_data(&ack_msg.head);
     if (ret != CM_SUCCESS) {
-        LOG_RUN_INF("[DMS] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
-            "recv msg: cmd:%d, msg_proto_ver:%u, my sw_proto_ver:%u",
-            ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, 
-            ack_msg.dst_sid, dms_head->cmd, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
+        LOG_RUN_ERR("[DMS PROTOCOL] send ack version not match failed, src_inst:%u, src_sid:%u, dst_inst:%u, "
+            "dst_sid:%u, result:%d, msg_proto_ver:%u, recv msg:{cmd:%d, msg_proto_ver:%u, send_inst sw_proto_ver:%u}, "
+            "my sw_proto_ver:%u",
+            ack_msg.head.src_inst, ack_msg.head.src_sid, ack_msg.head.dst_inst, ack_msg.head.dst_sid, ack_msg.result,
+            ack_msg.head.msg_proto_ver, recv_head->cmd, recv_head->msg_proto_ver, recv_head->sw_proto_ver,
+            DMS_SW_PROTO_VER);
         dms_release_recv_message(receive_msg);
         return;
     }
-    LOG_RUN_INF("[DMS] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, dst_sid:%u, "
-        "recv msg: cmd:%d, msg_proto_ver:%u, my sw_proto_ver:%u",
-        ack_msg.src_inst, ack_msg.src_sid, ack_msg.dst_inst, 
-        ack_msg.dst_sid, dms_head->cmd, dms_head->msg_proto_ver, DMS_SW_PROTO_VER);
+    LOG_RUN_INF("[DMS PROTOCOL] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, "
+        "dst_sid:%u, result:%d, msg_proto_ver:%u, recv msg:{cmd:%d, msg_proto_ver:%u, send_inst sw_proto_ver:%u}, "
+        "my sw_proto_ver:%u",
+        ack_msg.head.src_inst, ack_msg.head.src_sid, ack_msg.head.dst_inst, ack_msg.head.dst_sid, ack_msg.result,
+        ack_msg.head.msg_proto_ver, recv_head->cmd, recv_head->msg_proto_ver, recv_head->sw_proto_ver,
+        DMS_SW_PROTO_VER);
     dms_release_recv_message(receive_msg);
+    return;
 }
 
-static bool8 dms_check_message_proto_version(dms_process_context_t *ctx, dms_message_t *msg)
-{
-    bool8 pass_check = CM_TRUE;
-    dms_message_head_t *head = get_dms_head(msg);
-    uint8 send_inst = head->src_inst;
-    dms_set_node_proto_version(send_inst, head->sw_proto_ver);
-
-    if (dms_cmd_is_broadcast(head->cmd)) {
-        if (head->msg_proto_ver > DMS_SW_PROTO_VER) {
-            pass_check = CM_FALSE;
-            dms_send_ack_version_not_match(ctx, msg);
-        }
-    } else {
-        uint32 node_version = dms_get_node_proto_version(send_inst);
-        uint32 nego_version = DMS_SW_PROTO_VER;
-        if (node_version != DMS_INVALID_PROTO_VER && node_version < nego_version) {
-            nego_version = node_version;
-        }
-        if (nego_version != head->msg_proto_ver) {
-            pass_check = CM_FALSE;
-            dms_send_ack_version_not_match(ctx, msg);
-        }
-    }
-    return pass_check;
-}
-
-static inline void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg)
+void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg)
 {
     dms_msg->head = (dms_message_head_t *)mes_msg->buffer;
     dms_msg->buffer = mes_msg->buffer;
@@ -375,9 +366,15 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 
     dms_message_t dms_msg;
     dms_cast_mes_msg(mes_msg, &dms_msg);
+    dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
     dms_message_head_t* head = get_dms_head(&dms_msg);
-    if ((head->cmd >= MSG_REQ_END && head->cmd < MSG_ACK_BEGIN) || head->cmd >= MSG_ACK_END) {
-        DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, head->cmd);
+
+    bool32 init_finish = g_dms.dms_init_finish;
+    if (!init_finish) {
+        LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, "
+            "src_sid:%u, dest_sid:%u, finish dms init:%u", 
+            (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
+            (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
         mfc_release_mes_msg(mes_msg);
         return;
     }
@@ -385,19 +382,36 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
     /* ruid should have been brought in dms msghead */
     CM_ASSERT(ruid == 0 || head->ruid == ruid);
 
-    dms_lock_instance_s(head->cmd);
+    dms_set_node_proto_version(head->src_inst, head->sw_proto_ver);
+    if ((head->cmd >= MSG_REQ_END && head->cmd < MSG_ACK_BEGIN) || head->cmd >= MSG_ACK_END) {
+        dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_FALSE);
+        return;
+    }
 
     dms_processor_t *processor = &g_dms.processors[head->cmd];
     mfc_add_tickets(&g_dms.mfc.recv_tickets[head->src_inst], 1);
+    if (processor->is_enqueue) {
+        bool8 pass_check = dms_check_message_proto_version(head);
+        if (!pass_check) {
+            if (dms_cmd_need_ack(head->cmd)) {
+                dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_TRUE);
+            } else {
+                mfc_release_mes_msg(mes_msg);
+            }
+            return;
+        }
+    }
 
 #ifdef OPENGAUSS
     bool32 enable_proc = !g_dms.enable_reform || DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
 #else
     bool32 enable_proc = CM_TRUE;
 #endif
+
+    dms_lock_instance_s(head->cmd);
     bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || \
         dms_msg_skip_gcv_check(head->cmd);
-    if (!enable_proc || !gcv_approved || !g_dms.dms_init_finish) {
+    if (!enable_proc || !gcv_approved) {
         LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, local_gcv=%u, recv_gcv=%u, "
             "src_sid:%u, dest_sid:%u, finish dms init:%u", 
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
@@ -407,15 +421,11 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         dms_unlock_instance_s(head->cmd);
         return;
     }
-    dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
+
 #ifdef OPENGAUSS  
     (void)g_dms.callback.cache_msg(ctx->db_handle, (char*)mes_msg->buffer);
 #endif
-    bool8 pass_check = CM_TRUE;
     if (processor->is_enqueue) {
-        pass_check = dms_check_message_proto_version(ctx, &dms_msg);
-    }
-    if (pass_check) {
         processor->proc(ctx, &dms_msg);
     }
 #ifdef OPENGAUSS  

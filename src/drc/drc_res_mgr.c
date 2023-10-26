@@ -687,7 +687,7 @@ int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
         drc_info->claimed_owner != drc_info->dms_ctx.inst_id || 
         drc_info->master_id != drc_info->dms_ctx.inst_id) {
         
-        dms_send_request_buf_info(&drc_info->dms_ctx, drc_info);
+        ret = dms_send_request_buf_info(&drc_info->dms_ctx, drc_info);
     }
-    return DMS_SUCCESS;
+    return ret;
 }

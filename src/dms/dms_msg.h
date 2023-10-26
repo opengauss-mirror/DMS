@@ -29,6 +29,7 @@
 #include "dms_mfc.h"
 #include "dms_api.h"
 #include "drc.h"
+#include "dms_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +44,15 @@ extern "C" {
 
 /* biggest: pcr page ack: head + ack + page */
 #define DMS_MESSAGE_BUFFER_SIZE (uint32)(SIZE_K(32) + 64)
+
+typedef enum st_dms_protocol_version {
+    DMS_PROTO_VER_0 = 0,    // invalid version
+    DMS_PROTO_VER_1 = 1,    // first version
+    DMS_PROTO_VER_2 = 2,
+} dms_protocol_version_t;
+
+#define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
+#define DMS_SW_PROTO_VER      DMS_PROTO_VER_2
 
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
@@ -102,14 +112,15 @@ typedef enum en_msg_command {
     MSG_REQ_OPENGAUSS_PAGE_STATUS = 53,
     MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN = 54,
     MSG_REQ_NODE_FOR_BUF_INFO = 55,
-    MSG_REQ_CREATE_GLOBAL_XA_RES = 56,
-    MSG_REQ_DELETE_GLOBAL_XA_RES = 57,
-    MSG_REQ_ASK_XA_OWNER_ID = 58,
-    MSG_REQ_END_XA = 59,
-    MSG_REQ_ASK_XA_IN_USE = 60,
-    MSG_REQ_MERGE_XA_OWNERS = 61,
-    MSG_REQ_XA_REBUILD = 62,
-    MSG_REQ_XA_OWNERS = 63,
+    MSG_REQ_PROTOCOL_MAINTAIN_VERSION = 56,
+    MSG_REQ_CREATE_GLOBAL_XA_RES = 57,
+    MSG_REQ_DELETE_GLOBAL_XA_RES = 58,
+    MSG_REQ_ASK_XA_OWNER_ID = 59,
+    MSG_REQ_END_XA = 60,
+    MSG_REQ_ASK_XA_IN_USE = 61,
+    MSG_REQ_MERGE_XA_OWNERS = 62,
+    MSG_REQ_XA_REBUILD = 63,
+    MSG_REQ_XA_OWNERS = 64,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -159,7 +170,7 @@ typedef enum en_msg_command {
     MSG_ACK_OPENGAUSS_TXN_SWINFO = 171,
     MSG_ACK_OPENGAUSS_PAGE_STATUS = 172,
     MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN = 173,
-    MSG_ACK_VERSION_NOT_MATCH = 174,
+    MSG_ACK_PROTOCOL_VERSION_NOT_MATCH = 174,
     MSG_ACK_NODE_FOR_BUF_INFO = 175,
     MSG_ACK_CREATE_GLOBAL_XA_RES = 176,
     MSG_ACK_DELETE_GLOBAL_XA_RES = 177,
@@ -262,6 +273,7 @@ typedef struct st_dms_res_req_info {
     dms_lock_mode_t req_mode;
     dms_lock_mode_t curr_mode;
     char resid[DMS_RESID_SIZE];
+    uint32 req_proto_ver;
 } dms_res_req_info_t;
 
 typedef struct st_dms_cancel_request_res {
@@ -424,7 +436,8 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->srsn = srsn;
 }
 
-void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret);
+void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret,
+    uint32 req_proto_ver);
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
 int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
@@ -446,10 +459,41 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *re
 void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 dms_message_head_t* get_dms_head(dms_message_t *msg);
 bool8 dms_cmd_is_broadcast(uint32 cmd);
+bool8 dms_cmd_is_req(uint32 cmd);
+bool8 dms_cmd_need_ack(uint32 cmd);
+// about protocol version
 void dms_set_node_proto_version(uint8 inst_id, uint32 version);
 uint32 dms_get_node_proto_version(uint8 inst_id);
 void dms_init_cluster_proto_version();
-uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_id);
+uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_inst);
+bool8 dms_check_message_proto_version(dms_message_head_t *head);
+uint32 dms_get_forward_request_proto_version(uint8 dst_inst, uint32 recv_req_proto_ver);
+void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+
+typedef enum en_dms_protocol_result {
+    DMS_PROTOCOL_VERSION_NOT_MATCH = 0,
+    DMS_PROTOCOL_VERSION_NOT_SUPPORT = 1,
+} dms_protocol_result_e;
+
+typedef struct st_dms_protocol_result_ack {
+    dms_message_head_t head;
+    dms_protocol_result_e result;
+} dms_protocol_result_ack_t;
+
+static inline bool8 dms_check_if_protocol_compatibility_error(int ret)
+{
+    if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH || ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT) {
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
+
+#define DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret)    \
+    do {                                            \
+        if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH || ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT) { \
+            return ret;                             \
+        }                                           \
+    } while (0)
 
 /*
 * The following structs are used for communication
@@ -470,38 +514,50 @@ typedef struct st_dms_ack_buf_info {
     stat_buf_info_t          buf_info;
 } dms_ack_buf_info_t;
 
-void dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info);
+int dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info);
 void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-static inline void dms_init_ack_head(const dms_message_head_t *req_head, dms_message_head_t *ack_head, unsigned int cmd,
-    unsigned short size, unsigned int src_sid)
-{
-    ack_head->cmd = cmd;
-    ack_head->src_inst = req_head->dst_inst;
-    ack_head->dst_inst = req_head->src_inst;
-    ack_head->src_sid = (uint16)src_sid;
-    ack_head->dst_sid = req_head->src_sid;
-    ack_head->ruid = req_head->ruid;
-    ack_head->size = size;
-    ack_head->flags = req_head->flags;
-    ack_head->cluster_ver = req_head->cluster_ver;
-    ack_head->sw_proto_ver = DMS_SW_PROTO_VER;
-    ack_head->msg_proto_ver = dms_get_send_proto_version_by_cmd(cmd, req_head->src_inst);
-    int32 ret = memset_s(ack_head->reserved, DMS_MSG_HEAD_UNUSED_SIZE, 0, DMS_MSG_HEAD_UNUSED_SIZE);
-    DMS_SECUREC_CHECK(ret);
-}
+
+void dms_check_message_cmd(unsigned int cmd, bool8 is_req);
+
+void dms_init_ack_head(const dms_message_head_t *req_head, dms_message_head_t *ack_head, unsigned int cmd,
+    unsigned short size, unsigned int src_sid);
+
+void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned int flags,
+    unsigned char src_inst, unsigned char dst_inst, unsigned short src_sid, unsigned short dst_sid,
+    unsigned int req_proto_ver);
 
 #define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \
     do {                                                                                                        \
+        dms_check_message_cmd(v_cmd, CM_TRUE);                                                                  \
+        DMS_SECUREC_CHECK(memset_s((head), DMS_MSG_HEAD_SIZE, 0, DMS_MSG_HEAD_SIZE));                           \
+        (head)->msg_proto_ver = dms_get_send_proto_version_by_cmd((v_cmd), ((uint8)v_dst_inst));                \
+        (head)->sw_proto_ver = dms_get_node_proto_version(v_src_inst);                                          \
         (head)->cmd = (uint32)(v_cmd);                                                                          \
         (head)->flags = (uint32)(v_flags);                                                                      \
+        (head)->ruid = 0;                                                                                       \
         (head)->src_inst = (uint8)(v_src_inst);                                                                 \
         (head)->dst_inst = (uint8)(v_dst_inst);                                                                 \
+        (head)->cluster_ver = DMS_GLOBAL_CLUSTER_VER;                                                           \
         (head)->src_sid = (uint16)(v_src_sid);                                                                  \
         (head)->dst_sid = (uint16)(v_dst_sid);                                                                  \
-        (head)->sw_proto_ver = DMS_SW_PROTO_VER;                                                                \
-        (head)->msg_proto_ver = dms_get_send_proto_version_by_cmd((v_cmd), ((uint8)v_dst_inst));                \
-        (head)->cluster_ver = DMS_GLOBAL_CLUSTER_VER;                                                           \
+    } while (0)
+
+#define DMS_INIT_MESSAGE_HEAD2(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid,              \
+    v_msg_proto_ver, v_size)                                                                                    \
+    do {                                                                                                        \
+        dms_check_message_cmd(v_cmd, CM_TRUE);                                                                  \
+        (head)->msg_proto_ver = (uint32)v_msg_proto_ver;                                                        \
+        (head)->sw_proto_ver = dms_get_node_proto_version(v_src_inst);                                          \
+        (head)->cmd = (uint32)(v_cmd);                                                                          \
+        (head)->flags = (uint32)(v_flags);                                                                      \
         (head)->ruid = 0;                                                                                       \
+        (head)->src_inst = (uint8)(v_src_inst);                                                                 \
+        (head)->dst_inst = (uint8)(v_dst_inst);                                                                 \
+        (head)->size = (uint16)(v_size);                                                                        \
+        (head)->cluster_ver = DMS_GLOBAL_CLUSTER_VER;                                                           \
+        (head)->src_sid = (uint16)(v_src_sid);                                                                  \
+        (head)->dst_sid = (uint16)(v_dst_sid);                                                                  \
+        (head)->tickets = 0;                                                                                    \
         DMS_SECUREC_CHECK(memset_s((head)->reserved, DMS_MSG_HEAD_UNUSED_SIZE, 0, DMS_MSG_HEAD_UNUSED_SIZE));   \
     } while (0)
 

@@ -128,13 +128,13 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
     int32 ret = dls_invld_lock_ownership(proc_ctx->db_handle, req_info->resid, req_info->req_mode, req_info->is_try);
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
-            req_info->req_id, req_info->req_sid, req_info->req_ruid, ret);
+            req_info->req_id, req_info->req_sid, req_info->req_ruid, ret, req_info->req_proto_ver);
         return ret;
     }
 
     dms_ask_res_ack_t page_ack = { 0 };
-    DMS_INIT_MESSAGE_HEAD(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
-        req_info->req_id, proc_ctx->sess_id, req_info->req_sid);
+    dms_init_ack_head2(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,
+        req_info->req_id, (uint16)proc_ctx->sess_id, req_info->req_sid, req_info->req_proto_ver);
     page_ack.head.ruid = req_info->req_ruid;
     page_ack.head.flags |= MSG_FLAG_NO_PAGE;
     page_ack.head.size = (uint16)sizeof(dms_ask_res_ack_t);

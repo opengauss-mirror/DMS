@@ -122,6 +122,7 @@ typedef struct st_drc_request_info {
     uint16  sess_id;            /* the session id that the request comes from */
     date_t  req_time;
     uint32 srsn;
+    uint32 req_proto_ver;
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -286,6 +287,7 @@ typedef struct st_cvt_info {
     uint64  invld_insts;
     dms_session_e sess_type;
     drc_req_owner_result_type_t type;
+    uint32 req_proto_ver;
 } cvt_info_t;
 
 typedef struct st_claim_info {
