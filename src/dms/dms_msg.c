@@ -561,7 +561,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     uint32 srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, req_id, (uint16)dms_ctx->sess_id, dms_ctx->ctx_ruid,
-        curr_mode, req_mode, dms_ctx->is_try, dms_ctx->sess_type, g_timer()->now, srsn);
+        curr_mode, req_mode, dms_ctx->is_try, dms_ctx->sess_type, g_timer()->now, srsn, DMS_SW_PROTO_VER);
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY, CM_TRUE);
 
@@ -944,7 +944,8 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t 
 
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid,
-        req.head.ruid, req.curr_mode, req.req_mode, req.is_try, req.sess_type, req.req_time, req.srsn);
+        req.head.ruid, req.curr_mode, req.req_mode, req.is_try, req.sess_type, req.req_time, req.srsn,
+        req.head.msg_proto_ver);
 
     drc_req_owner_result_t result;
     int ret = drc_request_page_owner(req.resid, req.len, req.res_type, &req_info, &result);
@@ -1321,7 +1322,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t 
 
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid, req.head.ruid, 0, 0, CM_FALSE,
-        req.sess_type, g_timer()->now, req.srsn);
+        req.sess_type, g_timer()->now, req.srsn, req.head.msg_proto_ver);
 
     cvt_info_t cvt_info;
     drc_cancel_request_res(req.resid, req.len, req.res_type, &req_info, &cvt_info);
@@ -1481,7 +1482,7 @@ static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t
 
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid, 0, 0,
-        CM_FALSE, CM_FALSE, cvt_req->req_time, cvt_req->srsn);
+        CM_FALSE, CM_FALSE, cvt_req->req_time, cvt_req->srsn, cvt_req->req_proto_ver);
 
     cvt_info_t cvt_info;
     cvt_info.invld_insts = 0;

@@ -423,7 +423,7 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *recei
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 ruid,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try,
-    dms_session_e sess_type, date_t req_time, uint32 srsn)
+    dms_session_e sess_type, date_t req_time, uint32 srsn, uint32 req_proto_ver)
 {
     req_info->ruid = ruid;
     req_info->inst_id = req_id;
@@ -434,6 +434,7 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->sess_type = sess_type;
     req_info->req_time = req_time;
     req_info->srsn = srsn;
+    req_info->req_proto_ver = req_proto_ver;
 }
 
 void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret,
