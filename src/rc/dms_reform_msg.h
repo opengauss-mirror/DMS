@@ -180,6 +180,9 @@ typedef struct st_dms_reform_req_opengauss_ondemand_redo {
 void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 void dms_reform_ack_req_rebuild(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result);
 
+void dms_reform_set_judge_time(dms_message_head_t *req_head);
+bool32 dms_reform_check_judge_time(dms_message_head_t *req_head);
+
 #ifdef __cplusplus
 }
 #endif

@@ -53,6 +53,11 @@ void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t 
     reform_info_t *reform_info = DMS_REFORM_INFO;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_xa_owners_t), CM_TRUE, CM_TRUE);
     dms_reform_req_sync_xa_owners_t *req = (dms_reform_req_sync_xa_owners_t *)receive_msg->buffer;
+    if (!dms_reform_check_judge_time(&req->head)) {
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        dms_release_recv_message(receive_msg);
+        return;
+    }
 
     cm_spin_lock(&reform_info->xa_bitmap_lock, NULL);
     bitmap64_union(&reform_info->bitmap_has_xa, req->bitmap_has_xa);
@@ -89,6 +94,7 @@ int dms_reform_merge_xa_owners(void)
     
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_MERGE_XA_OWNERS, 0, g_dms.inst_id, share_info->promote_id,
         reform_ctx->sess_proc, CM_INVALID_ID16);
+    dms_reform_set_judge_time(&req.head);
     req.bitmap_has_xa = reform_info->bitmap_has_xa;
     req.head.size = sizeof(dms_reform_req_sync_xa_owners_t);
     int ret = dms_reform_send_data(&req.head, reform_ctx->sess_proc);
@@ -106,7 +112,11 @@ void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_messag
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
-
+    if (!dms_reform_check_judge_time(receive_msg->head)) {
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        dms_release_recv_message(receive_msg);
+        return;
+    }
     dms_reform_ack_common_t ack_comm;
     dms_init_ack_head(receive_msg->head, &ack_comm.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
@@ -138,6 +148,7 @@ static int dms_reform_req_xa_owners(void)
 
         DMS_INIT_MESSAGE_HEAD(&req, MSG_REQ_XA_OWNERS, 0, g_dms.inst_id, share_info->promote_id, reform_ctx->sess_proc,
             CM_INVALID_ID16);
+        dms_reform_set_judge_time(&req);
         req.size = sizeof(dms_message_head_t);
         req.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
         int ret = mfc_send_data(&req);
@@ -448,6 +459,7 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
 
         DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_XA_REBUILD, 0, g_dms.inst_id, master_id,
             g_dms.reform_ctx.sess_proc, CM_INVALID_ID16);
+        dms_reform_set_judge_time(&req_rebuild->head);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
         req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
@@ -494,6 +506,11 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
     CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
+    if (!dms_reform_check_judge_time(&req_rebuild->head)) {
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        dms_release_recv_message(receive_msg);
+        return;
+    }
     uint8 owner_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
 
