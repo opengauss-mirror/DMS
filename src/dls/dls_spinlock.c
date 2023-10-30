@@ -225,3 +225,78 @@ unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, u
         dls_sleep(&spin_times, &wait_ticks, GS_SPIN_COUNT);
     }
 }
+
+void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
+{
+    cm_panic_log(dlock->drid.type == DMS_DR_TYPE_SHARED_INNODE, "[DLS](%s)lock type %d is invalid",
+        cm_display_lockid(&dlock->drid), dlock->drid.type);
+
+    drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlock->drid);
+    CM_ASSERT(lock_res != NULL);
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+    
+    LOG_DEBUG_INF("[DLS] add shared innode lock(%s) stat=%u, lock_mode=%u, is_owner=%u, locked=%u, "
+        "shared_count=%u", cm_display_lockid(&dlock->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
+        (uint32)lock_res->is_owner, (uint32)lock_res->is_locked, (uint32)latch_stat->shared_count);
+
+    do {
+        drc_lock_local_resx(lock_res);
+        if (lock_res->releasing) {
+            drc_unlock_local_resx(lock_res);
+            dms_wait4releasing(lock_res);
+            continue;
+        }
+
+        if (latch_stat->stat == LATCH_STATUS_S) {
+            CM_ASSERT(latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE);
+            CM_ASSERT(lock_res->is_owner && lock_res->is_locked && latch_stat->shared_count > 0);
+            latch_stat->shared_count++;
+            latch_stat->rmid_sum += dms_ctx->rmid;
+            drc_unlock_local_resx(lock_res);
+            break;
+        }
+        CM_ASSERT(latch_stat->stat == LATCH_STATUS_IDLE);
+        if (latch_stat->lock_mode != DMS_LOCK_EXCLUSIVE) {
+            CM_ASSERT(latch_stat->lock_mode == DMS_LOCK_NULL);
+            if (!dls_request_spin_lock(dms_ctx, lock_res, 1)) {
+                drc_unlock_local_resx(lock_res);
+                continue;
+            }
+            latch_stat->lock_mode = DMS_LOCK_EXCLUSIVE;
+            lock_res->is_owner = CM_TRUE;
+        }
+        latch_stat->stat = LATCH_STATUS_S;
+        latch_stat->shared_count = 1;
+        latch_stat->sid = dms_ctx->sess_id;
+        latch_stat->rmid = dms_ctx->rmid;
+        latch_stat->rmid_sum = dms_ctx->rmid;
+        lock_res->is_locked = CM_TRUE;
+        drc_unlock_local_resx(lock_res);
+        break;
+    } while (CM_TRUE);
+    LOG_DEBUG_INF("[DLS] add shared_innode lock finished");
+}
+
+void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
+{
+    cm_panic_log(dlock->drid.type == DMS_DR_TYPE_SHARED_INNODE, "[DLS](%s)lock type %d is invalid",
+        cm_display_lockid(&dlock->drid), dlock->drid.type);
+    
+    drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlock->drid);
+    CM_ASSERT(lock_res != NULL);
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+    
+    drc_lock_local_resx(lock_res);
+    CM_ASSERT(latch_stat->shared_count > 0);
+    latch_stat->shared_count--;
+    latch_stat->rmid_sum -= dms_ctx->rmid;
+    
+    if (latch_stat->shared_count == 0) {
+        lock_res->is_locked = CM_FALSE;
+        latch_stat->rmid_sum = 0;
+        latch_stat->stat = LATCH_STATUS_IDLE;
+    }
+    LOG_DEBUG_INF("[DLS] shared_innode unlock(%s), shared_count=%u, is_locked:%u, ",
+        cm_display_lockid(&dlock->drid), (uint32)latch_stat->shared_count, (uint32)lock_res->is_locked);
+    drc_unlock_local_resx(lock_res);    
+}

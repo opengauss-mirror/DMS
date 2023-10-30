@@ -200,6 +200,24 @@ DMS_DECLARE void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
 DMS_DECLARE void dms_spin_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
 
 /*
+* @brief distributed shared spin lock acquire method.
+* @function intra-node shared and inter-node exclusive
+* @param dms_ctx - dms_context_t structure.
+* @param dlock - distributed resource lock identifier.
+* @return
+*/
+DMS_DECLARE void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+
+/*
+* @brief distributed shared spin lock release method.
+* @function intra-node shared and inter-node exclusive
+* @param dms_ctx - dms_context_t structure.
+* @param dlock - distributed resource lock identifier.
+* @return
+*/
+DMS_DECLARE void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+
+/*
 * @brief distributed spin lock try to acquire method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlock - distributed resource lock identifier.
