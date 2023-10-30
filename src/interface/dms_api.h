@@ -86,6 +86,7 @@ typedef enum en_dms_dr_type {
     DMS_DR_TYPE_GDV = 24,
     DMS_DR_TYPE_SEQVAL = 25,
     DMS_DR_TYPE_SHARED_INNODE = 26,
+    DMS_DR_TYPE_PROC_ENTRY = 27,
     DMS_DR_TYPE_MAX,
 } dms_dr_type_t;
 
@@ -144,10 +145,18 @@ typedef struct st_dms_drid {
         struct {
             unsigned short  type;  // lock type
             unsigned short  uid;   // user id, for table lock resource
-            unsigned int    oid;   // lock id
-            unsigned int    index; // index id
-            unsigned int    parent_part;  // parent partition id
-            unsigned int    part;  // partition id
+            union {
+                struct {
+                    unsigned int    oid;   // lock id
+                    unsigned int    index; // index id
+                    unsigned int    parent_part;  // parent partition id
+                    unsigned int    part;  // partition id
+                };
+                struct {
+                    unsigned long long oid_64;
+                    unsigned long long unused;
+                };
+            };
         };
     };
 } dms_drid_t;
@@ -1057,7 +1066,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           105
+#define DMS_LOCAL_VERSION           106
 #ifdef __cplusplus
 }
 #endif

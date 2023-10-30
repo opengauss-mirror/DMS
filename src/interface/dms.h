@@ -167,7 +167,8 @@ DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms
 * @param uid - resource user id.
 * @return
 */
-DMS_DECLARE void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid, unsigned short uid);
+DMS_DECLARE void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid,
+    unsigned short uid);
 
 /*
 * @brief init distributed spin lock.
@@ -242,7 +243,8 @@ DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock
 * @param uid - resource user id.
 * @return
 */
-DMS_DECLARE void dms_init_latch(dms_drlatch_t* dlatch, dms_dr_type_t type, unsigned int oid, unsigned short uid);
+DMS_DECLARE void dms_init_latch(dms_drlatch_t* dlatch, dms_dr_type_t type, unsigned long long oid,
+    unsigned short uid);
 
 /*
 * @brief init distributed latch.
