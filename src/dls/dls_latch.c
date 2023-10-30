@@ -609,10 +609,9 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
         }
     }
 
-    drc_unlock_local_resx(lock_res);
-
     LOG_DEBUG_INF("[DLS] release latch(%s), shared_count=%u, is_locked:%u, ",
         cm_display_lockid(&dlatch->drid), (uint32)latch_stat->shared_count, (uint32)lock_res->is_locked);
+    drc_unlock_local_resx(lock_res);
 }
 
 void dms_latch_degrade(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
