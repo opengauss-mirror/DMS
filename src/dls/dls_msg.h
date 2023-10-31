@@ -51,6 +51,14 @@ extern "C" {
         (drid)->part = _part;                                 \
     } while (0)
 
+#define DLS_INIT_DR_RES_EX(drid, _type, _uid, _oid, _unused)  \
+    do {                                                      \
+        (drid)->type = _type;                                 \
+        (drid)->uid = _uid;                                   \
+        (drid)->oid_64 = _oid;                                \
+        (drid)->unused = _unused;                             \
+    } while (0)
+
 int32 dls_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t mode);
 int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
