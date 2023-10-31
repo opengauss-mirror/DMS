@@ -190,10 +190,10 @@ drps_desc_t g_drps_desc_t[DRPS_COUNT] = {
 };
 
 drps_level_format_t g_drps_level_format[DRPS_LEVEL_COUNT] = {
-    [DRPS_LEVEL_TOP]    = {"%-22s%16.3lf%16.3l%9llu"},
-    [DRPS_LEVEL_ONE]    = {"  %-20s%16.3lf%16.3l%9llu"},
-    [DRPS_LEVEL_TWO]    = {"    %-18s%16.3lf%16.3l%9llu"},
-    [DRPS_LEVEL_THREE]  = {"      %-16s%16.3lf%16.3l%9llu"},
+    [DRPS_LEVEL_TOP]    = {"%-22s%16.3lf%16.3lf%9llu"},
+    [DRPS_LEVEL_ONE]    = {"  %-20s%16.3lf%16.3lf%9llu"},
+    [DRPS_LEVEL_TWO]    = {"    %-18s%16.3lf%16.3lf%9llu"},
+    [DRPS_LEVEL_THREE]  = {"      %-16s%16.3lf%16.3lf%9llu"},
 };
 
 #define MICROSECS_PER_MILLISECF     1000.0
