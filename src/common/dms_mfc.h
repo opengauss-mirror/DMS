@@ -58,7 +58,12 @@ typedef struct st_dms_message_head {
     unsigned short src_sid;
     unsigned short dst_sid;
     unsigned short tickets;
-    unsigned char reserved[DMS_MSG_HEAD_UNUSED_SIZE]; /* 64 bytes total */
+    union {
+        struct {
+            long long judge_time; // for message used in reform, check if it is the same round of reform
+        };
+        unsigned char reserved[DMS_MSG_HEAD_UNUSED_SIZE]; /* 64 bytes total */
+    };
 } dms_message_head_t;
 
 typedef struct st_dms_message_t {
