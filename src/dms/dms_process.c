@@ -68,7 +68,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_CHECK_VISIBLE,          dcs_proc_check_visible,           CM_TRUE, CM_FALSE, "row check visible" },
     { MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, dcs_proc_try_ask_master_for_page_owner_id,
         CM_TRUE, CM_FALSE, "try ask master for page owner id" },
-    { MSG_REQ_BROADCAST,              dcs_proc_broadcast_req,           CM_TRUE, CM_FALSE,  "broadcast msg" },
+    { MSG_REQ_BROADCAST,              dcs_proc_broadcast_req,           CM_TRUE, CM_TRUE,  "broadcast msg" },
     { MSG_REQ_TXN_INFO,               dcs_proc_txn_info_req,            CM_TRUE, CM_FALSE,  "txn info msg" },
     { MSG_REQ_TXN_SNAPSHOT,           dcs_proc_txn_snapshot_req,        CM_TRUE, CM_FALSE,  "txn snapshot msg" },
     { MSG_REQ_WAIT_TXN,               dcs_proc_txn_wait_req,            CM_TRUE, CM_FALSE,  "txn wait msg" },
