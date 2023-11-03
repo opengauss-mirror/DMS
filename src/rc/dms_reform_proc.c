@@ -396,14 +396,13 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
 }
 #endif
 
-static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uint8 dst_id)
+static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uint8 dst_id, bool8 *is_edp)
 {
     dms_reform_req_res_t req;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
     int result;
     uint8 lock_mode;
-    bool8 is_edp;
     uint64 lsn;
 
     if (buf_res->type != DRC_RES_PAGE_TYPE) {
@@ -417,20 +416,24 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uin
             return ERRNO_DMS_REFORM_FAIL;
         }
 
-        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_may_need_flush SEND error: %d, dst_id: %d", ret, dst_id);
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_may_need_flush WAIT timeout, dst_id: %d", dst_id);
             continue;
         } else {
             break;
         }
+    }
+
+    // if dst version less than VER_2, the value of is_edp can not be trusted
+    if (dms_get_node_proto_version(dst_id) < DMS_PROTO_VER_2) {
+        *is_edp = CM_FALSE;
     }
 
     if (result != DMS_SUCCESS) {
@@ -1167,52 +1170,51 @@ static int dms_reform_rebuild(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess_id, bool32 *exists_owner)
+static int dms_reform_repair_with_copy_insts_inner(drc_buf_res_t *buf_res, uint32 sess_id, bool32 *exists_owner,
+    uint64 insts)
 {
-    int32 ret;
-    uint64 edp_copyinsts = bitmap64_intersect(buf_res->copy_insts, buf_res->edp_map);
-    if (edp_copyinsts != 0) {
-        *exists_owner = CM_TRUE;
-        uint8 new_owner = drc_lookup_owner_id(&edp_copyinsts);
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
-        ret = dms_reform_may_need_flush(buf_res, sess_id, new_owner);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
-        if (ret != DMS_SUCCESS) {
-            return ret;
-        }
-        buf_res->claimed_owner = new_owner;
-        bitmap64_clear(&buf_res->copy_insts, new_owner);
+    bool8 is_edp = CM_FALSE;
+
+    *exists_owner = CM_FALSE;
+    if (insts == 0) {
         return DMS_SUCCESS;
     }
 
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; ++i) {
-        if (!bitmap64_exist(&buf_res->copy_insts, i)) {
+    for (uint8 i = 0; i < CM_MAX_INSTANCES; ++i) {
+        if (!bitmap64_exist(&insts, i)) {
             continue;
         }
+        // confirm page exist or not and set need_flush for edp
         dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
-        ret = dms_reform_may_need_flush(buf_res, sess_id, i);
+        int ret = dms_reform_may_need_flush(buf_res, sess_id, i, &is_edp);
         dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
-        if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_INVALID) {
-            return ret;
+        if (ret == ERRNO_DMS_DRC_INVALID) {
+            bitmap64_clear(&buf_res->copy_insts, i);
+            continue;
         }
-        if (ret == DMS_SUCCESS) {
-            buf_res->claimed_owner = i;
-            break;
-        }
+        DMS_RETURN_IF_ERROR(ret);
         bitmap64_clear(&buf_res->copy_insts, i);
-    }
-
-    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        buf_res->claimed_owner = i;
+        *exists_owner = CM_TRUE;
+        if (!is_edp && buf_res->type == DRC_RES_PAGE_TYPE) {
+            // edp no need to set promote because it is in ckpt queue already, but edp_map may be incorrect
+            buf_res->copy_promote = DMS_COPY_PROMOTE_NORMAL;
+        }
         return DMS_SUCCESS;
     }
 
-    if (buf_res->type == DRC_RES_PAGE_TYPE) {
-        buf_res->copy_promote = DMS_COPY_PROMOTE_NORMAL;
-    }
-
-    *exists_owner = CM_TRUE;
-    bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
     return DMS_SUCCESS;
+}
+
+static int dms_reform_repair_with_copy_insts(drc_buf_res_t *buf_res, uint32 sess_id, bool32 *exists_owner)
+{
+    uint64 edp_copyinsts = bitmap64_intersect(buf_res->copy_insts, buf_res->edp_map);
+    int ret = dms_reform_repair_with_copy_insts_inner(buf_res, sess_id, exists_owner, edp_copyinsts);
+    DMS_RETURN_IF_ERROR(ret);
+    if (*exists_owner) {
+        return DMS_SUCCESS;
+    }
+    return dms_reform_repair_with_copy_insts_inner(buf_res, sess_id, exists_owner, buf_res->copy_insts);
 }
 
 static int dms_reform_repair_with_last_edp(drc_buf_res_t *buf_res, void *handle)
@@ -1300,9 +1302,11 @@ static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle,
     DRC_DISPLAY(buf_res, "repair");
 
     if (buf_res->claimed_owner != CM_INVALID_ID8) {
+        // set need_flush flag for pages which has been set edp flag.Otherwise ckpt will skip the pages
         if (bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {
+            bool8 is_edp;
             dms_reform_proc_stat_start(DRPS_DRC_REPAIR_NEED_FLUSH);
-            ret = dms_reform_may_need_flush(buf_res, sess_id, buf_res->claimed_owner);
+            ret = dms_reform_may_need_flush(buf_res, sess_id, buf_res->claimed_owner, &is_edp);
             dms_reform_proc_stat_end(DRPS_DRC_REPAIR_NEED_FLUSH);
             return ret;
         }

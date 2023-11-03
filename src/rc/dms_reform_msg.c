@@ -1076,7 +1076,7 @@ static void dms_reform_proc_req_need_flush(dms_process_context_t *process_ctx, d
     dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
     dms_reform_ack_common_t ack_common;
 
-    int ret = g_dms.callback.need_flush(process_ctx->db_handle, req->resid);
+    int ret = g_dms.callback.need_flush(process_ctx->db_handle, req->resid, &ack_common.is_edp);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]need_flush fail, error: %d", cm_display_pageid(req->resid), ret);
     }
