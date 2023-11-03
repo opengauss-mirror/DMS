@@ -969,7 +969,7 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
 
     if (recv_msg.head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(recv_msg.buffer) + sizeof(msg_error_t)));
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
         dms_release_recv_message(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -1051,7 +1051,7 @@ int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 
 
     if (recv_msg.head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (char *)((msg_error_t *)(recv_msg.buffer) + sizeof(msg_error_t)));
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
         dms_release_recv_message(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -1201,6 +1201,13 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
         DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
         return ERRNO_DMS_DCS_MSG_EAGAIN;
     }
+    
+    if (msg.head->cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(msg.buffer);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        dms_release_recv_message(&msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
+    }
 
     CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_owner_ack_t), CM_FALSE, CM_FALSE);
     dms_ask_xa_owner_ack_t *ack = (dms_ask_xa_owner_ack_t *)msg.buffer;
@@ -1262,6 +1269,13 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
         LOG_DEBUG_ERR("[TXN][%s] wait owner ack timeout while end xa, timeout = %u ms", cm_display_resid((char *)xid,
             DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
         return ERRNO_DMS_DCS_MSG_EAGAIN;
+    }
+    
+    if (msg.head->cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(msg.buffer);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        dms_release_recv_message(&msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
     CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_end_xa_ack_t), CM_FALSE, CM_FALSE);
@@ -1332,6 +1346,13 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
         LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_inuse_remote]: wait if in use ack of xa res timeout, timeout = %d ms",
             cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
         return ERRNO_DMS_DCS_MSG_EAGAIN;
+    }
+
+    if (msg.head->cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg(msg.buffer);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        dms_release_recv_message(&msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
     CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_inuse_ack_t), CM_FALSE, CM_FALSE);
