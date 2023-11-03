@@ -702,7 +702,7 @@ typedef int(*dms_confirm_owner)(void *db_handle, char *pageid, unsigned char *lo
     unsigned long long *lsn);
 typedef int(*dms_flush_copy)(void *db_handle, char *pageid);
 typedef int(*dms_need_flush)(void *db_handle, char *pageid, unsigned char *is_edp);
-typedef int(*dms_edp_to_owner)(void *db_handle, char *pageid);
+typedef int(*dms_edp_to_owner)(void *db_handle, char *pageid, unsigned char *is_edp);
 typedef int(*dms_edp_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int reform_type, int is_reformer);
@@ -1064,7 +1064,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           108
+#define DMS_LOCAL_VERSION           109
 #ifdef __cplusplus
 }
 #endif

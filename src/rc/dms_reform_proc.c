@@ -311,14 +311,13 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
 }
 
 #ifndef OPENGAUSS
-static int dms_reform_set_edp_to_owner(drc_buf_res_t *buf_res, uint32 sess_id)
+static int dms_reform_set_edp_to_owner(drc_buf_res_t *buf_res, uint32 sess_id, bool8 *is_edp)
 {
     dms_reform_req_res_t req;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
     int result;
     uint8 lock_mode;
-    bool8 is_edp;
     uint64 lsn;
     uint8 dst_id = buf_res->last_edp;
 
@@ -336,7 +335,7 @@ static int dms_reform_set_edp_to_owner(drc_buf_res_t *buf_res, uint32 sess_id)
             return ret;
         }
 
-        ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
+        ret = dms_reform_req_page_wait(&result, &lock_mode, is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_set_edp_to_owner WAIT timeout, dst_id: %d", dst_id);
             continue;
@@ -1436,20 +1435,26 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res, void *han
     buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
 #else
     if (buf_res->claimed_owner == CM_INVALID_ID8 && buf_res->last_edp != CM_INVALID_ID8 && !buf_res->in_recovery) {
+        bool8 is_edp = CM_FALSE;
         // no owner, has edp and no need to recover,
         // it shows that original owner does not modify the page before abort
         // we should change last edp to be owner, otherwise ckpt can not flush the pages
         if (dms_dst_id_is_self(buf_res->last_edp)) {
             dms_reform_proc_stat_start(DRPS_DRC_EDP_TO_OWNER_LOCAL);
-            ret = g_dms.callback.edp_to_owner(handle, buf_res->data);
+            ret = g_dms.callback.edp_to_owner(handle, buf_res->data, &is_edp);
             dms_reform_proc_stat_end(DRPS_DRC_EDP_TO_OWNER_LOCAL);
         } else {
             dms_reform_proc_stat_start(DRPS_DRC_EDP_TO_OWNER_REMOTE);
-            ret = dms_reform_set_edp_to_owner(buf_res, sess_id);
+            ret = dms_reform_set_edp_to_owner(buf_res, sess_id, &is_edp);
             dms_reform_proc_stat_end(DRPS_DRC_EDP_TO_OWNER_REMOTE);
+        }
+        DMS_RETURN_IF_ERROR(ret);
+        if (is_edp) {
             buf_res->claimed_owner = buf_res->last_edp;
             buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
         }
+        bitmap64_clear(&buf_res->edp_map, buf_res->last_edp);
+        buf_res->last_edp = CM_INVALID_ID8;
     } else if (buf_res->copy_promote != DMS_COPY_PROMOTE_NONE && buf_res->recovery_skip) {
         if (dms_dst_id_is_self(buf_res->claimed_owner)) {
             dms_reform_proc_stat_start(DRPS_DRC_FLUSH_COPY_LOCAL);
