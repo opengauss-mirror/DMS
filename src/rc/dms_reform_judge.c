@@ -240,6 +240,16 @@ static void dms_reform_modify_list(void)
             index++;
         }
     }
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (reform_info->rst_recover) {
+        // To update the rcy point and lrp point of other nodes
+        for (uint32 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            if (inst_id != g_dms.inst_id) {
+                dms_reform_list_add($share_info->list_stable, (uint8)inst_id);
+			}
+		}
+        dms_reform_list_to_bitmap($share_info->bitmap_stable, &share_info->list_stable);
+	}
 #endif
 }
 
@@ -1562,6 +1572,7 @@ static void dms_reform_judgement_rst_recover(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
     dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_set_remove_point(inst_lists);
     dms_reform_judgement_done();
 }
 
