@@ -234,6 +234,7 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
     /* cleanup edp map */
     buf_res->edp_map = 0;
     buf_res->lsn = edp->lsn;
+    buf_res->last_edp = CM_INVALID_ID8;
     drc_leave_buf_res(buf_res);
     return CM_TRUE;
 }
