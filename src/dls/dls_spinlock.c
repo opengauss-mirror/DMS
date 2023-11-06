@@ -126,13 +126,14 @@ void dms_spin_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     return;
 }
 
-void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid, unsigned short uid)
+void dms_init_pl_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid, unsigned short uid)
 {
-    if (type == DMS_DR_TYPE_PROC || type == DMS_DR_TYPE_PROC_ENTRY) {
-        DLS_INIT_DR_RES_EX(&lock->drid, type, uid, oid, 0);
-    } else {
-        DLS_INIT_DR_RES(&lock->drid, type, oid, uid, 0, 0, 0);
-    }
+    DLS_INIT_DR_RES_EX(&lock->drid, type, uid, oid, 0);
+}
+
+void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid, unsigned short uid)
+{
+    DLS_INIT_DR_RES(&lock->drid, type, oid, uid, 0, 0, 0);
 }
 
 void dms_init_spinlock2(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid, unsigned short uid, unsigned int idx,

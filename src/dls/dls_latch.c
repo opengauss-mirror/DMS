@@ -32,13 +32,14 @@
 #include "dms_stat.h"
 #include "drc_page.h"
 
-void dms_init_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned long long oid, unsigned short uid)
+void dms_init_pl_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned long long oid, unsigned short uid)
 {
-    if (type == DMS_DR_TYPE_PROC || type == DMS_DR_TYPE_PROC_ENTRY) {
-        DLS_INIT_DR_RES_EX(&dlatch->drid, type, uid, oid, 0);
-    } else {
-        DLS_INIT_DR_RES(&dlatch->drid, type, oid, uid, 0, 0, 0);
-    }
+    DLS_INIT_DR_RES_EX(&dlatch->drid, type, uid, oid, 0);
+}
+
+void dms_init_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned int oid, unsigned short uid)
+{
+    DLS_INIT_DR_RES(&dlatch->drid, type, oid, uid, 0, 0, 0);
 }
 
 void dms_init_latch2(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned int oid, unsigned short uid, unsigned int idx,
