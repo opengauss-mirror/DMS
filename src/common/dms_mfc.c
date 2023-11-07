@@ -188,7 +188,7 @@ static inline int32 mfc_send_data3_req(dms_message_head_t *head, uint32 head_siz
     }
 
     int ret = DMS_SUCCESS;
-    ret = mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+    ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
         DMS_TWO, head, head_size, body, head->size - head_size);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
@@ -202,7 +202,7 @@ static inline int32 mfc_send_data3_ack(dms_message_head_t *head, uint32 head_siz
     head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
 
     int ret = DMS_SUCCESS;
-    ret = mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+    ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
         DMS_TWO, head, head_size, body, head->size - head_size);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
@@ -215,11 +215,11 @@ int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *bod
 {
     if (DMS_MFC_OFF) {
         if (mfc_msg_is_req(head)) {
-            return mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+            return mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
                 DMS_TWO, head, head_size, body, head->size - head_size);
         } else {
             MFC_RETURN_IF_BAD_RUID(head->ruid);
-            return mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+            return mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
                 DMS_TWO, head, head_size, body, head->size - head_size);
         }
     }
@@ -240,7 +240,7 @@ static inline int32 mfc_send_data4_req(dms_message_head_t *head, uint32 head_siz
     }
 
     int ret = DMS_SUCCESS;
-    ret = mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+    ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
             DMS_THREE, head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
@@ -254,7 +254,7 @@ static inline int32 mfc_send_data4_ack(dms_message_head_t *head, uint32 head_siz
 {
     int ret = DMS_SUCCESS;
     head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
-    ret = mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+    ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
         DMS_THREE, head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
@@ -268,11 +268,11 @@ int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *bod
 {
     if (DMS_MFC_OFF) {
         if (mfc_msg_is_req(head)) {
-            return mes_send_request_x(head->dst_inst, head->flags, &head->ruid,
+            return mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
                 DMS_THREE, head, head_size, body1, len1, body2, len2);
         } else {
             MFC_RETURN_IF_BAD_RUID(head->ruid);
-            return mes_send_response_x(head->dst_inst, head->flags, head->ruid,
+            return mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
                 DMS_THREE, head, head_size, body1, len1, body2, len2);
         }
     }
@@ -289,7 +289,7 @@ int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const voi
     const void *body2, uint32 len2)
 {
     if (DMS_MFC_OFF) {
-        return mes_send_data_x(head->dst_inst, head->flags,
+        return mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head),
             DMS_THREE, head, head_size, body1, len1, body2, len2);
     }
     /* Need to adapt if MFC to be enabled */
@@ -374,7 +374,7 @@ void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
     dms_message_head_t *head = (dms_message_head_t *)msg_data;
     uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
     dms_inst_bits_to_list(inst_bits, inst_list);
-    (void)mes_broadcast_request_sp(inst_list, count, head->flags, &head->ruid, msg_data, head->size);
+    (void)mes_broadcast_request_sp(inst_list, count, mfc_get_mes_flag(head), &head->ruid, msg_data, head->size);
 }
 
 /* 2-BODY SYNC BROADCAST */
@@ -389,7 +389,7 @@ void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body
     uint32 count = dms_count_bits(inst_bits);
     uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
     dms_inst_bits_to_list(inst_bits, inst_list);
-    (void)mes_broadcast_request_spx(inst_list, count, head->flags, &head->ruid,
+    (void)mes_broadcast_request_spx(inst_list, count, mfc_get_mes_flag(head), &head->ruid,
         DMS_TWO, head, sizeof(dms_message_head_t), body, head->size - sizeof(dms_message_head_t));
 }
 
