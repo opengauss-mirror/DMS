@@ -175,6 +175,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         if (ret != DMS_SUCCESS) {
             drc_set_local_lock_statx(lock_res, CM_FALSE, CM_FALSE);
             drc_unlock_local_resx(lock_res);
+            dls_cancel_request_lock(dms_ctx, &dlock->drid);
             return ret;
         }
     }
@@ -200,7 +201,6 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         }
 
         if (ret != ERR_MES_WAIT_OVERTIME) {
-            dls_cancel_request_lock(dms_ctx, &dlock->drid);
             return CM_FALSE;
         }
         
@@ -223,7 +223,6 @@ unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, u
         }
 
         if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
-            dls_cancel_request_lock(dms_ctx, &dlock->drid);
             return CM_FALSE;
         }
 
