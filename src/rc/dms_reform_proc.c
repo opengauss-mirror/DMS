@@ -499,6 +499,11 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
         dms_reform_proc_stat_end(DRPS_DRC_CLEAN_CONFIRM_CVT);
     }
 
+    if (buf_res->claimed_owner != CM_INVALID_ID8 &&
+        buf_res->lock_mode == DMS_LOCK_EXCLUSIVE) {
+        buf_res->copy_insts = 0;
+    }
+
     return ret;
 }
 
