@@ -335,10 +335,11 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
 }
 
 static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
-    drc_local_latch_t *latch_stat, dms_dr_type_t type, uint32 wait_ticks)
+    drc_local_latch_t *latch_stat, dms_drlatch_t *dlatch, uint32 wait_ticks)
 {
     uint32 count = 0;
     uint32 ticks = 0;
+    dms_dr_type_t type = dlatch->drid.type;
 
     while (latch_stat->shared_count > 0) {
         if (drc_owner_table_lock_shared(dms_ctx, latch_stat, type)) {
@@ -368,8 +369,8 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
             drc_unlock_local_resx(lock_res);
             return CM_TRUE;
         }
-
-        if (dls_request_latch_x(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, wait_ticks - ticks)) {
+        bool8 ret = dls_request_latch_x(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, wait_ticks - ticks);
+        if (ret) {
             latch_stat->sid = dms_ctx->sess_id;
             latch_stat->rmid = dms_ctx->rmid;
             latch_stat->rmid_sum = dms_ctx->rmid;
@@ -380,6 +381,10 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
             latch_stat->shared_count = 0;
             drc_unlock_local_resx(lock_res);
             return CM_TRUE;
+        } else {
+            drc_unlock_local_resx(lock_res);
+            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+            return CM_FALSE;
         }
     }
     drc_unlock_local_resx(lock_res);
@@ -542,7 +547,7 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 
             drc_unlock_local_resx(lock_res);
 
-            if (dls_latch_timed_ix2x(dms_ctx, lock_res, latch_stat, dlatch->drid.type,
+            if (dls_latch_timed_ix2x(dms_ctx, lock_res, latch_stat, dlatch,
                 ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0))) {
                 dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
                 return CM_TRUE;
@@ -552,7 +557,6 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
             latch_stat->stat = latch_stat->shared_count > 0 ? LATCH_STATUS_S : LATCH_STATUS_IDLE;
             drc_unlock_local_resx(lock_res);
 
-            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
             dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
             return CM_FALSE;
         } else {
@@ -680,6 +684,9 @@ static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     if (latch_stat->stat == LATCH_STATUS_IDLE) {
         int32 ret = dms_try_latch_idle2s(dms_ctx, lock_res);
         drc_unlock_local_resx(lock_res);
+        if (ret != DMS_SUCCESS) {
+            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+        }
         LOG_DEBUG_INF("[DLS] try add latch_s finished, result:%d", ret);
         return ret;
     }
@@ -710,7 +717,6 @@ unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
         }
 
         if (ret != ERR_MES_WAIT_OVERTIME) {
-            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
             return CM_FALSE;
         }
 
