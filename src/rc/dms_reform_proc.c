@@ -1919,6 +1919,9 @@ static int dms_reform_done_check()
             return ret;
         }
     }
+#ifdef OPENGAUSS
+    g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
+#endif
 
     dms_reform_end();
     reform_info->last_fail = CM_FALSE;
@@ -1931,9 +1934,6 @@ static int dms_reform_done_check()
     dms_reform_set_idle_behavior();
 #endif
 
-#ifdef OPENGAUSS
-    g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
-#endif
     LOG_RUN_FUNC_SUCCESS;
     return ret;
 }
