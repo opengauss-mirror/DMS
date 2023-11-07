@@ -160,6 +160,17 @@ DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms
     dms_lock_mode_t req_mode, unsigned char *owner_id);
 
 /*
+* @brief init distributed pl spin lock.
+* @param lock - distributed resource lock identifier.
+* @param type - distributed resource type.
+* @param oid - resource object id.
+* @param uid - resource user id.
+* @return
+*/
+DMS_DECLARE void dms_init_pl_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid,
+    unsigned short uid);
+
+/*
 * @brief init distributed spin lock.
 * @param lock - distributed resource lock identifier.
 * @param type - distributed resource type.
@@ -167,7 +178,7 @@ DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms
 * @param uid - resource user id.
 * @return
 */
-DMS_DECLARE void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid,
+DMS_DECLARE void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid,
     unsigned short uid);
 
 /*
@@ -236,6 +247,17 @@ DMS_DECLARE unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t
 DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, unsigned int timeout_ticks);
 
 /*
+* @brief init distributed pl latch.
+* @param dlatch - distributed resource lock identifier.
+* @param type - distributed resource type.
+* @param oid - resource object id.
+* @param uid - resource user id.
+* @return
+*/
+DMS_DECLARE void dms_init_pl_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned long long oid,
+    unsigned short uid);
+
+/*
 * @brief init distributed latch.
 * @param dlatch - distributed resource lock identifier.
 * @param type - distributed resource type.
@@ -243,7 +265,7 @@ DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock
 * @param uid - resource user id.
 * @return
 */
-DMS_DECLARE void dms_init_latch(dms_drlatch_t* dlatch, dms_dr_type_t type, unsigned long long oid,
+DMS_DECLARE void dms_init_latch(dms_drlatch_t* dlatch, dms_dr_type_t type, unsigned int oid,
     unsigned short uid);
 
 /*
