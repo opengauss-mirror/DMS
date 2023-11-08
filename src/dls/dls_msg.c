@@ -80,7 +80,7 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(void *sess, dms_drid_t *
 	
     do {
 #ifndef OPENGAUSS
-        if (lockid->type == DMS_DR_TYPE_TABLE && g_dms.callback.get_part_changed(sess, (char *)lockid)) {
+        if (lockid->type == DMS_DR_TYPE_PART_TABLE && g_dms.callback.get_part_changed(sess, (char *)lockid)) {
             lock_res->releasing = CM_FALSE;
             drc_unlock_local_resx(lock_res);
             LOG_DEBUG_WAR("[DLS] part with lock(%s) changed", cm_display_lockid(lockid));

@@ -39,7 +39,7 @@ void dms_init_pl_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned long 
 
 void dms_init_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned int oid, unsigned short uid)
 {
-    DLS_INIT_DR_RES(&dlatch->drid, type, oid, uid, 0, 0, 0);
+    DLS_INIT_DR_RES(&dlatch->drid, type, oid, uid, 0, CM_INVALID_ID32, CM_INVALID_ID32);
 }
 
 void dms_init_latch2(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned int oid, unsigned short uid, unsigned int idx,

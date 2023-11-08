@@ -133,7 +133,7 @@ void dms_init_pl_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long 
 
 void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid, unsigned short uid)
 {
-    DLS_INIT_DR_RES(&lock->drid, type, oid, uid, 0, 0, 0);
+    DLS_INIT_DR_RES(&lock->drid, type, oid, uid, 0, CM_INVALID_ID32, CM_INVALID_ID32);
 }
 
 void dms_init_spinlock2(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid, unsigned short uid, unsigned int idx,
