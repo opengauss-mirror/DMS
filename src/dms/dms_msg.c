@@ -717,7 +717,7 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_TRUE, CM_FALSE);
     dms_ask_res_owner_id_ack_t *ack = (dms_ask_res_owner_id_ack_t *)msg.buffer;
     *owner_id = ack->owner_id;
 

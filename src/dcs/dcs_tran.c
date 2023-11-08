@@ -1209,7 +1209,7 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_owner_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_owner_ack_t), CM_TRUE, CM_FALSE);
     dms_ask_xa_owner_ack_t *ack = (dms_ask_xa_owner_ack_t *)msg.buffer;
     *owner_id = ack->owner_id;
     dms_release_recv_message(&msg);
@@ -1278,7 +1278,7 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_end_xa_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_end_xa_ack_t), CM_TRUE, CM_FALSE);
     dms_end_xa_ack_t *ack = (dms_end_xa_ack_t *)msg.buffer;
     *return_code = ack->return_code;
     dms_release_recv_message(&msg);
@@ -1355,7 +1355,7 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_inuse_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_RECV_MSG_SIZE(&msg, sizeof(dms_ask_xa_inuse_ack_t), CM_TRUE, CM_FALSE);
     dms_ask_xa_inuse_ack_t *ack = (dms_ask_xa_inuse_ack_t *)msg.buffer;
     *inuse = ack->inuse;
     
