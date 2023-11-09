@@ -71,7 +71,6 @@ extern "C" {
 #define DMS_IS_SHARE_PARTNER            (g_dms.reform_ctx.share_info.reformer_id != g_dms.inst_id)
 
 #define DMS_REFORMER_ID_FOR_BUILD       0
-#define DMS_REFORMER_ID_FOR_RST_RECOVER DMS_REFORMER_ID_FOR_BUILD
 #define DMS_FIRST_REFORM_FINISH         (g_dms.reform_ctx.reform_info.first_reform_finish)
 
 #define DMS_MAINTAIN_ENV                "DMS_MAINTAIN"

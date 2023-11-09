@@ -118,7 +118,7 @@ int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *l
     }
 
     if(reform_info->rst_recover) {
-        dms_reform_list_add(list_online, DMS_REFORMER_ID_FOR_RST_RECOVER);
+        dms_reform_list_add(list_online, (uint8)g_dms.inst_id);
         return DMS_SUCCESS;
     }
 
@@ -2058,13 +2058,6 @@ static void dms_reform_judgement_record_start_times(void)
     }
 }
 
-#ifndef OPENGAUSS
-static void dms_reform_set_reform_behavior(void)
-{
-    g_dms.callback.set_inst_behavior(g_dms.reform_ctx.handle_judge, DMS_INST_BEHAVIOR_IN_REFORM);
-}
-#endif
-
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
@@ -2135,9 +2128,6 @@ static bool32 dms_reform_judgement(uint8 *online_status)
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to sync share info");
         return CM_FALSE;
     }
-#ifndef OPENGAUSS
-    dms_reform_set_reform_behavior();
-#endif
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: Yes");
     reform_judgement_proc.print_proc(inst_lists);
     return CM_TRUE;
