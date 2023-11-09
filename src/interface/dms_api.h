@@ -87,6 +87,7 @@ typedef enum en_dms_dr_type {
     DMS_DR_TYPE_SEQVAL = 25,
     DMS_DR_TYPE_SHARED_INNODE = 26,
     DMS_DR_TYPE_PROC_ENTRY = 27,
+    DMS_DR_TYPE_PART_TABLE,
     DMS_DR_TYPE_MAX,
 } dms_dr_type_t;
 
@@ -1064,7 +1065,7 @@ typedef enum en_dms_info_id {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           110
+#define DMS_LOCAL_VERSION           111
 #ifdef __cplusplus
 }
 #endif
