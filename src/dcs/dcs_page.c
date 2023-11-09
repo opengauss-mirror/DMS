@@ -47,7 +47,7 @@ static inline int32 dcs_set_ctrl4already_owner(dms_context_t *dms_ctx, dms_buf_c
     /* owner has no edp */
     ctrl->lock_mode = mode;
     ctrl->is_edp = 0;
-
+    LOG_DEBUG_INF("[DCS][%s]: lock mode=%d, edp=%d", cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, ctrl->is_edp);
     /*
      * 1. has processed x-mode historical transfer request,
      *  buf page does not swap out and in, so it is the latest in memory
@@ -70,6 +70,7 @@ static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_
     ctrl->been_loaded = CM_TRUE;
     ctrl->break_wal = CM_FALSE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
+    LOG_DEBUG_INF("[DCS][%s]: lock mode=%d, edp=%d", cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, ctrl->is_edp);
     return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 }
 
@@ -285,6 +286,11 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
         ctrl->edp_map = (ack->edp_map) & (~(1ULL << dms_ctx->inst_id));
         ctrl->is_remote_dirty = (ctrl->edp_map != 0);
         ctrl->is_edp = 0;
+        LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"
+            "dest_sid=%d, dirty=%d, remote diry=%d, page_lsn=%llu, page_scn=%llu", cm_display_pageid(dms_ctx->resid),
+            dms_get_mescmd_msg(ack->head.cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst, msg->head->src_sid,
+            msg->head->dst_inst, msg->head->dst_sid, DCS_ACK_PAGE_IS_DIRTY(msg), DCS_ACK_PAGE_IS_REMOTE_DIRTY(msg),
+            ack->lsn, ack->scn);
 #ifndef OPENGAUSS
         if (ctrl->is_remote_dirty) {
             g_dms.callback.ckpt_enque_one_page(dms_ctx->db_handle, ctrl);
@@ -673,6 +679,8 @@ static void dcs_change_page_status(dms_process_context_t *ctx, dms_buf_ctrl_t *c
 #ifndef OPENGAUSS
             ctrl->edp_scn = g_dms.callback.get_global_scn(ctx->db_handle);
 #endif
+            LOG_DEBUG_INF("[DCS][%s]: lock mode=%d, edp=%d",
+                cm_display_pageid(req_info->resid), ctrl->lock_mode, ctrl->is_edp);
         }
     } else {
         cm_panic_log(req_info->req_mode == DMS_LOCK_SHARE, "page request mode error, req_mode=%u", req_info->req_mode);
