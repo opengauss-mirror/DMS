@@ -64,7 +64,27 @@ static int dms_reform_db_prepare(void)
 #ifdef OPENGAUSS
     return DMS_SUCCESS;
 #else
-    return g_dms.callback.db_prepare(g_dms.reform_ctx.handle_proc);
+    int ret = g_dms.callback.db_prepare(g_dms.reform_ctx.handle_proc);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (share_info->inst_bitmap[INST_LIST_NEW_JOIN] != 0) {
+        uint64 bitmap_saved = share_info->bitmap_stable;
+        bitmap64_union(&bitmap_saved, share_info->inst_bitmap[INST_LIST_NEW_JOIN]);
+
+        ret = g_dms.callback.save_list_stable(g_dms.reform_ctx.handle_proc, bitmap_saved,
+            share_info->reformer_id, share_info->bitmap_in, DMS_IS_SHARE_REFORMER);
+        if (ret != DMS_SUCCESS) {
+            LOG_RUN_ERR("[DMS REFORM]list_stable fail to save in ctrl");
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_SAVE_LIST_STABLE_FAILED);
+            return ERRNO_DMS_REFORM_SAVE_LIST_STABLE_FAILED;
+        }
+    }
+
+    return DMS_SUCCESS;
+
 #endif
 }
 
@@ -74,7 +94,11 @@ static int dms_reform_prepare(void)
     dms_reform_proc_stat_start(DMS_REFORM_STEP_PREPARE);
     LOG_RUN_FUNC_ENTER;
     dms_scrlock_stop_server();
-    dms_reform_db_prepare();
+    int ret = dms_reform_db_prepare();
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -2013,6 +2037,11 @@ static int dms_reform_done(void)
     if (DMS_IS_SHARE_REFORMER) {
         save_ctrl = CM_TRUE;
     }
+
+#ifndef OPENGAUSS
+    g_dms.callback.ckpt_unblock_rcy_local(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
+#endif
+
     ret = g_dms.callback.save_list_stable(g_dms.reform_ctx.handle_proc, share_info->bitmap_online,
         share_info->reformer_id, share_info->bitmap_in, save_ctrl);
     if (ret != DMS_SUCCESS) {

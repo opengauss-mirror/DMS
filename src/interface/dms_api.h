@@ -800,6 +800,7 @@ typedef void (*dms_reform_set_dms_role)(void *db_handle, unsigned int reformer_i
 typedef void (*dms_reset_user)(void *db_handle, unsigned long long list_in);
 typedef int (*dms_drc_xa_res_rebuild)(void *db_handle, unsigned char thread_index, unsigned char parall_num);
 typedef void (*dms_reform_shrink_xa_rms)(unsigned char undo_seg_id);
+typedef void (*dms_ckpt_unblock_rcy_local)(void *db_handle, unsigned long long list_in);
 
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
@@ -878,6 +879,7 @@ typedef struct st_dms_callback {
     dms_reset_user reset_user;
     dms_drc_xa_res_rebuild dms_reform_rebuild_xa_res;
     dms_reform_shrink_xa_rms dms_shrink_xa_rms;
+    dms_ckpt_unblock_rcy_local ckpt_unblock_rcy_local;
 
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;

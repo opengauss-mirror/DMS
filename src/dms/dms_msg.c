@@ -1896,6 +1896,73 @@ bool8 dms_cmd_need_ack(uint32 cmd)
     }
 }
 
+const dms_proto_version_attr *dms_get_version_attr(dms_proto_version_attr *version_attrs, uint32 proto_version)
+{
+    if (proto_version >= DMS_PROTO_VER_NUMS) {
+        return NULL;
+    }
+
+    while (version_attrs[proto_version].req_size == 0 && proto_version > 0) {
+        proto_version--;
+    }
+
+    if (proto_version == DMS_PROTO_VER_0) {
+        return NULL;
+    }
+
+    return &version_attrs[proto_version];
+}
+
+int dms_fill_versioned_msg_head(dms_proto_version_attr *version_attrs, dms_message_head_t *head, uint32 send_version)
+{
+    const dms_proto_version_attr *version_attr = dms_get_version_attr(version_attrs, send_version);
+    if (version_attr == NULL) {
+        return DMS_ERROR;
+    }
+
+    head->msg_proto_ver = send_version;
+    head->size = (uint16)version_attr->req_size;
+    return DMS_SUCCESS;
+}
+
+int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t *msg,
+    void *out_info, uint32 info_size)
+{
+    if (msg->head->size < (uint32)sizeof(dms_message_head_t)) {
+        LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",
+            (uint32)msg->head->cmd, (uint32)msg->head->size, (uint32)msg->head->size);
+        cm_send_error_msg(msg->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");
+        dms_release_recv_message(msg);
+        return DMS_ERROR;
+    }
+
+    /*
+     * For structure compatibility.
+     * It is required that fields can only be extended at the end of the shared_info structure.
+     * 1) When a higher version sends a message to a lower version, This is an illegal scenario and returns failure.
+     * 2) When the lower version sends a message to the higher version, the new fields at the end will be set to
+     * 3) If the message is sent from the same version, the message will be copied normally.
+     **/
+    dms_message_head_t *msg_head = (dms_message_head_t *)(msg->buffer);
+    const dms_proto_version_attr *version_attr = dms_get_version_attr(version_attrs, msg_head->msg_proto_ver);
+    if (version_attr == NULL) {
+        LOG_DEBUG_ERR("recv invalid msg, msg_size=%u, req_size=%u", msg_head->size, version_attr->req_size);
+        cm_send_error_msg(msg->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");
+        dms_release_recv_message(msg);
+        return DMS_ERROR;
+    }
+
+    if (version_attr->req_size < info_size) {
+        (void)memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
+        uint32 remain_size = info_size - msg_head->size;
+        (void)memset_s(((uchar *)out_info) + msg_head->size, remain_size, 0, remain_size);
+    } else {
+        (void)memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
+    }
+
+    return DMS_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif

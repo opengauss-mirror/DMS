@@ -1272,6 +1272,10 @@ static void dms_reform_judgement_list_collect(instance_list_t *inst_lists, uint8
     // bitmap_in is not only used in the connect scenario,
     // but also used in ss_cb_save_list_stable to unblock rcy for old_join nodes and new_join nodes.
     dms_reform_list_to_bitmap(&share_info->bitmap_in, &inst_lists[INST_LIST_OLD_IN]);
+
+    for (int inst_type = 0; inst_type < INST_LIST_TYPE_COUNT; inst_type++) {
+        dms_reform_list_to_bitmap(&share_info->inst_bitmap[inst_type], &inst_lists[inst_type]);
+    }
 }
 
 static void dms_reform_judgement_set_phase(reform_phase_t reform_phase)
@@ -1872,14 +1876,6 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
     share_info_t *share_info = DMS_SHARE_INFO;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    // treat full_clean as priority
-    if (dms_reform_list_cmp(&share_info->list_online, &share_info->list_stable) &&
-        dms_reform_list_cmp(&share_info->list_online, &list[INST_LIST_OLD_IN]) &&
-        share_info->full_clean) {
-        share_info->reform_type = DMS_REFORM_TYPE_FOR_FULL_CLEAN;
-        return;
-    }
-
     // database recover for restore, should before build database
     if (reform_info->rst_recover) {
         share_info->reform_type = DMS_REFORM_TYPE_FOR_RST_RECOVER;
@@ -1958,10 +1954,12 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc[DMS_REFORM_TYPE_COUNT
 static int dms_reform_sync_share_info_r(uint8 dst_id)
 {
     dms_reform_req_sync_share_info_t req;
-    int ret = DMS_SUCCESS;
 
-    dms_reform_init_req_sync_share_info(&req, dst_id);
-    
+    int ret = dms_reform_init_req_sync_share_info(&req, dst_id);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_share_info_r SEND error: %d, dst_id: %d", ret, dst_id);
