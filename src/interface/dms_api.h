@@ -28,6 +28,12 @@
 extern "C" {
 #endif
 
+#define DMS_LOCAL_MAJOR_VER_WEIGHT  1000000
+#define DMS_LOCAL_MINOR_VER_WEIGHT  1000
+#define DMS_LOCAL_MAJOR_VERSION     0
+#define DMS_LOCAL_MINOR_VERSION     0
+#define DMS_LOCAL_VERSION           112
+
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
 #ifdef OPENGAUSS
@@ -846,6 +852,7 @@ typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long 
     unsigned char is_commit);
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
+typedef void (*dms_edpp_func_t)(void *db_handle, dms_buf_ctrl_t *buf_ctrl);
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -990,6 +997,8 @@ typedef struct st_dms_callback {
     dms_end_xa end_xa;
     dms_xa_inuse xa_inuse;
     dms_get_part_changed get_part_changed;
+
+    dms_edpp_func_t cache_page;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1061,11 +1070,6 @@ typedef enum en_dms_info_id {
     DMS_INFO_REFORM_LAST = 1,
 } dms_info_id_e;
 
-#define DMS_LOCAL_MAJOR_VER_WEIGHT  1000000
-#define DMS_LOCAL_MINOR_VER_WEIGHT  1000
-#define DMS_LOCAL_MAJOR_VERSION     0
-#define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           111
 #ifdef __cplusplus
 }
 #endif

@@ -250,10 +250,16 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
 #ifdef OPENGAUSS
         ctrl->seg_fileno = ack->seg_fileno;
         ctrl->seg_blockno = ack->seg_blockno;
-#endif
         if (g_dms.callback.verify_page != NULL) {
             g_dms.callback.verify_page(ctrl, msg->buffer + sizeof(dms_ask_res_ack_t));
         }
+#else
+        // cache edp page when receive page which breaks wal
+        if (ctrl->is_edp && !ctrl->break_wal && ack->break_wal) {
+            g_dms.callback.cache_page(dms_ctx->db_handle, ctrl);
+            ctrl->break_wal = CM_TRUE;
+        }
+#endif
         int ret = memcpy_s(g_dms.callback.get_page(ctrl), g_dms.page_size, msg->buffer + sizeof(dms_ask_res_ack_t),
             g_dms.page_size);
         DMS_SECUREC_CHECK(ret);
