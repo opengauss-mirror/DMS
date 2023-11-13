@@ -194,7 +194,10 @@ typedef struct st_version_info {
     uint8               unused[3];
 } version_info_t;
 
+#pragma pack(4)
+/* Tips: Byte alignment is required, padding is not allowed */
 typedef struct st_share_info {
+    /* ============= start version 1 =================*/
     reform_step_t       reform_step[DMS_REFORM_STEP_TOTAL_COUNT];
     reform_phase_t      reform_phase[DMS_REFORM_PHASE_TOTAL_COUNT];
     instance_list_t     list_stable;
@@ -233,7 +236,14 @@ typedef struct st_share_info {
     uint64              start_times[DMS_MAX_INSTANCES];
     date_t              judge_time;
     uint32              proto_version;
+    /* ============= end version 1 =================*/
+
+    /* ============= start version 2 =================*/
+    uint64              inst_bitmap[INST_LIST_TYPE_COUNT];
+    /* ============= end version 2 =================*/
 } share_info_t;
+
+#pragma pack()
 
 typedef struct st_rebuild_info {
     void                *rebuild_data[DMS_MAX_INSTANCES];

@@ -74,7 +74,7 @@ typedef struct st_dms_reform_req_sync_xa_owners {
     uint64 bitmap_has_xa;
 } dms_reform_req_sync_xa_owners_t;
 
-void dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id);
+int dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id);
 int dms_reform_req_sync_share_info_wait(uint64 ruid);
 void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 

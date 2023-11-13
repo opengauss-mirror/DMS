@@ -33,6 +33,11 @@
 #include "dcs_page.h"
 #include "dms_reform_xa.h"
 
+static dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
+     [DMS_PROTO_VER_1] = { OFFSET_OF(dms_reform_req_sync_share_info_t, share_info.inst_bitmap), },
+     [DMS_PROTO_VER_2] = { sizeof(dms_reform_req_sync_share_info_t) },
+};
+
 static int dms_reform_req_common_wait(uint64 ruid)
 {
     dms_message_t res;
@@ -70,15 +75,19 @@ int dms_reform_send_data(dms_message_head_t *msg_head, uint32 sess_id)
 }
 
 // notify partner reform, sync share info
-void dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id)
+int dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
     share_info_t *share_info = DMS_SHARE_INFO;
 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_SYNC_SHARE_INFO, 0, g_dms.inst_id, dst_id, reform_context->sess_judge,
         CM_INVALID_ID16);
-    req->head.size = (uint16)sizeof(dms_reform_req_sync_share_info_t);
+    int ret = dms_fill_versioned_msg_head(g_req_share_info_version_ctrl, &req->head, share_info->proto_version);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
     req->share_info = *share_info;
+    return DMS_SUCCESS;
 }
 
 static void dms_reform_ack_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -97,23 +106,27 @@ static void dms_reform_ack_sync_share_info(dms_process_context_t *process_ctx, d
 
 void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_share_info_t), CM_TRUE, CM_TRUE);
-    dms_reform_req_sync_share_info_t *req = (dms_reform_req_sync_share_info_t *)receive_msg->buffer;
+    dms_reform_req_sync_share_info_t req;
+    int ret = dms_recv_versioned_msg(g_req_share_info_version_ctrl, receive_msg, &req, sizeof(req));
+    if (ret != DMS_SUCCESS) {
+        return;
+    }
+
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
 
-    if (SECUREC_UNLIKELY(req->share_info.reform_type >= DMS_REFORM_TYPE_COUNT ||
-        req->share_info.reform_step_count > DMS_REFORM_STEP_TOTAL_COUNT ||
-        req->share_info.list_stable.inst_id_count > g_dms.inst_cnt ||
-        req->share_info.list_online.inst_id_count > g_dms.inst_cnt ||
-        req->share_info.list_offline.inst_id_count > g_dms.inst_cnt ||
-        req->share_info.list_reconnect.inst_id_count > g_dms.inst_cnt ||
-        req->share_info.list_disconnect.inst_id_count > g_dms.inst_cnt)) {
+    if (SECUREC_UNLIKELY(req.share_info.reform_type >= DMS_REFORM_TYPE_COUNT ||
+        req.share_info.reform_step_count > DMS_REFORM_STEP_TOTAL_COUNT ||
+        req.share_info.list_stable.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_online.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_offline.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_reconnect.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_disconnect.inst_id_count > g_dms.inst_cnt)) {
         dms_release_recv_message(receive_msg);
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
         return;
     }
 
-    share_info_t *received_share_info = &req->share_info;
+    share_info_t *received_share_info = &req.share_info;
     share_info_t *local_share_info = &reform_context->share_info;
     reform_info_t *local_reform_info = &reform_context->reform_info;
     cm_spin_lock(&reform_context->share_info_lock, NULL);
@@ -127,7 +140,7 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
         return;
     }
 
-    reform_context->share_info = req->share_info;
+    reform_context->share_info = req.share_info;
     cm_spin_unlock(&reform_context->share_info_lock);
     dms_reform_ack_sync_share_info(process_ctx, receive_msg);
     dms_release_recv_message(receive_msg);
