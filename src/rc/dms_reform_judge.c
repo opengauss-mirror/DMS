@@ -96,13 +96,14 @@ int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *l
     dms_reform_list_init(list_online);
     dms_reform_list_init(list_offline);
     dms_reform_list_init(&list_unknown);
-    if (!reform_info->build_complete) {
-        dms_reform_list_add(list_online, DMS_REFORMER_ID_FOR_BUILD);
-        return DMS_SUCCESS;
-    }
 
     if(reform_info->rst_recover) {
         dms_reform_list_add(list_online, (uint8)g_dms.inst_id);
+        return DMS_SUCCESS;
+    }
+
+    if (!reform_info->build_complete) {
+        dms_reform_list_add(list_online, DMS_REFORMER_ID_FOR_BUILD);
         return DMS_SUCCESS;
     }
 
