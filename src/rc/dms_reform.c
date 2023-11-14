@@ -105,12 +105,22 @@ static void dms_reform_proc_set_running(void)
     cm_sem_post(&reform_context->sem_proc);
 }
 
+#ifndef OPENGAUSS
+static void dms_reform_set_reform_behavior(void)
+{
+    g_dms.callback.set_inst_behavior(g_dms.reform_ctx.handle_judge, DMS_INST_BEHAVIOR_IN_REFORM);
+}
+#endif
+
 void dms_reform_set_start(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     LOG_RUN_INF("[DMS REFORM]dms_reform_set_start");
+#ifndef OPENGAUSS
+    dms_reform_set_reform_behavior();
+#endif
     reform_info->reform_fail = CM_FALSE;
     reform_info->true_start = CM_FALSE;
     reform_info->reform_done = CM_FALSE;
