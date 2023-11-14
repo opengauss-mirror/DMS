@@ -86,22 +86,6 @@ static void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *li
     *list_dst = list_result;
 }
 
-static bool32 dms_reform_list_cmp(instance_list_t *list1, instance_list_t *list2)
-{
-    if (list1->inst_id_count != list2->inst_id_count) {
-        return CM_FALSE;
-    }
-
-    // instance id in list must be in order, so we can compare instance id one by one
-    for (uint8 i = 0; i < list1->inst_id_count; i++) {
-        if (list1->inst_id_list[i] != list2->inst_id_list[i]) {
-            return CM_FALSE;
-        }
-    }
-
-    return CM_TRUE;
-}
-
 // get online offline unknown list from CMS
 int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline)
 {
@@ -273,7 +257,6 @@ static int dms_reform_connect(instance_list_t *list_online)
     int ret = DMS_SUCCESS;
 
     dms_reform_list_to_bitmap(&bitmap_online, list_online);
-    reform_info->bitmap_online = bitmap_online;
     bitmap64_minus(&bitmap_online, reform_info->bitmap_mes);
     dms_reform_bitmap_to_list(&list_reconnect, bitmap_online);
 
@@ -1273,8 +1256,8 @@ static void dms_reform_judgement_list_collect(instance_list_t *inst_lists, uint8
     // but also used in ss_cb_save_list_stable to unblock rcy for old_join nodes and new_join nodes.
     dms_reform_list_to_bitmap(&share_info->bitmap_in, &inst_lists[INST_LIST_OLD_IN]);
 
-    for (int inst_type = 0; inst_type < INST_LIST_TYPE_COUNT; inst_type++) {
-        dms_reform_list_to_bitmap(&share_info->inst_bitmap[inst_type], &inst_lists[inst_type]);
+    for (int i = 0; i < INST_LIST_TYPE_COUNT; i++) {
+        dms_reform_list_to_bitmap(&share_info->inst_bitmap[i], &inst_lists[i]);
     }
 }
 
@@ -1846,6 +1829,22 @@ static void dms_reform_judgement_refresh_reform_info(void)
 #endif
 
 #ifdef OPENGAUSS
+static bool32 dms_reform_list_cmp(instance_list_t *list1, instance_list_t *list2)
+{
+    if (list1->inst_id_count != list2->inst_id_count) {
+        return CM_FALSE;
+    }
+
+    // instance id in list must be in order, so we can compare instance id one by one
+    for (uint8 i = 0; i < list1->inst_id_count; i++) {
+        if (list1->inst_id_list[i] != list2->inst_id_list[i]) {
+            return CM_FALSE;
+        }
+    }
+
+    return CM_TRUE;
+}
+
 static void dms_reform_judgement_reform_type(instance_list_t *list)
 {
     share_info_t *share_info = DMS_SHARE_INFO;

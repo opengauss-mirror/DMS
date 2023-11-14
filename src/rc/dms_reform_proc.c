@@ -131,11 +131,8 @@ static int dms_reform_reconnect_inner(void)
     if (ret != DMS_SUCCESS) {
         return ret;
     }
-#ifdef OPENGAUSS
     reform_info->bitmap_connect = share_info->bitmap_online;
-#else
-    reform_info->bitmap_connect = share_info->bitmap_in;
-#endif
+    reform_info->bitmap_in = share_info->bitmap_in;
     return DMS_SUCCESS;
 }
 
@@ -154,6 +151,7 @@ static int dms_reform_disconnect(void)
     cm_spin_unlock(&reform_info->mes_lock);
 #endif
     reform_info->bitmap_connect = share_info->bitmap_online;
+    reform_info->bitmap_in = share_info->bitmap_in;
 
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
@@ -2012,7 +2010,6 @@ static void dms_reform_end(void)
     int ret = memset_s(&share_info, sizeof(share_info_t), 0, sizeof(share_info_t));
     DMS_SECUREC_CHECK(ret);
 
-    reform_info->ddl_unable = CM_FALSE;
     reform_info->file_unable = CM_FALSE;
     reform_info->reform_done = CM_TRUE;
     reform_info->reform_fail =  CM_FALSE;
@@ -2129,8 +2126,7 @@ static int dms_reform_bcast_enable(void)
     share_info_t *share_info = DMS_SHARE_INFO;
 
     LOG_RUN_FUNC_ENTER;
-    reform_info->bitmap_connect = share_info->bitmap_online;
-    reform_info->ddl_unable = CM_FALSE;
+    reform_info->bitmap_in = share_info->bitmap_online;
     reform_info->file_unable = CM_FALSE;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
@@ -2142,10 +2138,6 @@ static int dms_reform_bcast_unable(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     LOG_RUN_FUNC_ENTER;
-    // Notice: must set ddl unable before set bcast unable
-    cm_latch_x(&reform_info->ddl_latch, g_dms.reform_ctx.sess_proc, NULL);
-    reform_info->ddl_unable = CM_TRUE;
-    cm_unlatch(&reform_info->ddl_latch, NULL);
     cm_latch_x(&reform_info->file_latch, g_dms.reform_ctx.sess_proc, NULL);
     reform_info->file_unable = CM_TRUE;
     cm_unlatch(&reform_info->file_latch, NULL);

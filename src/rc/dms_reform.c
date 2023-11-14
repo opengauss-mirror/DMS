@@ -310,6 +310,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
     reform_info->rst_recover = (bool8)rst_recover;
     reform_info->maintain = dms_reform_get_maintain();
     reform_info->file_unable = CM_FALSE;
+    reform_info->ddl_unable = CM_FALSE;
 #endif
     if (reform_info->build_complete && !reform_info->maintain) {
         ret = dms_reform_cm_res_init();
@@ -533,23 +534,6 @@ int dms_is_reformer(void)
 int dms_is_share_reformer(void)
 {
     return DMS_IS_SHARE_REFORMER ? CM_TRUE : CM_FALSE;
-}
-
-void dms_ddl_enter(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    cm_latch_s(&reform_info->ddl_latch, 0, CM_FALSE, NULL);
-    while (reform_info->ddl_unable) {
-        cm_unlatch(&reform_info->ddl_latch, NULL);
-        DMS_REFORM_SHORT_SLEEP;
-        cm_latch_s(&reform_info->ddl_latch, 0, CM_FALSE, NULL);
-    }
-}
-
-void dms_ddl_leave(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    cm_unlatch(&reform_info->ddl_latch, NULL);
 }
 
 void dms_file_enter(void)

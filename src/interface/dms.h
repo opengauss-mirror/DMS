@@ -775,9 +775,6 @@ DMS_DECLARE void dms_set_reform_continue(void);
 DMS_DECLARE int dms_is_reformer(void);
 DMS_DECLARE int dms_is_share_reformer(void);
 
-DMS_DECLARE void dms_ddl_enter(void);
-DMS_DECLARE void dms_ddl_leave(void);
-
 DMS_DECLARE void dms_file_enter(void);
 DMS_DECLARE void dms_file_leave(void);
 

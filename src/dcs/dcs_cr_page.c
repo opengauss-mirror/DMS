@@ -145,6 +145,10 @@ static int dcs_handle_pcr_result(dms_process_context_t *ctx,
         case DMS_CR_STATUS_ABORT:
             ret = DMS_ERROR;
             break;
+        case DMS_CR_STATUS_DB_NOT_READY:
+            LOG_DEBUG_INF("[DCS]dcs_handle_pcr_result, db is not ready");
+            ret = DMS_SUCCESS;
+            break;
         case DMS_CR_STATUS_INVISIBLE_TXN:
             /* it's impossible here, because local invisible transaction has been rollbacked */
             /* fall-through */
@@ -762,6 +766,9 @@ static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
             break;
         case DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN:
             ret = dcs_send_check_visible(ctx, check, pcr.relay_inst);
+            break;
+        case DMS_CR_STATUS_DB_NOT_READY:
+            LOG_DEBUG_INF("[DCS]dcs_heap_check_visible, db is not ready");
             break;
         case DMS_CR_STATUS_PENDING_TXN:
             /* DMS_CR_STATUS_PENDING_TXN will be ignored in check_heap_page_visible callback function */

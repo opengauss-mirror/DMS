@@ -262,7 +262,6 @@ typedef struct st_log_point {
 } log_point_t;
 
 typedef struct st_reform_info {
-    latch_t             ddl_latch;
     latch_t             file_latch;
     uint64              max_scn;
     spinlock_t          version_lock;
@@ -304,7 +303,7 @@ typedef struct st_reform_info {
     bool8               rst_recover;            // recover after restore for Gauss100
     uint8               unused[1];
     log_point_t         curr_points[DMS_MAX_INSTANCES];
-    uint64              bitmap_online;
+    uint64              bitmap_in;
 } reform_info_t;
 
 typedef struct st_switchover_info {
