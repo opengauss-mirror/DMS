@@ -159,7 +159,7 @@ int32 dls_handle_already_owner_ack(dms_context_t *dms_ctx,
 int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
-    CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE);
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);
     return DMS_SUCCESS;
 }

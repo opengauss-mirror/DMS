@@ -321,14 +321,13 @@ void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, dms_messag
     dms_ctx.edp_inst = receive_msg->head->src_inst;
 
     uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    dms_release_recv_message(receive_msg);
     return;
 }
 
@@ -341,14 +340,13 @@ void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, dms_message
     dms_ctx.db_handle = process_ctx->db_handle;
 
     uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    dms_release_recv_message(receive_msg);
     return;
 }
 
@@ -361,14 +359,13 @@ void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, dms_messa
     dms_ctx.db_handle = process_ctx->db_handle;
 
     uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    dms_release_recv_message(receive_msg);
     return;
 }
 
@@ -381,13 +378,12 @@ void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, dms_messag
     dms_ctx.db_handle = process_ctx->db_handle;
 
     uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     uint32 count = *(uint32 *)(receive_msg->buffer + sizeof(dms_message_head_t));
     total_size += (uint32)(count * sizeof(dms_edp_info_t));
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
-    dms_release_recv_message(receive_msg);
     return;
 }

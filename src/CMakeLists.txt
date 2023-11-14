@@ -7,6 +7,7 @@ endif (ENABLE_FUZZASAN)
 include_directories(${DMS_SECUREC_INC_PATH})
 include_directories(${DMS_OPENSSL_PATH})
 include_directories(${ZLIB_INC_PATH})
+include_directories(${LZ4_INC_PATH})
 include_directories(${DMS_CBB_PATH})
 
 ## source
@@ -32,7 +33,7 @@ set(SRC_DMS_LIST ${COMMON_SRC} ${DCS_SRC} ${DLS_SRC} ${DRC_SRC} ${DMS_SRC} ${RC_
 add_library(dms SHARED ${SRC_DMS_LIST})
 
 if (ENABLE_FUZZASAN)
-    target_link_libraries(dms pthread dl rt -Wl,--whole-archive ${vpp_libsecurec} ${3rd_libssl} ${3rd_libccb} ${vpp_libipsi_crypto} ${fuzz_lib} -Wl,--no-whole-archive)
+    target_link_libraries(dms pthread dl rt -Wl,--whole-archive ${vpp_libsecurec} ${3rd_libssl} ${lz4} ${3rd_libccb} ${vpp_libipsi_crypto} ${fuzz_lib} -Wl,--no-whole-archive)
 else()
-    target_link_libraries(dms pthread dl rt -Wl,--whole-archive ${vpp_libsecurec} ${3rd_libssl} ${3rd_libccb} ${vpp_libipsi_crypto} -Wl,--no-whole-archive)
+    target_link_libraries(dms pthread dl rt -Wl,--whole-archive ${vpp_libsecurec} ${3rd_libssl} ${lz4} ${3rd_libccb} ${vpp_libipsi_crypto} -Wl,--no-whole-archive)
 endif(ENABLE_FUZZASAN)

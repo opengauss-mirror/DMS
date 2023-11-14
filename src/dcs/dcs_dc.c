@@ -37,7 +37,7 @@ extern "C" {
 
 void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
     uint32 output_msg_len = 0;
     char output_msg[DCS_BROADCAST_OUTPUT_MSG_LEN] = {0};
     dms_message_head_t *head = (dms_message_head_t *)(receive_msg->buffer);
@@ -86,7 +86,7 @@ static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 time
     ret = mfc_get_broadcast_res_with_msg(ruid, timeout, expect_inst, &recv_msg);
     if (ret == DMS_SUCCESS) {
         ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
-        mfc_release_mes_msglist(&recv_msg);
+        mfc_release_broadcast_response(&recv_msg);
     }
     return ret;
 }
@@ -117,7 +117,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
             ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
-            mfc_release_mes_msglist(&recv_msg);
+            mfc_release_broadcast_response(&recv_msg);
         }
     }
     if (ret != DMS_SUCCESS) {
@@ -171,10 +171,9 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg
 #ifdef OPENGAUSS
     cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BOC, DMS_ERROR);
 #else
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dcs_boc_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dcs_boc_req_t), CM_TRUE);
     dcs_boc_req_t *boc_req = (dcs_boc_req_t *)(receive_msg->buffer);
     if (boc_req->inst_id >= DMS_MAX_INSTANCES) {
-        dms_release_recv_message(receive_msg);
         LOG_DEBUG_ERR("[DCS]%s instance id %u is invalid", __FUNCTION__, boc_req->inst_id);
         return;
     }

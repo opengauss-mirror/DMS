@@ -97,7 +97,7 @@ static bool8 mfc_try_get_ticket(uint8 dst_inst)
  */
 static unsigned int inline mfc_get_mes_flag(dms_message_head_t *msg)
 {
-    unsigned int flag = dms_msg_group_id(msg->cmd);
+    unsigned int flag = dms_get_mes_prio_by_cmd(msg->cmd);
     CM_ASSERT(flag <= MES_FLAG_SERIAL);
     return flag;
 }
@@ -368,7 +368,7 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
     dms_consume_with_time(response->head->cmd, start_stat_time, ret);
     if (DMS_MFC_OFF) {
         if (dms_check_if_protocol_compatibility_error(ret)) {
-            mfc_release_mes_msg(&msg);
+            mes_release_msg(&msg);
         }
         return ret;
     }
@@ -376,7 +376,7 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
     CM_ASSERT(response->head->cmd >= MSG_ACK_BEGIN);
     mfc_add_tickets(&g_dms.mfc.remain_tickets[response->head->src_inst], response->head->tickets);
     if (dms_check_if_protocol_compatibility_error(ret)) {
-        mfc_release_mes_msg(&msg);
+        mes_release_msg(&msg);
     }
     return ret;
 }
@@ -397,7 +397,7 @@ static void mfc_add_tickets_and_release_msg(mes_msg_list_t *recv_msg)
         msg.head = (dms_message_head_t *)recv_msg->messages[i].buffer;
         msg.buffer = recv_msg->messages[i].buffer;
         mfc_add_tickets(&g_dms.mfc.remain_tickets[msg.head->src_inst], msg.head->tickets);
-        dms_release_recv_message(&msg);
+        mfc_release_response(&msg);
     }
 }
 
@@ -489,7 +489,7 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
         ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
         DMS_RETURN_IF_ERROR(ret);
         ret = mfc_check_broadcast_res(&responses, CM_FALSE, expect_insts, &recv_succ_insts);
-        mfc_release_mes_msglist(&responses);
+        mfc_release_broadcast_response(&responses);
         return ret;
     }
 
@@ -521,7 +521,7 @@ int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint
         ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
         DMS_RETURN_IF_ERROR(ret);
         ret = mfc_check_broadcast_res(&responses, CM_TRUE, expect_insts, succ_insts);
-        mfc_release_mes_msglist(&responses);
+        mfc_release_broadcast_response(&responses);
         return ret;
     }
 
@@ -548,7 +548,7 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
         DMS_RETURN_IF_ERROR(ret);
         ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
         if (ret != DMS_SUCCESS) {
-            mfc_release_mes_msglist(msg_list);
+            mfc_release_broadcast_response(msg_list);
         }
         return ret;
     }
@@ -558,7 +558,7 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
     ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
     mfc_wait_acks_add_tickets(msg_list);
     if (ret != DMS_SUCCESS) {
-        mfc_release_mes_msglist(msg_list);
+        mfc_release_broadcast_response(msg_list);
     }
     return ret;
 }
@@ -574,7 +574,7 @@ int mfc_add_instance_batch(const unsigned char *inst_id_list, unsigned char inst
         if (g_dms.inst_id == inst_id) {
             continue;
         }
-        ret = mes_add_instance(inst_id, 0, 0);
+        ret = mes_connect_instance(inst_id);
         if (ret != CM_SUCCESS && ret != ERR_MES_IS_CONNECTED) {
             LOG_RUN_ERR("failed to add instance %d", inst_id);
             return ret;
@@ -617,7 +617,7 @@ int mfc_del_instance_batch(const unsigned char *inst_id_list, unsigned char inst
         if (g_dms.inst_id == inst_id) {
             continue;
         }
-        ret = mes_del_instance(inst_id);
+        ret = mes_disconnect_instance(inst_id);
         if (ret != CM_SUCCESS) {
             LOG_RUN_ERR("failed to del instance %d", inst_id);
             return ret;

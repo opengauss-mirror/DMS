@@ -72,6 +72,7 @@ typedef struct st_dms_instance {
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
 
+#define DMS_PRIORITY_COMPRESS_LEVEL 0
 #define DMS_BUFFER_POOL_NUM (3)
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)
 #define DMS_FIRST_BUFFER_LENGTH (64)
@@ -80,10 +81,19 @@ typedef struct st_dms_instance {
 #define DMS_CKPT_NOTIFY_TASK_RATIO (1.0f / 4)
 #define DMS_CLEAN_EDP_TASK_RATIO (1.0f / 4)
 #define DMS_TXN_INFO_TASK_RATIO (1.0f / 16)
+#define DMS_RECV_WORK_THREAD_RATIO (1.0f / 4)
 #define DMS_FIRST_BUFFER_RATIO (1.0f / 4)
 #define DMS_SECOND_BUFFER_RATIO (1.0f / 4)
 #define DMS_THIRDLY_BUFFER_RATIO (1.0f / 2)
 #define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
+#define DMS_WORK_THREAD_PRIO_0      2
+#define DMS_WORK_THREAD_PRIO_1      1
+#define DMS_WORK_THREAD_PRIO_2      1
+#define DMS_CURR_PRIORITY_COUNT     4
+
+#define DMS_RECV_THREAD_PRIO_0 MAX(1, (uint32)(DMS_WORK_THREAD_PRIO_0 * DMS_RECV_WORK_THREAD_RATIO))
+#define DMS_RECV_THREAD_PRIO_1 MAX(1, (uint32)(DMS_WORK_THREAD_PRIO_1 * DMS_RECV_WORK_THREAD_RATIO))
+#define DMS_RECV_THREAD_PRIO_2 MAX(1, (uint32)(DMS_WORK_THREAD_PRIO_2 * DMS_RECV_WORK_THREAD_RATIO))
 
 #define DMS_CM_MAX_SESSIONS 16320
 #define DMS_CS_TYPE_TCP (1)
@@ -116,7 +126,7 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
     return (cmd < MSG_CMD_CEIL) ? g_dms.processors[cmd].name : "INVALID";
 }
 
-mes_task_group_id_t dms_msg_group_id(uint32 cmd);
+unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
 
 #ifdef __cplusplus

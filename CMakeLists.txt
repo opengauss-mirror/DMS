@@ -140,19 +140,21 @@ set(DMS_SECUREC_INC_PATH        "${CMAKE_CURRENT_SOURCE_DIR}/library/huawei_secu
 set(DMS_OPENSSL_PATH            "${CMAKE_CURRENT_SOURCE_DIR}/library/openssl/include")
 set(DMS_CBB_PATH                "${CMAKE_CURRENT_SOURCE_DIR}/library/cbb/include")
 set(ZLIB_INC_PATH               "${CMAKE_CURRENT_SOURCE_DIR}/library/zlib/include/")
+set(LZ4_INC_PATH                "${CMAKE_CURRENT_SOURCE_DIR}/library/lz4/include/")
 
 ## lib
 set(SECUREC_LIB_PATH            "${CMAKE_CURRENT_SOURCE_DIR}/library/huawei_security/lib")
 set(OPENSSL_LIB_PATH            "${CMAKE_CURRENT_SOURCE_DIR}/library/openssl/lib")
 set(CBB_LIB_PATH                "${CMAKE_CURRENT_SOURCE_DIR}/library/cbb/lib")
 set(ZLIB_PATH                   "${CMAKE_CURRENT_SOURCE_DIR}/library/zlib/lib/")
+set(LZ4_PATH                    "${CMAKE_CURRENT_SOURCE_DIR}/library/lz4/lib/")
 
 ## output path
 set (LIBRARY_OUTPUT_PATH        ${CMAKE_CURRENT_SOURCE_DIR}/output/lib)
 set (EXECUTABLE_OUTPUT_PATH     ${CMAKE_CURRENT_SOURCE_DIR}/output/bin)
 
 ## add source
-link_directories(${LIBRARY_OUTPUT_PATH} ${SECUREC_LIB_PATH} ${OPENSSL_LIB_PATH} ${ZLIB_PATH} ${CBB_LIB_PATH})
+link_directories(${LIBRARY_OUTPUT_PATH} ${SECUREC_LIB_PATH} ${OPENSSL_LIB_PATH} ${ZLIB_PATH} ${LZ4_PATH} ${CBB_LIB_PATH})
 
 CONFIGURE_FILE(config.h.in ${DMS_COMMON_PATH}/config.h)
 
@@ -166,6 +168,7 @@ set(vpp_libipsi_crypto "libcrypto.a")
 set(3rd_libssl "libssl.a")
 set(3rd_libccb "libcbb.a")
 set(zlib "libz.a")
+set(lz4 "lz4")
 
 add_subdirectory(src)
 

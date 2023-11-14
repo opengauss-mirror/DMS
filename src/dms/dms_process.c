@@ -339,7 +339,6 @@ void dms_protocol_send_ack_version_not_match(dms_process_context_t *ctx, dms_mes
             ack_msg.head.src_inst, ack_msg.head.src_sid, ack_msg.head.dst_inst, ack_msg.head.dst_sid, ack_msg.result,
             ack_msg.head.msg_proto_ver, recv_head->cmd, recv_head->msg_proto_ver, recv_head->sw_proto_ver,
             DMS_SW_PROTO_VER);
-        dms_release_recv_message(receive_msg);
         return;
     }
     LOG_RUN_INF("[DMS PROTOCOL] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, "
@@ -348,7 +347,6 @@ void dms_protocol_send_ack_version_not_match(dms_process_context_t *ctx, dms_mes
         ack_msg.head.src_inst, ack_msg.head.src_sid, ack_msg.head.dst_inst, ack_msg.head.dst_sid, ack_msg.result,
         ack_msg.head.msg_proto_ver, recv_head->cmd, recv_head->msg_proto_ver, recv_head->sw_proto_ver,
         DMS_SW_PROTO_VER);
-    dms_release_recv_message(receive_msg);
     return;
 }
 
@@ -375,7 +373,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             "src_sid:%u, dest_sid:%u, finish dms init:%u", 
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        mfc_release_mes_msg(mes_msg);
         return;
     }
 
@@ -395,8 +392,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         if (!pass_check) {
             if (dms_cmd_need_ack(head->cmd)) {
                 dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_TRUE);
-            } else {
-                mfc_release_mes_msg(mes_msg);
             }
             return;
         }
@@ -417,7 +412,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid,
             (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        mfc_release_mes_msg(mes_msg);
         dms_unlock_instance_s(head->cmd);
         return;
     }
@@ -525,34 +519,41 @@ static void dms_deinit_proc_ctx(void)
 
 void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
 {
-    uint32 pool_idx = 0;
+    for (int i = MES_PRIORITY_ZERO; i < DMS_CURR_PRIORITY_COUNT; i++) {
+        uint32 pool_idx = 0;
 
-    profile->buffer_pool_attr.pool_count = DMS_BUFFER_POOL_NUM;
-    profile->buffer_pool_attr.queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
+        profile->buffer_pool_attr[i].pool_count = DMS_BUFFER_POOL_NUM;
+        profile->buffer_pool_attr[i].queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
 
-    // 64 buffer pool
-    profile->buffer_pool_attr.buf_attr[pool_idx].count =
-        (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
-    profile->buffer_pool_attr.buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
+        // 64 buffer pool
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
+            (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
+        if (i != MES_PRIORITY_THREE) {
+            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+        }
 
-    // 128 buffer pool
-    pool_idx++;
-    profile->buffer_pool_attr.buf_attr[pool_idx].count =
-        (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
-    profile->buffer_pool_attr.buf_attr[pool_idx].size = DMS_SECOND_BUFFER_LENGTH;
+        // 128 buffer pool
+        pool_idx++;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
+            (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_SECOND_BUFFER_LENGTH;
+        if (i != MES_PRIORITY_THREE) {
+            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+        }
 
-    // 32k buffer pool
-    pool_idx++;
-    profile->buffer_pool_attr.buf_attr[pool_idx].count =
-        (uint32)(recv_msg_buf_size * DMS_THIRDLY_BUFFER_RATIO) / DMS_THIRD_BUFFER_LENGTH;
-    profile->buffer_pool_attr.buf_attr[pool_idx].size = DMS_THIRD_BUFFER_LENGTH;
+        // 32k buffer pool
+        pool_idx++;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
+            (uint32)(recv_msg_buf_size * DMS_THIRDLY_BUFFER_RATIO) / DMS_THIRD_BUFFER_LENGTH;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_THIRD_BUFFER_LENGTH;
+        if (i != MES_PRIORITY_THREE) {
+            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+        }
+    }
 }
 
-#define DMS_WORK_THREAD_TASK_GROUP1     2
-#define DMS_WORK_THREAD_TASK_GROUP2     1
-#define DMS_WORK_THREAD_TASK_GROUP3     1
-
-mes_task_group_id_t dms_msg_group_id(uint32 cmd)
+unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 {
     switch (cmd) {
         case MSG_REQ_SYNC_STEP:
@@ -562,19 +563,19 @@ mes_task_group_id_t dms_msg_group_id(uint32 cmd)
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHECK_REFORM_DONE:
-            return MES_TASK_GROUP_ONE;      // group one is used for reform
+            return MES_PRIORITY_ZERO;      // priority 0 is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
-            return MES_TASK_GROUP_TWO;      // group two is used for ddl sync
+            return MES_PRIORITY_ONE;      // priority 1 is used for ddl sync
         case MSG_REQ_SYNC_NEXT_STEP:        // next step may sync last reform fail
         case MSG_REQ_MAP_INFO:
         case MSG_REQ_REFORM_PREPARE:
         case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_DMS_STATUS:
         case MSG_REQ_REFORM_GCV_SYNC:
-            return MES_TASK_GROUP_THREE;    // only for judgement
+            return MES_PRIORITY_TWO;    // only for judgement
         default:
-            return MES_TASK_GROUP_ZERO;
+            return MES_PRIORITY_THREE;
     }
 }
 
@@ -586,20 +587,38 @@ mes_task_group_id_t dms_msg_group_id(uint32 cmd)
     group 0: total_work_thread - group 1 - group 2 - group 3
     Allocation principle: Allocate time-consuming requests to different groups.
 */
-void dms_set_group_task_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
+void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
-    uint32 work_thread = DMS_WORK_THREAD_TASK_GROUP1 + DMS_WORK_THREAD_TASK_GROUP2 + DMS_WORK_THREAD_TASK_GROUP3;
+    uint32 work_thread = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2;
 
-    mes_profile->task_group[MES_TASK_GROUP_ZERO] = dms_profile->work_thread_cnt - work_thread;
-    mes_profile->task_group[MES_TASK_GROUP_ONE] = DMS_WORK_THREAD_TASK_GROUP1;
-    mes_profile->task_group[MES_TASK_GROUP_TWO] = DMS_WORK_THREAD_TASK_GROUP2;
-    mes_profile->task_group[MES_TASK_GROUP_THREE] = DMS_WORK_THREAD_TASK_GROUP3;
+    mes_profile->send_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
+    mes_profile->send_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
+    mes_profile->send_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
+    mes_profile->send_task_count[MES_PRIORITY_THREE] = dms_profile->work_thread_cnt - work_thread;
+
+    mes_profile->work_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
+    mes_profile->work_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
+    mes_profile->work_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
+    mes_profile->work_task_count[MES_PRIORITY_THREE] = dms_profile->work_thread_cnt - work_thread;
+
+    mes_profile->recv_task_count[MES_PRIORITY_ZERO] = DMS_RECV_THREAD_PRIO_0;
+    mes_profile->recv_task_count[MES_PRIORITY_ONE] = DMS_RECV_THREAD_PRIO_1;
+    mes_profile->recv_task_count[MES_PRIORITY_TWO] = DMS_RECV_THREAD_PRIO_2;
+    mes_profile->recv_task_count[MES_PRIORITY_THREE] =
+        MAX(1, (uint32)((dms_profile->work_thread_cnt - work_thread) * DMS_RECV_WORK_THREAD_RATIO));
+}
+
+static inline void dms_init_mes_compress(mes_profile_t *mes_profile)
+{
+    mes_profile->enable_compress_priority = CM_FALSE;
+    mes_profile->algorithm = COMPRESS_NONE;
+    mes_profile->compress_level = DMS_PRIORITY_COMPRESS_LEVEL;
 }
 
 int dms_init_mes(dms_profile_t *dms_profile)
 {
     int ret;
-    mes_profile_t mes_profile;
+    mes_profile_t mes_profile = { 0 };
     mes_profile.inst_id = dms_profile->inst_id;
     mes_profile.inst_cnt = dms_profile->inst_cnt;
     if (dms_profile->pipe_type == DMS_CONN_MODE_TCP) {
@@ -613,20 +632,26 @@ int dms_init_mes(dms_profile_t *dms_profile)
 
     mes_profile.conn_created_during_init = dms_profile->conn_created_during_init;
     mes_profile.channel_cnt = dms_profile->channel_cnt;
-    mes_profile.work_thread_cnt = dms_profile->work_thread_cnt;
+    mes_profile.priority_cnt = DMS_CURR_PRIORITY_COUNT;
     mes_profile.mes_elapsed_switch = dms_profile->elapsed_switch;
     mes_profile.rdma_rpc_use_busypoll = dms_profile->rdma_rpc_use_busypoll;
     mes_profile.rdma_rpc_is_bind_core = dms_profile->rdma_rpc_is_bind_core;
     mes_profile.rdma_rpc_bind_core_start = dms_profile->rdma_rpc_bind_core_start;
     mes_profile.rdma_rpc_bind_core_end = dms_profile->rdma_rpc_bind_core_end;
+    mes_profile.frag_size = DMS_MESSAGE_BUFFER_SIZE;
+    mes_profile.connect_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile.socket_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile.send_directly = CM_TRUE;
+    mes_profile.need_serial = CM_FALSE;
     ret = memcpy_s(mes_profile.inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
         sizeof(mes_addr_t) * DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(ret);
     ret = memcpy_s(mes_profile.ock_log_path, MES_MAX_LOG_PATH, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
     DMS_SECUREC_CHECK(ret);
 
+    dms_init_mes_compress(&mes_profile);
     dms_set_mes_buffer_pool(dms_profile->recv_msg_buf_size, &mes_profile);
-    dms_set_group_task_num(dms_profile, &mes_profile);
+    dms_set_task_worker_num(dms_profile, &mes_profile);
 
     ret = mfc_init(&mes_profile);
     if (ret != CM_SUCCESS) {

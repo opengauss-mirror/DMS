@@ -1032,8 +1032,10 @@ typedef struct st_dms_callback {
 typedef struct st_dms_instance_net_addr {
     unsigned int inst_id;
     char ip[DMS_MAX_IP_LEN];
+    char secondary_ip[DMS_MAX_IP_LEN];
     unsigned short port;
-    unsigned char reserved[2];
+    unsigned char need_connect;
+    unsigned char reserved[1];
 } dms_instance_net_addr_t;
 
 typedef struct st_dms_profile {
