@@ -102,7 +102,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(dms_message_head_t) + len);
 
-    uint64 all_inst = (scope == DMS_BROADCAST_ONLINE_LIST) ?  reform_info->bitmap_online : reform_info->bitmap_connect;
+    uint64 all_inst = (scope == DMS_BROADCAST_ONLINE_LIST) ? reform_info->bitmap_connect : reform_info->bitmap_in;
 #ifdef OPENGAUSS
     all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
@@ -163,7 +163,7 @@ int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
 {
     dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST,
-        DMS_BROADCAST_OLDIN_LIST);
+        DMS_BROADCAST_ONLINE_LIST);
 }
 
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -318,7 +318,7 @@ int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int 
 {
     dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC,
-        DMS_BROADCAST_OLDIN_LIST);
+        DMS_BROADCAST_ONLINE_LIST);
 }
 
 #ifdef __cplusplus

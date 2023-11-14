@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           112
+#define DMS_LOCAL_VERSION           113
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -228,6 +228,7 @@ typedef enum st_dms_cr_status_t {
     DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN, /* other node invisible transaction */
     DMS_CR_STATUS_PENDING_TXN,              /* prepared transaction */
     DMS_CR_STATUS_ALL_VISIBLE,
+    DMS_CR_STATUS_DB_NOT_READY,             /* db is not ready for tx */
 } dms_cr_status_t;
 
 typedef struct st_dms_cr_assist_t {

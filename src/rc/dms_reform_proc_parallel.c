@@ -430,12 +430,8 @@ int dms_reform_reconnect_parallel(void)
 
     int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_RECONNECT);
     DMS_RETURN_IF_ERROR(ret);
-
-#ifdef OPENGAUSS
     reform_info->bitmap_connect = share_info->bitmap_online;
-#else
-    reform_info->bitmap_connect = share_info->bitmap_in;
-#endif
+    reform_info->bitmap_in = share_info->bitmap_in;
     return DMS_SUCCESS;
 }
 
