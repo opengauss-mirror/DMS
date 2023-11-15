@@ -44,7 +44,7 @@ extern "C" {
         }                                           \
     } while (0)
 
-#define DMS_MSG_HEAD_UNUSED_SIZE 26
+#define DMS_MSG_HEAD_UNUSED_SIZE 24
 typedef struct st_dms_message_head {
     unsigned int msg_proto_ver;
     unsigned int sw_proto_ver;
@@ -58,6 +58,7 @@ typedef struct st_dms_message_head {
     unsigned short src_sid;
     unsigned short dst_sid;
     unsigned short tickets;
+    unsigned short unused;
     union {
         struct {
             long long judge_time; // for message used in reform, check if it is the same round of reform
