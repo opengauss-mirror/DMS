@@ -63,6 +63,12 @@ void dms_reformer_preempt_thread(thread_t *thread)
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
 
+    if (reform_info->rst_recover) {
+        LOG_RUN_INF("[DMS REFORM]dms_reformer_preempt thread started for restore recover");
+        dms_reformer_preempt_for_unshared();
+        return;
+    }
+
     if (!reform_info->build_complete) {
         LOG_RUN_INF("[DMS REFORM]dms_reformer_preempt thread started for build");
         dms_reformer_preempt_for_build();
