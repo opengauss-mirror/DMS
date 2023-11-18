@@ -560,6 +560,7 @@ void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned
         (head)->src_sid = (uint16)(v_src_sid);                                                                  \
         (head)->dst_sid = (uint16)(v_dst_sid);                                                                  \
         (head)->tickets = 0;                                                                                    \
+        (head)->unused = 0;                                                                                     \
         DMS_SECUREC_CHECK(memset_s((head)->reserved, DMS_MSG_HEAD_UNUSED_SIZE, 0, DMS_MSG_HEAD_UNUSED_SIZE));   \
     } while (0)
 
