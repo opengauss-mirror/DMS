@@ -74,10 +74,10 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(void *sess, dms_drid_t *
     cm_panic(lock_res != NULL);
 
     date_t begin = g_timer()->now;
-    
+
+    lock_res->releasing = CM_TRUE;
     drc_lock_local_resx(lock_res);
-    lock_res->releasing = !g_lock_matrix[lock_mode][lock_res->latch_stat.stat];	
-	
+
     do {
 #ifndef OPENGAUSS
         if (lockid->type == DMS_DR_TYPE_PART_TABLE && g_dms.callback.get_part_changed(sess, (char *)lockid)) {
