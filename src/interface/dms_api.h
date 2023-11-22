@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           113
+#define DMS_LOCAL_VERSION           114
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -788,6 +788,7 @@ typedef int(*dms_get_opengauss_page_status)(void *db_handle, dms_opengauss_relfi
 typedef void (*dms_log_output)(dms_log_id_t log_type, dms_log_level_t log_level, const char *code_file_name,
     unsigned int code_line_num, const char *module_name, const char *format, ...);
 typedef int (*dms_log_flush)(void *db_handle, unsigned long long *lsn);
+typedef int (*dms_log_conditional_flush)(void *db_handle, unsigned long long lfn, unsigned long long *lsn);
 typedef int(*dms_process_edp)(void *db_handle, dms_edp_info_t *pages, unsigned int count);
 typedef void (*dms_clean_ctrl_edp)(void *db_handle, dms_buf_ctrl_t *dms_ctrl);
 typedef char *(*dms_display_pageid)(char *display_buf, unsigned int count, char *pageid);
@@ -951,6 +952,7 @@ typedef struct st_dms_callback {
     dms_get_opengauss_page_status get_opengauss_page_status;
     dms_log_output log_output;
     dms_log_flush log_flush;
+    dms_log_conditional_flush log_conditional_flush;
     dms_process_edp ckpt_edp;
     dms_process_edp clean_edp;
     dms_ckpt_session ckpt_session;
