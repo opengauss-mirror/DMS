@@ -433,7 +433,7 @@ static int dcs_owner_transfer_page_ack_v1(dms_process_context_t *ctx, dms_buf_ct
         unsigned long long page_lfn = g_dms.callback.get_page_lfn(ctrl);
         if (flushed_lfn < page_lfn) {
             dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE_FLUSHLOG, CM_TRUE);
-            int ret = g_dms.callback.log_flush(ctx->db_handle, &page_ack.lsn);
+            int ret = g_dms.callback.log_conditional_flush(ctx->db_handle, page_lfn, &page_ack.lsn);
             dms_end_stat(ctx->sess_id);
             if (ret != DMS_SUCCESS) {
                 LOG_DEBUG_ERR("[DCS][%s][transfer owner]flush failed: dest_id=%d, dest_sid=%d, dest_ruid=%llu, mode=%u",

@@ -48,16 +48,9 @@ static int dcs_owner_transfer_page_check_wal(dms_process_context_t *ctx, dms_buf
     if (flushed_lfn >= page_lfn) {
         return DMS_SUCCESS;
     }
-    // redo log has not been flushed and req_mode is S
-    if (req_info->req_mode != DMS_LOCK_EXCLUSIVE) {
-        page_ack->break_wal = CM_TRUE;
-        LOG_DEBUG_WAR("[DCS][%s][transfer owner]break wal, flushed_lfn: %llu, page_lfn: %llu",
-            cm_display_pageid(req_info->resid), flushed_lfn, page_lfn);
-        return DMS_SUCCESS;
-    }
     // req_mode is X, must flush redo before transfer
     dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE_FLUSHLOG, CM_TRUE);
-    int ret = g_dms.callback.log_flush(ctx->db_handle, &page_ack->lsn);
+    int ret = g_dms.callback.log_conditional_flush(ctx->db_handle, page_lfn, &page_ack->lsn);
     dms_end_stat(ctx->sess_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s][transfer owner]flush failed: dest_id=%d, dest_sid=%d, dest_ruid=%llu",
