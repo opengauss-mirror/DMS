@@ -516,6 +516,15 @@ DMS_DECLARE void dms_release_txn_cond(dms_context_t *dms_ctx);
 DMS_DECLARE unsigned char dms_get_deposit_id(unsigned char inst_id);
 
 /*
+ * @brief get dv_drc_buf_info
+ * @[in] index - index in pool
+ * @[in] res_buf_info - record res buffer info
+ * @[in] drc_type - the type of drc, page or lock
+ * @return unsigned char - the deposited id
+ */
+DMS_DECLARE void dms_get_buf_res(unsigned long long *index, dv_drc_buf_info *res_buf_info, int drc_type);
+
+/*
  * @brief release owner
  * @[in]param dms_ctx -  Obtains the context information.
  * @[in]param ctrl -  Obtains the context information.

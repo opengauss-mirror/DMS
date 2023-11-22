@@ -48,6 +48,7 @@ extern "C" {
 #define DMS_INDEX_PROFILE_SIZE  96
 #define DMS_MAX_IP_LEN          64
 #define DMS_MAX_INSTANCES       64
+#define DMS_MAX_NAME_LEN        64
 
 #define DMS_VERSION_MAX_LEN     256
 #define DMS_OCK_LOG_PATH_LEN    256
@@ -698,6 +699,28 @@ typedef enum en_broadcast_scope {
     DMS_BROADCAST_OLDIN_LIST = 0,    // default value
     DMS_BROADCAST_ONLINE_LIST = 1,
 } dms_broadcast_scope_e;
+
+typedef struct st_dv_drc_buf_info {
+    char                    data[DMS_MAX_NAME_LEN];            /* user defined resource(page) identifier */
+    unsigned char           master_id;
+    unsigned long long      copy_insts;         /* bitmap for owners, for S mode, more than one owner may exist */
+    unsigned char           claimed_owner;      /* owner */
+    unsigned char           lock_mode;          /* current DRC lock mode */
+    unsigned char           last_edp;           /* the newest edp instance id */
+    unsigned char           type;               /* page or lock */
+    unsigned char           in_recovery;        /* in recovery or not */
+    unsigned char           copy_promote;       /* copy promote to owner, can not release, may need flush */
+    unsigned short          part_id;            /* which partition id that current page belongs to */
+    unsigned long long      edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
+    unsigned long long      lsn;                /* the newest edp LSN of current page in the cluster */
+    unsigned short          len;                /* the length of data below */
+    unsigned char           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
+    unsigned char           recycling;
+    unsigned char           converting_req_info_inst_id;
+    unsigned char           converting_req_info_curr_mode;
+    unsigned char           converting_req_info_req_mode;
+    unsigned char           is_valid;
+} dv_drc_buf_info;
 
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,

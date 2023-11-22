@@ -114,6 +114,9 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
     pool->inited = CM_TRUE;
     pool->extend_step = res_num;
     pool->extend_num = 1;
+    ret = memset_s(pool->each_pool_size, sizeof(pool->each_pool_size), 0, sizeof(pool->each_pool_size));
+    DMS_SECUREC_CHECK(ret);
+    pool->each_pool_size[0] = res_num;
 
     drc_add_items(pool, pool->addr[0], res_size, res_num);
     return DMS_SUCCESS;
@@ -146,8 +149,9 @@ char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
     if (pool->addr[pool->extend_num] != NULL) {
         drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
         drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
-        pool->extend_num++;
         pool->item_num += pool->extend_step;
+        pool->each_pool_size[pool->extend_num] = pool->extend_step;
+        pool->extend_num++;
     }
 
     if (cm_bilist_empty(&pool->free_list)) {
@@ -181,6 +185,8 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
     pool->extend_step = 0;
     pool->extend_num = 0;
     pool->inited = CM_FALSE;
+    int ret = memset_s(pool->each_pool_size, sizeof(pool->each_pool_size), 0, sizeof(pool->each_pool_size));
+    DMS_SECUREC_CHECK(ret);
 
     cm_spin_unlock(&pool->lock);
 }
@@ -286,6 +292,7 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     buf_res->len = len;
     buf_res->count = 0;
     buf_res->recycling = CM_FALSE;
+    buf_res->is_using = CM_TRUE;
     cm_bilist_init(&buf_res->convert_q);
     init_drc_cvt_item(&buf_res->converting);
     errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
