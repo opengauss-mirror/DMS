@@ -55,6 +55,7 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id);
 uint32 drc_recycle_buf_res_by_part(bilist_t* part_list, uint8 res_type, uint32 target_cnt, bool32 greedy);
 int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len);
 void drc_recycle_buf_res_on_demand();
+void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type);
 #ifdef __cplusplus
 }
 #endif

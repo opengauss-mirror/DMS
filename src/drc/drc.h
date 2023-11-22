@@ -76,6 +76,7 @@ typedef struct st_drc_res_pool {
     uint32      extend_num;
     char*       addr[DRC_RES_EXTEND_MAX_NUM];
     bool32      res_depleted;
+    uint64      each_pool_size[DRC_RES_EXTEND_MAX_NUM];
 } drc_res_pool_t;
 
 int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 res_size, uint32 res_num);
@@ -165,6 +166,7 @@ typedef struct st_drc_buf_res {
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
     bilist_t        convert_q;          /* current page's requester queue */
     char            data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
+    bool8           is_using;
 } drc_buf_res_t;
 
 typedef struct st_drc_buf_res_msg {
