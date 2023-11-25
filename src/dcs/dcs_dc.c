@@ -314,11 +314,10 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
 }
 
 int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
-    unsigned int timeout)
+    unsigned int timeout, dms_broadcast_scope_e scope)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC,
-        DMS_BROADCAST_ONLINE_LIST);
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC, scope);
 }
 
 #ifdef __cplusplus

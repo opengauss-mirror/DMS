@@ -380,7 +380,7 @@ DMS_DECLARE int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data,
 * @return DMS_SUCCESS - success;otherwise: failed
 */
 DMS_DECLARE int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
-    unsigned char handle_recv_msg, unsigned int timeout);
+    unsigned char handle_recv_msg, unsigned int timeout, dms_broadcast_scope_e scope);
 
 /*
 * @brief broadcast scn to other instances when commit transaction.
