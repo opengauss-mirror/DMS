@@ -698,3 +698,69 @@ int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
     }
     return ret;
 }
+
+static inline void find_pos_in_res_pool(int *pool_index, int *item_index_in_matched_pool, drc_res_pool_t res_pool)
+{
+    for (int i_extend_num = 0; i_extend_num < DRC_RES_EXTEND_MAX_NUM; i_extend_num++) {
+        if (*item_index_in_matched_pool < res_pool.each_pool_size[i_extend_num]) {
+            *pool_index = i_extend_num;
+            break;
+        }
+        *item_index_in_matched_pool -= res_pool.each_pool_size[i_extend_num];
+    }
+}
+
+static inline void fill_dv_drc_local_lock_result(drc_local_lock_res_result_t *drc_local_lock_res_result,
+    drc_local_lock_res_t *drc_local_lock_res)
+{
+    cm_spin_lock(&drc_local_lock_res->lock, NULL);
+    int ret = sprintf_s(drc_local_lock_res_result->lock_id, DMS_MAX_NAME_LEN, "%u/%u/%u/%u/%u",
+        (uint32)drc_local_lock_res->resid.type, (uint32)drc_local_lock_res->resid.uid,
+        drc_local_lock_res->resid.oid, drc_local_lock_res->resid.index, drc_local_lock_res->resid.part);
+    if (ret < EOK) {
+        LOG_DEBUG_ERR("[DRC][dms_get_drc_local_lock_res]:sprintf_s err: %d", ret);
+        drc_local_lock_res_result->is_valid = CM_FALSE;
+        cm_spin_unlock(&drc_local_lock_res->lock);
+        return;
+    }
+
+    drc_local_lock_res_result->is_owner = drc_local_lock_res->is_owner;
+    drc_local_lock_res_result->is_locked = drc_local_lock_res->is_locked;
+    drc_local_lock_res_result->count = drc_local_lock_res->count;
+    drc_local_lock_res_result->releasing = drc_local_lock_res->releasing;
+    drc_local_lock_res_result->shared_count = drc_local_lock_res->latch_stat.shared_count;
+    drc_local_lock_res_result->stat = drc_local_lock_res->latch_stat.stat;
+    drc_local_lock_res_result->sid = drc_local_lock_res->latch_stat.sid;
+    drc_local_lock_res_result->rmid = drc_local_lock_res->latch_stat.rmid;
+    drc_local_lock_res_result->rmid_sum = drc_local_lock_res->latch_stat.rmid_sum;
+    drc_local_lock_res_result->lock_mode = drc_local_lock_res->latch_stat.lock_mode;
+    cm_spin_unlock(&drc_local_lock_res->lock);
+    drc_local_lock_res_result->is_valid = CM_TRUE;
+}
+
+void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result)
+{
+    if (!g_dms.dms_init_finish) {
+        drc_local_lock_res_result->is_valid = CM_FALSE;
+        return;
+    }
+
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_res_pool_t res_pool = ctx->local_lock_res.res_pool;
+
+    drc_local_lock_res_t *drc_local_lock_res = NULL;
+    int pool_index = 0;
+    int item_index_in_matched_pool = *vmid;
+    for (; *vmid < res_pool.item_num;) {
+        item_index_in_matched_pool = *vmid;
+        find_pos_in_res_pool(&pool_index, &item_index_in_matched_pool, res_pool);
+        drc_local_lock_res = (drc_local_lock_res_t*)(res_pool.addr[pool_index]
+            + item_index_in_matched_pool * sizeof(drc_local_lock_res_t));
+        ++*vmid;
+        if (drc_local_lock_res != NULL && drc_local_lock_res->is_owner) {
+            fill_dv_drc_local_lock_result(drc_local_lock_res_result, drc_local_lock_res);
+            return;
+        }
+    }
+    drc_local_lock_res_result->is_valid = CM_FALSE;
+}

@@ -26,6 +26,7 @@
 #include "dms_process.h"
 #include "dms_error.h"
 #include "mes_interface.h"
+#include "dms_stat.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,8 +105,12 @@ static unsigned int inline mfc_get_mes_flag(dms_message_head_t *msg)
 
 int32 mfc_forward_request(dms_message_head_t *msg)
 {
-    return mes_forward_request_x(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid,
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
+    int ret = mes_forward_request_x(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid,
         DMS_ONE, (char *)msg, msg->size);
+    dms_consume_with_time(msg->cmd, start_stat_time, ret);
+    return ret;
 }
 
 static inline int32 mfc_send_data_req(dms_message_head_t *msg, bool8 is_sync)
@@ -146,38 +151,54 @@ static inline int32 mfc_send_data_ack(dms_message_head_t *msg, bool8 is_sync)
 
 int32 mfc_send_data_async(dms_message_head_t *msg)
 {
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
+    int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
-        return mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
+        ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
+    } else{
+        if (mfc_msg_is_req(msg)) {
+            ret = mfc_send_data_req(msg, CM_FALSE);
+        } else {
+            ret = mfc_send_data_ack(msg, CM_FALSE);
+        }
     }
 
-    if (mfc_msg_is_req(msg)) {
-        return mfc_send_data_req(msg, CM_FALSE);
-    } else {
-        return mfc_send_data_ack(msg, CM_FALSE);
-    }
+    dms_consume_with_time(msg->cmd, start_stat_time, ret);
+    return ret;
 }
 
 /* 1-BODY SYNC MESSAGE */
 int32 mfc_send_data(dms_message_head_t *msg)
 {
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
+    int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
         if (mfc_msg_is_req(msg)) {
-            return mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
+            ret = mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
         } else {
-            return mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+            ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+        }
+    } else {
+        if (mfc_msg_is_req(msg)) {
+            ret = mfc_send_data_req(msg, CM_TRUE);
+        } else {
+            ret = mfc_send_data_ack(msg, CM_TRUE);
         }
     }
 
-    if (mfc_msg_is_req(msg)) {
-        return mfc_send_data_req(msg, CM_TRUE);
-    } else {
-        return mfc_send_data_ack(msg, CM_TRUE);
-    }
+    dms_consume_with_time(msg->cmd, start_stat_time, ret);
+    return ret;
 }
 
 int32 mfc_send_response(dms_message_head_t *msg)
 {
-    return mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
+    int ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+    dms_consume_with_time(msg->cmd, start_stat_time, ret);
+    return ret;
 }
 
 static inline int32 mfc_send_data3_req(dms_message_head_t *head, uint32 head_size, const void *body)
@@ -213,22 +234,28 @@ static inline int32 mfc_send_data3_ack(dms_message_head_t *head, uint32 head_siz
 /* 2-BODY SYNC MESSAGE, with 1st body as user-customized head. */
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body)
 {
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
+    int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
         if (mfc_msg_is_req(head)) {
-            return mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
+            ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
                 DMS_TWO, head, head_size, body, head->size - head_size);
         } else {
             MFC_RETURN_IF_BAD_RUID(head->ruid);
-            return mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
+            ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
                 DMS_TWO, head, head_size, body, head->size - head_size);
+        }
+    } else {
+        if (mfc_msg_is_req(head)) {
+            ret = mfc_send_data3_req(head, head_size, body);
+        } else {
+            ret = mfc_send_data3_ack(head, head_size, body);
         }
     }
 
-    if (mfc_msg_is_req(head)) {
-        return mfc_send_data3_req(head, head_size, body);
-    } else {
-        return mfc_send_data3_ack(head, head_size, body);
-    }
+    dms_consume_with_time(head->cmd, start_stat_time, ret);
+    return ret;
 }
 
 static inline int32 mfc_send_data4_req(dms_message_head_t *head, uint32 head_size,
@@ -266,34 +293,43 @@ static inline int32 mfc_send_data4_ack(dms_message_head_t *head, uint32 head_siz
 int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
+    int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
         if (mfc_msg_is_req(head)) {
-            return mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
+            ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
                 DMS_THREE, head, head_size, body1, len1, body2, len2);
         } else {
             MFC_RETURN_IF_BAD_RUID(head->ruid);
-            return mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
+            ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
                 DMS_THREE, head, head_size, body1, len1, body2, len2);
+        }
+    } else {
+        if (mfc_msg_is_req(head)) {
+            ret = mfc_send_data4_req(head, head_size, body1, len1, body2, len2);
+        } else {
+            ret = mfc_send_data4_ack(head, head_size, body1, len1, body2, len2);
         }
     }
 
-    if (mfc_msg_is_req(head)) {
-        return mfc_send_data4_req(head, head_size, body1, len1, body2, len2);
-    } else {
-        return mfc_send_data4_ack(head, head_size, body1, len1, body2, len2);
-    }
+    dms_consume_with_time(head->cmd, start_stat_time, ret);
+    return ret;
 }
 
 /* 3-BODY ASYNC MESSAGE, with 1st body as user-customized head. */
 int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
+    int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
-        return mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head),
+        uint64 start_stat_time = dms_cm_get_time_usec();
+        ret = mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head),
             DMS_THREE, head, head_size, body1, len1, body2, len2);
+        dms_consume_with_time(head->cmd, start_stat_time, ret);
     }
     /* Need to adapt if MFC to be enabled */
-    return DMS_SUCCESS;
+    return ret;
 }
 
 static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
@@ -322,12 +358,14 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
     if (response == NULL && timeout_ms == 0) {
         return mes_get_response(ruid, NULL, 0);
     }
+    uint64 start_stat_time = dms_cm_get_time_usec();
     mes_msg_t msg = { 0 };
     int ret = mes_get_response(ruid, &msg, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     response->buffer = msg.buffer;
     response->head = (dms_message_head_t *)msg.buffer;
     ret = dms_handle_recv_ack_internal(response);
+    dms_consume_with_time(response->head->cmd, start_stat_time, ret);
     if (DMS_MFC_OFF) {
         if (dms_check_if_protocol_compatibility_error(ret)) {
             mfc_release_mes_msg(&msg);
@@ -370,11 +408,14 @@ void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
         return;
     }
 
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
     uint32 count = dms_count_bits(inst_bits);
     dms_message_head_t *head = (dms_message_head_t *)msg_data;
     uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
     dms_inst_bits_to_list(inst_bits, inst_list);
-    (void)mes_broadcast_request_sp(inst_list, count, mfc_get_mes_flag(head), &head->ruid, msg_data, head->size);
+    int ret = mes_broadcast_request_sp(inst_list, count, mfc_get_mes_flag(head), &head->ruid, msg_data, head->size);
+    dms_consume_with_time(head->cmd, start_stat_time, ret);
 }
 
 /* 2-BODY SYNC BROADCAST */
@@ -386,11 +427,14 @@ void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body
         return;
     }
 
+    uint64 start_stat_time = dms_cm_get_time_usec();
+
     uint32 count = dms_count_bits(inst_bits);
     uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
     dms_inst_bits_to_list(inst_bits, inst_list);
-    (void)mes_broadcast_request_spx(inst_list, count, mfc_get_mes_flag(head), &head->ruid,
+    int ret = mes_broadcast_request_spx(inst_list, count, mfc_get_mes_flag(head), &head->ruid,
         DMS_TWO, head, sizeof(dms_message_head_t), body, head->size - sizeof(dms_message_head_t));
+    dms_consume_with_time(head->cmd, start_stat_time, ret);
 }
 
 static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,

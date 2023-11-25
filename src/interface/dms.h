@@ -863,6 +863,10 @@ DMS_DECLARE int dms_end_global_xa(dms_context_t *dms_ctx, unsigned long long fla
 DMS_DECLARE int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
     unsigned char thread_index);
 
+DMS_DECLARE void dms_get_cmd_stat(int cmd, wait_cmd_stat_result_t *cmd_stat_result);
+
+DMS_DECLARE void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
+
 #ifdef __cplusplus
 }
 #endif

@@ -77,6 +77,8 @@ void drc_leave_buf_res(drc_buf_res_t *buf_res);
 void drc_buf_res_unlatch(uint8 res_type);
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_master);
 drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options);
+void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
+
 #ifdef __cplusplus
 }
 #endif
