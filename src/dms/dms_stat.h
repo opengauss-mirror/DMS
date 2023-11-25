@@ -26,6 +26,10 @@
 
 #include "dms.h"
 #include "cm_date.h"
+#include "dms_api.h"
+#include "cm_atomic.h"
+#include "dms_msg.h"
+#include "cm_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,6 +94,45 @@ void dms_end_stat(uint32    sid);
 // the new event is specified by the parameter of event.
 void dms_end_stat_ex(uint32 sid, dms_wait_event_t event);
 
+typedef struct st_dms_time_consume {
+    uint64 time[MSG_CMD_CEIL];
+    int64 count[MSG_CMD_CEIL];
+    spinlock_t lock[MSG_CMD_CEIL];
+} dms_time_consume_t;
+
+extern dms_time_consume_t g_dms_time_consume;
+
+typedef struct st_wait_cmd_desc {
+    msg_command_t cmd;
+    char name[DMS_MAX_NAME_LEN];
+    char p1[DMS_MAX_NAME_LEN];
+    char wait_class[DMS_MAX_NAME_LEN];
+} wait_cmd_desc_t;
+
+static inline uint64 dms_cm_get_time_usec(void)
+{
+    if (g_dms_stat.time_stat_enabled) {
+        timeval_t now;
+        (void)cm_gettimeofday(&now);
+        uint64 now_usec = (uint64)now.tv_sec * MICROSECS_PER_SECOND + (uint64)now.tv_usec;
+        return now_usec;
+    }
+    return 0;
+}
+
+static inline void dms_consume_with_time(uint32 cmd, uint64 start_time, int ret)
+{
+    if (start_time == 0 || !g_dms_stat.time_stat_enabled || ret != CM_SUCCESS) {
+        return;
+    }
+
+    uint64 elapsed_time = dms_cm_get_time_usec() - start_time;
+    cm_spin_lock(&(g_dms_time_consume.lock[cmd]), NULL);
+    g_dms_time_consume.time[cmd] += elapsed_time;
+    (void)cm_atomic_inc(&(g_dms_time_consume.count[cmd]));
+    cm_spin_unlock(&(g_dms_time_consume.lock[cmd]));
+    return;
+}
 
 #ifdef __cplusplus
 }

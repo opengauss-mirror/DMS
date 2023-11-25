@@ -22,16 +22,19 @@
  * -------------------------------------------------------------------------
  */
 
+#include <assert.h>
 #include "dms_stat.h"
 #include "dms_process.h"
 #include "dms.h"
 #include "mes_func.h"
+#include "dms_msg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 dms_stat_t g_dms_stat;
+dms_time_consume_t g_dms_time_consume;
 
 void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
 {
@@ -169,6 +172,167 @@ DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *eve
     }
     mes_get_wait_event(cmd, event_cnt, event_time);
     return DMS_SUCCESS;
+}
+
+/* please make sure cmd is in order */
+const wait_cmd_desc_t g_wait_cmd_desc[] = {
+    /* DMS CMD */
+    { MSG_REQ_ASK_MASTER_FOR_PAGE, "req ask master for page", "", "dms" },
+    { MSG_REQ_ASK_OWNER_FOR_PAGE, "req ask owner for page", "", "dms" },
+    { MSG_REQ_INVALIDATE_SHARE_COPY, "req invalidate share copy", "", "dms" },
+    { MSG_REQ_CLAIM_OWNER, "req claim owner", "", "dms" },
+    { MSG_REQ_CR_PAGE, "req cr page", "", "dms" },
+    { MSG_REQ_ASK_MASTER_FOR_CR_PAGE, "req ask master for cr page", "", "dms" },
+    { MSG_REQ_ASK_OWNER_FOR_CR_PAGE, "req ask owner for cr page", "", "dms" },
+    { MSG_REQ_CHECK_VISIBLE, "req check visible", "", "dms" },
+    { MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, "req try ask master for page owner id", "", "dms" },
+    { MSG_REQ_BROADCAST, "req broadcast", "", "dms" },
+    { MSG_REQ_TXN_INFO, "req txn info", "", "dms" },
+    { MSG_REQ_TXN_SNAPSHOT, "req txn snapshot", "", "dms" },
+    { MSG_REQ_WAIT_TXN, "req wait txn", "", "dms" },
+    { MSG_REQ_AWAKE_TXN, "req awake txn", "", "dms" },
+    { MSG_REQ_MASTER_CKPT_EDP, "req master ckpt edp", "", "dms" },
+    { MSG_REQ_OWNER_CKPT_EDP, "req owner ckpt edp", "", "dms" },
+    { MSG_REQ_MASTER_CLEAN_EDP, "req master clean edp", "", "dms" },
+    { MSG_REQ_OWNER_CLEAN_EDP, "req owner clean edp", "", "dms" },
+    { MES_REQ_MGRT_MASTER_DATA, "req mgrt master data", "", "dms" },
+    { MSG_REQ_RELEASE_OWNER, "req release owner", "", "dms" },
+    { MSG_REQ_BOC, "req boc", "", "dms" },
+    { MSG_REQ_SMON_DLOCK_INFO, "req smon dlock info", "", "dms" },
+    { MSG_REQ_SMON_DEADLOCK_SQL, "req smon deadlock sql", "", "dms" },
+    { MSG_REQ_SMON_DEADLOCK_ITL, "req smon deadlock itl", "", "dms" },
+    { MSG_REQ_SMON_DEADLOCK_CHECK_STATUS, "req smon deadlock check status", "", "dms" },
+    { MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID, "req smon deadlock table lock by tid", "", "dms" },
+    { MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM, "req smon deadlock table lock by rm", "", "dms" },
+    { MSG_REQ_PAGE_REBUILD, "req page rebuild", "", "dms" },
+    { MSG_REQ_LOCK_REBUILD, "req lock rebuild", "", "dms" },
+    { MSG_REQ_OPENGAUSS_TXN_STATUS, "req opengauss txn status", "", "dms" },
+    { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, "req opengauss txn snapshot", "", "dms" },
+    { MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, "req opengauss txn update xid", "", "dms" },
+    { MSG_REQ_OPENGAUSS_XID_CSN, "req opengauss xid csn", "", "dms" },
+    { MSG_REQ_ASK_EDP_REMOTE, "req ask edp remote", "", "dms" },
+    { MSG_REQ_SYNC_STEP, "req sync step", "", "dms" },
+    { MSG_REQ_SYNC_SHARE_INFO, "req sync share info", "", "dms" },
+    { MSG_REQ_DMS_STATUS, "req dms status", "", "dms" },
+    { MSG_REQ_REFORM_PREPARE, "req reform prepare", "", "dms" },
+    { MSG_REQ_SYNC_NEXT_STEP, "req sync next step", "", "dms" },
+    { MSG_REQ_PAGE, "req page", "", "dms" },
+    { MSG_REQ_SWITCHOVER, "req switchover", "", "dms" },
+    { MSG_REQ_CANCEL_REQUEST_RES, "req cancel request res", "", "dms" },
+    { MSG_REQ_OPENGAUSS_DDLLOCK, "req opengauss ddllock", "", "dms" },
+    { MSG_REQ_CONFIRM_CVT, "req confirm cvt", "", "dms" },
+    { MSG_REQ_CHECK_REFORM_DONE, "req check reform done", "", "dms" },
+    { MSG_REQ_MAP_INFO, "req map info", "", "dms" },
+    { MSG_REQ_DDL_SYNC, "req ddl sync", "", "dms" },
+    { MSG_REQ_REFORM_GCV_SYNC, "req reform gcv sync", "", "dms" },
+    { MSG_REQ_PAGE_VALIDATE, "req page validate", "", "dms" },
+    { MSG_REQ_INVALID_OWNER, "req invalid owner", "", "dms" },
+    { MSG_REQ_ASK_RES_OWNER_ID, "req ask res owner id", "", "dms" },
+    { MSG_REQ_OPENGAUSS_ONDEMAND_REDO, "req opengauss ondemand redo", "", "dms" },
+    { MSG_REQ_OPENGAUSS_TXN_SWINFO, "req opengauss txn swinfo", "", "dms" },
+    { MSG_REQ_OPENGAUSS_PAGE_STATUS, "req opengauss page status", "", "dms" },
+    { MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN, "req send opengauss oldest xmin", "", "dms" },
+    { MSG_REQ_NODE_FOR_BUF_INFO, "req node for buf info", "", "dms" },
+    { MSG_REQ_PROTOCOL_MAINTAIN_VERSION, "req protocol maintain version", "", "dms" },
+    { MSG_REQ_CREATE_GLOBAL_XA_RES, "req create global xa res", "", "dms" },
+    { MSG_REQ_DELETE_GLOBAL_XA_RES, "req delete global xa res", "", "dms" },
+    { MSG_REQ_ASK_XA_OWNER_ID, "req ask xa owner id", "", "dms" },
+    { MSG_REQ_END_XA, "req end xa", "", "dms" },
+    { MSG_REQ_ASK_XA_IN_USE, "req ask xa in use", "", "dms" },
+    { MSG_REQ_MERGE_XA_OWNERS, "req merge xa owners", "", "dms" },
+    { MSG_REQ_XA_REBUILD, "req xa rebuild", "", "dms" },
+    { MSG_REQ_XA_OWNERS, "req xa owners", "", "dms" },
+    { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
+    { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
+    { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },
+    { MSG_ACK_BROADCAST_WITH_MSG, "ack broadcast with msg", "", "dms" },
+    { MSG_ACK_PAGE_READY, "ack page ready", "", "dms" },
+    { MSG_ACK_GRANT_OWNER, "ack grant owner", "", "dms" },
+    { MSG_ACK_ALREADY_OWNER, "ack already owner", "", "dms" },
+    { MSG_ACK_CR_PAGE, "ack cr page", "", "dms" },
+    { MSG_ACK_TXN_WAIT, "ack txn wait", "", "dms" },
+    { MSG_ACK_LOCK, "ack lock", "", "dms" },
+    { MSG_ACK_TXN_INFO, "ack txn info", "", "dms" },
+    { MSG_ACK_TXN_SNAPSHOT, "ack txn snapshot", "", "dms" },
+    { MSG_ACK_WAIT_TXN, "ack wait txn", "", "dms" },
+    { MSG_ACK_AWAKE_TXN, "ack awake txn", "", "dms" },
+    { MSG_ACK_MASTER_CKPT_EDP, "ack master ckpt edp", "", "dms" },
+    { MSG_ACK_OWNER_CKPT_EDP, "ack owner ckpt edp", "", "dms" },
+    { MSG_ACK_MASTER_CLEAN_EDP, "ack master clean edp", "", "dms" },
+    { MSG_ACK_OWNER_CLEAN_EDP, "ack owner clean edp", "", "dms" },
+    { MSG_ACK_ERROR, "ack error", "", "dms" },
+    { MSG_ACK_RELEASE_PAGE_OWNER, "ack release page owner", "", "dms" },
+    { MSG_ACK_INVLDT_SHARE_COPY, "ack invldt share copy", "", "dms" },
+    { MSG_ACK_BOC, "ack boc", "", "dms" },
+    { MSG_ACK_SMON_DLOCK_INFO, "ack smon dlock info", "", "dms" },
+    { MSG_ACK_SMON_DEADLOCK_SQL, "ack smon deadlock sql", "", "dms" },
+    { MSG_ACK_SMON_DEADLOCK_ITL, "ack smon deadlock itl", "", "dms" },
+    { MSG_ACK_SMON_DEADLOCK_CHECK_STATUS, "ack smon deadlock check status", "", "dms" },
+    { MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG, "ack smon deadlock table lock msg", "", "dms" },
+    { MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM, "ack smon deadlock table lock rm", "", "dms" },
+    { MSG_ACK_OPENGAUSS_TXN_STATUS, "ack opengauss txn status", "", "dms" },
+    { MSG_ACK_OPENGAUSS_TXN_SNAPSHOT, "ack opengauss txn snapshot", "", "dms" },
+    { MES_ACK_RELEASE_OWNER_BATCH, "ack release owner batch", "", "dms" },
+    { MSG_ACK_OPENGAUSS_TXN_UPDATE_XID, "ack opengauss txn update xid", "", "dms" },
+    { MSG_ACK_OPENGAUSS_XID_CSN, "ack opengauss xid csn", "", "dms" },
+    { MSG_ACK_OPENGAUSS_LOCK_BUFFER, "ack opengauss lock buffer", "", "dms" },
+    { MSG_ACK_EDP_LOCAL, "ack edp local", "", "dms" },
+    { MSG_ACK_EDP_READY, "ack edp ready", "", "dms" },
+    { MSG_ACK_REFORM_COMMON, "ack reform common", "", "dms" },
+    { MSG_ACK_CONFIRM_CVT, "ack confirm cvt", "", "dms" },
+    { MSG_ACK_MAP_INFO, "ack map info", "", "dms" },
+    { MSG_ACK_REFORM_GCV_SYNC, "ack reform gcv sync", "", "dms" },
+    { MSG_ACK_INVLD_OWNER, "ack invld owner", "", "dms" },
+    { MSG_ACK_ASK_RES_OWNER_ID, "ack ask res owner id", "", "dms" },
+    { MSG_ACK_OPENGAUSS_ONDEMAND_REDO, "ack opengauss ondemand redo", "", "dms" },
+    { MSG_ACK_OPENGAUSS_TXN_SWINFO, "ack opengauss txn swinfo", "", "dms" },
+    { MSG_ACK_OPENGAUSS_PAGE_STATUS, "ack opengauss page status", "", "dms" },
+    { MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN, "ack send opengauss oldest xmin", "", "dms" },
+    { MSG_ACK_PROTOCOL_VERSION_NOT_MATCH, "ack protocol version not match", "", "dms" },
+    { MSG_ACK_NODE_FOR_BUF_INFO, "ack node for buf info", "", "dms" },
+    { MSG_ACK_CREATE_GLOBAL_XA_RES, "ack create global xa res", "", "dms" },
+    { MSG_ACK_DELETE_GLOBAL_XA_RES, "ack delete global xa res", "", "dms" },
+    { MSG_ACK_ASK_XA_OWNER_ID, "ack ask xa owner id", "", "dms" },
+    { MSG_ACK_END_XA, "ack end xa", "", "dms" },
+    { MSG_ACK_XA_IN_USE, "ack xa in use", "", "dms" },
+};
+
+/* g_wait_cmd_desc size */
+#define DMS_CMD_DESC_SIZE (sizeof(g_wait_cmd_desc)/sizeof(wait_cmd_desc_t))
+static_assert(DMS_CMD_SIZE == DMS_CMD_DESC_SIZE,
+    "DMS: cmd enum's size is not equal to desc's!!! Please check msg_command_t and g_wait_cmd_desc!!!");
+
+DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_result)
+{
+    /* input cmd is offset */
+    if (index >= DMS_CMD_SIZE || index < 0) {
+        cmd_stat_result->is_valid = CM_FALSE;
+        return;
+    }
+
+    errno_t ret;
+    ret = strcpy_s(cmd_stat_result->name, DMS_MAX_NAME_LEN, g_wait_cmd_desc[index].name);
+    if (ret != EOK) {
+        LOG_DEBUG_ERR("[DMS][dms_get_cmd_stat:name]:strcpy_s err: %d", ret);
+        cmd_stat_result->is_valid = CM_FALSE;
+        return;
+    }
+    ret = strcpy_s(cmd_stat_result->p1, DMS_MAX_NAME_LEN, g_wait_cmd_desc[index].p1);
+    if (ret != EOK) {
+        LOG_DEBUG_ERR("[DMS][dms_get_cmd_stat:p1]:strcpy_s err: %d", ret);
+        cmd_stat_result->is_valid = CM_FALSE;
+        return;
+    }
+    ret = strcpy_s(cmd_stat_result->wait_class, DMS_MAX_NAME_LEN, g_wait_cmd_desc[index].wait_class);
+    if (ret != EOK) {
+        LOG_DEBUG_ERR("[DMS][dms_get_cmd_stat:wait_class]:strcpy_s err: %d", ret);
+        cmd_stat_result->is_valid = CM_FALSE;
+        return;
+    }
+
+    cmd_stat_result->wait_count = g_dms_time_consume.count[g_wait_cmd_desc[index].cmd];
+    cmd_stat_result->wait_time = g_dms_time_consume.time[g_wait_cmd_desc[index].cmd];
+    cmd_stat_result->is_valid = CM_TRUE;
 }
 
 #ifdef __cplusplus

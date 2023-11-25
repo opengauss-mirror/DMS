@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           114
+#define DMS_LOCAL_VERSION           116
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1097,6 +1097,30 @@ typedef enum en_dms_info_id {
     DMS_INFO_REFORM_CURRENT = 0,
     DMS_INFO_REFORM_LAST = 1,
 } dms_info_id_e;
+
+typedef struct st_wait_cmd_stat_result {
+    char name[DMS_MAX_NAME_LEN];
+    char p1[DMS_MAX_NAME_LEN];
+    char wait_class[DMS_MAX_NAME_LEN];
+    unsigned long long wait_count;
+    unsigned long long wait_time;
+    unsigned char is_valid;
+} wait_cmd_stat_result_t;
+
+typedef struct st_drc_local_lock_res_result {
+    char               lock_id[DMS_MAX_NAME_LEN];
+    unsigned char      is_owner;
+    unsigned char      is_locked;
+    unsigned short     count;
+    unsigned char      releasing;
+    unsigned short     shared_count;
+    unsigned short     stat;
+    unsigned short     sid;
+    unsigned short     rmid;
+    unsigned short     rmid_sum;
+    unsigned char      lock_mode;
+    unsigned char      is_valid;
+} drc_local_lock_res_result_t;
 
 #ifdef __cplusplus
 }

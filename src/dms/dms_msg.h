@@ -182,6 +182,8 @@ typedef enum en_msg_command {
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
 
+#define DMS_CMD_SIZE (MSG_CMD_CEIL - (MSG_ACK_BEGIN - MSG_REQ_END))
+
 typedef struct st_msg_error {
     dms_message_head_t head;
     int32 code;
