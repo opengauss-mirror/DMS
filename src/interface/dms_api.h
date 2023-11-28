@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           117
+#define DMS_LOCAL_VERSION           118
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1080,6 +1080,7 @@ typedef struct st_dms_profile {
     unsigned char scrlock_server_bind_core_end;
     unsigned char parallel_thread_num;
     unsigned int max_wait_time;
+    char gsdb_home[DMS_LOG_PATH_LEN];
 } dms_profile_t;
 
 typedef struct st_logger_param {

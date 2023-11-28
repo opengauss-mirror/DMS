@@ -34,6 +34,7 @@
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_xa.h"
+#include "dms_reform_fault_inject.h"
 
 static void dms_reform_set_next_step(uint8 step)
 {
@@ -991,13 +992,13 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
     }
 
     if (lock_res->latch_stat.lock_mode == DMS_LOCK_NULL) {
-        LOG_DEBUG_INF("[DRC][lock rebuild](%s) lock skip, is_owner(%d), lock_mode: %d",
-            cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode);
+        LOG_DEBUG_INF("[DRC][lock rebuild](%s) lock skip, is_owner(%d), lock_mode: %d, src_inst: %d",
+            cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode, src_inst);
         return DMS_SUCCESS;
     }
 
-    LOG_DEBUG_INF("[DRC][lock rebuild](%s), is_owner(%d), lock_mode: %d",
-        cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode);
+    LOG_DEBUG_INF("[DRC][lock rebuild](%s), is_owner(%d), lock_mode: %d, src_inst: %d",
+        cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode, src_inst);
 
     drc_buf_res_t *buf_res = NULL;
     uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_FALSE);
@@ -1089,6 +1090,8 @@ static int dms_reform_rebuild_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thr
         if (need_rebuild) {
             drc_get_lock_remaster_id(&lock_res->resid, &remaster_id);
             drc_lock_local_resx(lock_res);
+            LOG_DEBUG_INF("[lock rebuild][%s]local_lock_res lock_mode: %d",
+                cm_display_lockid(&lock_res->resid), lock_res->latch_stat.lock_mode);
             ret = dms_reform_rebuild_lock_inner(lock_res, remaster_id, thread_index);
             drc_unlock_local_resx(lock_res);
             DMS_BREAK_IF_ERROR(ret);
@@ -2681,12 +2684,16 @@ static void dms_reform_inner(void)
         reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
     }
 
-    dms_reform_proc_t reform_proc = g_dms_reform_procs[reform_info->current_step];
-    if (reform_info->parallel_enable && reform_proc.proc_parallel != NULL) {
-        ret = reform_proc.proc_parallel();
+    DMS_RFI_BEFORE_STEP;
+
+    dms_reform_proc_t *reform_proc = &g_dms_reform_procs[reform_info->current_step];
+    if (reform_info->parallel_enable && reform_proc->proc_parallel != NULL) {
+        ret = reform_proc->proc_parallel();
     } else {
-        ret = reform_proc.proc();
+        ret = reform_proc->proc();
     }
+
+    DMS_RFI_AFTER_STEP;
 
     if (reform_info->reform_done) {
         return;
