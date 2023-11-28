@@ -911,7 +911,7 @@ void dcs_proc_send_opengauss_oldest_xmin(dms_process_context_t *process_ctx, dms
 static bool8 dms_proc_check_xid_valid(drc_global_xid_t *xid)
 {
     if (xid->bqual_len > DMS_MAX_XA_BASE16_BQUAL_LEN || xid->gtrid_len > DMS_MAX_XA_BASE16_GTRID_LEN) {
-        LOG_RUN_ERR("[DMS][%s]: invalid xid", cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+        LOG_RUN_ERR("[DMS]: invalid global xa xid");
         return CM_FALSE;
     }
 
