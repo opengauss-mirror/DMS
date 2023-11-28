@@ -444,6 +444,13 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
     }
     
     if (req_rebuild == NULL) {
+        if (thread_index == CM_INVALID_ID8) {
+            req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
+                DMS_REFORM_MSG_MAX_LENGTH);
+        } else {
+            req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(parallel->handle, 
+                DMS_REFORM_MSG_MAX_LENGTH);
+        }
         req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
             DMS_REFORM_MSG_MAX_LENGTH);
         if (req_rebuild == NULL) {
