@@ -393,34 +393,41 @@ void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receiv
 void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, char *msg,
     uint32 len, char *ack_buf);
 
-#define CM_CHK_RECV_MSG_SIZE(msg, len, free_msg, has_ack)                \
-    do {                                                                 \
-        if ((msg)->head->size < (len)) {                                 \
-            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",     \
-                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len)); \
-            if (has_ack) {                                               \
-                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg"); \
-            }                                                            \
-            if (free_msg) {                                              \
-                dms_release_recv_message((msg));                          \
-            }                                                            \
-            return ERRNO_DMS_MES_INVALID_MSG;                            \
-        }                                                                \
+#define CM_CHK_RESPONSE_SIZE(msg, len, has_ack)                                                 \
+    do {                                                                                        \
+        if ((msg)->head->size < (len)) {                                                        \
+            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                            \
+                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));            \
+            if (has_ack) {                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
+            }                                                                                   \
+            mfc_release_response(msg);                                                          \
+            return ERRNO_DMS_MES_INVALID_MSG;                                                   \
+        }                                                                                       \
     } while (0)
 
-#define CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, len, free_msg, has_ack)         \
-    do {                                                                 \
-        if ((msg)->head->size < (len)) {                                 \
-            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",     \
-                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len)); \
-            if (has_ack) {                                               \
-                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg"); \
-            }                                                            \
-            if (free_msg) {                                              \
-                dms_release_recv_message((msg));                          \
-            }                                                            \
-            return;                                                      \
-        }                                                                \
+#define CM_CHK_PROC_MSG_SIZE(msg, len, has_ack)                                                 \
+    do {                                                                                        \
+        if ((msg)->head->size < (len)) {                                                        \
+            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                            \
+                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));            \
+            if (has_ack) {                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
+            }                                                                                   \
+            return ERRNO_DMS_MES_INVALID_MSG;                                                   \
+        }                                                                                       \
+    } while (0)
+
+#define CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, len, has_ack)                                          \
+    do {                                                                                        \
+        if ((msg)->head->size < (len)) {                                                        \
+            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                            \
+                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));            \
+            if (has_ack) {                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
+            }                                                                                   \
+            return;                                                                             \
+        }                                                                                       \
     } while (0)
 
 

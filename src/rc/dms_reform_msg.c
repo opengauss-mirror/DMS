@@ -46,7 +46,7 @@ static int dms_reform_req_common_wait(uint64 ruid)
     ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
     DMS_RETURN_IF_ERROR(ret);
 
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return DMS_SUCCESS;
 }
 
@@ -121,7 +121,6 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
         req.share_info.list_offline.inst_id_count > g_dms.inst_cnt ||
         req.share_info.list_reconnect.inst_id_count > g_dms.inst_cnt ||
         req.share_info.list_disconnect.inst_id_count > g_dms.inst_cnt)) {
-        dms_release_recv_message(receive_msg);
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
         return;
     }
@@ -135,7 +134,6 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
         LOG_DEBUG_WAR("[DMS REFORM] current round(version num:%llu) of reform is being executed "
                       "or share info sync msg has been expired", local_share_info->version_num);
         dms_reform_ack_sync_share_info(process_ctx, receive_msg);
-        dms_release_recv_message(receive_msg);
         cm_spin_unlock(&reform_context->share_info_lock);
         return;
     }
@@ -143,7 +141,6 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
     reform_context->share_info = req.share_info;
     cm_spin_unlock(&reform_context->share_info_lock);
     dms_reform_ack_sync_share_info(process_ctx, receive_msg);
-    dms_release_recv_message(receive_msg);
     dms_reform_judgement_step_log();
     dms_reform_set_start();
 }
@@ -191,7 +188,7 @@ static void dms_reform_ack_req_sync_step(dms_process_context_t *process_ctx, dms
 
 void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_step_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_step_t), CM_TRUE);
     dms_reform_req_sync_step_t *req = (dms_reform_req_sync_step_t *)receive_msg->buffer;
     reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -199,7 +196,6 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
 
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -209,7 +205,6 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
         LOG_DEBUG_ERR("[DMS REFORM] dms_reform_proc_sync_step, invalid request, "
             "last_step=%u, curr_step=%u, next_step=%u", (uint32)req->last_step,
             (uint32)req->curr_step, (uint32)req->next_step);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -221,7 +216,6 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
     reform_info->max_scn = MAX(reform_info->max_scn, req->scn);
 
     dms_reform_ack_req_sync_step(process_ctx, receive_msg);
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_sync_step_wait(uint64 ruid)
@@ -273,17 +267,16 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     online_status[dst_id] = ack_common->dms_status;
     online_times[dst_id] = ack_common->start_time;
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return DMS_SUCCESS;
 }
 
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_FALSE);
     dms_reform_req_partner_status_t *req = (dms_reform_req_partner_status_t*)receive_msg->head;
     dms_reform_update_reformer_version(req->lsn, req->head.src_inst);
     dms_reform_ack_req_dms_status(process_ctx, receive_msg);
-    dms_release_recv_message(receive_msg);
 }
 
 
@@ -336,12 +329,12 @@ static void dms_reform_ack_req_gcv_sync(dms_process_context_t *process_ctx, dms_
 
 void dms_reform_proc_req_gcv_sync(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_gcv_sync_t), CM_TRUE);
     LOG_DEBUG_INF("[DMS REFORM][GCV SYNC]partner curr gcv:%u, received reformer gcv:%u",
         DMS_GLOBAL_CLUSTER_VER, receive_msg->head->cluster_ver);
 
     /* partner lamport-update gcv during ack here */
     dms_reform_ack_req_gcv_sync(process_ctx, receive_msg);
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_gcv_sync_wait(bool8 *local_updated, bool8 pushing, uint64 ruid)
@@ -367,7 +360,7 @@ int dms_reform_req_gcv_sync_wait(bool8 *local_updated, bool8 pushing, uint64 rui
 
     /* reformer should have the biggest gcv, unless it's just failover promoted */
     *local_updated = dms_lamport_update_cluster_version(res.head->cluster_ver, CM_FALSE);
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return DMS_SUCCESS;
 }
 
@@ -401,14 +394,12 @@ void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, dms_message
 {
     if (DMS_IS_REFORMER) {
         LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_req_prepare");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     int in_reform = dms_reform_in_process();
     LOG_DEBUG_INF("[DMS REFORM]dms_reform_proc_req_prepare in reform: %d", in_reform);
     dms_reform_ack_req_prepare(process_ctx, receive_msg, in_reform);
-    dms_release_recv_message(receive_msg);
 
     if (in_reform) {
         reform_info_t* reform_info = DMS_REFORM_INFO;
@@ -439,7 +430,7 @@ int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, uint64 ruid)
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     *last_fail = ack_common->last_fail;
     *in_reform = ack_common->result;
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return DMS_SUCCESS;
 }
 
@@ -475,45 +466,39 @@ void dms_reform_ack_sync_next_step(dms_process_context_t *process_ctx, dms_messa
 
 void dms_reform_proc_sync_next_step(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_step_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_step_t), CM_TRUE);
     dms_reform_req_sync_step_t *req = (dms_reform_req_sync_step_t *)receive_msg->buffer;
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     if (SECUREC_UNLIKELY(req->next_step >= DMS_REFORM_STEP_COUNT)) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_next_step invalid next_step");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     if (DMS_IS_REFORMER) {
         LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     if (req->start_time != reform_info->start_time) {
         LOG_DEBUG_WAR("[DMS REFORM]expired dms_reform_proc_sync_next_step");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     if (req->curr_step == DMS_REFORM_STEP_SELF_FAIL || req->curr_step == DMS_REFORM_STEP_REFORM_FAIL) {
         reform_info->reform_fail = CM_TRUE;
         LOG_RUN_INF("[DMS REFORM]set reform fail by reformer");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     reform_info->sync_step = req->next_step;
     reform_info->max_scn = MAX(reform_info->max_scn, req->scn);
     dms_reform_ack_sync_next_step(process_ctx, receive_msg);
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_sync_next_step_wait(uint64 ruid)
@@ -706,18 +691,16 @@ void dms_reform_ack_req_migrate(dms_process_context_t *process_ctx, dms_message_
 
 void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE);
     dms_reform_req_migrate_t *req = (dms_reform_req_migrate_t *)receive_msg->buffer;
 
     if (SECUREC_UNLIKELY(req->part_id > DRC_MAX_PART_NUM)) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_req_migrate invalid migrate request");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -728,14 +711,13 @@ void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message
 
     uint64 res_len = sizeof(drc_buf_res_msg_t);
     uint64 total_size = (uint64)(sizeof(dms_reform_req_migrate_t) + req->res_num * res_len);
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE);
 
     int ret = dms_reform_proc_req_migrate_res(process_ctx, receive_msg);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
     }
     dms_reform_ack_req_migrate(process_ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
@@ -834,13 +816,12 @@ void dms_reform_ack_req_rebuild(dms_process_context_t *process_ctx, dms_message_
 
 void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
 
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -866,7 +847,6 @@ void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t 
         }
     }
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 master_id)
@@ -941,13 +921,12 @@ int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, u
 
 void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
 
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -966,7 +945,6 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t 
         }
     }
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
 void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
@@ -1124,11 +1102,10 @@ static void dms_reform_proc_edp_to_owner(dms_process_context_t *process_ctx, dms
 
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_res_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_res_t), CM_TRUE);
     dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
     switch (req->action) {
@@ -1159,7 +1136,6 @@ void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t 
         default:
             break;
     }
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint64 ruid)
@@ -1180,7 +1156,7 @@ int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint6
     *lock_mode = ack_common->lock_mode;
     *is_edp = ack_common->is_edp;
     *lsn = ack_common->lsn;
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return ret;
 }
 
@@ -1211,19 +1187,17 @@ static void dms_reform_ack_switchover(dms_process_context_t *process_ctx, dms_me
 
 void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_switchover_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_switchover_t), CM_TRUE);
     dms_reform_req_switchover_t *req = (dms_reform_req_switchover_t *)receive_msg->head;
 
     if (!DMS_IS_REFORMER) {
         dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     // if switchover request come from self, return error
     if (dms_dst_id_is_self(req->head.src_inst)) {
         dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -1236,7 +1210,6 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, dms_mess
         switchover_info->start_time = req->start_time;
         cm_spin_unlock(&switchover_info->lock);
         dms_reform_ack_switchover(process_ctx, receive_msg, DMS_SUCCESS);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -1245,13 +1218,11 @@ void dms_reform_proc_req_switchover(dms_process_context_t *process_ctx, dms_mess
         switchover_info->start_time == req->start_time) {
         cm_spin_unlock(&switchover_info->lock);
         dms_reform_ack_switchover(process_ctx, receive_msg, DMS_SUCCESS);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
     cm_spin_unlock(&switchover_info->lock);
     dms_reform_ack_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_req_switchover_wait(uint64 ruid, uint64 *start_time)
@@ -1269,20 +1240,19 @@ int dms_reform_req_switchover_wait(uint64 ruid, uint64 *start_time)
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     result = ack_common->result;
     *start_time = ack_common->start_time;
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return result;
 }
 
 void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE);
 
     reform_info_t *reform_info = DMS_REFORM_INFO;
     dms_reform_ack_common_t ack_common;
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
-    dms_release_recv_message(receive_msg);
 
     if (!reform_info->reform_done) {
         ack_common.result = ERRNO_DMS_REFORM_NOT_FINISHED;
@@ -1315,7 +1285,7 @@ static int dms_reform_req_check_reform_done_wait(uint8 dst_id, uint64 ruid)
     }
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     ret = ack_common->result;
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
     return ret;
 }
 
@@ -1392,7 +1362,7 @@ int dms_reform_map_info_req_wait(uint64 ruid)
     remaster_info_t remaster_info = ack_map->remaster_info;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    dms_release_recv_message(&res);
+    mfc_release_response(&res);
 
     uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
     errno_t err = memcpy_s(part_mngr->inst_part_tbl, size, remaster_info.inst_part_tbl, size);
@@ -1410,7 +1380,7 @@ int dms_reform_map_info_req_wait(uint64 ruid)
 
 void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE);
 
     dms_reform_ack_map_t ack_map;
     remaster_info_t *remaster_info = &ack_map.remaster_info;
@@ -1419,7 +1389,6 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, dms_messag
 
     dms_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
         process_ctx->sess_id);
-    dms_release_recv_message(receive_msg);
 
     uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
     errno_t err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
@@ -1472,10 +1441,10 @@ int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *
 
     dms_end_stat(dms_ctx->sess_id);
 
-    CM_CHK_RECV_MSG_SIZE(&message, (uint32)(sizeof(dms_message_head_t) + sizeof(int32)), CM_TRUE, CM_FALSE);
+    CM_CHK_RESPONSE_SIZE(&message, (uint32)(sizeof(dms_message_head_t) + sizeof(int32)), CM_FALSE);
     *redo_status = *(int *)(message.buffer + sizeof(dms_message_head_t));
 
-    dms_release_recv_message(&message);
+    mfc_release_response(&message);
     return DMS_SUCCESS;
 }
 
@@ -1486,11 +1455,11 @@ void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *proce
     int32 redo_status;
     void *block_key;
 
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_opengauss_ondemand_redo_t),
-        CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_opengauss_ondemand_redo_t),
+        CM_TRUE);
     dms_reform_req_opengauss_ondemand_redo_t *req = (dms_reform_req_opengauss_ondemand_redo_t *)(receive_msg->buffer);
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)(sizeof(dms_reform_req_opengauss_ondemand_redo_t) + req->len),
-        CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)(sizeof(dms_reform_req_opengauss_ondemand_redo_t) + req->len),
+        CM_TRUE);
 
     block_key = (void *)(receive_msg->buffer + sizeof(dms_reform_req_opengauss_ondemand_redo_t));
     g_dms.callback.opengauss_ondemand_redo_buffer(block_key, &redo_status);
@@ -1498,7 +1467,6 @@ void dms_reform_proc_opengauss_ondemand_redo_buffer(dms_process_context_t *proce
     dms_init_ack_head(req_head, &ack_head, MSG_ACK_OPENGAUSS_ONDEMAND_REDO, sizeof(int32) + sizeof(dms_message_head_t),
         process_ctx->sess_id);
 
-    dms_release_recv_message(receive_msg);
     if (mfc_send_data3(&ack_head, sizeof(dms_message_head_t), &redo_status) != CM_SUCCESS) {
         LOG_DEBUG_ERR(
             "[On-demand] send openGauss on-demand redo status ack message failed, src_inst = %u, dst_inst = %u",

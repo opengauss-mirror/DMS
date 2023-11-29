@@ -1209,7 +1209,7 @@ static int dms_reform_repair_with_copy_insts_inner(drc_buf_res_t *buf_res, uint3
         return DMS_SUCCESS;
     }
 
-    for (uint8 i = 0; i < CM_MAX_INSTANCES; ++i) {
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; ++i) {
         if (!bitmap64_exist(&insts, i)) {
             continue;
         }

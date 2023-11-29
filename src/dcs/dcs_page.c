@@ -77,12 +77,12 @@ static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_
 int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
-    CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
 
     if (ack->head.cmd == MSG_ACK_EDP_READY && !(ack->head.flags & MSG_FLAG_NO_PAGE)) {
-        CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size),
-            CM_FALSE, CM_FALSE);
+        CM_CHK_PROC_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size),
+            CM_FALSE);
         int ret = memcpy_sp(g_dms.callback.get_page(ctrl), g_dms.page_size, msg->buffer + sizeof(dms_ask_res_ack_t),
             g_dms.page_size);
         if (ret != EOK) {
@@ -172,7 +172,7 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
     }
     ret = dcs_handle_ask_edp_ack(dms_ctx, ctrl, (uint8)dms_ctx->inst_id, &msg, req_mode);
 
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
     return ret;
 }
 
@@ -201,7 +201,7 @@ int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
 {
     dms_ask_res_ack_ld_t *ack = NULL;
     if (msg != NULL) {
-        CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_ld_t), CM_FALSE, CM_FALSE);
+        CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_ld_t), CM_FALSE);
         ack = (dms_ask_res_ack_ld_t *)msg->buffer;
 #ifndef OPENGAUSS
         // load page from disk, need to sync scn/lsn with master
@@ -242,11 +242,11 @@ int32 dcs_handle_ack_already_owner(dms_context_t *dms_ctx,
 static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, dms_message_t *msg, dms_lock_mode_t mode)
 {
-    CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
 
     if (ack->head.cmd == MSG_ACK_PAGE_READY && !(ack->head.flags & MSG_FLAG_NO_PAGE)) {
-        CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
+        CM_CHK_PROC_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size), CM_FALSE);
 #ifdef OPENGAUSS
         ctrl->seg_fileno = ack->seg_fileno;
         ctrl->seg_blockno = ack->seg_blockno;
@@ -728,10 +728,9 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
 
 void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE);
     dms_ask_res_req_t page_req = { 0 };
     page_req = *(dms_ask_res_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     if (SECUREC_UNLIKELY(page_req.req_mode >= DMS_LOCK_MODE_MAX ||
         page_req.curr_mode >= DMS_LOCK_MODE_MAX)) {
@@ -875,12 +874,12 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     } else if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_ALREADY_OWNER)) {
         *owner_id = (uint8)dms_ctx->inst_id;
     } else if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_PAGE_OWNER_ID)) {
-        CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(msg_ack_owner_id_t), CM_TRUE, CM_FALSE);
+        CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(msg_ack_owner_id_t), CM_FALSE);
         *owner_id = (uint8)(*(uint32 *)DMS_MESSAGE_BODY(&msg));
     } else {
         cm_print_error_msg(msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
-        dms_release_recv_message(&msg);
+        mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
@@ -888,7 +887,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
         ", lock_mode=%d", cm_display_pageid(page_req.resid), msg.head->src_inst, msg.head->dst_inst, msg.head->flags,
         (*owner_id), ctrl->lock_mode);
 
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
     return ret;
 }
 
@@ -961,12 +960,12 @@ static int dcs_release_owner_r(dms_context_t *dms_ctx, uint8 master_id, unsigned
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(msg_rls_owner_ack_t), CM_TRUE, CM_FALSE);
+    CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(msg_rls_owner_ack_t), CM_FALSE);
     msg_rls_owner_ack_t *ack = (msg_rls_owner_ack_t *)msg.buffer;
     *released = ack->released;
 
     LOG_DEBUG_INF("[DCS][%s][release owner result]: released=%d", cm_display_pageid(dms_ctx->resid), (*released));
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
     return DMS_SUCCESS;
 }
 
@@ -1019,9 +1018,8 @@ static int dcs_send_rls_owner_ack(dms_process_context_t *ctx, msg_rls_owner_req_
 
 void dcs_proc_release_owner_req(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(msg_rls_owner_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(msg_rls_owner_req_t), CM_TRUE);
     msg_rls_owner_req_t req = *(msg_rls_owner_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, ruid=%llu",
         cm_display_pageid(req.pageid), req.head.src_inst, req.head.src_sid, req.owner_lsn, req.owner_scn,
@@ -1066,11 +1064,9 @@ int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ct
 void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
 #ifdef OPENGAUSS
-    dms_release_recv_message(receive_msg);
 #else
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE);
     dms_ask_res_req_t page_req = *(dms_ask_res_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     LOG_DEBUG_INF("[DCS][%s][dcs_proc_ask_remote_for_edp]: started, owner_id=%d, req_id=%d, "
         "req_sid=%d, req_ruid=%llu, req_mode=%u, curr_mode=%u",

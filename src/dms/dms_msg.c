@@ -54,7 +54,6 @@ void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receiv
     dms_init_ack_head(receive_msg->head, &ack_msg.head, cmd, sizeof(dms_common_ack_t), process_ctx->sess_id);
     ack_msg.ret = ret;
 
-    dms_release_recv_message(receive_msg);
     if (mfc_send_data(&ack_msg.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("send result msg to instance %d failed.", receive_msg->head->src_inst);
     }
@@ -75,7 +74,6 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *recei
     int ret = memcpy_s(send_msg + sizeof(dms_message_head_t), len, msg, len);
     DMS_SECUREC_CHECK(ret);
 
-    dms_release_recv_message(receive_msg);
     if (mfc_send_data(head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("send result msg to instance %d failed.", receive_msg->head->src_inst);
     }
@@ -182,7 +180,7 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
     dms_common_ack_t ack = *(dms_common_ack_t*)msg.buffer;
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
 
     LOG_DEBUG_INF("[DMS][%s]: invalid owner:%u result:%d",
         cm_display_resid(req.resid, req.res_type), (uint32)owner_id, ack.ret);
@@ -411,7 +409,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
 
     ret = dms_handle_ask_owner_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, &msg);
 
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
     return ret;
 }
 
@@ -480,7 +478,7 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
             break;
     }
 
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
     return ret;
 }
 
@@ -713,15 +711,15 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
-        dms_release_recv_message(&msg);
+        mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    CM_CHK_RECV_MSG_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_TRUE, CM_FALSE);
+    CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_FALSE);
     dms_ask_res_owner_id_ack_t *ack = (dms_ask_res_owner_id_ack_t *)msg.buffer;
     *owner_id = ack->owner_id;
 
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
     return DMS_SUCCESS;
 }
@@ -927,9 +925,8 @@ void dms_handle_remote_req_result(dms_process_context_t *ctx, dms_ask_res_req_t 
 
 void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE);
     dms_ask_res_req_t req = *(dms_ask_res_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE ||
         req.curr_mode >= DMS_LOCK_MODE_MAX ||
@@ -975,9 +972,8 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t 
 
 void dms_proc_ask_res_owner_id(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_owner_id_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_owner_id_req_t), CM_TRUE);
     dms_ask_res_owner_id_req_t req = *(dms_ask_res_owner_id_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE)) {
         LOG_DEBUG_ERR("[DMS][dms_proc_ask_res_owner_id]: invalid req message");
@@ -1024,10 +1020,9 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *proc_ctx, dms_message_t *r
 
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE);
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     dms_ask_res_req_t req = *(dms_ask_res_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE ||
         req.curr_mode >= DMS_LOCK_MODE_MAX ||
@@ -1074,9 +1069,8 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
 {
     dms_begin_stat(proc_ctx->sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_PROCESS, CM_TRUE);
 
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_invld_req_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_invld_req_t), CM_TRUE);
     dms_invld_req_t req = *(dms_invld_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE)) {
         dms_end_stat(proc_ctx->sess_id);
@@ -1226,14 +1220,13 @@ static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info
 
 void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_claim_owner_req_t), CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_claim_owner_req_t), CM_FALSE);
     dms_claim_owner_req_t *request = (dms_claim_owner_req_t *)(receive_msg->buffer);
     cvt_info_t cvt_info;
     claim_info_t claim_info;
 
     if (SECUREC_UNLIKELY(request->req_mode >= DMS_LOCK_MODE_MAX || request->len > DMS_RESID_SIZE)) {
         LOG_DEBUG_ERR("[DMS][dms_proc_claim_ownership_req]: invalid req message");
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -1248,11 +1241,9 @@ void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_messag
         request->sess_type, request->srsn);
 
     if (drc_claim_page_owner(&claim_info, &cvt_info) != DMS_SUCCESS) {
-        dms_release_recv_message(receive_msg);
         return;
     }
 
-    dms_release_recv_message(receive_msg);
 
     if (cvt_info.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
@@ -1307,9 +1298,8 @@ void dms_cancel_request_res(dms_context_t *dms_ctx)
 
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_cancel_request_res_t), CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_cancel_request_res_t), CM_FALSE);
     dms_cancel_request_res_t req = *(dms_cancel_request_res_t*)receive_msg->buffer;
-    dms_release_recv_message(receive_msg);
 
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE)) {
         LOG_DEBUG_ERR("[DMS][dms_proc_cancel_request_res]invalid cancel request res message");
@@ -1344,9 +1334,8 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t 
 
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_confirm_cvt_req_t), CM_TRUE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_confirm_cvt_req_t), CM_FALSE);
     dms_confirm_cvt_req_t req = *(dms_confirm_cvt_req_t *)(receive_msg->buffer);
-    dms_release_recv_message(receive_msg);
 
     int32 ret;
     uint8 lock_mode;
@@ -1520,7 +1509,7 @@ static void dms_smon_handle_confirm_ack(uint64 ruid, res_id_t *res_id, drc_reque
         return;
     }
     dms_confirm_cvt_ack_t ack = *(dms_confirm_cvt_ack_t*)msg.buffer;
-    dms_release_recv_message(&msg);
+    mfc_release_response(&msg);
 
     LOG_DEBUG_INF("[DMS][%s] recv confirm ack [result:%u edp_map:%llu lsn:%llu]",
         cm_display_resid(res_id->data, res_id->type), (uint32)ack.result, ack.edp_map, ack.lsn);
@@ -1597,12 +1586,12 @@ void dms_smon_recycle_entry(thread_t *thread)
 
 void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    dms_release_recv_message(receive_msg);
+    /* pass */
 }
 
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
-    dms_release_recv_message(receive_msg);
+    /* pass */
 }
 
 bool8 dms_cmd_is_broadcast(uint32 cmd)
@@ -1758,7 +1747,7 @@ int dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info)
         err = memcpy_s(&drc_info->buf_info[i], sizeof(stat_buf_info_t), &ack->buf_info, sizeof(stat_buf_info_t));
         DMS_SECUREC_CHECK(err);
     }
-    mfc_release_mes_msglist(&recv_msg);
+    mfc_release_broadcast_response(&recv_msg);
     return ret;
 }
 
@@ -1768,7 +1757,7 @@ int dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info)
 */
 void dms_proc_ask_node_buf_info(dms_process_context_t * proc_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_req_buf_info_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_req_buf_info_t), CM_TRUE);
     dms_req_buf_info_t req = *(dms_req_buf_info_t *)(receive_msg->buffer);
 
     stat_buf_info_t buf_info;
@@ -1789,7 +1778,6 @@ void dms_proc_ask_node_buf_info(dms_process_context_t * proc_ctx, dms_message_t 
     ack.head.size = sizeof(dms_ack_buf_info_t);
     ack.buf_info = buf_info;
 
-    dms_release_recv_message(receive_msg);
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS]dms_proc_ask_node_buf_info send error, dst_id: %d", proc_ctx->inst_id);
     }
@@ -1932,7 +1920,6 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
         LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",
             (uint32)msg->head->cmd, (uint32)msg->head->size, (uint32)msg->head->size);
         cm_send_error_msg(msg->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");
-        dms_release_recv_message(msg);
         return DMS_ERROR;
     }
 
@@ -1948,7 +1935,6 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
     if (version_attr == NULL) {
         LOG_DEBUG_ERR("recv invalid msg, msg_size=%u, req_size=%u", msg_head->size, version_attr->req_size);
         cm_send_error_msg(msg->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");
-        dms_release_recv_message(msg);
         return DMS_ERROR;
     }
 

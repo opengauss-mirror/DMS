@@ -211,12 +211,12 @@ static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *ms
     int ret = DMS_SUCCESS;
     const char *err_msg = NULL;
 
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_TRUE);
     msg_pcr_request_t *request = (msg_pcr_request_t *)(msg->buffer);
 
     uint32 total_size = request->cr_type == CR_TYPE_HEAP ? sizeof(msg_pcr_request_t) : sizeof(msg_index_pcr_request_t);
     total_size += g_dms.page_size;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, total_size, CM_FALSE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, total_size, CM_TRUE);
 
     /*
      * NOTE:
@@ -252,7 +252,6 @@ void dcs_proc_pcr_request(dms_process_context_t *process_ctx, dms_message_t *rec
 
     dcs_handle_pcr_request(process_ctx, recv_msg);
 #endif
-    dms_release_recv_message(recv_msg);
 }
 
 static int dcs_init_pcr_request(msg_pcr_request_t *request, dms_context_t *dms_ctx, dms_cr_t *dms_cr, cr_type_t type)
@@ -278,11 +277,11 @@ static int dcs_init_pcr_request(msg_pcr_request_t *request, dms_context_t *dms_c
 
 static int dcs_proc_msg_req_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message)
 {
-    CM_CHK_RECV_MSG_SIZE(message, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(message, (uint32)sizeof(msg_pcr_request_t), CM_FALSE);
     msg_pcr_request_t *reply = (msg_pcr_request_t *)(message->buffer);
     uint32 head_size = (reply->cr_type != CR_TYPE_BTREE) ? sizeof(msg_pcr_request_t) : sizeof(msg_index_pcr_request_t);
 
-    CM_CHK_RECV_MSG_SIZE(message, (uint32)(head_size + g_dms.page_size), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(message, (uint32)(head_size + g_dms.page_size), CM_FALSE);
     char *recv_page = (char *)reply + head_size;
     int ret = memcpy_sp(dms_cr->page, g_dms.page_size, recv_page, g_dms.page_size);
     if (ret != EOK) {
@@ -290,7 +289,7 @@ static int dcs_proc_msg_req_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dm
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
     if (dms_cr->fb_mark != NULL) {
-        CM_CHK_RECV_MSG_SIZE(message, (uint32)(head_size + 2 * g_dms.page_size), CM_FALSE, CM_FALSE);
+        CM_CHK_PROC_MSG_SIZE(message, (uint32)(head_size + 2 * g_dms.page_size), CM_FALSE);
         bool8 *fb_mark = (bool8*)(message->buffer + head_size + g_dms.page_size);
         ret = memcpy_sp((char*)dms_cr->fb_mark, g_dms.page_size, (char*)fb_mark, g_dms.page_size);
         if (ret != EOK) {
@@ -306,7 +305,7 @@ static int dcs_proc_msg_req_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dm
 
 static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms_message_t *message)
 {
-    CM_CHK_RECV_MSG_SIZE(message, (uint32)(sizeof(msg_pcr_ack_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(message, (uint32)(sizeof(msg_pcr_ack_t) + g_dms.page_size), CM_FALSE);
     msg_pcr_ack_t *ack = (msg_pcr_ack_t *)(message->buffer);
     char *recv_page = (char *)ack + sizeof(msg_pcr_ack_t);
     int ret = memcpy_sp(dms_cr->page, g_dms.page_size, recv_page, g_dms.page_size);
@@ -315,7 +314,7 @@ static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dm
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
     if (dms_cr->fb_mark != NULL) {
-        CM_CHK_RECV_MSG_SIZE(message, (uint32)(sizeof(msg_pcr_ack_t) + 2 * g_dms.page_size), CM_FALSE, CM_FALSE);
+        CM_CHK_PROC_MSG_SIZE(message, (uint32)(sizeof(msg_pcr_ack_t) + 2 * g_dms.page_size), CM_FALSE);
         bool8 *fb_mark = (bool8*)(message->buffer + sizeof(msg_pcr_ack_t) + g_dms.page_size);
         ret = memcpy_sp((char*)dms_cr->fb_mark, g_dms.page_size, (char*)fb_mark, g_dms.page_size);
         if (ret != EOK) {
@@ -332,7 +331,7 @@ static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dm
 
 static inline int dcs_proc_msg_ack_txn_wait(dms_cr_t *dms_cr, dms_message_t *message)
 {
-    CM_CHK_RECV_MSG_SIZE(message, (uint32)(sizeof(dms_message_head_t) + DMS_XID_SIZE), CM_FALSE, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE(message, (uint32)(sizeof(dms_message_head_t) + DMS_XID_SIZE), CM_FALSE);
     char *wxid = g_dms.callback.get_wxid_from_cr_cursor(dms_cr->cr_cursor);
     int ret = memcpy_sp(wxid, DMS_XID_SIZE, DMS_MESSAGE_BODY(message), DMS_XID_SIZE);
     DMS_SECUREC_CHECK(ret);
@@ -413,7 +412,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
         dms_end_stat(dms_ctx->sess_id);
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message);
-        dms_release_recv_message(&message);
+        mfc_release_response(&message);
         return ret;
     }
 
@@ -618,7 +617,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
 
 static void dcs_handle_pcr_req_master(dms_process_context_t *ctx, dms_message_t *msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_FALSE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, (uint32)sizeof(msg_pcr_request_t), CM_TRUE);
     msg_pcr_request_t *request = (msg_pcr_request_t *)(msg->buffer);
     uint8 owner_id;
     bool32 local_route = CM_TRUE;
@@ -670,14 +669,13 @@ void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, dms_message_t *
 
     dcs_handle_pcr_req_master(process_ctx, recv_msg);
 #endif
-    dms_release_recv_message(recv_msg);
 }
 
 
 void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *recv_msg)
 {
 #ifndef OPENGAUSS
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(recv_msg, (uint32)sizeof(msg_pcr_request_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(recv_msg, (uint32)sizeof(msg_pcr_request_t), CM_TRUE);
     msg_pcr_request_t *request = (msg_pcr_request_t *)(recv_msg->buffer);
     bool32 local_route = CM_FALSE;
     int ret;
@@ -695,7 +693,6 @@ void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *r
         dcs_handle_pcr_req_master(process_ctx, recv_msg);
     }
 #endif
-    dms_release_recv_message(recv_msg);
 }
 
 #ifndef OPENGAUSS
@@ -790,13 +787,12 @@ void dcs_proc_check_visible(dms_process_context_t *process_ctx, dms_message_t *r
         return;
     }
 
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(recv_msg, (uint32)(sizeof(msg_cr_check_t) + g_dms.page_size), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(recv_msg, (uint32)(sizeof(msg_cr_check_t) + g_dms.page_size), CM_TRUE);
     int ret = dcs_heap_check_visible(process_ctx, (msg_cr_check_t *)(recv_msg->buffer));
     if (ret != DMS_SUCCESS) {
         cm_send_error_msg(recv_msg->head, ret, "check heap page visible failed");
     }
 #endif
-    dms_release_recv_message(recv_msg);
 }
 
 static inline void dcs_get_msg_cmd_by_cr_status(dms_cr_phase_t cr_phase, msg_command_t *msg_cmd,
@@ -862,11 +858,11 @@ int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned 
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message);
         if (ret != DMS_SUCCESS) {
-            dms_release_recv_message(&message);
+            mfc_release_response(&message);
             return ret;
         }
 
-        dms_release_recv_message(&message);
+        mfc_release_response(&message);
         return DMS_SUCCESS;
     }
 
@@ -920,7 +916,7 @@ static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, dms_message_t *msg, 
     dms_message_head_t *dms_head = get_dms_head(msg);
     switch (dms_head->cmd) {
         case MSG_ACK_CHECK_VISIBLE:
-            CM_CHK_RECV_MSG_SIZE(msg, (uint32)sizeof(msg_cr_check_ack_t), CM_FALSE, CM_FALSE);
+            CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(msg_cr_check_ack_t), CM_FALSE);
             *is_found = *(bool8 *)DMS_MESSAGE_BODY(msg);
             *is_empty_itl = CM_TRUE;
             return DMS_SUCCESS;
@@ -929,7 +925,7 @@ static int dcs_proc_check_current_visible(dms_cr_t *dms_cr, dms_message_t *msg, 
             DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg->buffer + sizeof(msg_error_t));
             return ERRNO_DMS_COMMON_MSG_ACK;
         case MSG_REQ_CHECK_VISIBLE: {
-            CM_CHK_RECV_MSG_SIZE(msg, (uint32)(sizeof(msg_cr_check_t) + g_dms.page_size), CM_FALSE, CM_FALSE);
+            CM_CHK_PROC_MSG_SIZE(msg, (uint32)(sizeof(msg_cr_check_t) + g_dms.page_size), CM_FALSE);
             msg_cr_check_t *check = (msg_cr_check_t *)(msg->buffer);
             recv_page = (char *)check + sizeof(msg_cr_check_t);
             errno_t err = memcpy_sp(dms_cr->page, g_dms.page_size, recv_page, g_dms.page_size);
@@ -985,7 +981,7 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
 
         ret = dcs_proc_check_current_visible(dms_cr, &message, is_empty_itl, is_found);
 
-        dms_release_recv_message(&message);
+        mfc_release_response(&message);
         return ret;
     }
 

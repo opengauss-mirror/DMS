@@ -26,6 +26,7 @@
 
 #include "mes_interface.h"
 #include "cm_spinlock.h"
+#include "dms_api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,8 +82,8 @@ typedef struct st_mfc_ticket {
 typedef struct st_mfc {
     uint16 profile_tickets;
     uint16 max_wait_ticket_time; // ms
-    mfc_ticket_t remain_tickets[CM_MAX_INSTANCES];
-    mfc_ticket_t recv_tickets[CM_MAX_INSTANCES];
+    mfc_ticket_t remain_tickets[DMS_MAX_INSTANCES];
+    mfc_ticket_t recv_tickets[DMS_MAX_INSTANCES];
 } mfc_t;
 
 static inline void mfc_add_tickets(mfc_ticket_t *ticket, uint16 count)
@@ -109,7 +110,7 @@ static inline uint16 mfc_clean_tickets(mfc_ticket_t *ticket)
 
 /* MES connection */
 #define mfc_connection_ready mes_connection_ready
-#define mfc_connect mes_add_instance
+#define mfc_connect mes_connect_instance
 int mfc_add_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt, bool8 is_sync);
 int mfc_check_connection_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt);
 int mfc_del_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt);
@@ -133,14 +134,20 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts);
 int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, mes_msg_list_t *msg_list);
 
-#define mfc_release_mes_msg mes_release_msg
-#define mfc_release_mes_msglist mes_release_msg_list
-
-static inline void dms_release_recv_message(dms_message_t *msg)
+static inline void mfc_release_broadcast_response(mes_msg_list_t *response)
 {
+    mes_release_msg_list(response);
+}
+
+static inline void mfc_release_response(dms_message_t *msg)
+{
+    if (msg == NULL || msg->buffer == NULL) {
+        return;
+    }
     mes_msg_t mes_msg = { 0 };
     mes_msg.buffer = msg->buffer;
-    mfc_release_mes_msg(&mes_msg);
+    mes_release_msg(&mes_msg);
+    msg->buffer = NULL;
 }
 #define mfc_get_stat_send_count mes_get_stat_send_count
 #define mfc_get_stat_recv_count mes_get_stat_recv_count

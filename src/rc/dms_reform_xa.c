@@ -51,11 +51,10 @@ static void inline dms_reform_collect_xa_owner_by_bucket(drc_res_bucket_t *bucke
 void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_xa_owners_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_xa_owners_t), CM_TRUE);
     dms_reform_req_sync_xa_owners_t *req = (dms_reform_req_sync_xa_owners_t *)receive_msg->buffer;
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -72,7 +71,6 @@ void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t 
         LOG_DEBUG_FUNC_FAIL;
     }
 
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_merge_xa_owners(void)
@@ -111,10 +109,9 @@ int dms_reform_merge_xa_owners(void)
 void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
     if (!dms_reform_check_judge_time(receive_msg->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
     dms_reform_ack_common_t ack_comm;
@@ -127,7 +124,6 @@ void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_messag
         LOG_DEBUG_FUNC_FAIL;
     }
 
-    dms_release_recv_message(receive_msg);
 }
 
 static int dms_reform_req_xa_owners(void)
@@ -172,12 +168,12 @@ static int dms_reform_req_xa_owners(void)
         ret = ack_comm->result;
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners result: %d, dst_id: %d", ret, share_info->promote_id);
-            dms_release_recv_message(&res);
+            mfc_release_response(&res);
             return ret;
         }
 
         reform_info->bitmap_has_xa = ack_comm->bitmap_has_xa;
-        dms_release_recv_message(&res);
+        mfc_release_response(&res);
         break;
     }
 
@@ -346,7 +342,7 @@ int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrat
 
 void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE);
     dms_reform_req_migrate_t *req = (dms_reform_req_migrate_t *)receive_msg->buffer;
 
     int ret = DMS_SUCCESS;
@@ -382,7 +378,6 @@ void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_mess
     }
 
     dms_reform_ack_req_migrate(process_ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
 static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild, drc_global_xid_t *xid,
@@ -510,12 +505,11 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
 {
     int32 ret = DMS_SUCCESS;
     drc_global_xid_t xid = { 0 };
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
     uint8 owner_id = req_rebuild->head.src_inst;
@@ -548,7 +542,6 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     }
 
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
 void dms_reform_clean_xa_res_by_part(bilist_t *part_list)
