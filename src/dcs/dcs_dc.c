@@ -98,6 +98,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     dms_message_head_t head;
     int ret = DMS_SUCCESS;
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    cm_panic_log(scope < DMS_BROADCAST_TYPE_COUNT, "Invalid scope: %d, when dms broadcast msg internal", scope);
 
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(dms_message_head_t) + len);

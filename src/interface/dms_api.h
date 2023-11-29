@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2022 Huawei Technologies Co.,Ltd.
  *
  * DMS is licensed under Mulan PSL v2.
@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           118
+#define DMS_LOCAL_VERSION           119
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -698,6 +698,7 @@ typedef struct st_stat_drc_info {
 typedef enum en_broadcast_scope {
     DMS_BROADCAST_OLDIN_LIST = 0,    // default value
     DMS_BROADCAST_ONLINE_LIST = 1,
+    DMS_BROADCAST_TYPE_COUNT,
 } dms_broadcast_scope_e;
 
 typedef struct st_dv_drc_buf_info {
