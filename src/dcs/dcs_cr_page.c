@@ -585,7 +585,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
 
     // use the received request to generate new request to construct CR page
     new_req = (msg_pcr_request_t *)g_dms.callback.mem_alloc(ctx->db_handle,
-        sizeof(msg_pcr_request_t) + g_dms.page_size);
+        sizeof(msg_pcr_request_t) + 2 * g_dms.page_size);
     if (new_req == NULL) {
         g_dms.callback.leave_page(ctx->db_handle, CM_FALSE, cr_version);
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_STACK_PUSH);
@@ -593,7 +593,7 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     }
     *new_req = *(msg_pcr_request_t *)request;
     new_req->head.cmd = MSG_REQ_CR_PAGE;
-    new_req->head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
+    new_req->head.size = (uint16)(sizeof(msg_pcr_request_t) + 2 * g_dms.page_size);
 
     ret = memcpy_sp((char *)new_req + sizeof(msg_pcr_request_t), g_dms.page_size, page, g_dms.page_size);
     if (ret != EOK) {
