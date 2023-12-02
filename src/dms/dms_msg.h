@@ -531,7 +531,7 @@ typedef struct st_dms_ack_buf_info {
     stat_buf_info_t          buf_info;
 } dms_ack_buf_info_t;
 
-int dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info);
+int dms_send_request_buf_info(dms_context_t *dms_ctx, dv_drc_buf_info *drc_info);
 void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 
 void dms_check_message_cmd(unsigned int cmd, bool8 is_req);

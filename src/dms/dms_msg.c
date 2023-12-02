@@ -1708,7 +1708,7 @@ void dms_init_cluster_proto_version()
 * @[in] tag: Uniquely identify a page
 * @[out] drc_info->buf_info[]: Save the information returned by instances
 */
-int dms_send_request_buf_info(dms_context_t *dms_ctx, stat_drc_info_t *drc_info)
+int dms_send_request_buf_info(dms_context_t *dms_ctx, dv_drc_buf_info *drc_info)
 {
     dms_req_buf_info_t req;
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_NODE_FOR_BUF_INFO, 0,
