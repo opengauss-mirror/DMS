@@ -292,6 +292,8 @@ static bool32 dms_msg_skip_gcv_check(unsigned int cmd)
         case MSG_REQ_DDL_SYNC:
         case MSG_REQ_CR_PAGE:
         case MSG_REQ_CHECK_VISIBLE:
+        case MSG_REQ_ASK_OWNER_FOR_CR_PAGE:
+        case MSG_REQ_ASK_MASTER_FOR_CR_PAGE:
         case MSG_REQ_BROADCAST:
             return CM_TRUE;
         default:
