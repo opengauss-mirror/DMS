@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           119
+#define DMS_LOCAL_VERSION           120
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -583,6 +583,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_DCS_REQ_XA_IN_USE,
     DMS_EVT_DCS_REQ_END_XA,
 
+// add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
 } dms_wait_event_t;
 
@@ -723,6 +724,13 @@ typedef struct st_dv_drc_buf_info {
     unsigned char           is_valid;
 } dv_drc_buf_info;
 
+typedef struct st_dms_reform_start_context {
+    dms_role_t role;
+    dms_reform_type_t reform_type;
+    unsigned long long bitmap_participated;
+    unsigned long long bitmap_reconnect;
+} dms_reform_start_context_t;
+
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
@@ -744,8 +752,7 @@ typedef int(*dms_df_recovery)(void *db_handle, unsigned long long list_in, void 
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
 typedef int(*dms_opengauss_recovery_primary)(void *db_handle, int inst_id);
-typedef void(*dms_reform_start_notify)(void *db_handle, dms_role_t role, unsigned char reform_type,
-    unsigned long long bitmap_nodes);
+typedef void(*dms_reform_start_notify)(void *db_handle, dms_reform_start_context_t *rs_ctx);
 typedef int(*dms_undo_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_load)(void *db_handle, unsigned char inst_id);
