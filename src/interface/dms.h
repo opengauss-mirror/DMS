@@ -842,7 +842,7 @@ DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_po
 DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned long long oldest_xmin,
     unsigned char dest_id);
     
-DMS_DECLARE int dms_get_drc_info(int *is_found, stat_drc_info_t* drc_info);
+DMS_DECLARE int dms_get_drc_info(int *is_found, dv_drc_buf_info* drc_info);
 
 /*
  * @brief retrieve mes statistics of waiting events

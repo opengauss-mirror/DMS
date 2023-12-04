@@ -662,7 +662,7 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_mast
 * @[out] drc_info: Save the DRC information of the current page, 
 *        including page related information in Standby which held the COPY
 */
-int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
+int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
 {
     drc_buf_res_t *buf_res = NULL;
     int32 ret = drc_enter_buf_res(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL, &buf_res);
