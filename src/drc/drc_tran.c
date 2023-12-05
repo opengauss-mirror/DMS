@@ -270,7 +270,7 @@ static int32 drc_enter_xa_res_precheck(drc_global_xid_t *global_xid, drc_global_
         return ret;
     }
 
-    if (dms_dst_id_is_self(master_id)) {
+    if (check_xa_drc && !dms_dst_id_is_self(master_id)) {
         LOG_DEBUG_ERR("[%s][drc_enter_xa_res_precheck] master is changed to %u", cm_display_resid((char *)global_xid,
             DRC_RES_GLOBAL_XA_TYPE), master_id);
         DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
