@@ -100,6 +100,17 @@ static int32 chk_convertq_4_conflict(drc_buf_res_t* buf_res, drc_request_info_t*
     return DMS_SUCCESS;
 }
 
+static inline void drc_register_converting_simply(drc_buf_res_t* buf_res, drc_cvt_item_t *converting)
+{
+    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        buf_res->copy_insts = 0;
+        buf_res->lock_mode  = converting->req_info.req_mode;
+        buf_res->claimed_owner = converting->req_info.inst_id;
+    } else if (buf_res->claimed_owner != converting->req_info.inst_id){
+        bitmap64_set(&buf_res->copy_insts, converting->req_info.inst_id);
+    }
+}
+
 static int32 drc_check_req_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t *req, bool32 *is_retry,
     bool32 *can_cvt)
 {
@@ -111,6 +122,11 @@ static int32 drc_check_req_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t
         int32 ret = chk_if_valid_retry_request(buf_res, req, &converting->req_info, first_node);
         if (ret != DMS_SUCCESS) {
             return ret;
+        }
+        // converting: request s mode, and has been granted, but claim request has not been processed
+        // req: s->x
+        if (req->curr_mode == converting->req_info.req_mode) {
+            drc_register_converting_simply(buf_res, converting);
         }
         *can_cvt  = CM_TRUE;
         *is_retry = CM_TRUE;

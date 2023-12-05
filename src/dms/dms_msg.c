@@ -387,7 +387,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
             cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(req.head.cmd),
             (uint32)req.head.src_inst, (uint32)req.head.src_sid, (uint32)req.head.dst_inst,
             (uint32)req.head.dst_sid, (uint32)req_mode);
-        return ERRNO_DMS_SEND_MSG_FAILED;
+        return ERRNO_DMS_DCS_MSG_EAGAIN;
     }
 
     LOG_DEBUG_INF("[DMS]%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
@@ -404,7 +404,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
             (uint32)req.head.src_sid, (uint32)req.head.dst_inst, (uint32)req.head.dst_sid,
             (uint32)req_mode, ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        return ERRNO_DMS_RECV_MSG_FAILED;
+        return ERRNO_DMS_DCS_MSG_EAGAIN;
     }
 
     ret = dms_handle_ask_owner_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, &msg);
