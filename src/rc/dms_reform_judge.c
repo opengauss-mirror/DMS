@@ -1474,7 +1474,9 @@ static void dms_reform_judgement_full_clean(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair(inst_lists);
+#ifndef OPENGAUSS
     dms_reform_judgement_reset_user();
+#endif
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_switchover_promote();
