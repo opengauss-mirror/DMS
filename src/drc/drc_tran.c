@@ -205,20 +205,20 @@ static void drc_add_xa_part_list(drc_global_xa_res_t *xa_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     xa_res->part_id = drc_get_global_xid_partid(&xa_res->xid);
-    bilist_t *part_list = &ctx->global_xa_res.res_parts[xa_res->part_id];
-    cm_spin_lock(&ctx->part_lock, NULL);
-    cm_bilist_add_head(&xa_res->part_node, part_list);
-    cm_spin_unlock(&ctx->part_lock);
+    drc_part_list_t *part = &ctx->global_xa_res.res_parts[xa_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_add_head(&xa_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
 }
 
 static void drc_del_xa_part_list(drc_global_xa_res_t *xa_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     xa_res->part_id = drc_get_global_xid_partid(&xa_res->xid);
-    bilist_t *part_list = &ctx->global_xa_res.res_parts[xa_res->part_id];
-    cm_spin_lock(&ctx->part_lock, NULL);
-    cm_bilist_del(&xa_res->part_node, part_list);
-    cm_spin_unlock(&ctx->part_lock);
+    drc_part_list_t *part = &ctx->global_xa_res.res_parts[xa_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_del(&xa_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
 }
 
 static int32 drc_new_xa_res(drc_global_res_map_t *xa_res_map, drc_global_xid_t *global_xid, uint8 owner_id,
@@ -421,11 +421,11 @@ int32 drc_delete_xa_res(drc_global_xid_t *global_xid, bool32 check_xa_drc)
     return DMS_SUCCESS;
 }
 
-void drc_release_xa_by_part(bilist_t *part_list)
+void drc_release_xa_by_part(drc_part_list_t *part)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(DRC_RES_GLOBAL_XA_TYPE);
     drc_res_map_t *res_map = &global_res_map->res_map;
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
     drc_res_bucket_t *bucket = NULL;
     drc_global_xa_res_t *xa_res = NULL;
 

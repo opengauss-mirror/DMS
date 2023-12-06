@@ -1095,6 +1095,14 @@ void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *rece
 #endif
 }
 
+void drc_proc_buf_ctrl_recycle(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    LOG_DEBUG_INF("[DRC recycle]receive from inst: %d", receive_msg->head->src_inst);
+    if (g_dms.callback.buf_ctrl_recycle != NULL) {
+        g_dms.callback.buf_ctrl_recycle(ctx->db_handle);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif

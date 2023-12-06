@@ -242,6 +242,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_MERGE_XA_OWNERS, "req merge xa owners", "", "dms" },
     { MSG_REQ_XA_REBUILD, "req xa rebuild", "", "dms" },
     { MSG_REQ_XA_OWNERS, "req xa owners", "", "dms" },
+    { MSG_REQ_RECYCLE, "req recycle", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },

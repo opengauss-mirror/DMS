@@ -122,6 +122,7 @@ typedef enum en_msg_command {
     MSG_REQ_MERGE_XA_OWNERS = 62,
     MSG_REQ_XA_REBUILD = 63,
     MSG_REQ_XA_OWNERS = 64,
+    MSG_REQ_RECYCLE = 65,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -465,7 +466,6 @@ void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_messag
 void dms_cancel_request_res(dms_context_t *dms_ctx);
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_smon_entry(thread_t *thread);
-void dms_smon_recycle_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id);
@@ -590,6 +590,7 @@ const dms_proto_version_attr *dms_get_version_attr(dms_proto_version_attr *versi
 int dms_fill_versioned_msg_head(dms_proto_version_attr *version_attrs, dms_message_head_t *head, uint32 send_version);
 int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t *msg,
     void *out_info, uint32 info_size);
+void drc_recycle_buf_res_notify_db(uint32 sess_id);
 
 #ifdef __cplusplus
 }

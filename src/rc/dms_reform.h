@@ -376,6 +376,7 @@ typedef void(*dms_assign_proc)(void);
 typedef int(*dms_parallel_proc)(resource_id_t *res_id, parallel_thread_t *parallel);
 
 typedef struct st_parallel_info {
+    spinlock_t          parallel_lock;
     cm_sem_t            parallel_sem;
     parallel_thread_t   parallel[DMS_PARALLEL_MAX_THREAD];
     dms_parallel_proc   parallel_proc;          // parallel callback function
@@ -429,6 +430,7 @@ typedef struct st_dms_reform_proc {
     char                desc[DMS_REFORM_STEP_DESC_STR_LEN];
     dms_reform_proc     proc;
     dms_reform_proc     proc_parallel;
+    bool32              recycle_pause;
 } dms_reform_proc_t;
 
 int dms_reform_init(dms_profile_t *dms_profile);

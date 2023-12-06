@@ -569,7 +569,8 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
     drc_buf_res_t *buf_res = NULL;
     drc_global_xa_res_t *xa_res = NULL;
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
-    bilist_t *res_list = &global_res_map->res_parts[migrate_task->part_id];
+    drc_part_list_t *part = &global_res_map->res_parts[migrate_task->part_id];
+    bilist_t *res_list = &part->list;
     bilist_node_t *node = cm_bilist_head(res_list);
     uint32 offset = (uint32)sizeof(dms_reform_req_migrate_t);
     

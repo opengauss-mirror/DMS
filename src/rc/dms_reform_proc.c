@@ -535,9 +535,9 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     return ret;
 }
 
-int dms_reform_clean_buf_res_by_part(bilist_t *part_list, uint32 sess_id)
+int dms_reform_clean_buf_res_by_part(drc_part_list_t *part, uint32 sess_id)
 {
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
     drc_buf_res_t *buf_res;
     int ret = DMS_SUCCESS;
 
@@ -556,19 +556,19 @@ static int dms_reform_drc_clean_fault_inst(void)
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     uint16 part_id = inst_part->first;
     int ret = DMS_SUCCESS;
 
     for (uint8 i = 0; i < inst_part->count; i++) {
-        part_list = &ctx->global_lock_res.res_parts[part_id];
-        ret = dms_reform_clean_buf_res_by_part(part_list, reform_ctx->sess_proc);
+        part = &ctx->global_lock_res.res_parts[part_id];
+        ret = dms_reform_clean_buf_res_by_part(part, reform_ctx->sess_proc);
         DMS_RETURN_IF_ERROR(ret);
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        ret = dms_reform_clean_buf_res_by_part(part_list, reform_ctx->sess_proc);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        ret = dms_reform_clean_buf_res_by_part(part, reform_ctx->sess_proc);
         DMS_RETURN_IF_ERROR(ret);
-        part_list = &ctx->global_xa_res.res_parts[part_id];
-        dms_reform_clean_xa_res_by_part(part_list);
+        part = &ctx->global_xa_res.res_parts[part_id];
+        dms_reform_clean_xa_res_by_part(part);
         part_id = part_mngr->part_map[part_id].next;
     }
 
@@ -578,15 +578,15 @@ static int dms_reform_drc_clean_fault_inst(void)
 static int dms_reform_drc_clean_full(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
 
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
-        part_list = &ctx->global_lock_res.res_parts[part_id];
-        drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        drc_release_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE);
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        drc_release_xa_by_part(part_list);
+        part = &ctx->global_lock_res.res_parts[part_id];
+        drc_release_buf_res_by_part(part, DRC_RES_LOCK_TYPE);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        drc_release_xa_by_part(part);
     }
 
     return DMS_SUCCESS;
@@ -709,7 +709,7 @@ void dms_reform_migrate_collect_local_task(migrate_info_t *local_migrate_info)
 
 int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 sess_id)
 {
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     int ret = DMS_SUCCESS;
 
@@ -722,24 +722,24 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
         return ret;
     }
 
-    part_list = &ctx->global_buf_res.res_parts[migrate_task->part_id];
-    drc_release_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE);
+    part = &ctx->global_buf_res.res_parts[migrate_task->part_id];
+    drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
 
     ret = dms_reform_req_migrate_res(migrate_task, DRC_RES_LOCK_TYPE, handle, sess_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
     }
-    part_list = &ctx->global_lock_res.res_parts[migrate_task->part_id];
-    drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
+    part = &ctx->global_lock_res.res_parts[migrate_task->part_id];
+    drc_release_buf_res_by_part(part, DRC_RES_LOCK_TYPE);
     
     ret = dms_reform_req_migrate_res(migrate_task, DRC_RES_GLOBAL_XA_TYPE, handle, sess_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
     }
-    part_list = &ctx->global_xa_res.res_parts[migrate_task->part_id];
-    drc_release_xa_by_part(part_list);
+    part = &ctx->global_xa_res.res_parts[migrate_task->part_id];
+    drc_release_xa_by_part(part);
     return DMS_SUCCESS;
 }
 
@@ -1375,9 +1375,9 @@ static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle,
     return DMS_SUCCESS;
 }
 
-int dms_reform_repair_by_part(bilist_t *part_list, void *handle, uint32 sess_id)
+int dms_reform_repair_by_part(drc_part_list_t *part, void *handle, uint32 sess_id)
 {
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
     drc_buf_res_t *buf_res;
     int ret = DMS_SUCCESS;
 
@@ -1397,21 +1397,19 @@ static int dms_reform_repair_inner(void)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     uint16 part_id = inst_part->first;
     int ret = DMS_SUCCESS;
 
     for (uint8 i = 0; i < inst_part->count; i++) {
-        // lock
-        part_list = &ctx->global_lock_res.res_parts[part_id];
+        part = &ctx->global_lock_res.res_parts[part_id];
         dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
-        ret = dms_reform_repair_by_part(part_list, reform_ctx->handle_proc, reform_ctx->sess_proc);
+        ret = dms_reform_repair_by_part(part, reform_ctx->handle_proc, reform_ctx->sess_proc);
         dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
         DMS_RETURN_IF_ERROR(ret);
-        // page
-        part_list = &ctx->global_buf_res.res_parts[part_id];
+        part = &ctx->global_buf_res.res_parts[part_id];
         dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
-        ret = dms_reform_repair_by_part(part_list, reform_ctx->handle_proc, reform_ctx->sess_proc);
+        ret = dms_reform_repair_by_part(part, reform_ctx->handle_proc, reform_ctx->sess_proc);
         dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
         DMS_RETURN_IF_ERROR(ret);
         part_id = part_mngr->part_map[part_id].next;
@@ -1507,9 +1505,9 @@ static int dms_reform_flush_copy_by_part_inner(drc_buf_res_t *buf_res, void *han
     return ret;
 }
 
-int dms_reform_flush_copy_by_part(bilist_t *part_list, void *handle, uint32 sess_id)
+int dms_reform_flush_copy_by_part(drc_part_list_t *part, void *handle, uint32 sess_id)
 {
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
     drc_buf_res_t *buf_res;
     int ret = DMS_SUCCESS;
 
@@ -1529,13 +1527,13 @@ static int dms_reform_flush_copy_inner(void)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     uint16 part_id = inst_part->first;
     int ret = DMS_SUCCESS;
 
     for (uint8 i = 0; i < inst_part->count; i++) {
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        ret = dms_reform_flush_copy_by_part(part_list, reform_ctx->handle_proc, reform_ctx->sess_proc);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        ret = dms_reform_flush_copy_by_part(part, reform_ctx->handle_proc, reform_ctx->sess_proc);
         DMS_RETURN_IF_ERROR(ret);
         part_id = part_mngr->part_map[part_id].next;
     }
@@ -1596,9 +1594,9 @@ static void dms_reform_recovery_set_flag_by_part_inner(drc_buf_res_t *buf_res)
     buf_res->recovery_skip = CM_FALSE;
 }
 
-void dms_reform_recovery_set_flag_by_part(bilist_t *part_list)
+void dms_reform_recovery_set_flag_by_part(drc_part_list_t *part)
 {
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
     drc_buf_res_t *buf_res;
 
     while (node != NULL) {
@@ -1792,13 +1790,13 @@ static int dms_reform_drc_rcy_clean(void)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     uint16 part_id = inst_part->first;
 
     LOG_RUN_FUNC_ENTER;
     for (uint8 i = 0; i < inst_part->count; i++) {
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        dms_reform_recovery_set_flag_by_part(part_list);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        dms_reform_recovery_set_flag_by_part(part);
         part_id = part_mngr->part_map[part_id].next;
     }
 
@@ -2627,55 +2625,82 @@ static int dms_reform_reset_user()
 }
 
 dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
-    [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL },
-    [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL },
-    [DMS_REFORM_STEP_START] = { "START", dms_reform_start, NULL },
-    [DMS_REFORM_STEP_DISCONNECT] = { "DISCONN", dms_reform_disconnect, NULL },
-    [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, dms_reform_reconnect_parallel },
-    [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, dms_reform_drc_clean_parallel },
-    [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel },
-    [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel },
-    [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL },
-    [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel },
-    [DMS_REFORM_STEP_RECOVERY_ANALYSE] = { "RECOVERY_ANALYSE", dms_reform_recovery_analyse, NULL },
-    [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL },
-    [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL },
-    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL },
-    [DMS_REFORM_STEP_RECOVERY] = { "RECOVERY", dms_reform_recovery, NULL },
-    [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY_OPENGAUSS", dms_reform_recovery_opengauss, NULL },
-    [DMS_REFORM_STEP_DRC_RCY_CLEAN] = { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel },
-    [DMS_REFORM_STEP_CTL_RCY_CLEAN] = { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel },
-    [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL },
-    [DMS_REFORM_STEP_ROLLBACK] = { "ROLLBACK", dms_reform_rollback, NULL },
-    [DMS_REFORM_STEP_SUCCESS] = { "SUCCESS", dms_reform_success, NULL },
-    [DMS_REFORM_STEP_SELF_FAIL] = { "SELF_FAIL", dms_reform_self_fail, NULL },
-    [DMS_REFORM_STEP_REFORM_FAIL] = { "REFORM_FAIL", dms_reform_fail, NULL },
-    [DMS_REFORM_STEP_SYNC_WAIT] = { "SYNC_WAIT", dms_reform_sync_wait, NULL },
-    [DMS_REFORM_STEP_PAGE_ACCESS] = { "PAGE_ACCESS", dms_reform_page_access, NULL },
-    [DMS_REFORM_STEP_DW_RECOVERY] = { "DW_RECOVERY", dms_reform_dw_recovery, NULL },
-    [DMS_REFORM_STEP_DF_RECOVERY] = { "DF_RECOVERY", dms_reform_df_recovery, NULL },
-    [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL },
-    [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL },
-    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] = { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL },
-    [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] = { "F_PROMOTE", dms_reform_failover_promote_opengauss, NULL },
-    [DMS_REFORM_STEP_STARTUP_OPENGAUSS] = { "STARTUP", dms_reform_startup_opengauss, NULL },
-    [DMS_REFORM_STEP_FLUSH_COPY] = { "FLUSH_COPY", dms_reform_flush_copy, dms_reform_flush_copy_parallel },
-    [DMS_REFORM_STEP_DONE_CHECK] = { "DONE_CHECK", dms_reform_done_check, NULL },
-    [DMS_REFORM_STEP_SET_PHASE] = { "SET_PHASE", dms_reform_set_phase, NULL },
-    [DMS_REFORM_STEP_WAIT_DB] = { "WAIT_DB", dms_reform_wait_db, NULL },
-    [DMS_REFORM_STEP_BCAST_ENABLE] = { "BCAST_ENABLE", dms_reform_bcast_enable, NULL },
-    [DMS_REFORM_STEP_BCAST_UNABLE] = { "BCAST_UNABLE", dms_reform_bcast_unable, NULL },
-    [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL },
-    [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL },
-    [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL },
-    [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL },
-    [DMS_REFORM_STEP_SET_REMOVE_POINT] = { "SET_REMOVE_POINT", dms_reform_set_remove_point, NULL},
-    [DMS_REFORM_STEP_RESET_USER] = { "RESET_USER", dms_reform_reset_user, NULL },
-    [DMS_REFORM_STEP_COLLECT_XA_OWNER] = { "COLLECT_XA_OWNER", dms_reform_collect_xa_owner, NULL },
-    [DMS_REFORM_STEP_MERGE_XA_OWNERS] = { "SYNC_XA_OWNER", dms_reform_merge_xa_owners, NULL },
-    [DMS_REFORM_STEP_RECOVERY_XA] = { "RECOVERY_XA", dms_reform_recovery_xa, NULL },
-    [DMS_REFORM_STEP_XA_DRC_ACCESS] = { "XA_DRC_ACCESS", dms_reform_xa_drc_access, NULL },
+    [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_START] = { "START", dms_reform_start, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DISCONNECT] = { "DISCONN", dms_reform_disconnect, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, dms_reform_reconnect_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, dms_reform_drc_clean_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL, CM_TRUE },
+    [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_RECOVERY_ANALYSE] = { "RECOVERY_ANALYSE", dms_reform_recovery_analyse, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RECOVERY] = { "RECOVERY", dms_reform_recovery, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY_OPENGAUSS", dms_reform_recovery_opengauss, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_RCY_CLEAN] =
+    { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_CTL_RCY_CLEAN] =
+    { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_ROLLBACK] = { "ROLLBACK", dms_reform_rollback, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SUCCESS] = { "SUCCESS", dms_reform_success, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SELF_FAIL] = { "SELF_FAIL", dms_reform_self_fail, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_REFORM_FAIL] = { "REFORM_FAIL", dms_reform_fail, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SYNC_WAIT] = { "SYNC_WAIT", dms_reform_sync_wait, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_PAGE_ACCESS] = { "PAGE_ACCESS", dms_reform_page_access, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DW_RECOVERY] = { "DW_RECOVERY", dms_reform_dw_recovery, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DF_RECOVERY] = { "DF_RECOVERY", dms_reform_df_recovery, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] =
+    { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] =
+    { "F_PROMOTE", dms_reform_failover_promote_opengauss, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STARTUP_OPENGAUSS] = { "STARTUP", dms_reform_startup_opengauss, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_FLUSH_COPY] = { "FLUSH_COPY", dms_reform_flush_copy, dms_reform_flush_copy_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_DONE_CHECK] = { "DONE_CHECK", dms_reform_done_check, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SET_PHASE] = { "SET_PHASE", dms_reform_set_phase, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_WAIT_DB] = { "WAIT_DB", dms_reform_wait_db, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_BCAST_ENABLE] = { "BCAST_ENABLE", dms_reform_bcast_enable, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_BCAST_UNABLE] = { "BCAST_UNABLE", dms_reform_bcast_unable, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SET_REMOVE_POINT] = { "SET_REMOVE_POINT", dms_reform_set_remove_point, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RESET_USER] = { "RESET_USER", dms_reform_reset_user, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_COLLECT_XA_OWNER] = { "COLLECT_XA_OWNER", dms_reform_collect_xa_owner, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_MERGE_XA_OWNERS] = { "SYNC_XA_OWNER", dms_reform_merge_xa_owners, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RECOVERY_XA] = { "RECOVERY_XA", dms_reform_recovery_xa, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_XA_DRC_ACCESS] = { "XA_DRC_ACCESS", dms_reform_xa_drc_access, NULL, CM_FALSE },
 };
+
+static int dms_reform_proc_inner(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    dms_reform_proc_t *reform_proc = &g_dms_reform_procs[reform_info->current_step];
+    int ret = DMS_SUCCESS;
+
+    if (reform_proc->recycle_pause) {
+        drc_recycle_buf_res_set_pause();
+    }
+
+    if (reform_info->parallel_enable && reform_proc->proc_parallel != NULL) {
+        ret = reform_proc->proc_parallel();
+    } else {
+        ret = reform_proc->proc();
+    }
+
+    if (reform_proc->recycle_pause) {
+        drc_recycle_buf_res_set_running();
+    }
+
+    return ret;
+}
 
 static void dms_reform_inner(void)
 {
@@ -2690,14 +2715,7 @@ static void dms_reform_inner(void)
     }
 
     DMS_RFI_BEFORE_STEP;
-
-    dms_reform_proc_t *reform_proc = &g_dms_reform_procs[reform_info->current_step];
-    if (reform_info->parallel_enable && reform_proc->proc_parallel != NULL) {
-        ret = reform_proc->proc_parallel();
-    } else {
-        ret = reform_proc->proc();
-    }
-
+    ret = dms_reform_proc_inner();
     DMS_RFI_AFTER_STEP;
 
     if (reform_info->reform_done) {

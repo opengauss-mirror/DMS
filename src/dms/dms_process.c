@@ -134,6 +134,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_MERGE_XA_OWNERS,        dms_reform_proc_xa_merge,        CM_TRUE, CM_TRUE,  "dms reform merge xa owners" },
     { MSG_REQ_XA_REBUILD,             dms_reform_proc_xa_rebuild,      CM_TRUE, CM_TRUE,  "xa res rebuild" },
     { MSG_REQ_XA_OWNERS,              dms_reform_proc_req_xaowners,    CM_TRUE, CM_TRUE,  "ask xa owners" },
+    { MSG_REQ_RECYCLE,                drc_proc_buf_ctrl_recycle,       CM_TRUE, CM_TRUE,  "req buf ctrl recycle" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -664,23 +665,25 @@ int dms_init_mes(dms_profile_t *dms_profile)
     return ret;
 }
 
-static status_t dms_global_res_init(drc_global_res_map_t *global_res, int32 res_type, uint32 pool_size,
-    uint32 item_size, res_cmp_callback res_cmp_func, res_hash_callback get_hash_func)
+static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 inst_cnt, int32 res_type,
+    uint32 pool_size, uint32 item_size, res_cmp_callback res_cmp_func, res_hash_callback get_hash_func)
 {
     uint32 i;
 
     for (i = 0; i < DRC_MAX_PART_NUM; i++) {
-        cm_bilist_init(&global_res->res_parts[i]);
+        cm_bilist_init(&global_res->res_parts[i].list);
+        GS_INIT_SPIN_LOCK(global_res->res_parts[i].lock);
     }
 
-    return drc_res_map_init(&global_res->res_map, res_type, pool_size, item_size, res_cmp_func, get_hash_func);
+    return drc_res_map_init(&global_res->res_map, inst_cnt, res_type, pool_size,
+        item_size, res_cmp_func, get_hash_func);
 }
 
 static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    uint32 item_num = DMS_CM_MAX_SESSIONS * dms_profile->inst_cnt * 2;
-    int32 ret = drc_res_pool_init(&ctx->lock_item_pool, sizeof(drc_lock_item_t), item_num);
+    uint32 item_num = DMS_CM_MAX_SESSIONS * 2;
+    int32 ret = drc_res_pool_init(&ctx->lock_item_pool, dms_profile->inst_cnt, sizeof(drc_lock_item_t), item_num);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]lock item pool init fail,return error:%d", ret);
     }
@@ -688,13 +691,13 @@ static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
     return ret;
 }
 
-static inline int32 init_page_res_ctx(const dms_profile_t *dms_profile)
+static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
 {
-    int ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    uint32 res_num = (uint32)MAX(dms_profile->data_buffer_size / dms_profile->page_size, SIZE_M(2));
-    ret = dms_global_res_init(&ctx->global_buf_res, DMS_RES_TYPE_IS_PAGE, res_num, sizeof(drc_buf_res_t), dms_same_page,
-        dms_res_hash);
+    uint32 res_num_calc = (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
+    uint32 res_num = (uint32)MAX(res_num_calc, SIZE_M(1));
+    int ret = dms_global_res_init(&ctx->global_buf_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_PAGE, res_num,
+        sizeof(drc_buf_res_t), dms_same_page, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global page resource pool init fail,return error:%d", ret);
     }
@@ -705,14 +708,14 @@ static int32 init_lock_res_ctx(dms_profile_t *dms_profile)
 {
     int ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ret = dms_global_res_init(&ctx->global_lock_res, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
-        sizeof(drc_buf_res_t), dms_same_global_lock, dms_res_hash);
+    ret = dms_global_res_init(&ctx->global_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK,
+        DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_buf_res_t), dms_same_global_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global lock resource pool init fail,return error:%d", ret);
         return ret;
     }
 
-    ret = drc_res_map_init(&ctx->local_lock_res, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
+    ret = drc_res_map_init(&ctx->local_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
         sizeof(drc_local_lock_res_t), dms_same_local_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]local lock resource pool init fail,return error:%d", ret);
@@ -726,7 +729,8 @@ static int32 init_xa_res_ctx(dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 res_num = dms_profile->max_session_cnt;
-    int32 ret = dms_global_res_init(&ctx->global_xa_res, DMS_RES_TYPE_IS_XA, res_num, sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
+    int32 ret = dms_global_res_init(&ctx->global_xa_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_XA, res_num,
+        sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global xid resource pool init fail, return error:%d", ret);
         return ret;
@@ -740,14 +744,14 @@ static int32 init_txn_res_ctx(const dms_profile_t *dms_profile)
     int32 ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 item_num = DMS_CM_MAX_SESSIONS * dms_profile->inst_cnt;
-    ret = drc_res_map_init(&ctx->local_txn_map, DMS_RES_TYPE_IS_LOCAL_TXN, item_num,
+    ret = drc_res_map_init(&ctx->local_txn_map, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCAL_TXN, item_num,
         sizeof(drc_txn_res_t), dms_same_txn, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]local txn resource pool init fail,return error:%d", ret);
         return ret;
     }
 
-    ret = drc_res_map_init(&ctx->txn_res_map, DMS_RES_TYPE_IS_TXN, item_num,
+    ret = drc_res_map_init(&ctx->txn_res_map, dms_profile->inst_cnt, DMS_RES_TYPE_IS_TXN, item_num,
         sizeof(drc_txn_res_t), dms_same_txn, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]txn resource pool init fail,return error:%d", ret);
@@ -789,7 +793,7 @@ static int32 init_drc_smon_ctx(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    ret = cm_create_thread(dms_smon_recycle_entry, 0, NULL, &ctx->smon_recycle_thread);
+    ret = cm_create_thread(drc_recycle_buf_res_thread, 0, NULL, &ctx->smon_recycle_thread);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DRC]fail to create smon recycle thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
