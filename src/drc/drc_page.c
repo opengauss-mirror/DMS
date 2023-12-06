@@ -102,9 +102,9 @@ static int32 chk_convertq_4_conflict(drc_buf_res_t* buf_res, drc_request_info_t*
 
 static inline void drc_register_converting_simply(drc_buf_res_t* buf_res, drc_cvt_item_t *converting)
 {
+    buf_res->lock_mode  = converting->req_info.req_mode;
     if (buf_res->claimed_owner == CM_INVALID_ID8) {
         buf_res->copy_insts = 0;
-        buf_res->lock_mode  = converting->req_info.req_mode;
         buf_res->claimed_owner = converting->req_info.inst_id;
     } else if (buf_res->claimed_owner != converting->req_info.inst_id){
         bitmap64_set(&buf_res->copy_insts, converting->req_info.inst_id);
