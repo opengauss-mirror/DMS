@@ -68,6 +68,8 @@ int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_se
 int32 drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id);
 void drc_add_buf_res_in_part_list(drc_buf_res_t *buf_res);
 void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res);
+void drc_buf_res_shift_to_tail(drc_buf_res_t *buf_res);
+void drc_buf_res_shift_to_head(drc_buf_res_t *buf_res);
 void drc_add_lock_res_in_part_list(drc_buf_res_t *lock_res);
 void drc_del_lock_res_in_part_list(drc_buf_res_t *lock_res);
 void drc_release_convert_q(bilist_t *convert_q);
@@ -78,6 +80,10 @@ void drc_buf_res_unlatch(uint8 res_type);
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_master);
 drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options);
 void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
+void drc_recycle_buf_res_thread(thread_t *thread);
+void drc_recycle_buf_res_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle);
+void drc_recycle_buf_res_set_running(void);
+void drc_recycle_buf_res_set_pause(void);
 
 #ifdef __cplusplus
 }

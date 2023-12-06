@@ -98,6 +98,7 @@ int dms_reform_parallel_thread_init(dms_profile_t *dms_profile)
         return DMS_SUCCESS;
     }
 
+    GS_INIT_SPIN_LOCK(parallel_info->parallel_lock);
     cm_sem_init(&parallel_info->parallel_sem);
     parallel_info->parallel_num = dms_profile->parallel_thread_num;
     reform_info->parallel_enable = CM_TRUE;
@@ -239,26 +240,26 @@ static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_th
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     uint16 part_id = res_id->part_id;
     int ret = DMS_SUCCESS;
 
     if (share_info->full_clean) {
-        part_list = &ctx->global_lock_res.res_parts[part_id];
-        drc_release_buf_res_by_part(part_list, DRC_RES_LOCK_TYPE);
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        drc_release_buf_res_by_part(part_list, DRC_RES_PAGE_TYPE);
-        part_list = &ctx->global_xa_res.res_parts[part_id];
-        drc_release_xa_by_part(part_list);
+        part = &ctx->global_lock_res.res_parts[part_id];
+        drc_release_buf_res_by_part(part, DRC_RES_LOCK_TYPE);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
+        part = &ctx->global_xa_res.res_parts[part_id];
+        drc_release_xa_by_part(part);
     } else {
-        part_list = &ctx->global_lock_res.res_parts[part_id];
-        ret = dms_reform_clean_buf_res_by_part(part_list, parallel->sess_id);
+        part = &ctx->global_lock_res.res_parts[part_id];
+        ret = dms_reform_clean_buf_res_by_part(part, parallel->sess_id);
         DMS_RETURN_IF_ERROR(ret);
-        part_list = &ctx->global_buf_res.res_parts[part_id];
-        ret = dms_reform_clean_buf_res_by_part(part_list, parallel->sess_id);
+        part = &ctx->global_buf_res.res_parts[part_id];
+        ret = dms_reform_clean_buf_res_by_part(part, parallel->sess_id);
         DMS_RETURN_IF_ERROR(ret);
-        part_list = &ctx->global_xa_res.res_parts[part_id];
-        dms_reform_clean_xa_res_by_part(part_list);
+        part = &ctx->global_xa_res.res_parts[part_id];
+        dms_reform_clean_xa_res_by_part(part);
     }
 
     return DMS_SUCCESS;
@@ -272,20 +273,20 @@ static int dms_reform_migrate_parallel_proc(resource_id_t *res_id, parallel_thre
 static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = NULL;
+    drc_part_list_t *part = NULL;
     int ret = DMS_SUCCESS;
 
     // lock
-    part_list = &ctx->global_lock_res.res_parts[res_id->part_id];
+    part = &ctx->global_lock_res.res_parts[res_id->part_id];
     dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
-    ret = dms_reform_repair_by_part(part_list, parallel->handle, parallel->sess_id);
+    ret = dms_reform_repair_by_part(part, parallel->handle, parallel->sess_id);
     dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
     DMS_RETURN_IF_ERROR(ret);
 
     // page
-    part_list = &ctx->global_buf_res.res_parts[res_id->part_id];
+    part = &ctx->global_buf_res.res_parts[res_id->part_id];
     dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
-    ret = dms_reform_repair_by_part(part_list, parallel->handle, parallel->sess_id);
+    ret = dms_reform_repair_by_part(part, parallel->handle, parallel->sess_id);
     dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
     DMS_RETURN_IF_ERROR(ret);
 
@@ -295,16 +296,16 @@ static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_threa
 static int dms_reform_drc_rcy_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = &ctx->global_buf_res.res_parts[res_id->part_id];
-    dms_reform_recovery_set_flag_by_part(part_list);
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[res_id->part_id];
+    dms_reform_recovery_set_flag_by_part(part);
     return DMS_SUCCESS;
 }
 
 static int dms_reform_flush_copy_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = &ctx->global_buf_res.res_parts[res_id->part_id];
-    return dms_reform_flush_copy_by_part(part_list, parallel->handle, parallel->sess_id);
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[res_id->part_id];
+    return dms_reform_flush_copy_by_part(part, parallel->handle, parallel->sess_id);
 }
 
 static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
@@ -323,6 +324,12 @@ static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thre
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
     DMS_RETURN_IF_ERROR(ret);
 
+    dms_reform_rebuild_buffer_init((uint8)parallel->index);
+    ret = dms_reform_rebuild_xa_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
+        (uint8)parallel_info->parallel_num);
+    dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
+    DMS_RETURN_IF_ERROR(ret);
+
     return DMS_SUCCESS;
 }
 
@@ -331,6 +338,14 @@ static int dms_reform_ctl_rcy_clean_parallel_proc(resource_id_t* res_id, paralle
     parallel_info_t* parallel_info = DMS_PARALLEL_INFO;
     g_dms.callback.dms_ctl_rcy_clean_parallel(parallel->handle, (uint8)parallel->index,
         (uint8)parallel_info->parallel_num);
+    return DMS_SUCCESS;
+}
+
+static int drc_recycle_buf_res_proc(resource_id_t *res_id, parallel_thread_t *parallel)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[res_id->part_id];
+    drc_recycle_buf_res_by_part(part, parallel->sess_id, parallel->handle);
     return DMS_SUCCESS;
 }
 
@@ -358,6 +373,9 @@ dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
 
     [DMS_REFORM_PARALLEL_CTL_RCY_CLEAN] = { "dms_reform_ctl_rcy_clean_parallel", dms_reform_parallel_assign_thread,
     dms_reform_ctl_rcy_clean_parallel_proc },
+
+    [DMS_PROC_PARALLEL_RECYCLE_BUF_RES] = { "drc_recycle_buf_res_parallel", dms_reform_parallel_assign_parts,
+    drc_recycle_buf_res_proc},
 };
 
 static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
@@ -406,9 +424,11 @@ static void dms_reform_parallel_assign_init(void)
 static int dms_reform_parallel(dms_reform_parallel_e parallel_type)
 {
     CM_ASSERT(parallel_type < DMS_REFORM_PARALLEL_COUNT);
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     dms_reform_parallel_t *reform_parallel = &g_dms_reform_parallels[parallel_type];
     int ret = DMS_SUCCESS;
 
+    cm_spin_lock(&parallel_info->parallel_lock, NULL);
     LOG_RUN_INF("[DMS REFORM][PARALLEL]%s enter", reform_parallel->desc);
     dms_reform_parallel_assign_init();
     reform_parallel->assign_proc();
@@ -416,10 +436,40 @@ static int dms_reform_parallel(dms_reform_parallel_e parallel_type)
     ret = dms_reform_parallel_inner(reform_parallel->proc);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DMS REFORM][PARALLEL]%s error, ret: %d", reform_parallel->desc, ret);
+        cm_spin_unlock(&parallel_info->parallel_lock);
         return ret;
     }
     LOG_RUN_INF("[DMS REFORM][PARALLEL]%s success", reform_parallel->desc);
+    cm_spin_unlock(&parallel_info->parallel_lock);
+
     dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_proc_parallel(dms_reform_parallel_e parallel_type)
+{
+    CM_ASSERT(parallel_type < DMS_REFORM_PARALLEL_COUNT);
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    dms_reform_parallel_t *reform_parallel = &g_dms_reform_parallels[parallel_type];
+    int ret = DMS_SUCCESS;
+
+    if (!cm_spin_try_lock(&parallel_info->parallel_lock)) {
+        return DMS_ERROR;
+    }
+
+    LOG_DEBUG_INF("[DMS PROC][PARALLEL]%s enter", reform_parallel->desc);
+    dms_reform_parallel_assign_init();
+    reform_parallel->assign_proc();
+
+    ret = dms_reform_parallel_inner(reform_parallel->proc);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS PROC][PARALLEL]%s error, ret: %d", reform_parallel->desc, ret);
+        cm_spin_unlock(&parallel_info->parallel_lock);
+        return ret;
+    }
+    LOG_DEBUG_INF("[DMS PROC][PARALLEL]%s success", reform_parallel->desc);
+    cm_spin_unlock(&parallel_info->parallel_lock);
+
     return DMS_SUCCESS;
 }
 
@@ -473,4 +523,9 @@ int dms_reform_rebuild_parallel(void)
 int dms_reform_ctl_rcy_clean_parallel(void)
 {
     return dms_reform_parallel(DMS_REFORM_PARALLEL_CTL_RCY_CLEAN);
+}
+
+int drc_recycle_buf_res_parallel(void)
+{
+    return dms_proc_parallel(DMS_PROC_PARALLEL_RECYCLE_BUF_RES);
 }

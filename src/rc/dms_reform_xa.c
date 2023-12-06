@@ -544,11 +544,11 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
 }
 
-void dms_reform_clean_xa_res_by_part(bilist_t *part_list)
+void dms_reform_clean_xa_res_by_part(drc_part_list_t *part)
 {
     drc_global_xa_res_t *xa_res = NULL;
     share_info_t *share_info = DMS_SHARE_INFO;
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
 
     while (node != NULL) {
         xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);
