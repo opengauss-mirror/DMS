@@ -325,8 +325,10 @@ static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thre
     DMS_RETURN_IF_ERROR(ret);
 
     dms_reform_rebuild_buffer_init((uint8)parallel->index);
+#ifndef OPENGAUSS
     ret = dms_reform_rebuild_xa_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
         (uint8)parallel_info->parallel_num);
+#endif
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
     DMS_RETURN_IF_ERROR(ret);
 
