@@ -794,9 +794,7 @@ static void drc_recycle_buf_res_cancle(drc_buf_res_t *buf_res)
 
 void drc_recycle_buf_res_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle)
 {
-    drc_res_ctx_t *res_ctx = DRC_RES_CTX;
-
-    if (part->list.count == 0 || res_ctx->smon_recycle_status == THREAD_STATUS_ENDING) {
+    if (part->list.count == 0) {
         return;
     }
     dms_process_context_t ctx;
@@ -897,17 +895,14 @@ static void drc_recycle_buf_res_start(void)
 void drc_recycle_buf_res_set_pause(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ctx->smon_recycle_status = THREAD_STATUS_ENDING;
-    while (ctx->smon_recycle_status != THREAD_STATUS_ENDED) {
-        cm_sleep(1);
-    }
+    cm_spin_lock(&ctx->smon_recycle_lock, NULL);
     LOG_RUN_INF("[DRC recycle]pausing");
 }
 
 void drc_recycle_buf_res_set_running(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ctx->smon_recycle_status = THREAD_STATUS_PROCESSSING;
+    cm_spin_unlock(&ctx->smon_recycle_lock);
     LOG_RUN_INF("[DRC recycle]running");
 }
 
@@ -918,21 +913,18 @@ void drc_recycle_buf_res_thread(thread_t *thread)
 #endif
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     bool8 has_recycled = CM_FALSE;
-    ctx->smon_recycle_status = THREAD_STATUS_PROCESSSING;
 
     LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread start");
     while (!thread->closed) {
-        if (ctx->smon_recycle_status == THREAD_STATUS_PROCESSSING) {
-            if (drc_recycle_buf_res_check(has_recycled)) {
-                drc_recycle_buf_res_start();
-                has_recycled = CM_TRUE;
-                continue;
-            }
+        if (drc_recycle_buf_res_check(has_recycled)) {
+            cm_spin_lock(&ctx->smon_recycle_lock, NULL);
+            drc_recycle_buf_res_start();
+            cm_spin_unlock(&ctx->smon_recycle_lock);
+            has_recycled = CM_TRUE;
+        } else {
             has_recycled = CM_FALSE;
-        } else if (ctx->smon_recycle_status == THREAD_STATUS_ENDING) {
-            ctx->smon_recycle_status = THREAD_STATUS_ENDED;
+            cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
         }
-        cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
     }
     LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread close");
 }

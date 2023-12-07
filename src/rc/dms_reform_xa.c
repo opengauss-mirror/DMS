@@ -490,13 +490,13 @@ int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
     LOG_DEBUG_INF("[DMS][%s] dms_reform_rebuild_xa_res, remaster to node %u", cm_display_resid((char *)xid,
         DRC_RES_GLOBAL_XA_TYPE), master_id);
     if (master_id == g_dms.inst_id) {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCAL);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_LOCAL);
         ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, xid, g_dms.inst_id, undo_set_id, CM_FALSE);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCAL);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_LOCAL);
     } else {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_REMOTE);
         ret = dms_reform_req_xa_rebuild(dms_ctx, xid, undo_set_id, master_id, thread_index);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_REMOTE);
     }
     return ret;
 }

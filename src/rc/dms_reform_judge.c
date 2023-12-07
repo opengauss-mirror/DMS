@@ -793,9 +793,12 @@ static void dms_reform_migrate_task(void)
 
 static void dms_reform_judgement_migrate(instance_list_t *inst_lists)
 {
-    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_MIGRATE);
+    migrate_info_t *migrate_info = DMS_MIGRATE_INFO;
     dms_reform_migrate_task();
+    if (migrate_info->migrate_task_num != 0) {
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_MIGRATE);
+    }
 }
 
 // Notice1: DRC_CLEAN and REBUILD must be used in pairs
@@ -1259,7 +1262,7 @@ static void dms_reform_judgement_collect_xaowners(void)
     dms_reform_add_step(DMS_REFORM_STEP_COLLECT_XA_OWNER);
 }
 
-static void dms_reform_judgement_sync_xaowners(void)
+static void dms_reform_judgement_merge_xaowners(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_MERGE_XA_OWNERS);
@@ -1329,7 +1332,7 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
     dms_reform_judgement_collect_xaowners();
-    dms_reform_judgement_sync_xaowners();
+    dms_reform_judgement_merge_xaowners();
     dms_reform_judgement_recovery_xa();
     dms_reform_judgement_xa_access();
     dms_reform_judgement_switchover_promote();

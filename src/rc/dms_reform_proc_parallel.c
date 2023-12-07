@@ -313,21 +313,27 @@ static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thre
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     int ret = DMS_SUCCESS;
 
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE);
     dms_reform_rebuild_buffer_init((uint8)parallel->index);
     ret = dms_reform_rebuild_buf_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
         (uint8)parallel_info->parallel_num);
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE);
     DMS_RETURN_IF_ERROR(ret);
 
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK);
     dms_reform_rebuild_buffer_init((uint8)parallel->index);
     ret = dms_reform_rebuild_lock(parallel->sess_id, (uint8)parallel->index, (uint8)parallel_info->parallel_num);
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK);
     DMS_RETURN_IF_ERROR(ret);
 
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);
     dms_reform_rebuild_buffer_init((uint8)parallel->index);
     ret = dms_reform_rebuild_xa_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
         (uint8)parallel_info->parallel_num);
     dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA);
     DMS_RETURN_IF_ERROR(ret);
 
     return DMS_SUCCESS;

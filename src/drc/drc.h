@@ -35,7 +35,6 @@
 #include "cm_thread.h"
 #include "cm_latch.h"
 #include "cm_date.h"
-#include "cm_thread_pool.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -260,7 +259,7 @@ typedef struct st_drc_res_ctx {
     thread_t                smon_recycle_thread;
     uint32                  smon_recycle_sid;
     void*                   smon_recycle_handle;
-    thread_stat_t           smon_recycle_status;
+    spinlock_t              smon_recycle_lock;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;
