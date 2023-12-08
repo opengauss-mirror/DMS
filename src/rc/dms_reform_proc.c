@@ -151,7 +151,9 @@ static int dms_reform_disconnect(void)
 #ifndef OPENGAUSS
     instance_list_t *list_disconnect = &share_info->list_disconnect;
 
+    dms_reform_proc_stat_start(DRPS_DISCONNECT_GET_LOCK);
     cm_spin_lock(&reform_info->mes_lock, NULL);
+    dms_reform_proc_stat_end(DRPS_DISCONNECT_GET_LOCK);
     mfc_del_instance_batch(list_disconnect->inst_id_list, list_disconnect->inst_id_count);
     bitmap64_minus(&reform_info->bitmap_mes, share_info->bitmap_disconnect);
     cm_spin_unlock(&reform_info->mes_lock);
@@ -562,13 +564,19 @@ static int dms_reform_drc_clean_fault_inst(void)
 
     for (uint8 i = 0; i < inst_part->count; i++) {
         part = &ctx->global_lock_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_LOCK);
         ret = dms_reform_clean_buf_res_by_part(part, reform_ctx->sess_proc);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_LOCK);
         DMS_RETURN_IF_ERROR(ret);
         part = &ctx->global_buf_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_PAGE);
         ret = dms_reform_clean_buf_res_by_part(part, reform_ctx->sess_proc);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_PAGE);
         DMS_RETURN_IF_ERROR(ret);
         part = &ctx->global_xa_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_XA);
         dms_reform_clean_xa_res_by_part(part);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_XA);
         part_id = part_mngr->part_map[part_id].next;
     }
 
@@ -582,11 +590,17 @@ static int dms_reform_drc_clean_full(void)
 
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
         part = &ctx->global_lock_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_LOCK);
         drc_release_buf_res_by_part(part, DRC_RES_LOCK_TYPE);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_LOCK);
         part = &ctx->global_buf_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_PAGE);
         drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_PAGE);
         part = &ctx->global_buf_res.res_parts[part_id];
+        dms_reform_proc_stat_start(DRPS_DRC_CLEAN_XA);
         drc_release_xa_by_part(part);
+        dms_reform_proc_stat_end(DRPS_DRC_CLEAN_XA);
     }
 
     return DMS_SUCCESS;
@@ -861,17 +875,17 @@ int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info
 {
     int ret;
     if (master_id == g_dms.inst_id) {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCAL);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_LOCAL);
         ret = dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCAL);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_REMOTE);
         ret = dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_REMOTE);
     } else {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_REMOTE);
         ret = dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_REMOTE);
     }
     return ret;
 }
@@ -922,7 +936,10 @@ int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index,
         return ret;
     }
 
-    return dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_REMOTE_REST);
+    ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_REMOTE_REST);
+    return ret;
 }
 
 void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn, unsigned char is_dirty)
@@ -1042,13 +1059,21 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
 
 static int dms_reform_rebuild_lock_inner(drc_local_lock_res_t *lock_res, uint8 new_master, uint8 thread_index)
 {
+    int ret = DMS_SUCCESS;
     if (new_master == g_dms.inst_id) {
-        return dms_reform_proc_lock_rebuild(lock_res, new_master);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_LOCAL);
+        ret = dms_reform_proc_lock_rebuild(lock_res, new_master);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
-        return dms_reform_req_rebuild_lock(lock_res, new_master);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
+        ret = dms_reform_req_rebuild_lock(lock_res, new_master);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE);
     } else {
-        return dms_reform_req_rebuild_lock_parallel(lock_res, new_master, thread_index);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
+        ret = dms_reform_req_rebuild_lock_parallel(lock_res, new_master, thread_index);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE);
     }
+    return ret;
 }
 
 int dms_reform_res_need_rebuild(char *res, unsigned char res_type, unsigned int *need_rebuild)
@@ -1093,12 +1118,14 @@ static int dms_reform_rebuild_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thr
         ret = dms_reform_res_need_rebuild((char *)&lock_res->resid, DRC_RES_LOCK_TYPE, &need_rebuild);
         DMS_BREAK_IF_ERROR(ret);
         if (need_rebuild) {
+            dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_RES);
             drc_get_lock_remaster_id(&lock_res->resid, &remaster_id);
             drc_lock_local_resx(lock_res);
             LOG_DEBUG_INF("[lock rebuild][%s]local_lock_res lock_mode: %d",
                 cm_display_lockid(&lock_res->resid), lock_res->latch_stat.lock_mode);
             ret = dms_reform_rebuild_lock_inner(lock_res, remaster_id, thread_index);
             drc_unlock_local_resx(lock_res);
+            dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_RES);
             DMS_BREAK_IF_ERROR(ret);
         }
         node = BINODE_NEXT(node);
@@ -1128,7 +1155,10 @@ int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num
         bucket_index += step;
     }
 
-    return dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE_REST);
+    ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE_REST);
+    return ret;
 }
 
 void dms_reform_rebuild_buffer_init(uint8 thread_index)
@@ -1175,25 +1205,31 @@ static int dms_reform_rebuild(void)
     int ret = DMS_SUCCESS;
     LOG_RUN_FUNC_ENTER;
 
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE);
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
     ret = dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
 
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK);
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
     ret = dms_reform_rebuild_lock(reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
-    
+
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);
     dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
     ret = dms_reform_rebuild_xa_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -1840,7 +1876,9 @@ static int dms_reform_txn_deposit(void)
             return DMS_SUCCESS;
         }
 
+        dms_reform_proc_stat_start(DRPS_TXN_DEPOSIT_DELETE_XA);
         dms_reform_delete_xa_rms(inst_id);
+        dms_reform_proc_stat_end(DRPS_TXN_DEPOSIT_DELETE_XA);
     }
 
     int ret = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info->deposit_map, DMS_MAX_INSTANCES);
@@ -1914,25 +1952,33 @@ static int dms_reform_rollback(void)
         return DMS_SUCCESS;
     }
 
+    dms_reform_proc_stat_start(DRPS_ROLLBACK_UNDO_INIT);
     int ret = dms_reform_undo_init(list_rollback);
+    dms_reform_proc_stat_end(DRPS_ROLLBACK_UNDO_INIT);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
 
+    dms_reform_proc_stat_start(DRPS_ROLLBACK_TX_AREA_INIT);
     ret = dms_reform_tx_area_init(list_rollback);
+    dms_reform_proc_stat_end(DRPS_ROLLBACK_TX_AREA_INIT);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
 
+    dms_reform_proc_stat_start(DRPS_ROLLBACK_TX_AREA_LOAD);
     ret = dms_reform_tx_area_load(list_rollback);
+    dms_reform_proc_stat_end(DRPS_ROLLBACK_TX_AREA_LOAD);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
 
+    dms_reform_proc_stat_start(DRPS_ROLLBACK_CVT_TO_RW);
     ret = dms_reform_convert_to_readwrite();
+    dms_reform_proc_stat_end(DRPS_ROLLBACK_CVT_TO_RW);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -2806,5 +2852,8 @@ int dms_reform_rebuild_xa_res(void *handle, uint32 sess_id, uint8 thread_index, 
         return ret;
     }
 
-    return dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_REMOTE_REST);
+    ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_REMOTE_REST);
+    return ret;
 }

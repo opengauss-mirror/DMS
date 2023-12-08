@@ -152,7 +152,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
     DMS_REFORM_STEP_COLLECT_XA_OWNER,               // for Gauss100, collect xa owner
     DMS_REFORM_STEP_MERGE_XA_OWNERS,                // for Gauss100, merge xa owners from all nodes
-    DMS_REFORM_STEP_SYNC_XA_OWNERS,                 // for Gauss100, sync xa owners to all nodes
     DMS_REFORM_STEP_RECOVERY_XA,                    // for Gauss100, recovery xa
     DMS_REFORM_STEP_XA_DRC_ACCESS,                  // for Gauss100, set xa drc access
 
