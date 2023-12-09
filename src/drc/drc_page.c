@@ -289,6 +289,41 @@ static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *bu
     }
 }
 
+static bool8 drc_try_request_page_set_waiting(drc_request_info_t *req_info, drc_req_owner_result_t *result,
+    drc_buf_res_t *buf_res)
+{
+    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        // no owner, if converting exist, it means page is being requested by other inst
+        if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8) {
+            result->type = DRC_REQ_OWNER_WAITING;
+            result->curr_owner_id = buf_res->converting.req_info.inst_id;
+            return CM_TRUE;
+        }
+        // no owner, if last_edp_exist, it happened during recover
+        if (buf_res->last_edp != CM_INVALID_ID8) {
+            result->type = DRC_REQ_OWNER_WAITING;
+            result->curr_owner_id = buf_res->last_edp;
+            return CM_TRUE;
+        }
+        // it indicates that drc has just been created
+        return CM_FALSE;
+    }
+    // owner exist but is not request inst, just return waiting
+    if (buf_res->claimed_owner != req_info->inst_id) {
+        result->type = DRC_REQ_OWNER_WAITING;
+        result->curr_owner_id = buf_res->claimed_owner;
+        return CM_TRUE;
+    }
+    // owner is request inst, but converting exist, just return waiting
+    if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8) {
+        result->type = DRC_REQ_OWNER_WAITING;
+        result->curr_owner_id = buf_res->converting.req_info.inst_id;
+        return CM_TRUE;
+    }
+    // owner is request inst, but in try request page, it indicates that buf_ctrl is invalid
+    return CM_FALSE;
+}
+
 static int drc_request_page_owner_internal(char *resid, uint8 type,
     drc_request_info_t *req_info, drc_req_owner_result_t *result, drc_buf_res_t *buf_res)
 {
@@ -297,14 +332,10 @@ static int drc_request_page_owner_internal(char *resid, uint8 type,
         return ERRNO_DMS_DRC_RECOVERY_PAGE;
     }
 
-    // only for try get page owner id, and currently have owner or converting
-    // if has edp, no need to preload
-    if (req_info->is_try && buf_res->type == DRC_RES_PAGE_TYPE &&
-        (buf_res->claimed_owner != CM_INVALID_ID8 || buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
-         buf_res->last_edp != CM_INVALID_ID8)) {
-        result->type = DRC_REQ_OWNER_WAITING;
-        result->curr_owner_id = buf_res->claimed_owner;
-        return DMS_SUCCESS;
+    if (req_info->is_try && buf_res->type == DRC_RES_PAGE_TYPE) {
+        if (drc_try_request_page_set_waiting(req_info, result, buf_res)) {
+            return DMS_SUCCESS;
+        }
     }
 
     bool32 can_cvt = CM_FALSE;
