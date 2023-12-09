@@ -25,6 +25,7 @@
 #ifndef __DMS_REFORM_FAULT_INJECT_H__
 #define __DMS_REFORM_FAULT_INJECT_H__
 
+#include "dms_reform.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,18 +34,18 @@ extern "C" {
 #ifdef _DEBUG
 void dms_reform_fault_inject_init(char *gsdb_home);
 void dms_reform_fault_inject_deinit(void);
-void dms_reform_fault_inject_before_step(void);
-void dms_reform_fault_inject_after_step(void);
+void dms_reform_fault_inject_before_step(dms_reform_proc_t *reform_proc);
+void dms_reform_fault_inject_after_step(dms_reform_proc_t *reform_proc);
 
-#define DMS_RFI_INIT(gsdb_home)         dms_reform_fault_inject_init(gsdb_home)
-#define DMS_RFI_DEINIT                  dms_reform_fault_inject_deinit()
-#define DMS_RFI_BEFORE_STEP             dms_reform_fault_inject_before_step()
-#define DMS_RFI_AFTER_STEP              dms_reform_fault_inject_after_step()
+#define DMS_RFI_INIT(gsdb_home)             dms_reform_fault_inject_init(gsdb_home)
+#define DMS_RFI_DEINIT                      dms_reform_fault_inject_deinit()
+#define DMS_RFI_BEFORE_STEP(reform_proc)    dms_reform_fault_inject_before_step(reform_proc)
+#define DMS_RFI_AFTER_STEP(reform_proc)     dms_reform_fault_inject_after_step(reform_proc)
 #else
 #define DMS_RFI_INIT(gsdb_home)
 #define DMS_RFI_DEINIT
-#define DMS_RFI_BEFORE_STEP
-#define DMS_RFI_AFTER_STEP
+#define DMS_RFI_BEFORE_STEP(reform_proc)
+#define DMS_RFI_AFTER_STEP(reform_proc)
 #endif
 
 #ifdef __cplusplus

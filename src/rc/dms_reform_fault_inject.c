@@ -26,8 +26,6 @@
 #include "dms_reform_proc.h"
 #include "cm_num.h"
 
-extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
-
 typedef enum en_rfi_param {
     PARAM_FAULT_INJECT_TYPE = 0,
     PARAM_FAULT_INJECT_STEP = 1,
@@ -126,14 +124,12 @@ void dms_reform_fault_inject_deinit(void)
     cm_close_thread(&g_rfi_context.thread);
 }
 
-void dms_reform_fault_inject_before_step(void)
+void dms_reform_fault_inject_before_step(dms_reform_proc_t *reform_proc)
 {
     if (strlen(g_rfi_context.fault_step) == 0 || strlen(g_rfi_context.fault_type) == 0) {
         return;
     }
 
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    dms_reform_proc_t *reform_proc = &g_dms_reform_procs[reform_info->current_step];
     if (cm_strcmpi(g_rfi_context.fault_step, reform_proc->desc) != 0) {
         return;
     }
@@ -151,14 +147,12 @@ void dms_reform_fault_inject_before_step(void)
     }
 }
 
-void dms_reform_fault_inject_after_step(void)
+void dms_reform_fault_inject_after_step(dms_reform_proc_t *reform_proc)
 {
     if (strlen(g_rfi_context.fault_step) == 0 || strlen(g_rfi_context.fault_type) == 0) {
         return;
     }
 
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    dms_reform_proc_t *reform_proc = &g_dms_reform_procs[reform_info->current_step];
     if (cm_strcmpi(g_rfi_context.fault_step, reform_proc->desc) != 0) {
         return;
     }
@@ -177,6 +171,7 @@ void dms_reform_fault_inject_after_step(void)
 
     if (cm_strcmpi(g_rfi_context.fault_type, "FAIL_AFTER_STEP") == 0) {
         LOG_RUN_WAR("[DMS FAULT INJECT]after %s, set reform fail", reform_proc->desc);
+        reform_info_t *reform_info = DMS_REFORM_INFO;
         reform_info->reform_fail = CM_TRUE;
         return;
     }

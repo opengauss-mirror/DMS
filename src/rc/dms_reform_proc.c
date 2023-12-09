@@ -2731,6 +2731,7 @@ static int dms_reform_proc_inner(void)
     dms_reform_proc_t *reform_proc = &g_dms_reform_procs[reform_info->current_step];
     int ret = DMS_SUCCESS;
 
+    DMS_RFI_BEFORE_STEP(reform_proc);
     if (reform_proc->recycle_pause) {
         drc_recycle_buf_res_set_pause();
     }
@@ -2744,6 +2745,7 @@ static int dms_reform_proc_inner(void)
     if (reform_proc->recycle_pause) {
         drc_recycle_buf_res_set_running();
     }
+    DMS_RFI_AFTER_STEP(reform_proc);
 
     return ret;
 }
@@ -2760,9 +2762,7 @@ static void dms_reform_inner(void)
         reform_info->err_code = ERRNO_DMS_REFORM_FAIL;
     }
 
-    DMS_RFI_BEFORE_STEP;
     ret = dms_reform_proc_inner();
-    DMS_RFI_AFTER_STEP;
 
     if (reform_info->reform_done) {
         return;
