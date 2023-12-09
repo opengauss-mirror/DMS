@@ -1761,7 +1761,7 @@ void dms_proc_ask_node_buf_info(dms_process_context_t * proc_ctx, dms_message_t 
     dms_req_buf_info_t req = *(dms_req_buf_info_t *)(receive_msg->buffer);
 
     stat_buf_info_t buf_info;
-    errno_t err = memcpy_s(&buf_info, sizeof(stat_buf_info_t), 0, sizeof(stat_buf_info_t));
+    errno_t err = memset_s(&buf_info, sizeof(stat_buf_info_t), 0, sizeof(stat_buf_info_t));
     DMS_SECUREC_CHECK(err);
     if (req.copy_insts & ((uint64)0x1 << proc_ctx->inst_id) ||
         req.master_id == proc_ctx->inst_id ||
