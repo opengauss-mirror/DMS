@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2022 Huawei Technologies Co.,Ltd.
  *
  * DMS is licensed under Mulan PSL v2.
@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           116
+#define DMS_LOCAL_VERSION           122
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -583,6 +583,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_DCS_REQ_XA_IN_USE,
     DMS_EVT_DCS_REQ_END_XA,
 
+// add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
 } dms_wait_event_t;
 
@@ -672,35 +673,19 @@ typedef struct st_stat_buf_info {
     char                aio_in_progress;        /* indicate aio is in progress */
     char                data[DMS_RESID_SIZE];   /* user defined resource(page) identifier */
 } stat_buf_info_t;
-/*
-* used by openGauss server to get DRC information
-*/
-typedef struct st_stat_drc_info {
-    stat_buf_info_t         buf_info[DMS_MAX_INSTANCES];           /* save buffer related information */
-    dms_context_t           dms_ctx;
-    unsigned char           master_id;
-    unsigned long long      copy_insts;         /* bitmap for owners, for S mode, more than one owner may exist */
-    unsigned char           claimed_owner;      /* owner */
-    unsigned char           lock_mode;          /* current DRC lock mode */
-    unsigned char           last_edp;           /* the newest edp instance id */
-    unsigned char           type;               /* page or lock */
-    unsigned char           in_recovery;        /* in recovery or not */
-    unsigned char           copy_promote;       /* copy promote to owner, can not release, may need flush */
-    unsigned short          part_id;            /* which partition id that current page belongs to */
-    unsigned long long      edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
-    unsigned long long      lsn;                /* the newest edp LSN of current page in the cluster */
-    unsigned short          len;                /* the length of data below */
-    unsigned char           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
-    unsigned char           recycling;
-    char                    data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
-} stat_drc_info_t;
 
 typedef enum en_broadcast_scope {
     DMS_BROADCAST_OLDIN_LIST = 0,    // default value
     DMS_BROADCAST_ONLINE_LIST = 1,
+    DMS_BROADCAST_TYPE_COUNT,
 } dms_broadcast_scope_e;
 
+/*
+* used by openGauss server to get DRC information
+*/
 typedef struct st_dv_drc_buf_info {
+    stat_buf_info_t         buf_info[DMS_MAX_INSTANCES];           /* save buffer related information */
+    dms_context_t           dms_ctx;
     char                    data[DMS_MAX_NAME_LEN];            /* user defined resource(page) identifier */
     unsigned char           master_id;
     unsigned long long      copy_insts;         /* bitmap for owners, for S mode, more than one owner may exist */
@@ -721,6 +706,13 @@ typedef struct st_dv_drc_buf_info {
     unsigned char           converting_req_info_req_mode;
     unsigned char           is_valid;
 } dv_drc_buf_info;
+
+typedef struct st_dms_reform_start_context {
+    dms_role_t role;
+    dms_reform_type_t reform_type;
+    unsigned long long bitmap_participated;
+    unsigned long long bitmap_reconnect;
+} dms_reform_start_context_t;
 
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
@@ -743,8 +735,7 @@ typedef int(*dms_df_recovery)(void *db_handle, unsigned long long list_in, void 
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
 typedef int(*dms_opengauss_recovery_primary)(void *db_handle, int inst_id);
-typedef void(*dms_reform_start_notify)(void *db_handle, dms_role_t role, unsigned char reform_type,
-    unsigned long long bitmap_nodes);
+typedef void(*dms_reform_start_notify)(void *db_handle, dms_reform_start_context_t *rs_ctx);
 typedef int(*dms_undo_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_load)(void *db_handle, unsigned char inst_id);
@@ -879,6 +870,7 @@ typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long 
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
 typedef void (*dms_edpp_func_t)(void *db_handle, dms_buf_ctrl_t *buf_ctrl);
+typedef void (*dms_buf_ctrl_recycle)(void *db_handle);
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -1027,13 +1019,16 @@ typedef struct st_dms_callback {
     dms_get_part_changed get_part_changed;
 
     dms_edpp_func_t cache_page;
+    dms_buf_ctrl_recycle buf_ctrl_recycle;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
     unsigned int inst_id;
     char ip[DMS_MAX_IP_LEN];
+    char secondary_ip[DMS_MAX_IP_LEN];
     unsigned short port;
-    unsigned char reserved[2];
+    unsigned char need_connect;
+    unsigned char reserved[1];
 } dms_instance_net_addr_t;
 
 typedef struct st_dms_profile {
@@ -1080,6 +1075,7 @@ typedef struct st_dms_profile {
     unsigned char scrlock_server_bind_core_end;
     unsigned char parallel_thread_num;
     unsigned int max_wait_time;
+    char gsdb_home[DMS_LOG_PATH_LEN];
 } dms_profile_t;
 
 typedef struct st_logger_param {

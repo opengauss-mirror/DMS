@@ -712,32 +712,9 @@ static void dms_reform_part_remaster(instance_list_t *inst_lists)
 
 static void dms_reform_judgement_remaster(instance_list_t *inst_lists)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    // all drc assign to reformer
-    if (DMS_CATALOG_IS_CENTRALIZED) {
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_REMASTER);
-        dms_reform_part_remaster(inst_lists);
-        return;
-    }
-
-    // online instance changed, should recalc part info and assign
-    if (inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0 || inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0 ||
-        share_info->full_clean || !DMS_FIRST_REFORM_FINISH) {
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_REMASTER);
-        dms_reform_part_remaster(inst_lists);
-        return;
-    }
-
-    // old join, part info is empty, should copy from reformer. reformer first reform has finished
-    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0) {
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_REMASTER);
-        dms_reform_part_copy();
-        return;
-    }
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_REMASTER);
+    dms_reform_part_remaster(inst_lists);
 }
 
 static void dms_reform_judgement_switch_lock(void)
@@ -788,13 +765,6 @@ static void dms_reform_migrate_task_inner(uint8 part_id, drc_part_t *part_now, d
         return;
     }
 
-    if (!bitmap64_exist(&bitmap_online, part_now->inst_id)) {
-        return;
-    }
-
-    // part_remaster->inst_id must be in list_online
-    // if part_now->inst_id is in list_online too
-    // should migrate part info from part_now->inst_id to part_remaster->inst_id;
     migrate_task.export_inst = part_now->inst_id;
     migrate_task.import_inst = part_remaster->inst_id;
     migrate_task.part_id = part_id;
@@ -823,24 +793,11 @@ static void dms_reform_migrate_task(void)
 
 static void dms_reform_judgement_migrate(instance_list_t *inst_lists)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    if (share_info->full_clean) {
-        return;
-    }
-
-    if (DMS_CATALOG_IS_CENTRALIZED) {
+    migrate_info_t *migrate_info = DMS_MIGRATE_INFO;
+    dms_reform_migrate_task();
+    if (migrate_info->migrate_task_num != 0) {
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_MIGRATE);
-        dms_reform_migrate_task();
-        return;
-    }
-
-    if (inst_lists[INST_LIST_NEW_JOIN].inst_id_count > inst_lists[INST_LIST_OLD_REMOVE].inst_id_count) {
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_MIGRATE);
-        dms_reform_migrate_task();
-        return;
     }
 }
 
@@ -1305,7 +1262,7 @@ static void dms_reform_judgement_collect_xaowners(void)
     dms_reform_add_step(DMS_REFORM_STEP_COLLECT_XA_OWNER);
 }
 
-static void dms_reform_judgement_sync_xaowners(void)
+static void dms_reform_judgement_merge_xaowners(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_MERGE_XA_OWNERS);
@@ -1375,7 +1332,7 @@ static void dms_reform_judgement_switchover(instance_list_t *inst_lists)
     dms_reform_judgement_page_access();
     dms_reform_judgement_switch_lock();
     dms_reform_judgement_collect_xaowners();
-    dms_reform_judgement_sync_xaowners();
+    dms_reform_judgement_merge_xaowners();
     dms_reform_judgement_recovery_xa();
     dms_reform_judgement_xa_access();
     dms_reform_judgement_switchover_promote();

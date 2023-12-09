@@ -51,11 +51,10 @@ static void inline dms_reform_collect_xa_owner_by_bucket(drc_res_bucket_t *bucke
 void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_xa_owners_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_xa_owners_t), CM_TRUE);
     dms_reform_req_sync_xa_owners_t *req = (dms_reform_req_sync_xa_owners_t *)receive_msg->buffer;
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
 
@@ -72,7 +71,6 @@ void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t 
         LOG_DEBUG_FUNC_FAIL;
     }
 
-    dms_release_recv_message(receive_msg);
 }
 
 int dms_reform_merge_xa_owners(void)
@@ -111,10 +109,9 @@ int dms_reform_merge_xa_owners(void)
 void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
     if (!dms_reform_check_judge_time(receive_msg->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
     dms_reform_ack_common_t ack_comm;
@@ -127,7 +124,6 @@ void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_messag
         LOG_DEBUG_FUNC_FAIL;
     }
 
-    dms_release_recv_message(receive_msg);
 }
 
 static int dms_reform_req_xa_owners(void)
@@ -172,12 +168,12 @@ static int dms_reform_req_xa_owners(void)
         ret = ack_comm->result;
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners result: %d, dst_id: %d", ret, share_info->promote_id);
-            dms_release_recv_message(&res);
+            mfc_release_response(&res);
             return ret;
         }
 
         reform_info->bitmap_has_xa = ack_comm->bitmap_has_xa;
-        dms_release_recv_message(&res);
+        mfc_release_response(&res);
         break;
     }
 
@@ -346,7 +342,7 @@ int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrat
 
 void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE);
     dms_reform_req_migrate_t *req = (dms_reform_req_migrate_t *)receive_msg->buffer;
 
     int ret = DMS_SUCCESS;
@@ -382,7 +378,6 @@ void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_mess
     }
 
     dms_reform_ack_req_migrate(process_ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
 static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild, drc_global_xid_t *xid,
@@ -444,6 +439,13 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
     }
     
     if (req_rebuild == NULL) {
+        if (thread_index == CM_INVALID_ID8) {
+            req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
+                DMS_REFORM_MSG_MAX_LENGTH);
+        } else {
+            req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(parallel->handle, 
+                DMS_REFORM_MSG_MAX_LENGTH);
+        }
         req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
             DMS_REFORM_MSG_MAX_LENGTH);
         if (req_rebuild == NULL) {
@@ -488,13 +490,13 @@ int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
     LOG_DEBUG_INF("[DMS][%s] dms_reform_rebuild_xa_res, remaster to node %u", cm_display_resid((char *)xid,
         DRC_RES_GLOBAL_XA_TYPE), master_id);
     if (master_id == g_dms.inst_id) {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCAL);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_LOCAL);
         ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, xid, g_dms.inst_id, undo_set_id, CM_FALSE);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCAL);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_LOCAL);
     } else {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_REMOTE);
         ret = dms_reform_req_xa_rebuild(dms_ctx, xid, undo_set_id, master_id, thread_index);
-        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_REMOTE);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_REMOTE);
     }
     return ret;
 }
@@ -503,12 +505,11 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
 {
     int32 ret = DMS_SUCCESS;
     drc_global_xid_t xid = { 0 };
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_RECV_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE, CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        dms_release_recv_message(receive_msg);
         return;
     }
     uint8 owner_id = req_rebuild->head.src_inst;
@@ -541,14 +542,13 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     }
 
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
-    dms_release_recv_message(receive_msg);
 }
 
-void dms_reform_clean_xa_res_by_part(bilist_t *part_list)
+void dms_reform_clean_xa_res_by_part(drc_part_list_t *part)
 {
     drc_global_xa_res_t *xa_res = NULL;
     share_info_t *share_info = DMS_SHARE_INFO;
-    bilist_node_t *node = cm_bilist_head(part_list);
+    bilist_node_t *node = cm_bilist_head(&part->list);
 
     while (node != NULL) {
         xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);

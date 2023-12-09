@@ -684,7 +684,7 @@ static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     if (latch_stat->stat == LATCH_STATUS_IDLE) {
         int32 ret = dms_try_latch_idle2s(dms_ctx, lock_res);
         drc_unlock_local_resx(lock_res);
-        if (ret != DMS_SUCCESS) {
+        if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_LOCK_ABANDON_TRY) {
             dls_cancel_request_lock(dms_ctx, &dlatch->drid);
         }
         LOG_DEBUG_INF("[DLS] try add latch_s finished, result:%d", ret);
@@ -716,7 +716,7 @@ unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
             return CM_TRUE;
         }
 
-        if (ret != ERR_MES_WAIT_OVERTIME) {
+        if (ret != ERRNO_DMS_DCS_MSG_EAGAIN) {
             return CM_FALSE;
         }
 

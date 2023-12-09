@@ -134,6 +134,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_MERGE_XA_OWNERS,        dms_reform_proc_xa_merge,        CM_TRUE, CM_TRUE,  "dms reform merge xa owners" },
     { MSG_REQ_XA_REBUILD,             dms_reform_proc_xa_rebuild,      CM_TRUE, CM_TRUE,  "xa res rebuild" },
     { MSG_REQ_XA_OWNERS,              dms_reform_proc_req_xaowners,    CM_TRUE, CM_TRUE,  "ask xa owners" },
+    { MSG_REQ_RECYCLE,                drc_proc_buf_ctrl_recycle,       CM_TRUE, CM_TRUE,  "req buf ctrl recycle" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -339,7 +340,6 @@ void dms_protocol_send_ack_version_not_match(dms_process_context_t *ctx, dms_mes
             ack_msg.head.src_inst, ack_msg.head.src_sid, ack_msg.head.dst_inst, ack_msg.head.dst_sid, ack_msg.result,
             ack_msg.head.msg_proto_ver, recv_head->cmd, recv_head->msg_proto_ver, recv_head->sw_proto_ver,
             DMS_SW_PROTO_VER);
-        dms_release_recv_message(receive_msg);
         return;
     }
     LOG_RUN_INF("[DMS PROTOCOL] send ack version not match success, src_inst:%u, src_sid:%u, dst_inst:%u, "
@@ -348,7 +348,6 @@ void dms_protocol_send_ack_version_not_match(dms_process_context_t *ctx, dms_mes
         ack_msg.head.src_inst, ack_msg.head.src_sid, ack_msg.head.dst_inst, ack_msg.head.dst_sid, ack_msg.result,
         ack_msg.head.msg_proto_ver, recv_head->cmd, recv_head->msg_proto_ver, recv_head->sw_proto_ver,
         DMS_SW_PROTO_VER);
-    dms_release_recv_message(receive_msg);
     return;
 }
 
@@ -375,7 +374,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             "src_sid:%u, dest_sid:%u, finish dms init:%u", 
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        mfc_release_mes_msg(mes_msg);
         return;
     }
 
@@ -395,8 +393,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         if (!pass_check) {
             if (dms_cmd_need_ack(head->cmd)) {
                 dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_TRUE);
-            } else {
-                mfc_release_mes_msg(mes_msg);
             }
             return;
         }
@@ -417,7 +413,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid,
             (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        mfc_release_mes_msg(mes_msg);
         dms_unlock_instance_s(head->cmd);
         return;
     }
@@ -525,34 +520,41 @@ static void dms_deinit_proc_ctx(void)
 
 void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
 {
-    uint32 pool_idx = 0;
+    for (int i = MES_PRIORITY_ZERO; i < DMS_CURR_PRIORITY_COUNT; i++) {
+        uint32 pool_idx = 0;
 
-    profile->buffer_pool_attr.pool_count = DMS_BUFFER_POOL_NUM;
-    profile->buffer_pool_attr.queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
+        profile->buffer_pool_attr[i].pool_count = DMS_BUFFER_POOL_NUM;
+        profile->buffer_pool_attr[i].queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
 
-    // 64 buffer pool
-    profile->buffer_pool_attr.buf_attr[pool_idx].count =
-        (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
-    profile->buffer_pool_attr.buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
+        // 64 buffer pool
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
+            (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
+        if (i != MES_PRIORITY_THREE) {
+            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+        }
 
-    // 128 buffer pool
-    pool_idx++;
-    profile->buffer_pool_attr.buf_attr[pool_idx].count =
-        (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
-    profile->buffer_pool_attr.buf_attr[pool_idx].size = DMS_SECOND_BUFFER_LENGTH;
+        // 128 buffer pool
+        pool_idx++;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
+            (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_SECOND_BUFFER_LENGTH;
+        if (i != MES_PRIORITY_THREE) {
+            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+        }
 
-    // 32k buffer pool
-    pool_idx++;
-    profile->buffer_pool_attr.buf_attr[pool_idx].count =
-        (uint32)(recv_msg_buf_size * DMS_THIRDLY_BUFFER_RATIO) / DMS_THIRD_BUFFER_LENGTH;
-    profile->buffer_pool_attr.buf_attr[pool_idx].size = DMS_THIRD_BUFFER_LENGTH;
+        // 32k buffer pool
+        pool_idx++;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
+            (uint32)(recv_msg_buf_size * DMS_THIRDLY_BUFFER_RATIO) / DMS_THIRD_BUFFER_LENGTH;
+        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_THIRD_BUFFER_LENGTH;
+        if (i != MES_PRIORITY_THREE) {
+            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+        }
+    }
 }
 
-#define DMS_WORK_THREAD_TASK_GROUP1     2
-#define DMS_WORK_THREAD_TASK_GROUP2     1
-#define DMS_WORK_THREAD_TASK_GROUP3     1
-
-mes_task_group_id_t dms_msg_group_id(uint32 cmd)
+unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 {
     switch (cmd) {
         case MSG_REQ_SYNC_STEP:
@@ -562,19 +564,19 @@ mes_task_group_id_t dms_msg_group_id(uint32 cmd)
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHECK_REFORM_DONE:
-            return MES_TASK_GROUP_ONE;      // group one is used for reform
+            return MES_PRIORITY_ZERO;      // priority 0 is used for reform
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
-            return MES_TASK_GROUP_TWO;      // group two is used for ddl sync
+            return MES_PRIORITY_ONE;      // priority 1 is used for ddl sync
         case MSG_REQ_SYNC_NEXT_STEP:        // next step may sync last reform fail
         case MSG_REQ_MAP_INFO:
         case MSG_REQ_REFORM_PREPARE:
         case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_DMS_STATUS:
         case MSG_REQ_REFORM_GCV_SYNC:
-            return MES_TASK_GROUP_THREE;    // only for judgement
+            return MES_PRIORITY_TWO;    // only for judgement
         default:
-            return MES_TASK_GROUP_ZERO;
+            return MES_PRIORITY_THREE;
     }
 }
 
@@ -586,20 +588,38 @@ mes_task_group_id_t dms_msg_group_id(uint32 cmd)
     group 0: total_work_thread - group 1 - group 2 - group 3
     Allocation principle: Allocate time-consuming requests to different groups.
 */
-void dms_set_group_task_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
+void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
-    uint32 work_thread = DMS_WORK_THREAD_TASK_GROUP1 + DMS_WORK_THREAD_TASK_GROUP2 + DMS_WORK_THREAD_TASK_GROUP3;
+    uint32 work_thread = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2;
 
-    mes_profile->task_group[MES_TASK_GROUP_ZERO] = dms_profile->work_thread_cnt - work_thread;
-    mes_profile->task_group[MES_TASK_GROUP_ONE] = DMS_WORK_THREAD_TASK_GROUP1;
-    mes_profile->task_group[MES_TASK_GROUP_TWO] = DMS_WORK_THREAD_TASK_GROUP2;
-    mes_profile->task_group[MES_TASK_GROUP_THREE] = DMS_WORK_THREAD_TASK_GROUP3;
+    mes_profile->send_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
+    mes_profile->send_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
+    mes_profile->send_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
+    mes_profile->send_task_count[MES_PRIORITY_THREE] = dms_profile->work_thread_cnt - work_thread;
+
+    mes_profile->work_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
+    mes_profile->work_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
+    mes_profile->work_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
+    mes_profile->work_task_count[MES_PRIORITY_THREE] = dms_profile->work_thread_cnt - work_thread;
+
+    mes_profile->recv_task_count[MES_PRIORITY_ZERO] = DMS_RECV_THREAD_PRIO_0;
+    mes_profile->recv_task_count[MES_PRIORITY_ONE] = DMS_RECV_THREAD_PRIO_1;
+    mes_profile->recv_task_count[MES_PRIORITY_TWO] = DMS_RECV_THREAD_PRIO_2;
+    mes_profile->recv_task_count[MES_PRIORITY_THREE] =
+        MAX(1, (uint32)((dms_profile->work_thread_cnt - work_thread) * DMS_RECV_WORK_THREAD_RATIO));
+}
+
+static inline void dms_init_mes_compress(mes_profile_t *mes_profile)
+{
+    mes_profile->enable_compress_priority = CM_FALSE;
+    mes_profile->algorithm = COMPRESS_NONE;
+    mes_profile->compress_level = DMS_PRIORITY_COMPRESS_LEVEL;
 }
 
 int dms_init_mes(dms_profile_t *dms_profile)
 {
     int ret;
-    mes_profile_t mes_profile;
+    mes_profile_t mes_profile = { 0 };
     mes_profile.inst_id = dms_profile->inst_id;
     mes_profile.inst_cnt = dms_profile->inst_cnt;
     if (dms_profile->pipe_type == DMS_CONN_MODE_TCP) {
@@ -613,20 +633,26 @@ int dms_init_mes(dms_profile_t *dms_profile)
 
     mes_profile.conn_created_during_init = dms_profile->conn_created_during_init;
     mes_profile.channel_cnt = dms_profile->channel_cnt;
-    mes_profile.work_thread_cnt = dms_profile->work_thread_cnt;
+    mes_profile.priority_cnt = DMS_CURR_PRIORITY_COUNT;
     mes_profile.mes_elapsed_switch = dms_profile->elapsed_switch;
     mes_profile.rdma_rpc_use_busypoll = dms_profile->rdma_rpc_use_busypoll;
     mes_profile.rdma_rpc_is_bind_core = dms_profile->rdma_rpc_is_bind_core;
     mes_profile.rdma_rpc_bind_core_start = dms_profile->rdma_rpc_bind_core_start;
     mes_profile.rdma_rpc_bind_core_end = dms_profile->rdma_rpc_bind_core_end;
+    mes_profile.frag_size = DMS_MESSAGE_BUFFER_SIZE;
+    mes_profile.connect_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile.socket_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile.send_directly = CM_TRUE;
+    mes_profile.need_serial = CM_FALSE;
     ret = memcpy_s(mes_profile.inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
         sizeof(mes_addr_t) * DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(ret);
     ret = memcpy_s(mes_profile.ock_log_path, MES_MAX_LOG_PATH, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
     DMS_SECUREC_CHECK(ret);
 
+    dms_init_mes_compress(&mes_profile);
     dms_set_mes_buffer_pool(dms_profile->recv_msg_buf_size, &mes_profile);
-    dms_set_group_task_num(dms_profile, &mes_profile);
+    dms_set_task_worker_num(dms_profile, &mes_profile);
 
     ret = mfc_init(&mes_profile);
     if (ret != CM_SUCCESS) {
@@ -639,23 +665,25 @@ int dms_init_mes(dms_profile_t *dms_profile)
     return ret;
 }
 
-static status_t dms_global_res_init(drc_global_res_map_t *global_res, int32 res_type, uint32 pool_size,
-    uint32 item_size, res_cmp_callback res_cmp_func, res_hash_callback get_hash_func)
+static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 inst_cnt, int32 res_type,
+    uint32 pool_size, uint32 item_size, res_cmp_callback res_cmp_func, res_hash_callback get_hash_func)
 {
     uint32 i;
 
     for (i = 0; i < DRC_MAX_PART_NUM; i++) {
-        cm_bilist_init(&global_res->res_parts[i]);
+        cm_bilist_init(&global_res->res_parts[i].list);
+        GS_INIT_SPIN_LOCK(global_res->res_parts[i].lock);
     }
 
-    return drc_res_map_init(&global_res->res_map, res_type, pool_size, item_size, res_cmp_func, get_hash_func);
+    return drc_res_map_init(&global_res->res_map, inst_cnt, res_type, pool_size,
+        item_size, res_cmp_func, get_hash_func);
 }
 
 static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    uint32 item_num = DMS_CM_MAX_SESSIONS * dms_profile->inst_cnt * 2;
-    int32 ret = drc_res_pool_init(&ctx->lock_item_pool, sizeof(drc_lock_item_t), item_num);
+    uint32 item_num = DMS_CM_MAX_SESSIONS * 2;
+    int32 ret = drc_res_pool_init(&ctx->lock_item_pool, dms_profile->inst_cnt, sizeof(drc_lock_item_t), item_num);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]lock item pool init fail,return error:%d", ret);
     }
@@ -663,13 +691,13 @@ static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
     return ret;
 }
 
-static inline int32 init_page_res_ctx(const dms_profile_t *dms_profile)
+static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
 {
-    int ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    uint32 res_num = (uint32)MAX(dms_profile->data_buffer_size / dms_profile->page_size, SIZE_M(2));
-    ret = dms_global_res_init(&ctx->global_buf_res, DMS_RES_TYPE_IS_PAGE, res_num, sizeof(drc_buf_res_t), dms_same_page,
-        dms_res_hash);
+    uint32 res_num_calc = (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
+    uint32 res_num = (uint32)MAX(res_num_calc, SIZE_M(1));
+    int ret = dms_global_res_init(&ctx->global_buf_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_PAGE, res_num,
+        sizeof(drc_buf_res_t), dms_same_page, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global page resource pool init fail,return error:%d", ret);
     }
@@ -680,14 +708,14 @@ static int32 init_lock_res_ctx(dms_profile_t *dms_profile)
 {
     int ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ret = dms_global_res_init(&ctx->global_lock_res, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
-        sizeof(drc_buf_res_t), dms_same_global_lock, dms_res_hash);
+    ret = dms_global_res_init(&ctx->global_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK,
+        DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_buf_res_t), dms_same_global_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global lock resource pool init fail,return error:%d", ret);
         return ret;
     }
 
-    ret = drc_res_map_init(&ctx->local_lock_res, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
+    ret = drc_res_map_init(&ctx->local_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
         sizeof(drc_local_lock_res_t), dms_same_local_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]local lock resource pool init fail,return error:%d", ret);
@@ -701,7 +729,8 @@ static int32 init_xa_res_ctx(dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 res_num = dms_profile->max_session_cnt;
-    int32 ret = dms_global_res_init(&ctx->global_xa_res, DMS_RES_TYPE_IS_XA, res_num, sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
+    int32 ret = dms_global_res_init(&ctx->global_xa_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_XA, res_num,
+        sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global xid resource pool init fail, return error:%d", ret);
         return ret;
@@ -715,14 +744,14 @@ static int32 init_txn_res_ctx(const dms_profile_t *dms_profile)
     int32 ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 item_num = DMS_CM_MAX_SESSIONS * dms_profile->inst_cnt;
-    ret = drc_res_map_init(&ctx->local_txn_map, DMS_RES_TYPE_IS_LOCAL_TXN, item_num,
+    ret = drc_res_map_init(&ctx->local_txn_map, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCAL_TXN, item_num,
         sizeof(drc_txn_res_t), dms_same_txn, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]local txn resource pool init fail,return error:%d", ret);
         return ret;
     }
 
-    ret = drc_res_map_init(&ctx->txn_res_map, DMS_RES_TYPE_IS_TXN, item_num,
+    ret = drc_res_map_init(&ctx->txn_res_map, dms_profile->inst_cnt, DMS_RES_TYPE_IS_TXN, item_num,
         sizeof(drc_txn_res_t), dms_same_txn, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]txn resource pool init fail,return error:%d", ret);
@@ -764,7 +793,7 @@ static int32 init_drc_smon_ctx(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    ret = cm_create_thread(dms_smon_recycle_entry, 0, NULL, &ctx->smon_recycle_thread);
+    ret = cm_create_thread(drc_recycle_buf_res_thread, 0, NULL, &ctx->smon_recycle_thread);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DRC]fail to create smon recycle thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);

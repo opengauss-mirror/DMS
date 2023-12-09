@@ -28,6 +28,7 @@
 #include "dms_error.h"
 #include "dcs_page.h"
 #include "drc_page.h"
+#include "dms_reform_proc_parallel.h"
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;
 
@@ -87,7 +88,7 @@ static inline void drc_add_items(drc_res_pool_t *pool, char *addr, uint32 res_si
     }
 }
 
-int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
+int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_size, uint32 res_num)
 {
     uint64 sz;
     status_t ret = memset_s(pool, sizeof(drc_res_pool_t), 0, sizeof(drc_res_pool_t));
@@ -114,6 +115,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
     pool->inited = CM_TRUE;
     pool->extend_step = res_num;
     pool->extend_num = 1;
+    pool->max_extend_num = max_extend_num;
     ret = memset_s(pool->each_pool_size, sizeof(pool->each_pool_size), 0, sizeof(pool->each_pool_size));
     DMS_SECUREC_CHECK(ret);
     pool->each_pool_size[0] = res_num;
@@ -127,7 +129,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 res_size, uint32 res_num)
  */
 char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
 {
-    if (pool->extend_num >= DRC_RES_EXTEND_MAX_NUM) {
+    if (pool->extend_num >= pool->max_extend_num) {
         pool->res_depleted = CM_TRUE;
         return NULL;
     }
@@ -139,8 +141,6 @@ char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
         pool->addr[pool->extend_num] = (char *)malloc(sz);
         if (pool->addr[pool->extend_num] == NULL) {
             try_times++;
-            sz = sz >> 1;
-            pool->extend_step = pool->extend_step >> 1;
             continue;
         }
         break;
@@ -220,8 +220,8 @@ void drc_res_pool_free_item(drc_res_pool_t* pool, char* res)
     return;
 }
 
-int32 drc_res_map_init(drc_res_map_t* res_map, int32 res_type, uint32 item_num, uint32 item_size,
-    res_cmp_callback res_cmp, res_hash_callback res_hash)
+int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_type, uint32 item_num,
+    uint32 item_size, res_cmp_callback res_cmp, res_hash_callback res_hash)
 {
     uint64 bucket_size;
     int32 ret;
@@ -235,7 +235,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, int32 res_type, uint32 item_num, 
     }
 
     drc_init_over2g_buffer(res_map->buckets, 0, bucket_size);
-    ret = drc_res_pool_init(&res_map->res_pool, item_size, item_num);
+    ret = drc_res_pool_init(&res_map->res_pool, max_extend_num, item_size, item_num);
     if (ret != DMS_SUCCESS) {
         free(res_map->buckets);
         res_map->buckets = NULL;
@@ -481,23 +481,22 @@ void drc_destroy(void)
 
     drc_res_map_destroy(&ctx->global_buf_res.res_map);
     for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
-        cm_bilist_init(&ctx->global_buf_res.res_parts[i]);
+        cm_bilist_init(&ctx->global_buf_res.res_parts[i].list);
     }
 
     drc_res_map_destroy(&ctx->global_lock_res.res_map);
     for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
-        cm_bilist_init(&ctx->global_lock_res.res_parts[i]);
+        cm_bilist_init(&ctx->global_lock_res.res_parts[i].list);
     }
 
     drc_res_map_destroy(&ctx->global_xa_res.res_map);
     for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
-        cm_bilist_init(&ctx->global_xa_res.res_parts[i]);
+        cm_bilist_init(&ctx->global_xa_res.res_parts[i].list);
     }
 
     drc_res_map_destroy(&ctx->local_lock_res);
     drc_res_map_destroy(&ctx->txn_res_map);
     drc_res_map_destroy(&ctx->local_txn_map);
-    ctx->part_lock = 0;
 
     if (ctx->chan != NULL) {
         cm_chan_free(ctx->chan);
@@ -572,38 +571,58 @@ void drc_add_buf_res_in_part_list(drc_buf_res_t *buf_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     buf_res->part_id = drc_page_partid(buf_res->data);
-    bilist_t *part_list = &ctx->global_buf_res.res_parts[buf_res->part_id];
-    cm_spin_lock(&ctx->part_lock, NULL);
-    cm_bilist_add_head(&buf_res->part_node, part_list);
-    cm_spin_unlock(&ctx->part_lock);
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_add_head(&buf_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
 }
 
 void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = &ctx->global_buf_res.res_parts[buf_res->part_id];
-    cm_spin_lock(&ctx->part_lock, NULL);
-    cm_bilist_del(&buf_res->part_node, part_list);
-    cm_spin_unlock(&ctx->part_lock);
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_del(&buf_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
 }
 
 void drc_add_lock_res_in_part_list(drc_buf_res_t *lock_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     lock_res->part_id = (uint16)drc_resource_id_hash((uint8 *)lock_res->data, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
-    bilist_t *part_list = &ctx->global_lock_res.res_parts[lock_res->part_id];
-    cm_spin_lock(&ctx->part_lock, NULL);
-    cm_bilist_add_head(&lock_res->part_node, part_list);
-    cm_spin_unlock(&ctx->part_lock);
+    drc_part_list_t *part = &ctx->global_lock_res.res_parts[lock_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_add_head(&lock_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
 }
 
 void drc_del_lock_res_in_part_list(drc_buf_res_t *lock_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bilist_t *part_list = &ctx->global_lock_res.res_parts[lock_res->part_id];
-    cm_spin_lock(&ctx->part_lock, NULL);
-    cm_bilist_del(&lock_res->part_node, part_list);
-    cm_spin_unlock(&ctx->part_lock);
+    drc_part_list_t *part = &ctx->global_lock_res.res_parts[lock_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_del(&lock_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
+}
+
+void drc_buf_res_shift_to_tail(drc_buf_res_t *buf_res)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_del(&buf_res->part_node, &part->list);
+    cm_bilist_add_tail(&buf_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
+}
+
+void drc_buf_res_shift_to_head(drc_buf_res_t *buf_res)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_del(&buf_res->part_node, &part->list);
+    cm_bilist_add_head(&buf_res->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
 }
 
 void drc_release_convert_q(bilist_t *convert_q)
@@ -662,7 +681,7 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_mast
 * @[out] drc_info: Save the DRC information of the current page, 
 *        including page related information in Standby which held the COPY
 */
-int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
+int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
 {
     drc_buf_res_t *buf_res = NULL;
     int32 ret = drc_enter_buf_res(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL, &buf_res);
@@ -699,14 +718,14 @@ int dms_get_drc_info(int* is_found, stat_drc_info_t* drc_info)
     return ret;
 }
 
-static inline void find_pos_in_res_pool(int *pool_index, int *item_index_in_matched_pool, drc_res_pool_t *res_pool)
+static inline void find_pos_in_res_pool(uint32 *pool_index, uint32 *item_index_in_matched_pool, drc_res_pool_t *pool)
 {
-    for (int i_extend_num = 0; i_extend_num < res_pool->max_extend_num; i_extend_num++) {
-        if (*item_index_in_matched_pool < res_pool->each_pool_size[i_extend_num]) {
+    for (uint32 i_extend_num = 0; i_extend_num < pool->max_extend_num; i_extend_num++) {
+        if (*item_index_in_matched_pool < pool->each_pool_size[i_extend_num]) {
             *pool_index = i_extend_num;
             break;
         }
-        *item_index_in_matched_pool -= res_pool->each_pool_size[i_extend_num];
+        *item_index_in_matched_pool -= pool->each_pool_size[i_extend_num];
     }
 }
 
@@ -749,8 +768,8 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
     drc_res_pool_t *res_pool = &ctx->local_lock_res.res_pool;
 
     drc_local_lock_res_t *drc_local_lock_res = NULL;
-    int pool_index = 0;
-    int item_index_in_matched_pool = *vmid;
+    uint32 pool_index = 0;
+    uint32 item_index_in_matched_pool = *vmid;
     while (*vmid < res_pool->item_num) {
         item_index_in_matched_pool = *vmid;
         find_pos_in_res_pool(&pool_index, &item_index_in_matched_pool, res_pool);
@@ -763,4 +782,149 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
         }
     }
     drc_local_lock_res_result->is_valid = CM_FALSE;
+}
+
+static void drc_recycle_buf_res_cancle(drc_buf_res_t *buf_res)
+{
+    cm_spin_lock(&buf_res->lock, NULL);
+    buf_res->recycling = CM_FALSE;
+    drc_buf_res_shift_to_head(buf_res);
+    cm_spin_unlock(&buf_res->lock);
+}
+
+void drc_recycle_buf_res_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle)
+{
+    if (part->list.count == 0) {
+        return;
+    }
+    dms_process_context_t ctx;
+    cm_spin_lock(&part->lock, NULL);
+    bilist_node_t *node = cm_bilist_tail(&part->list);
+    cm_spin_unlock(&part->lock);
+
+    if (node == NULL) {
+        return;
+    }
+    drc_buf_res_t *buf_res = BILIST_NODE_OF(drc_buf_res_t, node, part_node);
+    if (!drc_chk_4_recycle(buf_res->data, buf_res->len)) {
+        return;
+    }
+    ctx.db_handle = db_handle;
+    ctx.inst_id = g_dms.inst_id;
+    ctx.sess_id = sess_id;
+    if (drc_recycle_buf_res(&ctx, buf_res)) {
+        return;
+    }
+    drc_recycle_buf_res_cancle(buf_res);
+}
+
+static void drc_recycle_buf_res_single(void)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_part_list_t *part = NULL;
+
+    for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
+        part = &ctx->global_buf_res.res_parts[part_id];
+        drc_recycle_buf_res_by_part(part, ctx->smon_recycle_sid, ctx->smon_recycle_handle);
+    }
+}
+
+static void drc_recycle_buf_res_part_start(void)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_part_list_t *part = NULL;
+    char buf_log[CM_BUFLEN_1K] = { 0 };
+    char buf_num[CM_BUFLEN_32] = { 0 };
+    MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, "[DRC recycle]every part drc count:"));
+    for (uint8 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
+        part = &ctx->global_buf_res.res_parts[part_id];
+        PRTS_RETVOID_IFERR(sprintf_s(buf_num, CM_BUFLEN_32, " %u", part->list.count));
+        MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, buf_num));
+    }
+    LOG_DEBUG_INF(buf_log);
+}
+
+static bool32 drc_recycle_buf_res_check(bool8 has_recycled)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_res_pool_t *pool = DRC_BUF_RES_POOL;
+
+    if (pool->res_depleted) {
+        if (!has_recycled) {
+            LOG_DEBUG_INF("[DRC recycle]drc pool is depleted, notify db to recycle");
+            drc_recycle_buf_res_notify_db(ctx->smon_recycle_sid);
+        }
+    }
+
+    if (pool->extend_num == pool->max_extend_num && pool->used_num > pool->item_num * DRC_RECYCLE_THRESHOLD) {
+        if (!has_recycled) {
+            LOG_DEBUG_INF("[DRC recycle]start, extend: %u, total: %u, used: %u",
+                pool->extend_num, pool->item_num, pool->used_num);
+        }
+        return CM_TRUE;
+    }
+
+    if (has_recycled) {
+        pool->res_depleted = CM_FALSE;
+        LOG_DEBUG_INF("[DRC recycle]end, total: %u, used: %u", pool->item_num, pool->used_num);
+        drc_recycle_buf_res_part_start();
+    } else {
+        LOG_DEBUG_INF("[DRC recycle]skip, extend: %u, total: %u, used: %u",
+            pool->extend_num, pool->item_num, pool->used_num);
+    }
+
+    return CM_FALSE;
+}
+
+static void drc_recycle_buf_res_start(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    // use single thread when there is no parallel thread
+    if (!reform_info->parallel_enable) {
+        drc_recycle_buf_res_single();
+        return;
+    }
+
+    // try parallel thread first, and then use single thread when fail to use parallel thread
+    if (drc_recycle_buf_res_parallel() != DMS_SUCCESS) {
+        drc_recycle_buf_res_single();
+    }
+}
+
+void drc_recycle_buf_res_set_pause(void)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    cm_spin_lock(&ctx->smon_recycle_lock, NULL);
+    LOG_RUN_INF("[DRC recycle]pausing");
+}
+
+void drc_recycle_buf_res_set_running(void)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    cm_spin_unlock(&ctx->smon_recycle_lock);
+    LOG_RUN_INF("[DRC recycle]running");
+}
+
+void drc_recycle_buf_res_thread(thread_t *thread)
+{
+#ifdef OPENGAUSS
+    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
+#endif
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    bool8 has_recycled = CM_FALSE;
+
+    LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread start");
+    while (!thread->closed) {
+        if (drc_recycle_buf_res_check(has_recycled)) {
+            cm_spin_lock(&ctx->smon_recycle_lock, NULL);
+            drc_recycle_buf_res_start();
+            cm_spin_unlock(&ctx->smon_recycle_lock);
+            has_recycled = CM_TRUE;
+        } else {
+            has_recycled = CM_FALSE;
+            cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
+        }
+    }
+    LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread close");
 }

@@ -152,7 +152,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
     DMS_REFORM_STEP_COLLECT_XA_OWNER,               // for Gauss100, collect xa owner
     DMS_REFORM_STEP_MERGE_XA_OWNERS,                // for Gauss100, merge xa owners from all nodes
-    DMS_REFORM_STEP_SYNC_XA_OWNERS,                 // for Gauss100, sync xa owners to all nodes
     DMS_REFORM_STEP_RECOVERY_XA,                    // for Gauss100, recovery xa
     DMS_REFORM_STEP_XA_DRC_ACCESS,                  // for Gauss100, set xa drc access
 
@@ -376,6 +375,7 @@ typedef void(*dms_assign_proc)(void);
 typedef int(*dms_parallel_proc)(resource_id_t *res_id, parallel_thread_t *parallel);
 
 typedef struct st_parallel_info {
+    spinlock_t          parallel_lock;
     cm_sem_t            parallel_sem;
     parallel_thread_t   parallel[DMS_PARALLEL_MAX_THREAD];
     dms_parallel_proc   parallel_proc;          // parallel callback function
@@ -429,6 +429,7 @@ typedef struct st_dms_reform_proc {
     char                desc[DMS_REFORM_STEP_DESC_STR_LEN];
     dms_reform_proc     proc;
     dms_reform_proc     proc_parallel;
+    bool32              recycle_pause;
 } dms_reform_proc_t;
 
 int dms_reform_init(dms_profile_t *dms_profile);

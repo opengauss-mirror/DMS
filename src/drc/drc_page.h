@@ -43,7 +43,7 @@ static inline bool32 if_cvt_need_confirm(drc_buf_res_t *buf_res)
     return CM_FALSE;
 }
 
-void drc_release_buf_res_by_part(bilist_t *part_list, uint8 type);
+void drc_release_buf_res_by_part(drc_part_list_t *part, uint8 type);
 int drc_request_page_owner(char* resid, uint16 len, uint8 res_type,
     drc_request_info_t* req_info, drc_req_owner_result_t* result);
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info);
@@ -52,9 +52,8 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
 void drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cvt_info_t* cvt_info);
 bool8 drc_cancel_converting(drc_buf_res_t *buf_res, drc_request_info_t *req, cvt_info_t* cvt_info);
 bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id);
-uint32 drc_recycle_buf_res_by_part(bilist_t* part_list, uint8 res_type, uint32 target_cnt, bool32 greedy);
-int32 drc_recycle_buf_res(dms_process_context_t *ctx, dms_session_e sess_type, char* resid, uint16 len);
-void drc_recycle_buf_res_on_demand();
+bool8 drc_chk_4_recycle(char *resid, uint16 len);
+bool8 drc_recycle_buf_res(dms_process_context_t *ctx, drc_buf_res_t *buf_res);
 void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type);
 #ifdef __cplusplus
 }

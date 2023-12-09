@@ -47,6 +47,7 @@ typedef struct st_msg_page_batch_op {
     uint64 scn;
 } msg_page_batch_op_t;
 
+void drc_proc_buf_ctrl_recycle(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_release_owner_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *receive_msg);

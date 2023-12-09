@@ -32,6 +32,7 @@
 #include "dms_reform_health.h"
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_reform_fault_inject.h"
 #ifndef WIN32
 #include "config.h"
 #endif
@@ -282,6 +283,8 @@ int dms_reform_init(dms_profile_t *dms_profile)
     reform_context->mes_has_init = (bool8)dms_profile->conn_created_during_init;
     reform_context->share_info_lock = 0;
 
+    DMS_RFI_INIT(dms_profile->gsdb_home);
+
     reform_context->handle_proc = g_dms.callback.get_db_handle(&reform_context->sess_proc, DMS_SESSION_TYPE_NONE);
     if (reform_context->handle_proc == NULL) {
         LOG_RUN_ERR("[DMS REFORM]fail to get db session");
@@ -364,6 +367,7 @@ void dms_reform_uninit(void)
     cm_sem_destroy(&reform_context->sem_health);
     dms_reform_parallel_thread_deinit();
     dms_reform_db_handle_deinit();
+    DMS_RFI_DEINIT;
 }
 
 int dms_wait_reform(unsigned int *has_offline)

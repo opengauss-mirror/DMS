@@ -42,18 +42,18 @@ extern "C" {
 
 #define DRC_RES_CTX (&g_drc_res_ctx)
 #define DRC_PART_MNGR (&g_drc_res_ctx.part_mngr)
-#define DRC_PART_REMASTER_MNGR (&g_drc_res_ctx.part_mngr.remaster_mngr)
 #define DRC_PART_MASTER_ID(part_id) (g_drc_res_ctx.part_mngr.part_map[(part_id)].inst_id)
 #define DRC_DEFAULT_LOCK_RES_NUM (SIZE_M(1))
 #define DRC_RES_NODE_OF(type, node, field) ((type *)((char *)(node) - OFFSET_OF(type, field)))
-#define DRC_RES_EXTEND_MAX_NUM 3
+#define DRC_RES_EXTEND_MAX_NUM DMS_MAX_INSTANCES
 #define DRC_RES_EXTEND_TRY_TIMES 3
 #define DRC_SMON_QUEUE_SIZE 10000
 #define DRC_BUF_RES_MAP (&g_drc_res_ctx.global_buf_res.res_map)
 #define DRC_BUF_RES_POOL (&g_drc_res_ctx.global_buf_res.res_map.res_pool)
 #define DRC_LOCK_RES_MAP (&g_drc_res_ctx.global_lock_res.res_map)
 #define DRC_LOCK_RES_POOL (&g_drc_res_ctx.global_lock_res.res_map.res_pool)
-#define DRC_RECYCLE_THRESHOLD 0.8 /* hardcoded to 80% res pool usage */
+#define DRC_RECYCLE_THRESHOLD 0.9 /* hardcoded to 90% res pool usage */
+#define DRC_RECYCLE_ALLOC_COUNT 1.1
 #define DRC_RECYCLE_GREEDY_CNT 0 /* recycle as many as possible */
 #define DRC_RECYCLE_ONE_CNT 1
 
@@ -74,12 +74,13 @@ typedef struct st_drc_res_pool {
     uint32      item_size;
     uint32      extend_step;
     uint32      extend_num;
+    uint32      max_extend_num;
     char*       addr[DRC_RES_EXTEND_MAX_NUM];
     bool32      res_depleted;
     uint64      each_pool_size[DRC_RES_EXTEND_MAX_NUM];
 } drc_res_pool_t;
 
-int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 res_size, uint32 res_num);
+int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 max_extend_num, uint32 res_size, uint32 res_num);
 void drc_res_pool_destroy(drc_res_pool_t *pool);
 char *drc_res_pool_alloc_item(drc_res_pool_t *pool);
 void drc_res_pool_free_item(drc_res_pool_t *pool, char *res);
@@ -103,8 +104,8 @@ typedef struct st_drc_res_map {
     res_hash_callback   res_hash_func;
 } drc_res_map_t;
 
-int32 drc_res_map_init(drc_res_map_t* res_map, int32 res_type, uint32 item_num, uint32 item_size,
-    res_cmp_callback res_cmp, res_hash_callback res_hash);
+int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_type, uint32 item_num,
+    uint32 item_size, res_cmp_callback res_cmp, res_hash_callback res_hash);
 void drc_res_map_destroy(drc_res_map_t* res_map);
 drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, uint32 len);
 void drc_res_map_add_res(drc_res_bucket_t* bucket, char* res);
@@ -181,12 +182,17 @@ typedef struct st_drc_buf_res_msg {
     drc_request_info_t converting;
 } drc_buf_res_msg_t;
 
+typedef struct st_drc_part_list {
+    spinlock_t          lock;
+    bilist_t            list;
+} drc_part_list_t;
+
 typedef struct st_drc_global_res_map {
     latch_t res_latch;
     bool32 drc_access;  // drc access means we can modify drc
     bool32 data_access; // data access means we can modify data control by this drc
     drc_res_map_t res_map;
-    bilist_t res_parts[DRC_MAX_PART_NUM];
+    drc_part_list_t res_parts[DRC_MAX_PART_NUM];
 } drc_global_res_map_t;
 
 typedef enum en_drc_mgrt_res_type {
@@ -237,7 +243,6 @@ typedef struct st_drc_part_mngr {
 } drc_part_mngr_t;
 
 typedef struct st_drc_res_ctx {
-    spinlock_t              part_lock;
     drc_res_pool_t          lock_item_pool;     /* enqueue item pool */
     drc_global_res_map_t    global_buf_res;     /* page resource map */
     drc_global_res_map_t    global_lock_res;
@@ -254,6 +259,7 @@ typedef struct st_drc_res_ctx {
     thread_t                smon_recycle_thread;
     uint32                  smon_recycle_sid;
     void*                   smon_recycle_handle;
+    spinlock_t              smon_recycle_lock;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;
@@ -494,7 +500,7 @@ int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *gl
 int32 drc_delete_xa_res(drc_global_xid_t *global_xid, bool32 check_xa_drc);
 int32 drc_enter_xa_res(drc_global_xid_t *global_xid, drc_global_xa_res_t **xa_res, bool32 check_xa_drc);
 void drc_leave_xa_res(drc_global_res_map_t *xa_res_map, drc_res_bucket_t *bucket);
-void drc_release_xa_by_part(bilist_t *part_list);
+void drc_release_xa_by_part(drc_part_list_t *part);
 
 // [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
 #define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, "        \

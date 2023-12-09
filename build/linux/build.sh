@@ -249,12 +249,23 @@ function local_cpy_headfiles() {
     ## cbb
     mkdir -p ${DMS_DIR}/library/cbb/include;
     cp -fr "${PLATFORM_DIR}"/CBB/output/include/* ${DMS_DIR}/library/cbb/include
+
+    ## lz4
+    mkdir -p ${DMS_DIR}/library/lz4/include;
+    cp -rf ${CBB_DIR}/library/lz4/include/* ${DMS_DIR}/library/lz4/include
+    cp -rf ${CBB_DIR}/library/lz4/include/* ${DMS_DIR}/library/cbb/include
+
 }
 
 function local_cpy_libfiles() {
     ## cbb
     mkdir -p ${DMS_DIR}/library/cbb/lib
     cp -fr "${PLATFORM_DIR}"/CBB/output/lib/* ${DMS_DIR}/library/cbb/lib
+
+    ## lz4
+    mkdir -p ${DMS_DIR}/library/lz4/lib;
+    cp -rf ${CBB_DIR}/library/lz4/lib/* ${DMS_DIR}/library/lz4/lib
+    cp -rf ${CBB_DIR}/library/lz4/lib/* ${DMS_DIR}/library/cbb/lib
 }
 
 function build_source_prepare() {
@@ -304,6 +315,11 @@ function local_cpy_headfiles_with_ss_cbb() {
     ## openssl
     mkdir -p ${DMS_DIR}/library/openssl/include;
     cp -rf ${CBB_DIR}/library/openssl/include/* ${DMS_DIR}/library/openssl/include
+
+    ## lz4
+    mkdir -p ${DMS_DIR}/library/lz4/include;
+    cp -rf ${CBB_DIR}/library/lz4/include/* ${DMS_DIR}/library/lz4/include
+    cp -rf ${CBB_DIR}/library/lz4/include/* ${DMS_DIR}/library/cbb/include
     
     ## cbb
     mkdir -p ${DMS_DIR}/library/cbb/include;
@@ -318,6 +334,11 @@ function local_cpy_libfiles_with_ss_cbb() {
     ## openssl
     mkdir -p ${DMS_DIR}/library/openssl/lib;
     cp -rf ${CBB_DIR}/library/openssl/lib/*  ${DMS_DIR}/library/openssl/lib
+
+    ## lz4
+    mkdir -p ${DMS_DIR}/library/lz4/include;
+    cp -rf ${CBB_DIR}/library/lz4/include/* ${DMS_DIR}/library/lz4/include
+    cp -rf ${CBB_DIR}/library/lz4/include/* ${DMS_DIR}/library/cbb/include
     
     ## cbb
     mkdir -p ${DMS_DIR}/library/cbb/lib;
