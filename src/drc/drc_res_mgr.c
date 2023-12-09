@@ -718,14 +718,14 @@ int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
     return ret;
 }
 
-static inline void find_pos_in_res_pool(uint32 *pool_index, uint32 *item_index_in_matched_pool, drc_res_pool_t pool)
+static inline void find_pos_in_res_pool(uint32 *pool_index, uint32 *item_index_in_matched_pool, drc_res_pool_t *pool)
 {
-    for (uint32 i_extend_num = 0; i_extend_num < pool.max_extend_num; i_extend_num++) {
-        if (*item_index_in_matched_pool < pool.each_pool_size[i_extend_num]) {
+    for (uint32 i_extend_num = 0; i_extend_num < pool->max_extend_num; i_extend_num++) {
+        if (*item_index_in_matched_pool < pool->each_pool_size[i_extend_num]) {
             *pool_index = i_extend_num;
             break;
         }
-        *item_index_in_matched_pool -= pool.each_pool_size[i_extend_num];
+        *item_index_in_matched_pool -= pool->each_pool_size[i_extend_num];
     }
 }
 
@@ -765,18 +765,18 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
     }
 
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_res_pool_t res_pool = ctx->local_lock_res.res_pool;
+    drc_res_pool_t *res_pool = &ctx->local_lock_res.res_pool;
 
     drc_local_lock_res_t *drc_local_lock_res = NULL;
     uint32 pool_index = 0;
     uint32 item_index_in_matched_pool = *vmid;
-    for (; *vmid < res_pool.item_num;) {
+    while (*vmid < res_pool->item_num) {
         item_index_in_matched_pool = *vmid;
         find_pos_in_res_pool(&pool_index, &item_index_in_matched_pool, res_pool);
-        drc_local_lock_res = (drc_local_lock_res_t*)(res_pool.addr[pool_index]
+        drc_local_lock_res = (drc_local_lock_res_t*)(res_pool->addr[pool_index]
             + item_index_in_matched_pool * sizeof(drc_local_lock_res_t));
         ++*vmid;
-        if (drc_local_lock_res != NULL && drc_local_lock_res->is_owner) {
+        if (drc_local_lock_res->is_owner) {
             fill_dv_drc_local_lock_result(drc_local_lock_res_result, drc_local_lock_res);
             return;
         }
