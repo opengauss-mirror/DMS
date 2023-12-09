@@ -215,12 +215,23 @@ int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
      * if no existing owner, master grants to requestor locally/remotely, grant X;
      * if owner acks and grants owner, meaning sharer exists potentially, grant S.
      */
-    if (ack == NULL || (ack != NULL && ack->master_grant == CM_TRUE)) {
+    if (ack == NULL || ack->master_grant == CM_TRUE) {
         granted_mode = DMS_LOCK_EXCLUSIVE;
     }
 
     dcs_set_ctrl4granted(dms_ctx, ctrl, granted_mode);
     dms_claim_ownership(dms_ctx, master_id, granted_mode, CM_FALSE, CM_INVALID_ID64);
+    return DMS_SUCCESS;
+}
+
+// if try request page and then receive already_owner
+// should set need_load because current ctrl must be load_failed
+// grant request mode only because there may be copy insts
+int32 dcs_handle_ack_already_owner_for_try(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, uint8 master_id,
+    dms_lock_mode_t mode)
+{
+    dcs_set_ctrl4granted(dms_ctx, ctrl, mode);
+    dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_ID64);
     return DMS_SUCCESS;
 }
 
@@ -804,7 +815,9 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
     if (result.type == DRC_REQ_OWNER_GRANTED) {
         return dcs_handle_ack_need_load(dms_ctx, ctrl, self_id, NULL, req_mode);
     }
-    // page already has owner, do nothing
+    if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
+        return dcs_handle_ack_already_owner_for_try(dms_ctx, ctrl, self_id, req_mode);
+    }
     return DMS_SUCCESS;
 }
 
@@ -873,6 +886,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
         ret = dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, NULL, req_mode);
     } else if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_ALREADY_OWNER)) {
         *owner_id = (uint8)dms_ctx->inst_id;
+        ret = dcs_handle_ack_already_owner_for_try(dms_ctx, ctrl, master_id, req_mode);
     } else if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_PAGE_OWNER_ID)) {
         CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(msg_ack_owner_id_t), CM_FALSE);
         *owner_id = (uint8)(*(uint32 *)DMS_MESSAGE_BODY(&msg));
