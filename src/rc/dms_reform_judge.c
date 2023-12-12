@@ -911,6 +911,12 @@ static void dms_reform_judgement_df_recovery()
     dms_reform_add_step(DMS_REFORM_STEP_DF_RECOVERY);
 }
 
+static void dms_reform_judgement_space_reload()
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_SPACE_RELOAD);
+}
+
 static void dms_reform_judgement_recovery_opengauss(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -1308,6 +1314,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_space_reload();
     dms_reform_judgement_xa_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
     dms_reform_judgement_bcast_enable();

@@ -1609,8 +1609,8 @@ static int dms_reform_recovery_inner(void)
 static int dms_reform_dw_recovery_inner(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
-    return g_dms.callback.dw_recovery(g_dms.reform_ctx.handle_proc,
-        (void *)&share_info->dw_recovery_info, DMS_IS_SHARE_REFORMER);
+    return g_dms.callback.dw_recovery(g_dms.reform_ctx.handle_proc, (void *)&share_info->dw_recovery_info,
+        share_info->bitmap_in, DMS_IS_SHARE_REFORMER);
 }
 
 static int dms_reform_df_recovery_inner(void)
@@ -1618,9 +1618,15 @@ static int dms_reform_df_recovery_inner(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     if (DMS_IS_SHARE_REFORMER) {
         return g_dms.callback.df_recovery(g_dms.reform_ctx.handle_proc,
-		    share_info->bitmap_in, (void *)&share_info->list_recovery);
+            share_info->bitmap_in, (void *)&share_info->list_recovery);
     }
     return DMS_SUCCESS;
+}
+
+static int dms_reform_space_reload_inner(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    return g_dms.callback.space_reload(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
 }
 
 static void dms_reform_recovery_set_flag_by_part_inner(drc_buf_res_t *buf_res)
@@ -2502,6 +2508,22 @@ static int dms_reform_df_recovery(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_space_reload(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = dms_reform_space_reload_inner();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_drc_inaccess(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -2700,6 +2722,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_PAGE_ACCESS] = { "PAGE_ACCESS", dms_reform_page_access, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DW_RECOVERY] = { "DW_RECOVERY", dms_reform_dw_recovery, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DF_RECOVERY] = { "DF_RECOVERY", dms_reform_df_recovery, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SPACE_RELOAD] = { "SPACE_RELOAD", dms_reform_space_reload, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] =
