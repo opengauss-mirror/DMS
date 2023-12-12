@@ -196,6 +196,7 @@ drps_desc_t g_drps_desc_t[DRPS_COUNT] = {
     {DRPS_ROLLBACK_TX_AREA_INIT,                    DRPS_LEVEL_ONE,     "TX_AREA_INIT"},
     {DRPS_ROLLBACK_TX_AREA_LOAD,                    DRPS_LEVEL_ONE,     "TX_AREA_LOAD"},
     {DRPS_ROLLBACK_CVT_TO_RW,                       DRPS_LEVEL_ONE,     "CVT_TO_RW"},
+    {DMS_REFORM_STEP_SPACE_RELOAD,                  DRPS_LEVEL_TOP,     "SPACE_RELOAD"},
     {DMS_REFORM_STEP_TXN_DEPOSIT,                   DRPS_LEVEL_TOP,     "TXN_DEPOSIT"},
     {DRPS_TXN_DEPOSIT_DELETE_XA,                    DRPS_LEVEL_ONE,     "XA DELETE"},
     {DMS_REFORM_STEP_XA_DRC_ACCESS,                 DRPS_LEVEL_TOP,     "XA ACCESS"},

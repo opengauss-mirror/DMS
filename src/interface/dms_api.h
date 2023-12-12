@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           122
+#define DMS_LOCAL_VERSION           123
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -730,8 +730,9 @@ typedef int(*dms_edp_lsn)(void *db_handle, char *pageid, unsigned long long *lsn
 typedef int(*dms_disk_lsn)(void *db_handle, char *pageid, unsigned long long *lsn);
 typedef int(*dms_recovery)(void *db_handle, void *recovery_list, int reform_type, int is_reformer);
 typedef int(*dms_recovery_analyse)(void *db_handle, void *recovery_list, int is_reformer);
-typedef int(*dms_dw_recovery)(void *db_handle, void *recovery_list, int is_reformer);
+typedef int(*dms_dw_recovery)(void *db_handle, void *recovery_list, unsigned long long list_in, int is_reformer);
 typedef int(*dms_df_recovery)(void *db_handle, unsigned long long list_in, void *recovery_list);
+typedef int(*dms_space_reload)(void *db_handle, unsigned long long list_in);
 typedef int(*dms_opengauss_startup)(void *db_handle);
 typedef int(*dms_opengauss_recovery_standby)(void *db_handle, int inst_id);
 typedef int(*dms_opengauss_recovery_primary)(void *db_handle, int inst_id);
@@ -888,6 +889,7 @@ typedef struct st_dms_callback {
     dms_recovery_analyse recovery_analyse;
     dms_dw_recovery dw_recovery;
     dms_df_recovery df_recovery;
+    dms_space_reload space_reload;
     dms_get_open_status get_open_status;
     dms_undo_init undo_init;
     dms_tx_area_init tx_area_init;
