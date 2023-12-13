@@ -654,8 +654,14 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
         return CM_TRUE;
     }
 
+    // converting(node maybe also on copy_insts) get X and make dirty, claim msg lost
+    // claim_owner current page is old than converting
+    // if allow converting release now, next request will get page from claim_owner, which is not newest version
+
     // copy instance or DRC is being recycled
-    if (buf_res->claimed_owner != inst_id ||
+    if ((bitmap64_exist(&buf_res->copy_insts, inst_id) &&
+        (buf_res->converting.req_info.inst_id != inst_id ||
+        buf_res->converting.req_info.req_mode != DMS_LOCK_EXCLUSIVE)) ||
         buf_res->recycling) {
         drc_leave_buf_res(buf_res);
         return CM_TRUE;
