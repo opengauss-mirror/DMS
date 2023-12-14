@@ -405,6 +405,28 @@ void drc_buf_res_unlatch(uint8 res_type)
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
+void drc_enter_buf_res_set_blocked(void)
+{
+    drc_global_res_map_t *buf_res_map = &g_drc_res_ctx.global_buf_res;
+    drc_global_res_map_t *lock_res_map = &g_drc_res_ctx.global_lock_res;
+    drc_global_res_map_t *xa_res_map = &g_drc_res_ctx.global_xa_res;
+
+    cm_latch_x(&buf_res_map->res_latch, 0, NULL);
+    cm_latch_x(&lock_res_map->res_latch, 0, NULL);
+    cm_latch_x(&xa_res_map->res_latch, 0, NULL);
+}
+
+void drc_enter_buf_res_set_unblocked(void)
+{
+    drc_global_res_map_t *buf_res_map = &g_drc_res_ctx.global_buf_res;
+    drc_global_res_map_t *lock_res_map = &g_drc_res_ctx.global_lock_res;
+    drc_global_res_map_t *xa_res_map = &g_drc_res_ctx.global_xa_res;
+
+    cm_unlatch(&xa_res_map->res_latch, NULL);
+    cm_unlatch(&lock_res_map->res_latch, NULL);
+    cm_unlatch(&buf_res_map->res_latch, NULL);
+}
+
 int drc_enter_buf_res(char *resid, uint16 len, uint8 res_type, uint8 options, drc_buf_res_t **buf_res)
 {
     int ret = drc_buf_res_latch(resid, res_type, options);

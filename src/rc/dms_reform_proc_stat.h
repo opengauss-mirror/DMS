@@ -76,6 +76,7 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_ROLLBACK_TX_AREA_INIT,
     DRPS_ROLLBACK_TX_AREA_LOAD,
     DRPS_ROLLBACK_CVT_TO_RW,
+    DRPS_DRC_BLOCK,
     DRPS_REFORM,
 
     /* add new item above */

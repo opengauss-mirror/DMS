@@ -660,16 +660,8 @@ static void dms_reform_remaster_inner(void)
 {
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
-    drc_global_res_map_t *page_res = drc_get_global_res_map(DRC_RES_PAGE_TYPE);
-    drc_global_res_map_t *lock_res = drc_get_global_res_map(DRC_RES_LOCK_TYPE);
-    drc_global_res_map_t *xa_res = drc_get_global_res_map(DRC_RES_GLOBAL_XA_TYPE);
-
-    cm_latch_x(&page_res->res_latch, g_dms.reform_ctx.sess_proc, NULL);
-    cm_latch_x(&lock_res->res_latch, g_dms.reform_ctx.sess_proc, NULL);
-    cm_latch_x(&xa_res->res_latch, g_dms.reform_ctx.sess_proc, NULL);
 
     dms_reform_part_info_print();
-
     uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
     errno_t err = memcpy_s(part_mngr->inst_part_tbl, size, remaster_info->inst_part_tbl, size);
     DMS_SECUREC_CHECK(err);
@@ -677,12 +669,7 @@ static void dms_reform_remaster_inner(void)
     size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
     err = memcpy_s(part_mngr->part_map, size, remaster_info->part_map, size);
     DMS_SECUREC_CHECK(err);
-
     dms_reform_part_info_print();
-
-    cm_unlatch(&lock_res->res_latch, NULL);
-    cm_unlatch(&page_res->res_latch, NULL);
-    cm_unlatch(&xa_res->res_latch, NULL);
 }
 
 static int dms_reform_remaster(void)
@@ -2755,8 +2742,11 @@ static int dms_reform_proc_inner(void)
     int ret = DMS_SUCCESS;
 
     DMS_RFI_BEFORE_STEP(reform_proc);
-    if (reform_proc->recycle_pause) {
+    if (reform_proc->drc_block) {
+        dms_reform_proc_stat_start(DRPS_DRC_BLOCK);
         drc_recycle_buf_res_set_pause();
+        drc_enter_buf_res_set_blocked();
+        dms_reform_proc_stat_end(DRPS_DRC_BLOCK);
     }
 
     if (reform_info->parallel_enable && reform_proc->proc_parallel != NULL) {
@@ -2765,7 +2755,8 @@ static int dms_reform_proc_inner(void)
         ret = reform_proc->proc();
     }
 
-    if (reform_proc->recycle_pause) {
+    if (reform_proc->drc_block) {
+        drc_enter_buf_res_set_unblocked();
         drc_recycle_buf_res_set_running();
     }
     DMS_RFI_AFTER_STEP(reform_proc);

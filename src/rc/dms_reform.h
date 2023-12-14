@@ -430,7 +430,7 @@ typedef struct st_dms_reform_proc {
     char                desc[DMS_REFORM_STEP_DESC_STR_LEN];
     dms_reform_proc     proc;
     dms_reform_proc     proc_parallel;
-    bool32              recycle_pause;
+    bool32              drc_block;
 } dms_reform_proc_t;
 
 int dms_reform_init(dms_profile_t *dms_profile);

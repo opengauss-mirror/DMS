@@ -84,6 +84,8 @@ void drc_recycle_buf_res_thread(thread_t *thread);
 void drc_recycle_buf_res_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle);
 void drc_recycle_buf_res_set_running(void);
 void drc_recycle_buf_res_set_pause(void);
+void drc_enter_buf_res_set_blocked(void);
+void drc_enter_buf_res_set_unblocked(void);
 
 #ifdef __cplusplus
 }
