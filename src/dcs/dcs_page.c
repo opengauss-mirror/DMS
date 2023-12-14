@@ -755,12 +755,19 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
         page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_type, page_req.req_time, page_req.srsn,
         page_req.head.msg_proto_ver);
 
+    LOG_DEBUG_INF("[DMS[%s][dcs_proc_try_ask_master_for_page]: src_id=%d, src_sid=%d, req_mode=%u, curr_mode=%u",
+        cm_display_resid(page_req.resid, page_req.res_type), page_req.head.src_inst, page_req.head.src_sid,
+        page_req.req_mode, page_req.curr_mode);
+
     int ret = drc_request_page_owner(page_req.resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info.inst_id, req_info.sess_id, req_info.ruid, ret,
             req_info.req_proto_ver);
         return;
     }
+
+    LOG_DEBUG_INF("[DMS][%s][dcs_proc_try_ask_master_for_page]success, type=%d",
+        cm_display_resid(page_req.resid, page_req.res_type), result.type);
 
     dms_message_head_t ack_head;
     ack_head.ruid = page_req.head.ruid;
@@ -770,19 +777,16 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
         // this page_req not in memory of other instance, notify requester to load from disk
         dms_init_ack_head(&page_req.head, &ack_head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
         ret = mfc_send_data(&ack_head);
+    } else if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
+        dms_init_ack_head(&page_req.head, &ack_head, MSG_ACK_ALREADY_OWNER,
+            sizeof(dms_message_head_t), ctx->sess_id);
+        ret = mfc_send_data(&ack_head);
     } else {
-        if (result.curr_owner_id == page_req.head.src_inst) {
-            // asker is already owner, just notify requester(owner) page_req is ready
-            dms_init_ack_head(&page_req.head, &ack_head, MSG_ACK_ALREADY_OWNER,
-                sizeof(dms_message_head_t), ctx->sess_id);
-            ret = mfc_send_data(&ack_head);
-        } else {
-            msg_ack_owner_id_t ack;
-            dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_PAGE_OWNER_ID,
-                sizeof(msg_ack_owner_id_t), ctx->sess_id);
-            ack.owner_id = result.curr_owner_id;
-            ret = mfc_send_data(&ack.head);
-        }
+        msg_ack_owner_id_t ack;
+        dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_PAGE_OWNER_ID,
+            sizeof(msg_ack_owner_id_t), ctx->sess_id);
+        ack.owner_id = result.curr_owner_id;
+        ret = mfc_send_data(&ack.head);
     }
 
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -814,11 +818,11 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
 
     if (result.type == DRC_REQ_OWNER_GRANTED) {
         return dcs_handle_ack_need_load(dms_ctx, ctrl, self_id, NULL, req_mode);
-    }
-    if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
+    } else if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
         return dcs_handle_ack_already_owner_for_try(dms_ctx, ctrl, self_id, req_mode);
+    } else {
+        return DMS_SUCCESS;
     }
-    return DMS_SUCCESS;
 }
 
 static inline void dcs_set_page_req_parameter(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
@@ -893,13 +897,12 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     } else {
         cm_print_error_msg(msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
-        mfc_release_response(&msg);
-        return ERRNO_DMS_COMMON_MSG_ACK;
+        ret = ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    LOG_DEBUG_INF("[DCS][%s][try ask master for page owner id]: src_id=%d, dest_id=%d, flag=%d, owner_id=%d"
-        ", lock_mode=%d", cm_display_pageid(page_req.resid), msg.head->src_inst, msg.head->dst_inst, msg.head->flags,
-        (*owner_id), ctrl->lock_mode);
+    LOG_DEBUG_INF("[DCS][%s][try ask master for page owner id]%s: src_id=%d, dest_id=%d, flag=%d, lock_mode=%d",
+        cm_display_pageid(page_req.resid), dms_get_mescmd_msg(ack_dms_head->cmd), msg.head->src_inst,
+        msg.head->dst_inst, msg.head->flags, ctrl->lock_mode);
 
     mfc_release_response(&msg);
     return ret;
