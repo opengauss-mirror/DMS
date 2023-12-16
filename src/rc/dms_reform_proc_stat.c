@@ -218,6 +218,7 @@ drps_desc_t g_drps_desc_t[DRPS_COUNT] = {
     {DMS_REFORM_STEP_SET_PHASE,                     DRPS_LEVEL_TOP,     "SET_PHASE"},
     {DMS_REFORM_STEP_WAIT_DB,                       DRPS_LEVEL_TOP,     "WAIT_DB"},
     {DMS_REFORM_STEP_DRC_VALIDATE,                  DRPS_LEVEL_TOP,     "DRC_VALIDATE"},
+    {DRPS_DRC_BLOCK,                                DRPS_LEVEL_TOP,     "DRC_BLOCK"},
 };
 
 drps_level_format_t g_drps_level_format[DRPS_LEVEL_COUNT] = {
