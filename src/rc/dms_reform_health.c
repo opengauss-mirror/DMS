@@ -253,10 +253,10 @@ void dms_reform_handle_fail_in_special_scenario(void)
 
     share_info_t *share_info = DMS_SHARE_INFO;
     if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type) && share_info->demote_id == g_dms.inst_id &&
-        share_info->reformer_id != g_dms.inst_id) {
-        LOG_RUN_ERR("[DMS REFORM]reform fail during switchover, old primary node need restart "
+        reform_info->reformer_id != g_dms.inst_id) {
+        LOG_RUN_ERR("[DMS REFORM] node exit, reform fail during switchover, old primary node need restart "
                     "after reformer lock transfered, demote id:%u, reformer id:%u",
-                    (uint32)share_info->demote_id, (uint32)share_info->reformer_id);
+                    (uint32)share_info->demote_id, (uint32)reform_info->reformer_id);
         cm_exit(0);
     }
 }
