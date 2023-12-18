@@ -931,6 +931,9 @@ int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index,
 
 void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn, unsigned char is_dirty)
 {
+    if (ctrl->lock_mode == DMS_LOCK_NULL) {
+        return;
+    }
     drc_buf_res_t *buf_res = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
 
@@ -939,10 +942,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return;
     }
-    if (buf_res->claimed_owner != g_dms.inst_id) {
-        drc_leave_buf_res(buf_res);
-        return;
-    }
+
     LOG_DEBUG_INF("[DRC][%s]dms_validate_drc check", cm_display_pageid(dms_ctx->resid));
 
     cm_panic_log(memcmp(buf_res->data, dms_ctx->resid, DMS_PAGEID_SIZE) == 0,
@@ -951,34 +951,33 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
         cm_display_pageid(dms_ctx->resid));
 
     drc_request_info_t *req_info = &buf_res->converting.req_info;
-    if (req_info->inst_id != CM_INVALID_ID8) {
-        /*
-         * If lock modes unmatch, then either cvt matches ctrl, or cvt satisfies first time read,
-         * or curr node was just promoted to primary with local buf and converting info unmatched.
-         * If lock modes match, then the ack message of cvt request must be lost,
-         * no need to check connverting info.
-         */
-        if (ctrl->lock_mode != buf_res->lock_mode) {
-            share_info_t *share_info = DMS_SHARE_INFO;
-            bool ctrl_matches_cvt = req_info->req_mode == ctrl->lock_mode;
-            bool first_time_req = req_info->req_mode == DMS_LOCK_SHARE &&
-                ctrl->lock_mode == DMS_LOCK_EXCLUSIVE && buf_res->lock_mode == DMS_LOCK_NULL;
+    if (buf_res->claimed_owner == g_dms.inst_id) {
+        if (req_info->inst_id != CM_INVALID_ID8) {
             /*
-             * Old priamry S->X, claim msg lost, current node promoted and remastered,
-             * therefore current new primary has DRC=S, cvt=X and local ctrl NULL.
+             * If lock modes unmatch, then cvt matches ctrl.
+             * If lock modes match, then the ack message of cvt request must be lost,
+             * no need to check connverting info.
              */
-            bool new_primary = share_info->promote_id == g_dms.inst_id &&
-                req_info->req_mode == DMS_LOCK_EXCLUSIVE &&
-                ctrl->lock_mode == DMS_LOCK_NULL && buf_res->lock_mode == DMS_LOCK_SHARE;
-            cm_panic_log(ctrl_matches_cvt || first_time_req || new_primary,
-                "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
-                cm_display_pageid(dms_ctx->resid), buf_res->lock_mode,
-                ctrl->lock_mode, req_info->req_mode);
+            if (ctrl->lock_mode != buf_res->lock_mode) {
+                cm_panic_log( req_info->req_mode == ctrl->lock_mode,
+                             "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
+                             cm_display_pageid(dms_ctx->resid), buf_res->lock_mode,
+                             ctrl->lock_mode, req_info->req_mode);
+            }
+        } else {
+            cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,
+                         "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+                         cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
         }
     } else {
-        cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,
-            "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
-            cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
+        bool in_cvt = req_info->inst_id == g_dms.inst_id && ctrl->lock_mode == req_info->req_mode;
+        bool in_copy_insts = bitmap64_exist(&buf_res->copy_insts, g_dms.inst_id) && ctrl->lock_mode == DMS_LOCK_SHARE;
+        bool first_load = ctrl->lock_mode == DMS_LOCK_EXCLUSIVE && req_info->req_mode != DMS_LOCK_NULL &&
+                          buf_res->copy_insts == 0 && buf_res->claimed_owner == CM_INVALID_ID8;
+        cm_panic_log(in_cvt || in_copy_insts || first_load,
+                     "[DRC validate][%s]lock mode unmatch(buf:%d, copy_insts:%lld, inst_id:%d, claimed_owner:%d)",
+                     cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, buf_res->copy_insts, g_dms.inst_id,
+                     (int)buf_res->claimed_owner);
     }
 
     drc_leave_buf_res(buf_res);
