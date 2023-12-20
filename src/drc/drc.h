@@ -495,6 +495,8 @@ static inline uint64 bitmap64_intersect(uint64 bitmap1, uint64 bitmap2)
 
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
 int32 drc_get_xa_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
+int32 drc_get_xa_remaster_id(drc_global_xid_t *global_xid, uint8 *master_id);
+
 int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *global_xid, uint8 owner_id,
     uint8 undo_set_id, bool32 check_xa_drc);
 int32 drc_delete_xa_res(drc_global_xid_t *global_xid, bool32 check_xa_drc);

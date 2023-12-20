@@ -100,7 +100,8 @@ int dms_reform_merge_xa_owners(void)
     int ret = dms_reform_send_data(&req.head, reform_ctx->sess_proc);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
-        return ret;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_MERGE_XA_OWNERS, share_info->promote_id);
+        return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     dms_reform_next_step();
@@ -152,26 +153,30 @@ static int dms_reform_req_xa_owners(void)
         int ret = mfc_send_data(&req);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners send error: %d, dst_id: %d", ret, share_info->promote_id);
-            return ret;
+            DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_XA_OWNERS, share_info->promote_id);
+            return ERRNO_DMS_SEND_MSG_FAILED;
         }
 
         dms_message_t res = { 0 };
         ret = mfc_get_response(req.ruid, &res, DMS_REFORM_LONG_TIMEOUT);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners wait timeout, dst_id: %d", share_info->promote_id);
+            cm_reset_error();
             continue;
         }
 
         if (ret != DMS_SUCCESS) {
-            return ret;
+            DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_XA_OWNERS, share_info->promote_id);
+            return ERRNO_DMS_RECV_MSG_FAILED;
         }
 
         dms_reform_ack_common_t *ack_comm = (dms_reform_ack_common_t *)res.buffer;
         ret = ack_comm->result;
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners result: %d, dst_id: %d", ret, share_info->promote_id);
+            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, "request xa owners from remote node failed");
             mfc_release_response(&res);
-            return ret;
+            return ERRNO_DMS_COMMON_MSG_ACK;
         }
 
         reform_info->bitmap_has_xa = ack_comm->bitmap_has_xa;
@@ -311,7 +316,8 @@ int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrat
         ret = dms_reform_send_data(&req->head, sess_id);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_FUNC_FAIL;
-            return ret;
+            DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MES_REQ_MGRT_MASTER_DATA, req->head.dst_inst);
+            return ERRNO_DMS_SEND_MSG_FAILED;
         }
         *offset = (uint32)sizeof(dms_reform_req_migrate_t);
         req->res_num = 0;
@@ -327,12 +333,14 @@ int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrat
     *offset += sizeof(uint8);
     ret = memcpy_sp((char *)req + *offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
     *offset += xid->gtrid_len;
     if (xid->bqual_len > 0) {
         ret = memcpy_sp((char *)req + *offset, xid->bqual_len, xid->bqual, xid->bqual_len);
         if (ret != EOK) {
+            DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
             return ret;
         }
         *offset += xid->bqual_len;
@@ -396,7 +404,8 @@ static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS][%s] send data failed when rebuilding xa res while reforming", cm_display_resid((char *)xid,
                 DRC_RES_GLOBAL_XA_TYPE));
-            return ret;
+                DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_XA_REBUILD, req_rebuild->head.dst_inst);
+            return ERRNO_DMS_SEND_MSG_FAILED;
         }
         req_rebuild->offset += (uint32)sizeof(dms_reform_req_rebuild_t);
     }
@@ -412,6 +421,7 @@ static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild
 
     ret = memcpy_sp((char *)req_rebuild + req_rebuild->offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
     req_rebuild->offset += xid->gtrid_len;
@@ -475,29 +485,37 @@ int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
 {
     dms_reset_error();
     uint8 master_id = CM_INVALID_ID8;
+    uint8 remaster_id = CM_INVALID_ID8;
     share_info_t *share_info = DMS_SHARE_INFO;
     drc_global_xid_t *xid = &dms_ctx->global_xid;
-
+    
     int ret = drc_get_master_id((char *)xid, DRC_RES_GLOBAL_XA_TYPE, &master_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s] dms_reform_rebuild_one_xa, fail to get master id", cm_display_resid((char *)xid,
             DRC_RES_GLOBAL_XA_TYPE));
         return ret;
     }
-
+    
     if (!share_info->full_clean && !dms_reform_list_exist(&share_info->list_rebuild, master_id)) {
         return DMS_SUCCESS;
     }
 
+    ret = drc_get_xa_remaster_id(xid, &remaster_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s] dms_reform_rebuild_one_xa, fail to get master id", cm_display_resid((char *)xid,
+            DRC_RES_GLOBAL_XA_TYPE));
+        return ret;
+    }
+
     LOG_DEBUG_INF("[DMS][%s] dms_reform_rebuild_xa_res, remaster to node %u", cm_display_resid((char *)xid,
-        DRC_RES_GLOBAL_XA_TYPE), master_id);
-    if (master_id == g_dms.inst_id) {
+        DRC_RES_GLOBAL_XA_TYPE), remaster_id);
+    if (remaster_id == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_LOCAL);
         ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, xid, g_dms.inst_id, undo_set_id, CM_FALSE);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_LOCAL);
     } else {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_REMOTE);
-        ret = dms_reform_req_xa_rebuild(dms_ctx, xid, undo_set_id, master_id, thread_index);
+        ret = dms_reform_req_xa_rebuild(dms_ctx, xid, undo_set_id, remaster_id, thread_index);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_REMOTE);
     }
     return ret;

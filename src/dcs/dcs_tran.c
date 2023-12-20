@@ -931,6 +931,7 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
     errno_t ret = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
     if (ret != EOK) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
 
@@ -941,7 +942,8 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
         LOG_DEBUG_ERR("[DMS][%s][dms_request_create_xa_res]: failed to send create xa res request",
             cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE));
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
-        return ret_code;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_CREATE_GLOBAL_XA_RES, master_id);
+        return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     dms_message_t recv_msg = { 0 };
@@ -950,7 +952,8 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
         LOG_DEBUG_ERR("[DMS][%s][dms_request_create_xa_res]: wait master node ack timeout, timeout = %u ms",
             cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
-        return ret_code;
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_CREATE_GLOBAL_XA_RES, master_id);
+        return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
     if (recv_msg.head->cmd == MSG_ACK_ERROR) {
@@ -990,7 +993,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_CREATE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
-    ack.return_code = ret;
+    ack.return_code = (ret == DMS_SUCCESS ? ret : cm_get_error_code());
 
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
@@ -1013,6 +1016,7 @@ int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 
     errno_t ret = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
     if (ret != EOK) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
 
@@ -1023,7 +1027,8 @@ int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 
         LOG_DEBUG_ERR("[DMS][%s][dms_request_delete_xa_res]: failed to send delete xa res request",
             cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE));
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
-        return ret_code;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret_code, MSG_REQ_DELETE_GLOBAL_XA_RES, master_id);
+        return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     dms_message_t recv_msg = { 0 };
@@ -1032,7 +1037,8 @@ int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 
         LOG_DEBUG_ERR("[DMS][%s][dms_request_delete_xa_res]: wait master node ack timeout, timeout = %u ms",
             cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
-        return ret_code;
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret_code, MSG_REQ_DELETE_GLOBAL_XA_RES, master_id);
+        return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
     if (recv_msg.head->cmd == MSG_ACK_ERROR) {
@@ -1071,7 +1077,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_DELETE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
-    ack.return_code = ret;
+    ack.return_code = (ret == DMS_SUCCESS ? ret : cm_get_error_code());
 
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
@@ -1145,6 +1151,7 @@ static int32 dms_ask_xa_owner_local(dms_context_t *dms_ctx, uint8 *owner_id)
     if (xa_res == NULL) {
         LOG_DEBUG_ERR("[DMS][%s][dms_ask_xa_owner_local]: xa res not exists", cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
         drc_leave_xa_res(res_map, bucket);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
         return ERRNO_DMS_DRC_XA_RES_NOT_EXISTS;
     }
 
@@ -1167,13 +1174,15 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
     errno_t err = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
     if (err != EOK) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, err);
         return err;
     }
 
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
-        return err;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_ASK_XA_OWNER_ID, master_id);
+        return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     LOG_DEBUG_INF("[TXN][%s][dms_ask_xa_owner_remote]: src_id = %u, dst_id = %u", cm_display_resid((char *)global_xid,
@@ -1183,20 +1192,28 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
         LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_owner_remote]: wait owner ack of xa res timeout timeout = %d ms", cm_display_resid((char *)global_xid,
-        DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
-        return ERRNO_DMS_DCS_MSG_EAGAIN;
+            DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_ASK_XA_OWNER_ID, master_id);
+        return ERRNO_DMS_RECV_MSG_FAILED;
     }
     
     if (msg.head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
     CM_CHK_RESPONSE_SIZE(&msg, sizeof(dms_ask_xa_owner_ack_t), CM_FALSE);
     dms_ask_xa_owner_ack_t *ack = (dms_ask_xa_owner_ack_t *)msg.buffer;
+    if (ack->owner_id == CM_INVALID_ID8) {
+        LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_owner_remote]: xa res not exists", cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
+        mfc_release_response(&msg);
+        return ERRNO_DMS_DRC_XA_RES_NOT_EXISTS;
+    }
+
     *owner_id = ack->owner_id;
     mfc_release_response(&msg);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
@@ -1237,6 +1254,7 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
     errno_t err = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), xid, sizeof(drc_global_xid_t));
     if (err != EOK) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, err);
         return err;
     }
 
@@ -1245,7 +1263,8 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
-        return ret;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_END_XA, owner_id);
+        return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     dms_message_t msg = { 0 };
@@ -1254,7 +1273,8 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
         LOG_DEBUG_ERR("[TXN][%s] wait owner ack timeout while end xa, timeout = %u ms", cm_display_resid((char *)xid,
             DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
-        return ERRNO_DMS_DCS_MSG_EAGAIN;
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_END_XA, owner_id);
+        return ERRNO_DMS_RECV_MSG_FAILED;
     }
     
     if (msg.head->cmd == MSG_ACK_ERROR) {
@@ -1286,7 +1306,7 @@ void dms_proc_end_xa(dms_process_context_t *proc_ctx, dms_message_t *receive_msg
     int32 ret = g_dms.callback.end_xa(proc_ctx->db_handle, xid, req.flags, req.commit_scn, req.is_commit);
     dms_end_xa_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_END_XA, sizeof(dms_end_xa_ack_t), proc_ctx->sess_id);
-    ack.return_code = ret;
+    ack.return_code = (ret == DMS_SUCCESS ? ret : cm_get_error_code());
 
     LOG_DEBUG_INF("[DMS][%s][dms_proc_end_xa]: src_id = %u, src_sid = %u", 
         cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
@@ -1314,6 +1334,7 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
     errno_t err = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), global_xid, sizeof(drc_global_xid_t));
     if (err != EOK) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, err);
         return err;
     }
 
@@ -1322,7 +1343,8 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
-        return ret;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_ASK_XA_IN_USE, owner_id);
+        return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
     dms_message_t msg = { 0 };
@@ -1331,7 +1353,8 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
         LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_inuse_remote]: wait if in use ack of xa res timeout, timeout = %d ms",
             cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
-        return ERRNO_DMS_DCS_MSG_EAGAIN;
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_ASK_XA_IN_USE, owner_id);
+        return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
     if (msg.head->cmd == MSG_ACK_ERROR) {
