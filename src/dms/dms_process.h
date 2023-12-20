@@ -28,6 +28,7 @@
 #include "dms_mfc.h"
 #include "cm_types.h"
 #include "dms_msg.h"
+#include "dms_msg_command.h"
 #include "dms_reform.h"
 
 #ifdef __cplusplus

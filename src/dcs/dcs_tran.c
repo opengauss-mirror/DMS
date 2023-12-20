@@ -26,6 +26,8 @@
 #include "dcs_msg.h"
 #include "dms.h"
 #include "dms_msg.h"
+#include "dms_msg_command.h"
+#include "dms_msg_protocol.h"
 #include "drc.h"
 #include "drc_tran.h"
 #include "dms_stat.h"

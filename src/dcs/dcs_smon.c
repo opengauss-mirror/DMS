@@ -25,6 +25,8 @@
 #include "dcs_smon.h"
 #include "dms_error.h"
 #include "dms_mfc.h"
+#include "dms_msg_command.h"
+#include "dms_msg_protocol.h"
 
 #ifndef OPENGAUSS
 #define CM_MAX_RMS 16320

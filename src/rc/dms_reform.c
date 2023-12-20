@@ -243,47 +243,26 @@ void dms_reform_db_handle_deinit(void)
     }
 }
 
-int dms_reform_init(dms_profile_t *dms_profile)
+static void dms_init_scrlock_ctx(dms_profile_t *dms_profile)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    share_info_t *share_info = DMS_SHARE_INFO;
-    int ret = DMS_SUCCESS;
-    g_dms.cluster_ver = 0;
+    errno_t ret = memcpy_s(reform_context->scrlock_reinit_ctx.log_path, DMS_OCK_LOG_PATH_LEN, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
+    DMS_SECUREC_CHECK(ret);
+    reform_context->scrlock_reinit_ctx.scrlock_server_port = dms_profile->scrlock_server_port;
+    reform_context->scrlock_reinit_ctx.log_level = dms_profile->scrlock_log_level;
+    reform_context->scrlock_reinit_ctx.worker_num = dms_profile->scrlock_worker_cnt;
+    reform_context->scrlock_reinit_ctx.worker_bind_core = dms_profile->enable_scrlock_worker_bind_core;
+    reform_context->scrlock_reinit_ctx.worker_bind_core_start = dms_profile->scrlock_worker_bind_core_start;
+    reform_context->scrlock_reinit_ctx.worker_bind_core_end = dms_profile->scrlock_worker_bind_core_end;
+    reform_context->scrlock_reinit_ctx.sleep_mode = dms_profile->enable_scrlock_server_sleep_mode;
+    reform_context->scrlock_reinit_ctx.server_bind_core_start = dms_profile->scrlock_server_bind_core_start;
+    reform_context->scrlock_reinit_ctx.server_bind_core_end = dms_profile->scrlock_server_bind_core_end;
+    reform_context->scrlock_reinit_ctx.enable_ssl = dms_profile->enable_ssl;
+}
 
-#ifdef OPENGAUSS
-    if (!dms_profile->enable_reform) {
-        drc_res_ctx_t *ctx = DRC_RES_CTX;
-        ctx->global_buf_res.drc_access = CM_TRUE;
-        ctx->global_buf_res.data_access = CM_TRUE;
-        ctx->global_lock_res.drc_access = CM_TRUE;
-        ctx->global_lock_res.data_access = CM_TRUE;
-        return DMS_SUCCESS;
-    }
-#endif
-
-    if (g_dms.scrlock_ctx.enable) {
-        int ret;
-        ret = memcpy_s(reform_context->scrlock_reinit_ctx.log_path, DMS_OCK_LOG_PATH_LEN, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
-        DMS_SECUREC_CHECK(ret);
-        reform_context->scrlock_reinit_ctx.scrlock_server_port = dms_profile->scrlock_server_port;
-        reform_context->scrlock_reinit_ctx.log_level = dms_profile->scrlock_log_level;
-        reform_context->scrlock_reinit_ctx.worker_num = dms_profile->scrlock_worker_cnt;
-        reform_context->scrlock_reinit_ctx.worker_bind_core = dms_profile->enable_scrlock_worker_bind_core;
-        reform_context->scrlock_reinit_ctx.worker_bind_core_start = dms_profile->scrlock_worker_bind_core_start;
-        reform_context->scrlock_reinit_ctx.worker_bind_core_end = dms_profile->scrlock_worker_bind_core_end;
-        reform_context->scrlock_reinit_ctx.sleep_mode = dms_profile->enable_scrlock_server_sleep_mode;
-        reform_context->scrlock_reinit_ctx.server_bind_core_start = dms_profile->scrlock_server_bind_core_start;
-        reform_context->scrlock_reinit_ctx.server_bind_core_end = dms_profile->scrlock_server_bind_core_end;
-        reform_context->scrlock_reinit_ctx.enable_ssl = dms_profile->enable_ssl;
-    }
-
-    reform_context->catalog_centralized = (bool8)dms_profile->resource_catalog_centralized;
-    reform_context->channel_cnt = dms_profile->channel_cnt;
-    reform_context->mes_has_init = (bool8)dms_profile->conn_created_during_init;
-    reform_context->share_info_lock = 0;
-
-    DMS_RFI_INIT(dms_profile->gsdb_home);
+static int32 dms_reform_init_db_handle()
+{
+    reform_context_t *reform_context = DMS_REFORM_CONTEXT;
 
     reform_context->handle_proc = g_dms.callback.get_db_handle(&reform_context->sess_proc, DMS_SESSION_TYPE_NONE);
     if (reform_context->handle_proc == NULL) {
@@ -309,6 +288,44 @@ int dms_reform_init(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
         return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
     }
+
+    return DMS_SUCCESS;
+}
+
+int dms_reform_init(dms_profile_t *dms_profile)
+{
+    reform_context_t *reform_context = DMS_REFORM_CONTEXT;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    int ret = DMS_SUCCESS;
+    g_dms.cluster_ver = 0;
+
+#ifdef OPENGAUSS
+    if (!dms_profile->enable_reform) {
+        drc_res_ctx_t *ctx = DRC_RES_CTX;
+        ctx->global_buf_res.drc_access = CM_TRUE;
+        ctx->global_buf_res.data_access = CM_TRUE;
+        ctx->global_lock_res.drc_access = CM_TRUE;
+        ctx->global_lock_res.data_access = CM_TRUE;
+        return DMS_SUCCESS;
+    }
+#endif
+
+    if (g_dms.scrlock_ctx.enable) {
+        dms_init_scrlock_ctx(dms_profile);
+    }
+
+    reform_context->catalog_centralized = (bool8)dms_profile->resource_catalog_centralized;
+    reform_context->channel_cnt = dms_profile->channel_cnt;
+    reform_context->mes_has_init = (bool8)dms_profile->conn_created_during_init;
+    reform_context->share_info_lock = 0;
+
+    DMS_RFI_INIT(dms_profile->gsdb_home);
+
+    if ((ret = dms_reform_init_db_handle()) != DMS_SUCCESS) {
+        return ret;
+    }
+    
 #if defined(OPENGAUSS) || defined(UT_TEST)
     reform_info->build_complete = CM_TRUE;
     reform_info->maintain = CM_FALSE;

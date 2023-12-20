@@ -27,7 +27,8 @@
 #include "dcs_msg.h"
 #include "drc_res_mgr.h"
 #include "dms_error.h"
-#include "dms_msg.h"
+#include "dms_msg_command.h"
+#include "dms_msg_protocol.h"
 #include "dms_stat.h"
 
 #ifdef __cplusplus

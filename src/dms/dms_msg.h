@@ -45,146 +45,6 @@ extern "C" {
 /* biggest: pcr page ack: head + ack + page */
 #define DMS_MESSAGE_BUFFER_SIZE (uint32)(SIZE_K(32) + 64)
 
-typedef enum st_dms_protocol_version {
-    DMS_PROTO_VER_0 = 0,    // invalid version
-    DMS_PROTO_VER_1 = 1,    // first version
-    DMS_PROTO_VER_2 = 2,
-    DMS_PROTO_VER_NUMS
-} dms_protocol_version_t;
-
-#define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
-#define DMS_SW_PROTO_VER      DMS_PROTO_VER_2
-
-typedef enum en_msg_command {
-    MSG_REQ_BEGIN = 0,
-    MSG_REQ_ASK_MASTER_FOR_PAGE = MSG_REQ_BEGIN,
-    MSG_REQ_ASK_OWNER_FOR_PAGE = 1,
-    MSG_REQ_INVALIDATE_SHARE_COPY = 2,
-    MSG_REQ_CLAIM_OWNER = 3,
-    MSG_REQ_CR_PAGE = 4,
-    MSG_REQ_ASK_MASTER_FOR_CR_PAGE = 5,
-    MSG_REQ_ASK_OWNER_FOR_CR_PAGE = 6,
-    MSG_REQ_CHECK_VISIBLE = 7,
-    MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID = 8,
-    MSG_REQ_BROADCAST = 9,
-    MSG_REQ_TXN_INFO = 10,
-    MSG_REQ_TXN_SNAPSHOT = 11,
-    MSG_REQ_WAIT_TXN = 12,
-    MSG_REQ_AWAKE_TXN = 13,
-    MSG_REQ_MASTER_CKPT_EDP = 14,
-    MSG_REQ_OWNER_CKPT_EDP = 15,
-    MSG_REQ_MASTER_CLEAN_EDP = 16,
-    MSG_REQ_OWNER_CLEAN_EDP = 17,
-    MES_REQ_MGRT_MASTER_DATA = 18,
-    MSG_REQ_RELEASE_OWNER = 19,
-    MSG_REQ_BOC = 20,
-    MSG_REQ_SMON_DLOCK_INFO = 21,
-    MSG_REQ_SMON_DEADLOCK_SQL = 22,
-    MSG_REQ_SMON_DEADLOCK_ITL = 23,
-    MSG_REQ_SMON_DEADLOCK_CHECK_STATUS = 24,
-    MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_TID = 25,
-    MSG_REQ_SMON_DEADLOCK_TABLE_LOCK_BY_RM = 26,
-    MSG_REQ_PAGE_REBUILD = 27,
-    MSG_REQ_LOCK_REBUILD = 28,
-    MSG_REQ_OPENGAUSS_TXN_STATUS = 29,
-    MSG_REQ_OPENGAUSS_TXN_SNAPSHOT = 30,
-    MSG_REQ_OPENGAUSS_TXN_UPDATE_XID = 31,
-    MSG_REQ_OPENGAUSS_XID_CSN = 32,
-    MSG_REQ_ASK_EDP_REMOTE = 33,
-    MSG_REQ_SYNC_STEP = 34,
-    MSG_REQ_SYNC_SHARE_INFO = 35,
-    MSG_REQ_DMS_STATUS = 36,
-    MSG_REQ_REFORM_PREPARE = 37,
-    MSG_REQ_SYNC_NEXT_STEP = 38,
-    MSG_REQ_PAGE = 39,
-    MSG_REQ_SWITCHOVER = 40,
-    MSG_REQ_CANCEL_REQUEST_RES = 41,
-    MSG_REQ_OPENGAUSS_DDLLOCK = 42,
-    MSG_REQ_CONFIRM_CVT = 43,
-    MSG_REQ_CHECK_REFORM_DONE = 44,
-    MSG_REQ_MAP_INFO = 45,
-    MSG_REQ_DDL_SYNC = 46,
-    MSG_REQ_REFORM_GCV_SYNC = 47,
-    MSG_REQ_PAGE_VALIDATE = 48,
-    MSG_REQ_INVALID_OWNER = 49,
-    MSG_REQ_ASK_RES_OWNER_ID = 50,
-    MSG_REQ_OPENGAUSS_ONDEMAND_REDO = 51,
-    MSG_REQ_OPENGAUSS_TXN_SWINFO = 52,
-    MSG_REQ_OPENGAUSS_PAGE_STATUS = 53,
-    MSG_REQ_SEND_OPENGAUSS_OLDEST_XMIN = 54,
-    MSG_REQ_NODE_FOR_BUF_INFO = 55,
-    MSG_REQ_PROTOCOL_MAINTAIN_VERSION = 56,
-    MSG_REQ_CREATE_GLOBAL_XA_RES = 57,
-    MSG_REQ_DELETE_GLOBAL_XA_RES = 58,
-    MSG_REQ_ASK_XA_OWNER_ID = 59,
-    MSG_REQ_END_XA = 60,
-    MSG_REQ_ASK_XA_IN_USE = 61,
-    MSG_REQ_MERGE_XA_OWNERS = 62,
-    MSG_REQ_XA_REBUILD = 63,
-    MSG_REQ_XA_OWNERS = 64,
-    MSG_REQ_RECYCLE = 65,
-    MSG_REQ_END,
-
-    MSG_ACK_BEGIN = 128,
-    MSG_ACK_CHECK_VISIBLE = MSG_ACK_BEGIN,
-    MSG_ACK_PAGE_OWNER_ID = 129,
-    MSG_ACK_BROADCAST = 130,
-    MSG_ACK_BROADCAST_WITH_MSG = 131,
-    MSG_ACK_PAGE_READY = 132,
-    MSG_ACK_GRANT_OWNER = 133,
-    MSG_ACK_ALREADY_OWNER = 134,
-    MSG_ACK_CR_PAGE = 135,
-    MSG_ACK_TXN_WAIT = 136,
-    MSG_ACK_LOCK = 137,
-    MSG_ACK_TXN_INFO = 138,
-    MSG_ACK_TXN_SNAPSHOT = 139,
-    MSG_ACK_WAIT_TXN = 140,
-    MSG_ACK_AWAKE_TXN = 141,
-    MSG_ACK_MASTER_CKPT_EDP = 142,
-    MSG_ACK_OWNER_CKPT_EDP = 143,
-    MSG_ACK_MASTER_CLEAN_EDP = 144,
-    MSG_ACK_OWNER_CLEAN_EDP = 145,
-    MSG_ACK_ERROR = 146,
-    MSG_ACK_RELEASE_PAGE_OWNER = 147,
-    MSG_ACK_INVLDT_SHARE_COPY = 148,
-    MSG_ACK_BOC = 149,
-    MSG_ACK_SMON_DLOCK_INFO = 150,
-    MSG_ACK_SMON_DEADLOCK_SQL = 151,
-    MSG_ACK_SMON_DEADLOCK_ITL = 152,
-    MSG_ACK_SMON_DEADLOCK_CHECK_STATUS = 153,
-    MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_MSG = 154,
-    MSG_ACK_SMON_DEADLOCK_TABLE_LOCK_RM = 155,
-    MSG_ACK_OPENGAUSS_TXN_STATUS = 156,
-    MSG_ACK_OPENGAUSS_TXN_SNAPSHOT = 157,
-    MES_ACK_RELEASE_OWNER_BATCH = 158,
-    MSG_ACK_OPENGAUSS_TXN_UPDATE_XID = 159,
-    MSG_ACK_OPENGAUSS_XID_CSN = 160,
-    MSG_ACK_OPENGAUSS_LOCK_BUFFER = 161,
-    MSG_ACK_EDP_LOCAL = 162,
-    MSG_ACK_EDP_READY = 163,
-    MSG_ACK_REFORM_COMMON = 164,
-    MSG_ACK_CONFIRM_CVT = 165,
-    MSG_ACK_MAP_INFO = 166,
-    MSG_ACK_REFORM_GCV_SYNC = 167,
-    MSG_ACK_INVLD_OWNER = 168,
-    MSG_ACK_ASK_RES_OWNER_ID = 169,
-    MSG_ACK_OPENGAUSS_ONDEMAND_REDO = 170,
-    MSG_ACK_OPENGAUSS_TXN_SWINFO = 171,
-    MSG_ACK_OPENGAUSS_PAGE_STATUS = 172,
-    MSG_ACK_SEND_OPENGAUSS_OLDEST_XMIN = 173,
-    MSG_ACK_PROTOCOL_VERSION_NOT_MATCH = 174,
-    MSG_ACK_NODE_FOR_BUF_INFO = 175,
-    MSG_ACK_CREATE_GLOBAL_XA_RES = 176,
-    MSG_ACK_DELETE_GLOBAL_XA_RES = 177,
-    MSG_ACK_ASK_XA_OWNER_ID = 178,
-    MSG_ACK_END_XA = 179,
-    MSG_ACK_XA_IN_USE = 180,
-    MSG_ACK_END,
-    MSG_CMD_CEIL = MSG_ACK_END
-} msg_command_t;
-
-#define DMS_CMD_SIZE (MSG_CMD_CEIL - (MSG_ACK_BEGIN - MSG_REQ_END))
-
 typedef struct st_msg_error {
     dms_message_head_t head;
     int32 code;
@@ -389,11 +249,6 @@ static inline void cm_print_error_msg(const void *msg_data)
     LOG_DEBUG_ERR("errno code: %d, errno info: %s", error_msg->code, message);
 }
 
-void cm_send_error_msg(dms_message_head_t *head, int32 err_code, char *err_info);
-void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, int32 ret);
-void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, char *msg,
-    uint32 len, char *ack_buf);
-
 #define CM_CHK_RESPONSE_SIZE(msg, len, has_ack)                                                 \
     do {                                                                                        \
         if ((msg)->head->cmd == MSG_ACK_ERROR) {                                                \
@@ -437,112 +292,6 @@ void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *recei
         }                                                                                       \
     } while (0)
 
-
-static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 ruid,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try,
-    dms_session_e sess_type, date_t req_time, uint32 srsn, uint32 req_proto_ver)
-{
-    req_info->ruid = ruid;
-    req_info->inst_id = req_id;
-    req_info->sess_id = sess_id;
-    req_info->is_try = is_try;
-    req_info->curr_mode = curr_mode;
-    req_info->req_mode = req_mode;
-    req_info->sess_type = sess_type;
-    req_info->req_time = req_time;
-    req_info->srsn = srsn;
-    req_info->req_proto_ver = req_proto_ver;
-}
-
-void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret,
-    uint32 req_proto_ver);
-void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
-    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
-int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
-void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
-void dms_cancel_request_res(dms_context_t *dms_ctx);
-void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_smon_entry(thread_t *thread);
-void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
-    uint8 type, dms_session_e sess_type, uint8 owner_id);
-int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 len,
-    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct);
-int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
-void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *receive_msg);
-void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-dms_message_head_t* get_dms_head(dms_message_t *msg);
-bool8 dms_cmd_is_broadcast(uint32 cmd);
-bool8 dms_cmd_is_req(uint32 cmd);
-bool8 dms_cmd_need_ack(uint32 cmd);
-// about protocol version
-void dms_set_node_proto_version(uint8 inst_id, uint32 version);
-uint32 dms_get_node_proto_version(uint8 inst_id);
-void dms_init_cluster_proto_version();
-uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_inst);
-bool8 dms_check_message_proto_version(dms_message_head_t *head);
-uint32 dms_get_forward_request_proto_version(uint8 dst_inst, uint32 recv_req_proto_ver);
-void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-
-typedef enum en_dms_protocol_result {
-    DMS_PROTOCOL_VERSION_NOT_MATCH = 0,
-    DMS_PROTOCOL_VERSION_NOT_SUPPORT = 1,
-} dms_protocol_result_e;
-
-typedef struct st_dms_protocol_result_ack {
-    dms_message_head_t head;
-    dms_protocol_result_e result;
-} dms_protocol_result_ack_t;
-
-static inline bool8 dms_check_if_protocol_compatibility_error(int ret)
-{
-    if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH || ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT) {
-        return CM_TRUE;
-    }
-    return CM_FALSE;
-}
-
-#define DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret)    \
-    do {                                            \
-        if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH || ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_SUPPORT) { \
-            return ret;                             \
-        }                                           \
-    } while (0)
-
-/*
-* The following structs are used for communication
-* between Primary and Standby to obtain relevant
-* information about buffers on other nodes.
-*/
-typedef struct st_dms_req_buf_info {
-    dms_message_head_t      head;
-    unsigned long long      copy_insts;
-    unsigned char           claimed_owner;
-    unsigned char           master_id;
-    unsigned char           from_inst;
-    char                    resid[DMS_RESID_SIZE];
-} dms_req_buf_info_t;
-
-typedef struct st_dms_ack_buf_info {
-    dms_message_head_t      head;
-    stat_buf_info_t          buf_info;
-} dms_ack_buf_info_t;
-
-int dms_send_request_buf_info(dms_context_t *dms_ctx, dv_drc_buf_info *drc_info);
-void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-
-void dms_check_message_cmd(unsigned int cmd, bool8 is_req);
-
-void dms_init_ack_head(const dms_message_head_t *req_head, dms_message_head_t *ack_head, unsigned int cmd,
-    unsigned short size, unsigned int src_sid);
-
-void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned int flags,
-    unsigned char src_inst, unsigned char dst_inst, unsigned short src_sid, unsigned short dst_sid,
-    unsigned int req_proto_ver);
-
 #define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \
     do {                                                                                                        \
         dms_check_message_cmd(v_cmd, CM_TRUE);                                                                  \
@@ -581,15 +330,83 @@ void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned
 
 #define DMS_MESSAGE_BODY(msg) ((msg)->buffer + sizeof(dms_message_head_t))
 
-/****************** A lightweight, universal DMS message version compatibility solution *******************/
-typedef struct st_dms_proto_version_attr {
-    uint32 req_size;
-} dms_proto_version_attr;
+static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 ruid,
+    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try,
+    dms_session_e sess_type, date_t req_time, uint32 srsn, uint32 req_proto_ver)
+{
+    req_info->ruid = ruid;
+    req_info->inst_id = req_id;
+    req_info->sess_id = sess_id;
+    req_info->is_try = is_try;
+    req_info->curr_mode = curr_mode;
+    req_info->req_mode = req_mode;
+    req_info->sess_type = sess_type;
+    req_info->req_time = req_time;
+    req_info->srsn = srsn;
+    req_info->req_proto_ver = req_proto_ver;
+}
 
-const dms_proto_version_attr *dms_get_version_attr(dms_proto_version_attr *version_attrs, uint32 proto_version);
-int dms_fill_versioned_msg_head(dms_proto_version_attr *version_attrs, dms_message_head_t *head, uint32 send_version);
-int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t *msg,
-    void *out_info, uint32 info_size);
+void cm_send_error_msg(dms_message_head_t *head, int32 err_code, char *err_info);
+void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, int32 ret);
+void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, char *msg,
+    uint32 len, char *ack_buf);
+
+void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret,
+    uint32 req_proto_ver);
+void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
+    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);
+int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode);
+void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+void dms_cancel_request_res(dms_context_t *dms_ctx);
+void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_smon_entry(thread_t *thread);
+void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
+    uint8 type, dms_session_e sess_type, uint8 owner_id);
+int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct);
+int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
+void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *receive_msg);
+void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+dms_message_head_t* get_dms_head(dms_message_t *msg);
+bool8 dms_cmd_is_broadcast(uint32 cmd);
+bool8 dms_cmd_is_req(uint32 cmd);
+bool8 dms_cmd_need_ack(uint32 cmd);
+
+/*
+* The following structs are used for communication
+* between Primary and Standby to obtain relevant
+* information about buffers on other nodes.
+*/
+typedef struct st_dms_req_buf_info {
+    dms_message_head_t      head;
+    unsigned long long      copy_insts;
+    unsigned char           claimed_owner;
+    unsigned char           master_id;
+    unsigned char           from_inst;
+    char                    resid[DMS_RESID_SIZE];
+} dms_req_buf_info_t;
+
+typedef struct st_dms_ack_buf_info {
+    dms_message_head_t      head;
+    stat_buf_info_t          buf_info;
+} dms_ack_buf_info_t;
+
+int dms_send_request_buf_info(dms_context_t *dms_ctx, dv_drc_buf_info *drc_info);
+void dms_proc_ask_node_buf_info(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+
+void dms_check_message_cmd(unsigned int cmd, bool8 is_req);
+
+void dms_init_ack_head(const dms_message_head_t *req_head, dms_message_head_t *ack_head, unsigned int cmd,
+    unsigned short size, unsigned int src_sid);
+
+void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned int flags,
+    unsigned char src_inst, unsigned char dst_inst, unsigned short src_sid, unsigned short dst_sid,
+    unsigned int req_proto_ver);
+
 void drc_recycle_buf_res_notify_db(uint32 sess_id);
 
 #ifdef __cplusplus

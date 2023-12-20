@@ -25,6 +25,7 @@
 #include "dms_reform_judge.h"
 #include "dms_reform_msg.h"
 #include "dms_error.h"
+#include "dms_msg_protocol.h"
 #include "cm_timer.h"
 
 extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];

@@ -33,6 +33,8 @@
 #include "cm_timer.h"
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_msg_command.h"
+#include "dms_msg_protocol.h"
 
 static void inline dms_reform_collect_xa_owner_by_bucket(drc_res_bucket_t *bucket, uint64 *bitmap_has_xa)
 {
