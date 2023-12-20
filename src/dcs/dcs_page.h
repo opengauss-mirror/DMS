@@ -51,7 +51,6 @@ void drc_proc_buf_ctrl_recycle(dms_process_context_t *ctx, dms_message_t *receiv
 void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_release_owner_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_release_owner_batch_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_info);
 
 int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
@@ -71,6 +70,8 @@ int dcs_send_requester_edp_remote(dms_process_context_t *ctx, dms_ask_res_req_t 
 void dcs_send_requester_edp_local(dms_process_context_t *ctx, dms_ask_res_req_t *page_req);
 int dcs_owner_transfer_page_ack_v2(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
     uint32 cmd);
+int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
+    dms_res_req_info_t *req_info, dms_ask_res_ack_t *page_ack);
 
 #ifdef __cplusplus
 }

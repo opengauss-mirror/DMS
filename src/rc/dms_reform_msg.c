@@ -30,6 +30,7 @@
 #include "dms_error.h"
 #include "dms_mfc.h"
 #include "dms_stat.h"
+#include "dms_msg_protocol.h"
 #include "dcs_page.h"
 #include "dms_reform_xa.h"
 

@@ -126,40 +126,7 @@ int dcs_owner_transfer_page_ack_v2(dms_process_context_t *ctx, dms_buf_ctrl_t *c
     }
 #endif
 
-    dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE, CM_TRUE);
-    if (page_ack.head.flags & MSG_FLAG_NO_PAGE) {
-        ret = mfc_send_data(&page_ack.head);
-    } else {
-#ifndef OPENGAUSS
-        page_ack.enable_cks = (bool8)g_dms.callback.get_enable_checksum(ctx->db_handle);
-        page_ack.checksum = (uint16)g_dms.callback.calc_page_checksum(ctx->db_handle, ctrl, g_dms.page_size);
-#endif
-        ret = mfc_send_data3(&page_ack.head, sizeof(dms_ask_res_ack_t), (void *)g_dms.callback.get_page(ctrl));
-    }
-
-    if (ret == DMS_SUCCESS) {
-        DMS_STAT_INC_BUFFER_SENDS(ctx->sess_id);
-    }
-
-    dms_end_stat(ctx->sess_id);
-
-    if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        LOG_DEBUG_ERR("[DCS][%s][%s]:send failed, dest_id=%d, dest_sid=%d, mode=%u, remote dirty=%d, \
-            ctrl_lock_mode=%d, ctrl_is_edp=%d, page_lsn=%llu, page_scn=%llu, edp_map=%llu",
-            cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.cmd),
-            page_ack.head.dst_inst, page_ack.head.dst_sid, req_info->req_mode,
-            ctrl->is_remote_dirty, ctrl->lock_mode, ctrl->is_edp, page_ack.lsn, page_ack.scn, page_ack.edp_map);
-        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, page_ack.head.cmd, page_ack.head.dst_inst);
-        return ERRNO_DMS_SEND_MSG_FAILED;
-    }
-
-    LOG_DEBUG_INF("[DCS][%s][%s]:send ok, dest_id=%d, dest_sid=%d, req_mode=%u, remote dirty=%d, ctrl_lock_mode=%d,"
-        "ctrl_is_edp=%d, global_lsn=%llu, global_scn=%llu, page_lsn=%llu, edp_map=%llu, flags=%u, msg_size=%d",
-        cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack.head.cmd), page_ack.head.dst_inst,
-        page_ack.head.dst_sid, req_info->req_mode, ctrl->is_remote_dirty, ctrl->lock_mode, ctrl->is_edp, page_ack.lsn,
-        page_ack.scn, g_dms.callback.get_page_lsn(ctrl), page_ack.edp_map, page_ack.head.flags, page_ack.head.size);
-
-    return DMS_SUCCESS;
+    return dcs_send_ack_page(ctx, ctrl, req_info, &page_ack);
 }
 
 #ifdef __cplusplus

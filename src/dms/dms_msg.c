@@ -30,6 +30,7 @@
 #include "dcs_page.h"
 #include "dms_stat.h"
 #include "dms_msg.h"
+#include "dms_msg_protocol.h"
 
 #ifdef __cplusplus
 extern "C" {

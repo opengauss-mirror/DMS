@@ -70,7 +70,7 @@ char *cm_display_global_xid(drc_global_xid_t *global_xid)
         return g_display_buf;
     }
 
-    unsigned int str_len = strlen(g_display_buf);
+    unsigned int str_len = (unsigned int)strlen(g_display_buf);
     if (bqual.len > 0) {
         ret = memcpy_sp(g_display_buf + str_len, DMS_DISPLAY_SIZE - str_len, bqual.str, bqual.len);
         if (ret != EOK) {

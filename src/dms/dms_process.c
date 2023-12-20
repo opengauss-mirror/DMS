@@ -32,6 +32,8 @@
 #include "dls_msg.h"
 #include "dms_error.h"
 #include "dms_msg.h"
+#include "dms_msg_command.h"
+#include "dms_msg_protocol.h"
 #include "drc_lock.h"
 #include "drc_res_mgr.h"
 #include "drc_tran.h"

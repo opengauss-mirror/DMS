@@ -27,7 +27,6 @@
 #include "dms_process.h"
 #include "dms.h"
 #include "mes_func.h"
-#include "dms_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

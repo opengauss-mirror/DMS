@@ -28,7 +28,7 @@
 #include "cm_date.h"
 #include "dms_api.h"
 #include "cm_atomic.h"
-#include "dms_msg.h"
+#include "dms_msg_command.h"
 #include "cm_error.h"
 
 #ifdef __cplusplus

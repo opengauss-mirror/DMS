@@ -25,8 +25,9 @@
 #include "dms_mfc.h"
 #include "dms_process.h"
 #include "dms_error.h"
-#include "mes_interface.h"
 #include "dms_stat.h"
+#include "dms_msg_protocol.h"
+#include "mes_interface.h"
 
 #ifdef __cplusplus
 extern "C" {
