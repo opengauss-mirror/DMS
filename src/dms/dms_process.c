@@ -528,20 +528,20 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
         profile->buffer_pool_attr[i].pool_count = DMS_BUFFER_POOL_NUM;
         profile->buffer_pool_attr[i].queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
 
-        // 64 buffer pool
+        // 128 buffer pool
         profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
             (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
         profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
-        if (i != MES_PRIORITY_THREE) {
+        if (i != MES_PRIORITY_SIX) {
             profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
         }
 
-        // 128 buffer pool
+        // 256 buffer pool
         pool_idx++;
         profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
             (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
         profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_SECOND_BUFFER_LENGTH;
-        if (i != MES_PRIORITY_THREE) {
+        if (i != MES_PRIORITY_SIX) {
             profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
         }
 
@@ -550,12 +550,21 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
         profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
             (uint32)(recv_msg_buf_size * DMS_THIRDLY_BUFFER_RATIO) / DMS_THIRD_BUFFER_LENGTH;
         profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_THIRD_BUFFER_LENGTH;
-        if (i != MES_PRIORITY_THREE) {
+        if (i != MES_PRIORITY_SIX) {
             profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
         }
     }
 }
 
+/*
+ * Priority principle: reform/ddl >= ckpt >= derived > others
+ * group 1 reform proc messages
+ * group 2 reform judgement
+ * group 3 checkpoint
+ * group 4 edp clean
+ * group 5 derived messages
+ * group 6 everythin else
+ */
 unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 {
     switch (cmd) {
@@ -566,49 +575,65 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHECK_REFORM_DONE:
-            return MES_PRIORITY_ZERO;      // priority 0 is used for reform
+            return MES_PRIORITY_ZERO;
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:
-            return MES_PRIORITY_ONE;      // priority 1 is used for ddl sync
-        case MSG_REQ_SYNC_NEXT_STEP:        // next step may sync last reform fail
+            return MES_PRIORITY_ONE;
+        case MSG_REQ_SYNC_NEXT_STEP:
         case MSG_REQ_MAP_INFO:
         case MSG_REQ_REFORM_PREPARE:
         case MSG_REQ_SYNC_SHARE_INFO:
         case MSG_REQ_DMS_STATUS:
         case MSG_REQ_REFORM_GCV_SYNC:
-            return MES_PRIORITY_TWO;    // only for judgement
-        default:
+            return MES_PRIORITY_TWO;
+        case MSG_REQ_MASTER_CKPT_EDP:
+        case MSG_REQ_OWNER_CKPT_EDP:
             return MES_PRIORITY_THREE;
+        case MSG_REQ_MASTER_CLEAN_EDP:
+        case MSG_REQ_OWNER_CLEAN_EDP:
+            return MES_PRIORITY_FOUR;
+        case MSG_REQ_TXN_INFO:
+        case MSG_REQ_CLAIM_OWNER:
+        case MSG_REQ_INVALID_OWNER:
+        case MSG_REQ_INVALIDATE_SHARE_COPY:
+            return MES_PRIORITY_FIVE;
+        default:
+            return MES_PRIORITY_SIX;
     }
 }
 
-/*
-    Work thread allocation
-    group 1: total_work_thread   2
-    group 2: total_work_thread   1
-    group 3: total_work_thread   1
-    group 0: total_work_thread - group 1 - group 2 - group 3
-    Allocation principle: Allocate time-consuming requests to different groups.
-*/
+/* Work thread allocation */
 void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
-    uint32 work_thread = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2;
+    uint32 sp_count = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2 +
+        DMS_WORK_THREAD_PRIO_3 + DMS_WORK_THREAD_PRIO_4 + DMS_WORK_THREAD_PRIO_5;
+    CM_ASSERT(sp_count < DMS_WORK_THREAD_COUNT);
+    uint32 common_count = DMS_WORK_THREAD_COUNT - sp_count;
+    uint32 common_recv_count = MAX(1, (uint32)(common_count * DMS_RECV_WORK_THREAD_RATIO));
 
     mes_profile->send_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
     mes_profile->send_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
     mes_profile->send_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
-    mes_profile->send_task_count[MES_PRIORITY_THREE] = dms_profile->work_thread_cnt - work_thread;
+    mes_profile->send_task_count[MES_PRIORITY_THREE] = DMS_WORK_THREAD_PRIO_3;
+    mes_profile->send_task_count[MES_PRIORITY_FOUR] = DMS_WORK_THREAD_PRIO_4;
+    mes_profile->send_task_count[MES_PRIORITY_FIVE] = DMS_WORK_THREAD_PRIO_5;
+    mes_profile->send_task_count[MES_PRIORITY_SIX] = common_count;
 
     mes_profile->work_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
     mes_profile->work_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
     mes_profile->work_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
-    mes_profile->work_task_count[MES_PRIORITY_THREE] = dms_profile->work_thread_cnt - work_thread;
+    mes_profile->work_task_count[MES_PRIORITY_THREE] = DMS_WORK_THREAD_PRIO_3;
+    mes_profile->work_task_count[MES_PRIORITY_FOUR] = DMS_WORK_THREAD_PRIO_4;
+    mes_profile->work_task_count[MES_PRIORITY_FIVE] = DMS_WORK_THREAD_PRIO_5;
+    mes_profile->work_task_count[MES_PRIORITY_SIX] = common_count;
 
     mes_profile->recv_task_count[MES_PRIORITY_ZERO] = DMS_RECV_THREAD_PRIO_0;
     mes_profile->recv_task_count[MES_PRIORITY_ONE] = DMS_RECV_THREAD_PRIO_1;
     mes_profile->recv_task_count[MES_PRIORITY_TWO] = DMS_RECV_THREAD_PRIO_2;
-    mes_profile->recv_task_count[MES_PRIORITY_THREE] =
-        MAX(1, (uint32)((dms_profile->work_thread_cnt - work_thread) * DMS_RECV_WORK_THREAD_RATIO));
+    mes_profile->recv_task_count[MES_PRIORITY_THREE] = DMS_RECV_THREAD_PRIO_3;
+    mes_profile->recv_task_count[MES_PRIORITY_FOUR] = DMS_RECV_THREAD_PRIO_4;
+    mes_profile->recv_task_count[MES_PRIORITY_FIVE] = DMS_RECV_THREAD_PRIO_5;
+    mes_profile->recv_task_count[MES_PRIORITY_SIX] = common_recv_count;
 }
 
 static inline void dms_init_mes_compress(mes_profile_t *mes_profile)
