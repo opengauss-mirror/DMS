@@ -126,11 +126,7 @@ int32 dls_invld_lock_ownership(void *db_handle, char *resid, uint8 req_mode, boo
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info)
 {
     int32 ret = dls_invld_lock_ownership(proc_ctx->db_handle, req_info->resid, req_info->req_mode, req_info->is_try);
-    if (ret != DMS_SUCCESS) {
-        dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
-            req_info->req_id, req_info->req_sid, req_info->req_ruid, ret, req_info->req_proto_ver);
-        return ret;
-    }
+    CM_RETURN_IFERR(ret);
 
     dms_ask_res_ack_t page_ack = { 0 };
     dms_init_ack_head2(&page_ack.head, MSG_ACK_PAGE_READY, 0, req_info->owner_id,

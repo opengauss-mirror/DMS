@@ -799,8 +799,6 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
             LOG_DEBUG_ERR("[DMS][%s][%s] send failed: dst_id=%u, dst_sid=%u, mode=%u",
                 cm_display_resid(req_info->resid, req_info->res_type), "ASK OWNER",
                 (uint32)req.head.dst_inst, (uint32)req.head.dst_sid, (uint32)req.req_mode);
-            dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid,
-                req_info->req_ruid, ret, req_info->req_proto_ver);
             return ERRNO_DMS_SEND_MSG_FAILED;
         }
 
@@ -887,6 +885,7 @@ static int dms_send_req2owner(dms_process_context_t *ctx, dms_ask_res_req_t *req
 
 void dms_handle_remote_req_result(dms_process_context_t *ctx, dms_ask_res_req_t *req, drc_req_owner_result_t *result)
 {
+    int ret = DMS_SUCCESS;
     switch (result->type) {
         case DRC_REQ_OWNER_GRANTED:
             dms_send_requester_granted(ctx, req);
@@ -908,7 +907,7 @@ void dms_handle_remote_req_result(dms_process_context_t *ctx, dms_ask_res_req_t 
             LOG_DEBUG_INF("[DMS][%s][waiting for converting]: dst_id=%u, dst_sid=%u, req_mode=%u, curr_mode=%u",
                 cm_display_resid(req->resid, req->res_type), (uint32)req->head.src_inst,
                 (uint32)req->head.src_sid, (uint32)req->req_mode, (uint32)req->curr_mode);
-            (void)dms_send_req2owner(ctx, req, result);
+            ret = dms_send_req2owner(ctx, req, result);
             break;
 
         case DRC_REQ_EDP_LOCAL:
@@ -916,11 +915,15 @@ void dms_handle_remote_req_result(dms_process_context_t *ctx, dms_ask_res_req_t 
             break;
 
         case DRC_REQ_EDP_REMOTE:
-            (void)dcs_send_requester_edp_remote(ctx, req, result);
+            ret = dcs_send_requester_edp_remote(ctx, req, result);
             break;
 
         default:
             CM_ASSERT(0);
+    }
+    if (ret != DMS_SUCCESS) {
+        dms_send_error_ack(ctx->inst_id, ctx->sess_id,
+            req->head.src_inst, req->head.src_sid, req->head.ruid, ret, req->head.msg_proto_ver);
     }
 }
 
@@ -1060,6 +1063,8 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *
     DMS_SECUREC_CHECK(ret);
     ret = dms_transfer_res_owner(proc_ctx, &req_info);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
+        dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
+            req_info.req_id, req_info.req_sid, req_info.req_ruid, ret, req_info.req_proto_ver);
         LOG_DEBUG_ERR("[DMS][%s][owner transfer page]: failed, owner_id=%u, req_id=%u, req_sid=%u, "
             "req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type), (uint32)req_info.owner_id,
             (uint32)req_info.req_id, (uint32)req_info.req_sid, req_info.req_ruid, (uint32)req_info.req_mode);
