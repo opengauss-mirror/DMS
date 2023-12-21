@@ -208,6 +208,24 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
     return CM_TRUE;
 }
 
+bool8 dms_latch_timed_wait(drc_local_latch_t *latch_stat, unsigned int wait_ticks, uint32 ticks)
+{
+    uint32 count = 0;
+    while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
+        if (ticks >= wait_ticks) {
+            return CM_FALSE;
+        }
+
+        count++;
+        if (count >= GS_SPIN_COUNT) {
+            cm_spin_sleep();
+            count = 0;
+            ticks++;
+        }
+    }
+    return CM_TRUE;
+}
+
 bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks, unsigned char is_force)
 {
     dms_reset_error();
@@ -268,20 +286,11 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
         } else {
             drc_unlock_local_resx(lock_res);
 
-            uint32 count = 0;
-            while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
-                if (ticks >= wait_ticks) {
-                    LOG_DEBUG_INF("[DLS] add timed latch_s(%s) timeout", cm_display_lockid(&dlatch->drid));
-                    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
-                    return CM_FALSE;
-                }
-
-                count++;
-                if (count >= GS_SPIN_COUNT) {
-                    cm_spin_sleep();
-                    count = 0;
-                    ticks++;
-                }
+            bool8 ret = dms_latch_timed_wait(latch_stat, wait_ticks, ticks);
+            if (!ret) {
+                LOG_DEBUG_INF("[DLS] add timed latch_s(%s) timeout", cm_display_lockid(&dlatch->drid));
+                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
+                return CM_FALSE;
             }
         }
     } while (CM_TRUE);
@@ -562,20 +571,11 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
         } else {
             drc_unlock_local_resx(lock_res);
 
-            uint32 count = 0;
-            while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
-                if (ticks >= wait_ticks) {
-                    LOG_DEBUG_INF("[DLS] add timed latch_x(%s) timeout", cm_display_lockid(&dlatch->drid));
-                    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
-                    return CM_FALSE;
-                }
-
-                count++;
-                if (count >= GS_SPIN_COUNT) {
-                    cm_spin_sleep();
-                    count = 0;
-                    ticks++;
-                }
+            bool8 ret = dms_latch_timed_wait(latch_stat, wait_ticks, ticks);
+            if (!ret) {
+                LOG_DEBUG_INF("[DLS] add timed latch_x(%s) timeout", cm_display_lockid(&dlatch->drid));
+                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
+                return CM_FALSE;
             }
         }
     } while (CM_TRUE);
