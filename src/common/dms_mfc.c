@@ -96,7 +96,7 @@ static bool8 mfc_try_get_ticket(uint8 dst_inst)
  * currently groupd id is equivalent to MES priority number
  * further flagbits are added after priority and serial bits
  */
-static unsigned int inline mfc_get_mes_flag(dms_message_head_t *msg)
+static inline unsigned int mfc_get_mes_flag(dms_message_head_t *msg)
 {
     unsigned int flag = dms_get_mes_prio_by_cmd(msg->cmd);
     CM_ASSERT(flag <= MES_FLAG_SERIAL);

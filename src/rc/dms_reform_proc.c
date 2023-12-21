@@ -149,12 +149,10 @@ static int dms_reform_disconnect(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
 #ifndef OPENGAUSS
-    instance_list_t *list_disconnect = &share_info->list_disconnect;
 
     dms_reform_proc_stat_start(DRPS_DISCONNECT_GET_LOCK);
     cm_spin_lock(&reform_info->mes_lock, NULL);
     dms_reform_proc_stat_end(DRPS_DISCONNECT_GET_LOCK);
-    mfc_del_instance_batch(list_disconnect->inst_id_list, list_disconnect->inst_id_count);
     bitmap64_minus(&reform_info->bitmap_mes, share_info->bitmap_disconnect);
     cm_spin_unlock(&reform_info->mes_lock);
 #endif

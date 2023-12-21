@@ -42,7 +42,7 @@ extern "C" {
 #define DMS_REFORM_LONG_TIMEOUT         5000
 #define DMS_REFORM_SHORT_TIMEOUT        500
 #define DMS_REFORM_CONFIRM_TIMEOUT      5000000 // 5s
-#define DMS_REFORM_LOCK_INST_TIMEOUT    2000000
+#define DMS_REFORM_LOCK_INST_TIMEOUT    (g_dms.max_wait_time * MICROSECS_PER_SECOND)
 #define DMS_REFORM_CONTEXT              (&g_dms.reform_ctx)
 #define DMS_REFORMER_CTRL               (&g_dms.reform_ctx.reformer_ctrl)
 #define DMS_REFORM_INFO                 (&g_dms.reform_ctx.reform_info)
