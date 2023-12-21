@@ -201,6 +201,19 @@ int32 drc_get_xa_master_id(drc_global_xid_t *xid, uint8 *master_id)
     return CM_SUCCESS;
 }
 
+int32 drc_get_xa_remaster_id(drc_global_xid_t *xid, uint8 *master_id)
+{
+    uint16 part_id = drc_get_global_xid_partid(xid);
+    uint8 instance_id = DRC_PART_REMASTER_ID(part_id);
+    if (instance_id == CM_INVALID_ID8) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_XA_MASTER_NOT_FOUND, cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE));
+        return ERRNO_DMS_DRC_XA_MASTER_NOT_FOUND;
+    }
+
+    *master_id = instance_id;
+    return CM_SUCCESS;
+}
+
 static void drc_add_xa_part_list(drc_global_xa_res_t *xa_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -244,6 +257,7 @@ static int32 drc_new_xa_res(drc_global_res_map_t *xa_res_map, drc_global_xid_t *
     xa_res->part_node.prev = NULL;
     errno_t ret = memcpy_sp(&xa_res->xid, sizeof(drc_global_xid_t), global_xid, sizeof(drc_global_xid_t));
     if (ret != EOK) {
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
 
@@ -342,6 +356,7 @@ int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *gl
     ret = memset_sp(&dms_ctx, sizeof(dms_context_t), 0, sizeof(dms_context_t));
     if (ret != DMS_SUCCESS) {
         drc_leave_xa_res(xa_res_map, bucket);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
 
@@ -353,6 +368,7 @@ int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *gl
     ret = memcpy_sp(&dms_ctx.global_xid, sizeof(drc_global_xid_t), global_xid, sizeof(drc_global_xid_t));
     if (ret != EOK) {
         drc_leave_xa_res(xa_res_map, bucket);
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
     }
 
