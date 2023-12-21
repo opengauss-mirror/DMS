@@ -1271,6 +1271,16 @@ static int dms_reform_startup_opengauss(void)
     return DMS_SUCCESS;
 }
 
+static inline void dms_reform_mark_locking(bool8 is_locking)
+{
+    g_dms.reform_ctx.reform_info.is_locking = is_locking;
+    if (is_locking) {
+        mes_interrupt_get_response();
+    } else {
+        mes_resume_get_response();
+    }
+}
+
 /*
  * Put X on instance lock to push GCV. Partner needs lock too, to prevent concurrent iusses
  * such as DRC rebuild and invalidate msg happens at the same time. The timed lock
@@ -1286,6 +1296,7 @@ static int dms_reform_lock_instance(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance try lock, gcv:%d",
         DMS_GLOBAL_CLUSTER_VER);
+    dms_reform_mark_locking(CM_TRUE);
     while (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, ticks, NULL) == CM_FALSE) {
         if (g_timer()->now - begin_time >= DMS_REFORM_LOCK_INST_TIMEOUT) {
             LOG_RUN_ERR("[DMS REFORM][GCV PUSH]dms_reform_lock_instance timeout error, inst:%d exits now",
@@ -1298,6 +1309,7 @@ static int dms_reform_lock_instance(void)
         }
     }
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
+    dms_reform_mark_locking(CM_FALSE);
 
     /* push reform version here; if wrapped, reset to zero */
     if (DMS_GLOBAL_CLUSTER_VER == CM_INVALID_ID32) {

@@ -90,7 +90,8 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(void *sess, dms_drid_t *
         if (g_lock_matrix[lock_mode][lock_res->latch_stat.stat]) {
             return lock_res;
         }
-        if ((g_timer()->now - begin) / MICROSECS_PER_MILLISEC >= DMS_WAIT_MAX_TIME) {
+        if ((g_timer()->now - begin) / MICROSECS_PER_MILLISEC >= DMS_WAIT_MAX_TIME ||
+            g_dms.reform_ctx.reform_info.is_locking) {
             lock_res->releasing = CM_FALSE;
             drc_unlock_local_resx(lock_res);
             LOG_DEBUG_WAR("[DLS] release lock(%s) timeout", cm_display_lockid(lockid));

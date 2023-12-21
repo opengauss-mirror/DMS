@@ -303,6 +303,7 @@ typedef struct st_reform_info {
     uint8               unused[1];
     log_point_t         curr_points[DMS_MAX_INSTANCES];
     uint64              bitmap_in;
+    bool8               is_locking;
 } reform_info_t;
 
 typedef struct st_switchover_info {
