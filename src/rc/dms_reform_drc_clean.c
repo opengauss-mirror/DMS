@@ -159,7 +159,6 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
             return ERRNO_DMS_REFORM_FAIL;
         }
 
-        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_confirm_converting SEND error: %d, dst_id: %d", ret, dst_id);
@@ -184,11 +183,26 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
         return ret;
     }
 
-    if (lock_mode != DMS_LOCK_NULL) {
-        buf_res->claimed_owner = buf_res->converting.req_info.inst_id;
-        buf_res->lock_mode = lock_mode;
-    } else {
+    /*
+        1.if lock_mode is NULL, it means that node of converting has not been received ack from owner
+          before owner crashed. So set no owner in drc
+        2.if lock_mode is S, it means that node of converting has been received ack from owner
+          before owner crashed, or there is copy page in node of converting already.
+          Anyway, it is just copy page in node of converting.
+          we can not set node of converting to be owner here, just let repair to do that
+        3.if lock mode is X, node of converting is undisputed owner
+    */
+
+    if (lock_mode == DMS_LOCK_NULL) {
         buf_res->claimed_owner = CM_INVALID_ID8;
+    } else if (lock_mode == DMS_LOCK_SHARE) {
+        buf_res->lock_mode = DMS_LOCK_SHARE;
+        buf_res->claimed_owner = CM_INVALID_ID8;
+        bitmap64_set(&buf_res->copy_insts, dst_id);
+    } else {
+        buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
+        buf_res->claimed_owner = buf_res->converting.req_info.inst_id;
+        bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
     }
     init_drc_cvt_item(&buf_res->converting);
     return DMS_SUCCESS;
