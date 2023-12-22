@@ -27,6 +27,7 @@
 #include "dms_error.h"
 #include "dms_msg_protocol.h"
 #include "cm_timer.h"
+#include "dms_reform_judge_stat.h"
 
 extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
 
@@ -231,11 +232,11 @@ static void dms_reform_modify_list(void)
         // To update the rcy point and lrp point of other nodes
         for (uint32 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
             if (inst_id != g_dms.inst_id) {
-                dms_reform_list_add($share_info->list_stable, (uint8)inst_id);
-			}
-		}
-        dms_reform_list_to_bitmap($share_info->bitmap_stable, &share_info->list_stable);
-	}
+                dms_reform_list_add(&share_info->list_stable, (uint8)inst_id);
+            }
+        }
+        dms_reform_list_to_bitmap(&share_info->bitmap_stable, &share_info->list_stable);
+    }
 #endif
 }
 
@@ -450,7 +451,7 @@ static bool8 dms_no_need_wait_sync(reform_step_t step)
     if (step != DMS_REFORM_STEP_SYNC_WAIT) {
         return CM_FALSE;
     }
-    if (dms_reform_type_is(DMS_REFORMER_ID_FOR_BUILD) ||
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_BUILD) ||
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN) ||
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_RST_RECOVER)) {
         return CM_TRUE;
@@ -1583,6 +1584,7 @@ static bool32 dms_reform_judgement_normal_check(instance_list_t *inst_lists)
 
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_OLD_REMOVE].inst_id_count == 0 &&
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
+        dms_reform_judgement_stat_cancel();
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, old_remove: 0, new_join: 0");
         return CM_FALSE;
     }
@@ -1644,6 +1646,7 @@ static bool32 dms_reform_judgement_failover_check(instance_list_t *inst_lists)
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_OLD_REMOVE].inst_id_count == 0 &&
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, old_remove: 0, new_join: 0");
+        dms_reform_judgement_stat_cancel();
         return CM_FALSE;
     }
 
@@ -1696,6 +1699,7 @@ static bool32 dms_reform_judgement_normal_opengauss_check(instance_list_t *inst_
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_OLD_REMOVE].inst_id_count == 0 &&
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, old_remove: 0, new_join: 0");
+        dms_reform_judgement_stat_cancel();
         return CM_FALSE;
     }
 
@@ -1717,6 +1721,7 @@ static bool32 dms_reform_judgement_maintain_check(instance_list_t *inst_lists)
     // if instance status is not join, finish current judgement
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, new_join: 0");
+        dms_reform_judgement_stat_cancel();
         return CM_FALSE;
     }
 
@@ -1730,6 +1735,7 @@ static bool32 dms_reform_judgement_rst_recover_check(instance_list_t *inst_lists
     // if instance status is not join, finish current judgement, that means last rst recover has finished 
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, new_join: 0");
+        dms_reform_judgement_stat_cancel();
         return CM_FALSE;
     }
     return CM_TRUE;
@@ -1852,6 +1858,7 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
     // database recover for restore, should before build database
     if (reform_info->rst_recover) {
         share_info->reform_type = DMS_REFORM_TYPE_FOR_RST_RECOVER;
+        return;
     }
 
     // database has not been created
@@ -2040,19 +2047,19 @@ static bool32 dms_reform_judgement(uint8 *online_status)
 
     share_info->proto_version = dms_get_send_proto_version_by_cmd(MSG_REQ_SYNC_SHARE_INFO, CM_INVALID_ID8);
     if (share_info->list_offline.inst_id_count != 0) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, offline inst count: %d",
-            share_info->list_offline.inst_id_count);
+        dms_reform_judgement_stat_desc("offline exists");
         return CM_FALSE;
     }
 
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_CHECK_REMOTE);
     if (dms_reform_check_remote() != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to check remote");
+        dms_reform_judgement_stat_desc("fail to check remote");
         return CM_FALSE;
     }
 
     int ret = memset_s(inst_lists, len, 0, len);
     if (ret != EOK) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, Secure C lib has thrown an error %d", ret);
+        dms_reform_judgement_stat_desc("fail to memset");
         return CM_FALSE;
     }
 
@@ -2060,24 +2067,27 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     share_info->reformer_version.start_time = reform_info->start_time;
     dms_reform_judgement_list_collect(inst_lists, online_status);
 #ifndef OPENGAUSS
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_REFRESH_REFORM_INFO);
     dms_reform_judgement_refresh_reform_info();
 #endif
     dms_reform_judgement_reform_type(inst_lists);
 
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
     if (!reform_judgement_proc.check_proc(inst_lists)) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No need to reform");
+        dms_reform_judgement_stat_desc("fail to check");
         return CM_FALSE;
     }
 
     /* this check must be first in judgement reform */
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_SYNC_GCV);
     if (dms_reform_sync_cluster_version(CM_FALSE) != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, failed to sync cluster_ver");
+        dms_reform_judgement_stat_desc("fail to sync gcv");
         return CM_FALSE;
     }
 
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_REFRESH_MAP_INFO);
     if (dms_reform_refresh_map_info(online_status, inst_lists) != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to refresh map");
+        dms_reform_judgement_stat_desc("fail to refresh map info");
         return CM_FALSE;
     }
 
@@ -2091,16 +2101,18 @@ static bool32 dms_reform_judgement(uint8 *online_status)
 
     // build reform step. check_proc may change reform_type, so reset judgement_proc
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_PROC);
     reform_judgement_proc.judgement_proc(inst_lists);
 
     dms_reform_judgement_record_start_times();
 
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_SYNC_SHARE_INFO);
     if (dms_reform_sync_share_info() != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to sync share info");
+        dms_reform_judgement_stat_desc("fail to sync share info");
         return CM_FALSE;
     }
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: Yes");
     reform_judgement_proc.print_proc(inst_lists);
+    dms_reform_judgement_stat_desc("success");
     return CM_TRUE;
 }
 
@@ -2111,21 +2123,22 @@ static void dms_reform_judgement_reformer(void)
     health_info_t *health_info = DMS_HEALTH_INFO;
 
     if (dms_reform_in_process()) {
+        dms_reform_judgement_stat_cancel();
         return;
     }
 
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before get online list");
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_LIST_ONLINE);
     if (dms_reform_get_list_from_cm(&share_info->list_online, &share_info->list_offline) != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get online list");
+        dms_reform_judgement_stat_desc("fail to get online list");
         return;
     }
 
 #ifdef UT_TEST
     return;
 #endif
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before get stable list");
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_LIST_STABLE);
     if (dms_reform_get_list_stable() != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get stable list");
+        dms_reform_judgement_stat_desc("fail to get stable list");
         return;
     }
 
@@ -2133,22 +2146,20 @@ static void dms_reform_judgement_reformer(void)
 
     // mes_channel_entry has been created in mes_init, add mes_channel_entry dynamically is not allowed in openGauss
 #ifndef OPENGAUSS
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before connect to online list");
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_CONNECT);
     if (dms_reform_connect(&share_info->list_online) != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to connect to online list");
+        dms_reform_judgement_stat_desc("fail to connect");
         return;
     }
 #endif
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before get online status");
+    dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_ONLINE_STATUS);
     if (dms_reform_get_online_status(health_info->online_status, health_info->online_times, reform_ctx->sess_judge) !=
         DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to get online status");
+        dms_reform_judgement_stat_desc("fail to get online status");
         return;
     }
 
-    LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement before judgement");
     if (!dms_reform_judgement(health_info->online_status)) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, fail to judge");
         return;
     }
 
@@ -2200,9 +2211,12 @@ void dms_reform_judgement_thread(thread_t *thread)
 #endif
     LOG_RUN_INF("[DMS REFORM]dms_reform_judgement thread started");
     dms_reform_judgement_mes_init();
+    dms_reform_judgement_stat_init();
     while (!thread->closed) {
         if (DMS_IS_REFORMER) {
+            dms_reform_judgement_stat_start();
             dms_reform_judgement_reformer();
+            dms_reform_judgement_stat_end();
         } else if (DMS_IS_PARTNER) {
             dms_reform_judgement_partner();
         }
