@@ -69,7 +69,6 @@ static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_
     CM_MFENCE;
     ctrl->is_edp = 0;
     ctrl->been_loaded = CM_TRUE;
-    ctrl->break_wal = CM_FALSE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     LOG_DEBUG_INF("[DCS][%s]: lock mode=%d, edp=%d", cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, ctrl->is_edp);
     return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
@@ -107,7 +106,6 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
     CM_MFENCE;
     ctrl->is_edp = 0;
     ctrl->been_loaded = CM_TRUE;
-    ctrl->break_wal = CM_FALSE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 
@@ -265,12 +263,6 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
         if (g_dms.callback.verify_page != NULL) {
             g_dms.callback.verify_page(ctrl, msg->buffer + sizeof(dms_ask_res_ack_t));
         }
-#else
-        // cache edp page when receive page which breaks wal
-        if (ctrl->is_edp && !ctrl->break_wal && ack->break_wal) {
-            g_dms.callback.cache_page(dms_ctx->db_handle, ctrl);
-            ctrl->break_wal = CM_TRUE;
-        }
 #endif
         int ret = memcpy_s(g_dms.callback.get_page(ctrl), g_dms.page_size, msg->buffer + sizeof(dms_ask_res_ack_t),
             g_dms.page_size);
@@ -322,7 +314,6 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
 
     ctrl->force_request = 0;
     ctrl->been_loaded = CM_TRUE;
-    ctrl->break_wal = ack->break_wal;
     CM_MFENCE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
@@ -448,8 +439,8 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     return ret;
 }
 
-static int dcs_owner_transfer_page_ack_v1(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
-    dms_res_req_info_t *req_info, uint32 cmd)
+static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
+    uint32 cmd)
 {
     dms_ask_res_ack_t page_ack = { 0 };
 
@@ -536,17 +527,6 @@ static int dcs_owner_transfer_page_ack_v1(dms_process_context_t *ctx, dms_buf_ct
 #endif
 
     return dcs_send_ack_page(ctx, ctrl, req_info, &page_ack);
-}
-
-static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
-    uint32 cmd)
-{
-    uint32 version = dms_get_node_proto_version(req_info->req_id);
-    if (version < DMS_PROTO_VER_2) {
-        return dcs_owner_transfer_page_ack_v1(ctx, ctrl, req_info, cmd);
-    } else {
-        return dcs_owner_transfer_page_ack_v2(ctx, ctrl, req_info, cmd);
-    }
 }
 
 static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_info_t *req)

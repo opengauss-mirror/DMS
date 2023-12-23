@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           123
+#define DMS_LOCAL_VERSION           124
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -421,7 +421,7 @@ typedef struct st_dms_buf_ctrl {
     volatile unsigned char need_flush;      // for recovery, owner is abort, copy instance should flush before release
     volatile unsigned char been_loaded;     // first alloc ctrl:FALSE, after successfully loaded: TRUE
     volatile unsigned char in_rcy;          // if drc lost, we can rebuild in_recovery flag according buf_ctrl
-    volatile unsigned char break_wal;
+    volatile unsigned char unused;
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
@@ -870,7 +870,6 @@ typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long 
     unsigned char is_commit);
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
-typedef void (*dms_edpp_func_t)(void *db_handle, dms_buf_ctrl_t *buf_ctrl);
 typedef void (*dms_buf_ctrl_recycle)(void *db_handle);
 typedef struct st_dms_callback {
     // used in reform
@@ -1020,7 +1019,6 @@ typedef struct st_dms_callback {
     dms_xa_inuse xa_inuse;
     dms_get_part_changed get_part_changed;
 
-    dms_edpp_func_t cache_page;
     dms_buf_ctrl_recycle buf_ctrl_recycle;
 } dms_callback_t;
 

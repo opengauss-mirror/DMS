@@ -68,8 +68,6 @@ int32 dcs_handle_ask_edp_remote(dms_context_t *dms_ctx,
 int dcs_send_requester_edp_remote(dms_process_context_t *ctx, dms_ask_res_req_t *page_req,
     drc_req_owner_result_t *result);
 void dcs_send_requester_edp_local(dms_process_context_t *ctx, dms_ask_res_req_t *page_req);
-int dcs_owner_transfer_page_ack_v2(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
-    uint32 cmd);
 int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     dms_res_req_info_t *req_info, dms_ask_res_ack_t *page_ack);
 
