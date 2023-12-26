@@ -871,6 +871,7 @@ typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long 
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
 typedef void (*dms_buf_ctrl_recycle)(void *db_handle);
+typedef int (*dms_get_kernel_error_code)();
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -1020,6 +1021,7 @@ typedef struct st_dms_callback {
     dms_get_part_changed get_part_changed;
 
     dms_buf_ctrl_recycle buf_ctrl_recycle;
+    dms_get_kernel_error_code db_get_kernel_error_code;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {

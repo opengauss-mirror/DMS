@@ -993,7 +993,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_CREATE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
-    ack.return_code = (ret == DMS_SUCCESS ? ret : cm_get_error_code());
+    ack.return_code = ret;
 
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
@@ -1077,7 +1077,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_DELETE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
-    ack.return_code = (ret == DMS_SUCCESS ? ret : cm_get_error_code());
+    ack.return_code = ret;
 
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
@@ -1306,7 +1306,7 @@ void dms_proc_end_xa(dms_process_context_t *proc_ctx, dms_message_t *receive_msg
     int32 ret = g_dms.callback.end_xa(proc_ctx->db_handle, xid, req.flags, req.commit_scn, req.is_commit);
     dms_end_xa_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_END_XA, sizeof(dms_end_xa_ack_t), proc_ctx->sess_id);
-    ack.return_code = (ret == DMS_SUCCESS ? ret : cm_get_error_code());
+    ack.return_code = (ret == DMS_SUCCESS ? ret :g_dms.callback.db_get_kernel_error_code());
 
     LOG_DEBUG_INF("[DMS][%s][dms_proc_end_xa]: src_id = %u, src_sid = %u", 
         cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
