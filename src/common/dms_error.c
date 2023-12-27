@@ -138,3 +138,8 @@ void dms_get_error(int *errcode, const char **errmsg)
 {
     cm_get_error(errcode, errmsg);
 }
+
+void dms_reset_error(void)
+{
+    cm_reset_error();
+}

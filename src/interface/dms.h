@@ -872,6 +872,8 @@ DMS_DECLARE void dms_reform_judgement_stat_fetch_prepare(unsigned int *curr_pos,
 DMS_DECLARE void dms_reform_judgement_stat_fetch(unsigned int curr_pos, unsigned int curr_index, unsigned int *eof,
     long long int *times, char *desc, int len);
 
+DMS_DECLARE void dms_reset_error(void);
+
 #ifdef __cplusplus
 }
 #endif
