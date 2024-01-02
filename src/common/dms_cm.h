@@ -97,8 +97,6 @@ const char *dms_get_error_desc(int code);
             dms_get_error_desc(error_no), ##__VA_ARGS__);                                                   \
     } while (CM_FALSE)
 
-#define dms_reset_error     cm_reset_error
-
 #ifdef __cplusplus
 }
 #endif
