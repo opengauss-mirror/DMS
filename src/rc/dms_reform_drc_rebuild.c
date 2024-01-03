@@ -127,7 +127,6 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
     return DMS_SUCCESS;
 }
 
-// for rebuild: used for discriminate rebuild and validate
 int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, uint8 thread_index)
 {
     int ret;
@@ -401,37 +400,43 @@ void dms_reform_rebuild_buffer_free(void *handle, uint8 thread_index)
     }
 }
 
+int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num)
+{
+    int ret = DMS_SUCCESS;
+
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_rebuild_buf_res(handle, sess_id, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE);
+    DMS_RETURN_IF_ERROR(ret);
+
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_rebuild_lock(sess_id, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK);
+    DMS_RETURN_IF_ERROR(ret);
+
+#ifndef OPENGAUSS
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_rebuild_xa_res(handle, sess_id, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA);
+    DMS_RETURN_IF_ERROR(ret);
+#endif
+
+    return DMS_SUCCESS;
+}
+
 int dms_reform_rebuild(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     int ret = DMS_SUCCESS;
+
     LOG_RUN_FUNC_ENTER;
-
-    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE);
-    dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
-    ret = dms_reform_rebuild_buf_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
-    dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
-    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE);
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_FUNC_FAIL;
-        return ret;
-    }
-
-    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK);
-    dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
-    ret = dms_reform_rebuild_lock(reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
-    dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
-    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK);
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_FUNC_FAIL;
-        return ret;
-    }
-
-    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);
-    dms_reform_rebuild_buffer_init(CM_INVALID_ID8);
-    ret = dms_reform_rebuild_xa_res(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
-    dms_reform_rebuild_buffer_free(reform_ctx->handle_proc, CM_INVALID_ID8);
-    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA);
+    ret = dms_reform_rebuild_inner(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;

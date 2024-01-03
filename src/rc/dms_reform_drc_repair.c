@@ -85,6 +85,36 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uin
     return ret;
 }
 
+static void dms_reform_repair_proc_stat_times(uint8 res_type, reform_repair_stat_t stat)
+{
+    CM_ASSERT(stat < DRPS_DRC_REPAIR_COUNT);
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_times((uint32)(DRPS_DRC_REPAIR_PAGE + stat));
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
+        dms_reform_proc_stat_times((uint32)(DRPS_DRC_REPAIR_LOCK + stat));
+    }
+}
+
+static void dms_reform_repair_proc_stat_start(uint8 res_type, reform_repair_stat_t stat)
+{
+    CM_ASSERT(stat < DRPS_DRC_REPAIR_COUNT);
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_start((uint32)(DRPS_DRC_REPAIR_PAGE + stat));
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
+        dms_reform_proc_stat_start((uint32)(DRPS_DRC_REPAIR_LOCK + stat));
+    }
+}
+
+static void dms_reform_repair_proc_stat_end(uint8 res_type, reform_repair_stat_t stat)
+{
+    CM_ASSERT(stat < DRPS_DRC_REPAIR_COUNT);
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_end((uint32)(DRPS_DRC_REPAIR_PAGE + stat));
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
+        dms_reform_proc_stat_end((uint32)(DRPS_DRC_REPAIR_LOCK + stat));
+    }
+}
+
 static int dms_reform_repair_with_copy_insts_inner(drc_buf_res_t *buf_res, uint32 sess_id, bool32 *exists_owner,
     uint64 insts)
 {
@@ -100,9 +130,9 @@ static int dms_reform_repair_with_copy_insts_inner(drc_buf_res_t *buf_res, uint3
             continue;
         }
         // confirm page exist or not and set need_flush for edp
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
+        dms_reform_repair_proc_stat_start(buf_res->type, DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
         int ret = dms_reform_may_need_flush(buf_res, sess_id, i, &is_edp);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
+        dms_reform_repair_proc_stat_end(buf_res->type, DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH);
         if (ret == ERRNO_DMS_DRC_INVALID) {
             bitmap64_clear(&buf_res->copy_insts, i);
             continue;
@@ -220,36 +250,36 @@ static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle,
         // set need_flush flag for pages which has been set edp flag.Otherwise ckpt will skip the pages
         if (bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {
             bool8 is_edp;
-            dms_reform_proc_stat_start(DRPS_DRC_REPAIR_NEED_FLUSH);
+            dms_reform_repair_proc_stat_start(buf_res->type, DRPS_DRC_REPAIR_NEED_FLUSH);
             ret = dms_reform_may_need_flush(buf_res, sess_id, buf_res->claimed_owner, &is_edp);
-            dms_reform_proc_stat_end(DRPS_DRC_REPAIR_NEED_FLUSH);
+            dms_reform_repair_proc_stat_end(buf_res->type, DRPS_DRC_REPAIR_NEED_FLUSH);
             return ret;
         }
-        dms_reform_proc_stat_times(DRPS_DRC_REPAIR_NEED_NOT_FLUSH);
+        dms_reform_repair_proc_stat_times(buf_res->type, DRPS_DRC_REPAIR_NEED_NOT_FLUSH);
         return DMS_SUCCESS;
     }
 
     if (buf_res->copy_insts != 0) {
         bool32 exists_owner = CM_FALSE;
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_COPY);
+        dms_reform_repair_proc_stat_start(buf_res->type, DRPS_DRC_REPAIR_WITH_COPY);
         ret = dms_reform_repair_with_copy_insts(buf_res, sess_id, &exists_owner);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_COPY);
+        dms_reform_repair_proc_stat_end(buf_res->type, DRPS_DRC_REPAIR_WITH_COPY);
         if (ret != DMS_SUCCESS || exists_owner) {
             return ret;
         }
     }
 
     if (buf_res->last_edp != CM_INVALID_ID8) {
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_LAST_EDP);
+        dms_reform_repair_proc_stat_start(buf_res->type, DRPS_DRC_REPAIR_WITH_LAST_EDP);
         ret = dms_reform_repair_with_last_edp(buf_res, handle);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_LAST_EDP);
+        dms_reform_repair_proc_stat_end(buf_res->type, DRPS_DRC_REPAIR_WITH_LAST_EDP);
         return ret;
     }
 
     if (buf_res->edp_map != 0) {
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_WITH_EDP_MAP);
+        dms_reform_repair_proc_stat_start(buf_res->type, DRPS_DRC_REPAIR_WITH_EDP_MAP);
         ret = dms_reform_repair_with_edp_map(buf_res, handle, sess_id);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_WITH_EDP_MAP);
+        dms_reform_repair_proc_stat_end(buf_res->type, DRPS_DRC_REPAIR_WITH_EDP_MAP);
         return ret;
     }
 
@@ -272,30 +302,39 @@ int dms_reform_repair_by_part(drc_part_list_t *part, void *handle, uint32 sess_i
     return ret;
 }
 
+int dms_reform_repair_by_partid(uint16 part_id, void *handle, uint32 sess_id)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    drc_part_list_t *part = NULL;
+    int ret = DMS_SUCCESS;
+
+    part = &ctx->global_lock_res.res_parts[part_id];
+    dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
+    ret = dms_reform_repair_by_part(part, handle, sess_id);
+    dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
+    DMS_RETURN_IF_ERROR(ret);
+    part = &ctx->global_buf_res.res_parts[part_id];
+    dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
+    ret = dms_reform_repair_by_part(part, handle, sess_id);
+    dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
+    DMS_RETURN_IF_ERROR(ret);
+
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_repair_inner(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[g_dms.inst_id];
-    drc_part_list_t *part = NULL;
     uint16 part_id = inst_part->first;
     int ret = DMS_SUCCESS;
 
     for (uint8 i = 0; i < inst_part->count; i++) {
-        part = &ctx->global_lock_res.res_parts[part_id];
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
-        ret = dms_reform_repair_by_part(part, reform_ctx->handle_proc, reform_ctx->sess_proc);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
-        DMS_RETURN_IF_ERROR(ret);
-        part = &ctx->global_buf_res.res_parts[part_id];
-        dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
-        ret = dms_reform_repair_by_part(part, reform_ctx->handle_proc, reform_ctx->sess_proc);
-        dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
+        ret = dms_reform_repair_by_partid(part_id, reform_ctx->handle_proc, reform_ctx->sess_proc);
         DMS_RETURN_IF_ERROR(ret);
         part_id = part_mngr->part_map[part_id].next;
     }
-
     return DMS_SUCCESS;
 }
 
