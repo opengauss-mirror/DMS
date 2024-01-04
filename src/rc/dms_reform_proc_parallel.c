@@ -239,30 +239,12 @@ static int dms_reform_reconnect_parallel_proc(resource_id_t *res_id, parallel_th
 static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = NULL;
-    uint16 part_id = res_id->part_id;
-    int ret = DMS_SUCCESS;
 
     if (share_info->full_clean) {
-        part = &ctx->global_lock_res.res_parts[part_id];
-        drc_release_buf_res_by_part(part, DRC_RES_LOCK_TYPE);
-        part = &ctx->global_buf_res.res_parts[part_id];
-        drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
-        part = &ctx->global_xa_res.res_parts[part_id];
-        drc_release_xa_by_part(part);
-    } else {
-        part = &ctx->global_lock_res.res_parts[part_id];
-        ret = dms_reform_clean_buf_res_by_part(part, parallel->sess_id);
-        DMS_RETURN_IF_ERROR(ret);
-        part = &ctx->global_buf_res.res_parts[part_id];
-        ret = dms_reform_clean_buf_res_by_part(part, parallel->sess_id);
-        DMS_RETURN_IF_ERROR(ret);
-        part = &ctx->global_xa_res.res_parts[part_id];
-        dms_reform_clean_xa_res_by_part(part);
+        dms_reform_drc_clean_full_by_partid(res_id->part_id);
+        return DMS_SUCCESS;
     }
-
-    return DMS_SUCCESS;
+    return dms_reform_drc_clean_fault_inst_by_partid(res_id->part_id, parallel->sess_id);
 }
 
 static int dms_reform_migrate_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
@@ -272,25 +254,7 @@ static int dms_reform_migrate_parallel_proc(resource_id_t *res_id, parallel_thre
 
 static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = NULL;
-    int ret = DMS_SUCCESS;
-
-    // lock
-    part = &ctx->global_lock_res.res_parts[res_id->part_id];
-    dms_reform_proc_stat_start(DRPS_DRC_REPAIR_LOCK);
-    ret = dms_reform_repair_by_part(part, parallel->handle, parallel->sess_id);
-    dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
-    DMS_RETURN_IF_ERROR(ret);
-
-    // page
-    part = &ctx->global_buf_res.res_parts[res_id->part_id];
-    dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
-    ret = dms_reform_repair_by_part(part, parallel->handle, parallel->sess_id);
-    dms_reform_proc_stat_end(DRPS_DRC_REPAIR_PAGE);
-    DMS_RETURN_IF_ERROR(ret);
-
-    return DMS_SUCCESS;
+    return dms_reform_repair_by_partid(res_id->part_id, parallel->handle, parallel->sess_id);
 }
 
 static int dms_reform_drc_rcy_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
@@ -311,34 +275,10 @@ static int dms_reform_flush_copy_parallel_proc(resource_id_t *res_id, parallel_t
 static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
-    int ret = DMS_SUCCESS;
+    uint8 thread_index = (uint8)parallel->index;
+    uint8 thread_num = (uint8)parallel_info->parallel_num;
 
-    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE);
-    dms_reform_rebuild_buffer_init((uint8)parallel->index);
-    ret = dms_reform_rebuild_buf_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
-        (uint8)parallel_info->parallel_num);
-    dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
-    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE);
-    DMS_RETURN_IF_ERROR(ret);
-
-    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK);
-    dms_reform_rebuild_buffer_init((uint8)parallel->index);
-    ret = dms_reform_rebuild_lock(parallel->sess_id, (uint8)parallel->index, (uint8)parallel_info->parallel_num);
-    dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
-    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK);
-    DMS_RETURN_IF_ERROR(ret);
-
-    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);
-    dms_reform_rebuild_buffer_init((uint8)parallel->index);
-#ifndef OPENGAUSS
-    ret = dms_reform_rebuild_xa_res(parallel->handle, parallel->sess_id, (uint8)parallel->index,
-        (uint8)parallel_info->parallel_num);
-#endif
-    dms_reform_rebuild_buffer_free(parallel->handle, (uint8)parallel->index);
-    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA);
-    DMS_RETURN_IF_ERROR(ret);
-
-    return DMS_SUCCESS;
+    return dms_reform_rebuild_inner(parallel->handle, parallel->sess_id, thread_index, thread_num);
 }
 
 static int dms_reform_ctl_rcy_clean_parallel_proc(resource_id_t* res_id, parallel_thread_t* parallel)

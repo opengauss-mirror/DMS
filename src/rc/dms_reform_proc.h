@@ -60,6 +60,32 @@ int dms_reform_rebuild(void);
 int dms_reform_remaster(void);
 int dms_reform_repair(void);
 int dms_reform_flush_copy(void);
+int dms_reform_drc_clean_fault_inst_by_partid(uint16 part_id, uint32 sess_id);
+void dms_reform_drc_clean_full_by_partid(uint16 part_id);
+int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
+int dms_reform_repair_by_partid(uint16 part_id, void *handle, uint32 sess_id);
+
+typedef enum en_reform_clean_stat {
+    DRPS_DRC_CLEAN_NO_OWNER = 1,
+    DRPS_DRC_CLEAN_NO_CVT,
+    DRPS_DRC_CLEAN_CONFIRM_COPY,
+    DRPS_DRC_CLEAN_OWNER_CVT_FAULT,
+    DRPS_DRC_CLEAN_CONFIRM_OWNER,
+    DRPS_DRC_CLEAN_CONFIRM_CVT,
+
+    DRPS_DRC_CLEAN_COUNT,
+} reform_clean_stat_t;
+
+typedef enum en_reform_repair_stat {
+    DRPS_DRC_REPAIR_NEED_FLUSH = 1,
+    DRPS_DRC_REPAIR_NEED_NOT_FLUSH,
+    DRPS_DRC_REPAIR_WITH_COPY,
+    DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH,
+    DRPS_DRC_REPAIR_WITH_LAST_EDP,
+    DRPS_DRC_REPAIR_WITH_EDP_MAP,
+
+    DRPS_DRC_REPAIR_COUNT,
+} reform_repair_stat_t;
 
 #ifdef __cplusplus
 }
