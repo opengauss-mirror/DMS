@@ -80,6 +80,13 @@ DMS_DECLARE void dms_get_error(int *errcode, const char **errmsg);
 DMS_DECLARE int dms_register_thread_init(dms_thread_init_t thrd_init);
 
 /*
+* @brief DMS sets deinit function for thread
+* @[in]param thrd_deinit -  function for deinit
+* @return DMS_SUCCESS - success;otherwise: failed
+*/
+DMS_DECLARE int dms_register_thread_deinit(dms_thread_deinit_t thrd_deinit);
+
+/*
 * @brief DMS pre uninit, only uninit reform context
 * @return
 */

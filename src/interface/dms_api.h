@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           125
+#define DMS_LOCAL_VERSION           126
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -827,6 +827,7 @@ typedef void (*dms_ckpt_unblock_rcy_local)(void *db_handle, unsigned long long l
 
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
+typedef void (*dms_thread_deinit_t)(void);
 typedef int (*dms_get_db_primary_id)(void *db_handle, unsigned int *primary_id);
 typedef int (*dms_opengauss_ondemand_redo_buffer)(void *block_key, int *redo_status);
 
@@ -909,6 +910,7 @@ typedef struct st_dms_callback {
 
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
+    dms_thread_deinit_t dms_thread_deinit;
     dms_get_db_primary_id get_db_primary_id;
     dms_opengauss_startup opengauss_startup;
     dms_opengauss_recovery_standby opengauss_recovery_standby;
@@ -1078,6 +1080,8 @@ typedef struct st_dms_profile {
     unsigned char parallel_thread_num;
     unsigned int max_wait_time;
     char gsdb_home[DMS_LOG_PATH_LEN];
+    unsigned char enable_mes_task_threadpool;
+    unsigned int mes_task_worker_max_cnt;
 } dms_profile_t;
 
 typedef struct st_logger_param {
