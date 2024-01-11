@@ -33,7 +33,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           136
+#define DMS_LOCAL_VERSION           137
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -117,10 +117,11 @@ typedef enum en_dms_persistent_id {
 
 // for smon deadlock check
 #define DMS_SMON_DLOCK_MSG_MAX_LEN  24
-#define DMS_SMON_TLOCK_MSG_MAX_LEN  24
+#define DMS_SMON_TLOCK_MSG_MAX_LEN  32
 #define DMS_SMON_ILOCK_MSG_MAX_LEN  60
 #define DMS_SMON_MAX_SQL_LEN    10240  // The maximum size of a message to be transferred in the MES is 32 KB.
-#define MAX_TABLE_LOCK_NUM 2048
+#define MAX_TABLE_LOCK_NUM 512
+#define DMS_MAX_W_MARKS_NUM (16320 * 64)
 
 typedef enum en_dms_smon_req_type {
     DMS_SMON_REQ_SID_BY_RMID = 0,
@@ -128,21 +129,10 @@ typedef enum en_dms_smon_req_type {
     DMS_SMON_REQ_ROWID_BY_RMID = 2,
 }dms_smon_req_type_t;
 
-typedef enum en_dms_smon_req_tlock_type {
-    DMS_SMON_REQ_TABLE_LOCK_SHARED_MSG = 0,
-    DMS_SMON_REQ_TABLE_LOCK_EXCLU_MSG = 1,
-    DMS_SMON_REQ_TABLE_LOCK_ALL_MSG = 2,
-}dms_smon_req_tlock_type_t;
-
 typedef enum en_dms_smon_req_rm_type {
-    DMS_SMON_REQ_TABLE_LOCK_RM = 0,
-    DMS_SMON_REQ_TABLE_LOCK_WAIT_RM = 1,
+    DMS_SMON_REQ_TLOCK_RM = 0,
+    DMS_SMON_REQ_TLOCK_WAIT_RM = 1,
 }dms_smon_req_rm_type_t;
-
-typedef enum en_dms_smon_check_tlock_type {
-    DMS_SMON_CHECK_WAIT_EVENT_STATUS_BY_SID = 0,
-    DMS_SMON_CHECK_WAIT_TABLE_STATUS_BY_TID = 1,
-}dms_smon_check_tlock_type_t;
 
 /* distributed resource id definition */
 #pragma pack(4)
@@ -856,12 +846,10 @@ typedef void (*dms_get_txn_dlock_by_rmid)(void *db_handle, unsigned short rmid, 
 typedef void (*dms_get_rowid_by_rmid)(void *db_handle, unsigned short rmid, char rowid[DMS_ROWID_SIZE]);
 typedef void (*dms_get_sql_from_session)(void *db_handle, unsigned short sid, char *sql_str, unsigned int sql_str_len);
 typedef int (*dms_get_itl_lock_by_xid)(void *db_handle, char xid[DMS_XID_SIZE], char *ilock, unsigned int ilock_len);
-typedef void (*dms_check_tlock_status)(void *db_handle, unsigned int type, unsigned short sid,
-    unsigned long long tableid, unsigned int *in_use);
-typedef void (*dms_get_tlock_msg_by_tid)(void *db_handle, unsigned long long table_id, unsigned int type, char *rsp,
-    unsigned int rsp_len, unsigned int *tlock_cnt);
-typedef void (*dms_get_tlock_msg_by_rm)(void *db_handle, unsigned short sid, unsigned short rmid, int type, char *tlock,
+typedef void (*dms_get_tlock_by_rm)(void *db_handle, unsigned short sid, unsigned short rmid, int type, char *tlock,
     unsigned int tlock_len);
+typedef int (*dms_get_tlock_by_tid)(void *db_handle, char *tlock, char *out_msg);
+typedef void (*dms_get_tlock_by_tid_ack)(char *data, char *stack, char *w_marks, unsigned int *cnt);
 
 typedef int (*dms_switchover_demote)(void *db_handle);
 typedef int (*dms_switchover_promote)(void *db_handle);
@@ -1017,9 +1005,9 @@ typedef struct st_dms_callback {
     dms_get_rowid_by_rmid get_rowid_by_rmid;
     dms_get_sql_from_session get_sql_from_session;
     dms_get_itl_lock_by_xid get_itl_lock_by_xid;
-    dms_check_tlock_status check_tlock_status;
-    dms_get_tlock_msg_by_tid get_tlock_by_tid;
-    dms_get_tlock_msg_by_rm get_tlock_by_rm;
+    dms_get_tlock_by_rm get_tlock_by_rm;
+    dms_get_tlock_by_tid get_tlock_by_tid;
+    dms_get_tlock_by_tid_ack get_tlock_by_tid_ack;
 
     // for switchover
     dms_switchover_demote switchover_demote;
