@@ -485,7 +485,7 @@ static int dms_register_proc(void)
 static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 {
     uint32 work_thread_cnt = dms_profile->work_thread_cnt;
-    if (work_thread_cnt == 0 && dms_profile->enable_mes_task_threadpool) {
+    if (dms_profile->enable_mes_task_threadpool) {
         work_thread_cnt = dms_profile->mes_task_worker_max_cnt;
     }
 
@@ -610,7 +610,7 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
     unsigned worker_num = DMS_WORK_THREAD_COUNT;
-    if (worker_num == 0 && dms_profile->enable_mes_task_threadpool) {
+    if (dms_profile->enable_mes_task_threadpool) {
         worker_num = dms_profile->mes_task_worker_max_cnt;
     }
     uint32 sp_count = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2 +
