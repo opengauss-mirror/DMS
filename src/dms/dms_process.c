@@ -41,7 +41,6 @@
 #include "dcs_smon.h"
 #include "mes_metadata.h"
 #include "mes_interface.h"
-#include "mes_cb.h"
 #include "cm_timer.h"
 #include "dms_reform.h"
 #include "dms_reform_msg.h"
@@ -485,7 +484,12 @@ static int dms_register_proc(void)
 
 static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 {
-    uint32 total_ctx_cnt = dms_profile->work_thread_cnt + dms_profile->channel_cnt;
+    uint32 work_thread_cnt = dms_profile->work_thread_cnt;
+    if (dms_profile->enable_mes_task_threadpool) {
+        work_thread_cnt = dms_profile->mes_task_worker_max_cnt;
+    }
+
+    uint32 total_ctx_cnt = work_thread_cnt + dms_profile->channel_cnt;
     if (total_ctx_cnt == 0) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, total_ctx_cnt);
         return ERRNO_DMS_PARAM_INVALID;
@@ -605,10 +609,14 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 /* Work thread allocation */
 void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
+    unsigned worker_num = DMS_WORK_THREAD_COUNT;
+    if (dms_profile->enable_mes_task_threadpool) {
+        worker_num = dms_profile->mes_task_worker_max_cnt;
+    }
     uint32 sp_count = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2 +
         DMS_WORK_THREAD_PRIO_3 + DMS_WORK_THREAD_PRIO_4 + DMS_WORK_THREAD_PRIO_5;
-    CM_ASSERT(sp_count < DMS_WORK_THREAD_COUNT);
-    uint32 common_count = DMS_WORK_THREAD_COUNT - sp_count;
+    CM_ASSERT(sp_count < worker_num);
+    uint32 common_count = worker_num - sp_count;
     uint32 common_recv_count = MAX(1, (uint32)(common_count * DMS_RECV_WORK_THREAD_RATIO));
 
     mes_profile->send_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
@@ -619,13 +627,23 @@ void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_prof
     mes_profile->send_task_count[MES_PRIORITY_FIVE] = DMS_WORK_THREAD_PRIO_5;
     mes_profile->send_task_count[MES_PRIORITY_SIX] = common_count;
 
-    mes_profile->work_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
-    mes_profile->work_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
-    mes_profile->work_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
-    mes_profile->work_task_count[MES_PRIORITY_THREE] = DMS_WORK_THREAD_PRIO_3;
-    mes_profile->work_task_count[MES_PRIORITY_FOUR] = DMS_WORK_THREAD_PRIO_4;
-    mes_profile->work_task_count[MES_PRIORITY_FIVE] = DMS_WORK_THREAD_PRIO_5;
-    mes_profile->work_task_count[MES_PRIORITY_SIX] = common_count;
+    if (!dms_profile->enable_mes_task_threadpool) {
+        mes_profile->work_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
+        mes_profile->work_task_count[MES_PRIORITY_ONE] = DMS_WORK_THREAD_PRIO_1;
+        mes_profile->work_task_count[MES_PRIORITY_TWO] = DMS_WORK_THREAD_PRIO_2;
+        mes_profile->work_task_count[MES_PRIORITY_THREE] = DMS_WORK_THREAD_PRIO_3;
+        mes_profile->work_task_count[MES_PRIORITY_FOUR] = DMS_WORK_THREAD_PRIO_4;
+        mes_profile->work_task_count[MES_PRIORITY_FIVE] = DMS_WORK_THREAD_PRIO_5;
+        mes_profile->work_task_count[MES_PRIORITY_SIX] = common_count;
+    } else {
+        mes_profile->work_task_count[MES_PRIORITY_ZERO] = 0;
+        mes_profile->work_task_count[MES_PRIORITY_ONE] = 0;
+        mes_profile->work_task_count[MES_PRIORITY_TWO] = 0;
+        mes_profile->work_task_count[MES_PRIORITY_THREE] = 0;
+        mes_profile->work_task_count[MES_PRIORITY_FOUR] = 0;
+        mes_profile->work_task_count[MES_PRIORITY_FIVE] = 0;
+        mes_profile->work_task_count[MES_PRIORITY_SIX] = 0;
+    }
 
     mes_profile->recv_task_count[MES_PRIORITY_ZERO] = DMS_RECV_THREAD_PRIO_0;
     mes_profile->recv_task_count[MES_PRIORITY_ONE] = DMS_RECV_THREAD_PRIO_1;
@@ -641,6 +659,102 @@ static inline void dms_init_mes_compress(mes_profile_t *mes_profile)
     mes_profile->enable_compress_priority = CM_FALSE;
     mes_profile->algorithm = COMPRESS_NONE;
     mes_profile->compress_level = DMS_PRIORITY_COMPRESS_LEVEL;
+}
+
+static status_t dms_set_mes_task_threadpool_attr(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
+{
+    mes_task_threadpool_attr_t *tpool_attr = &mes_profile->tpool_attr;
+
+    tpool_attr->min_cnt = DMS_WORK_THREAD_MIN_CNT;
+    tpool_attr->max_cnt = dms_profile->mes_task_worker_max_cnt;
+    tpool_attr->group_num = DMS_CURR_PRIORITY_COUNT;
+
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].group_id = MES_PRIORITY_ZERO;
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].min_cnt = DMS_WORK_THREAD_PRIO_0_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].max_cnt = MAX(DMS_WORK_THREAD_PRIO_0_MIN_CNT,
+        dms_profile->mes_task_worker_max_cnt * DMS_WORK_THREAD_PRIO_0_RATIO);
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].task_num_ceiling = DMS_PRIO_0_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_ZERO].task_num_floor = DMS_PRIO_0_MSG_NUM_FLOOR;
+
+
+    tpool_attr->group_attr[MES_PRIORITY_ONE].group_id = MES_PRIORITY_ONE;
+    tpool_attr->group_attr[MES_PRIORITY_ONE].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_ONE].min_cnt = DMS_WORK_THREAD_PRIO_1_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_ONE].max_cnt = MAX(DMS_WORK_THREAD_PRIO_1_MIN_CNT,
+        dms_profile->mes_task_worker_max_cnt * DMS_WORK_THREAD_PRIO_1_RATIO);
+    tpool_attr->group_attr[MES_PRIORITY_ONE].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_ONE].task_num_ceiling = DMS_DEFAULT_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_ONE].task_num_floor = DMS_DEFAULT_MSG_NUM_FLOOR;
+
+    tpool_attr->group_attr[MES_PRIORITY_TWO].group_id = MES_PRIORITY_TWO;
+    tpool_attr->group_attr[MES_PRIORITY_TWO].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_TWO].min_cnt = DMS_WORK_THREAD_PRIO_2_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_TWO].max_cnt = MAX(DMS_WORK_THREAD_PRIO_2_MIN_CNT,
+        dms_profile->mes_task_worker_max_cnt * DMS_WORK_THREAD_PRIO_2_RATIO);
+    tpool_attr->group_attr[MES_PRIORITY_TWO].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_TWO].task_num_ceiling = DMS_PRIO_2_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_TWO].task_num_floor = DMS_PRIO_2_MSG_NUM_FLOOR;
+
+#ifdef OPENGAUSS
+    tpool_attr->group_attr[MES_PRIORITY_THREE].group_id = MES_PRIORITY_THREE;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].enabled = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].max_cnt = 0;
+
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].group_id = MES_PRIORITY_FOUR;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].enabled = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].max_cnt = 0;
+#else
+    tpool_attr->group_attr[MES_PRIORITY_THREE].group_id = MES_PRIORITY_THREE;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].min_cnt = DMS_WORK_THREAD_PRIO_3_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].max_cnt = MAX(DMS_WORK_THREAD_PRIO_3_MIN_CNT,
+        dms_profile->mes_task_worker_max_cnt * DMS_WORK_THREAD_PRIO_3_RATIO);
+    tpool_attr->group_attr[MES_PRIORITY_THREE].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].task_num_ceiling = DMS_DEFAULT_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_THREE].task_num_floor = DMS_DEFAULT_MSG_NUM_FLOOR;
+
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].group_id = MES_PRIORITY_FOUR;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].min_cnt = DMS_WORK_THREAD_PRIO_4_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].max_cnt = MAX(DMS_WORK_THREAD_PRIO_4_MIN_CNT,
+        dms_profile->mes_task_worker_max_cnt * DMS_WORK_THREAD_PRIO_4_RATIO);
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].task_num_ceiling = DMS_DEFAULT_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_FOUR].task_num_floor = DMS_DEFAULT_MSG_NUM_FLOOR;
+#endif
+
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].group_id = MES_PRIORITY_FIVE;
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].min_cnt = DMS_WORK_THREAD_PRIO_5_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].max_cnt = MAX(DMS_WORK_THREAD_PRIO_5_MIN_CNT,
+        dms_profile->mes_task_worker_max_cnt * DMS_WORK_THREAD_PRIO_5_RATIO);
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].task_num_ceiling = DMS_DEFAULT_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_FIVE].task_num_floor = DMS_DEFAULT_MSG_NUM_FLOOR;
+
+    unsigned int left_max_cnt = dms_profile->mes_task_worker_max_cnt \
+        - tpool_attr->group_attr[MES_PRIORITY_ZERO].max_cnt \
+        - tpool_attr->group_attr[MES_PRIORITY_ONE].max_cnt \
+        - tpool_attr->group_attr[MES_PRIORITY_TWO].max_cnt \
+        - tpool_attr->group_attr[MES_PRIORITY_THREE].max_cnt \
+        - tpool_attr->group_attr[MES_PRIORITY_FOUR].max_cnt \
+        - tpool_attr->group_attr[MES_PRIORITY_FIVE].max_cnt;
+    
+    if (left_max_cnt < DMS_WORK_THREAD_MAJOR_MIN_CNT) {
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, dms_profile->mes_task_worker_max_cnt);
+        return ERRNO_DMS_PARAM_INVALID;
+    }
+    
+    tpool_attr->group_attr[MES_PRIORITY_SIX].group_id = MES_PRIORITY_SIX;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].enabled = CM_TRUE;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].min_cnt = DMS_WORK_THREAD_MAJOR_MIN_CNT;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].max_cnt = left_max_cnt;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].num_fixed = CM_FALSE;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].task_num_ceiling = DMS_MAJOR_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].task_num_floor = DMS_MAJOR_MSG_NUM_FLOOR;
+    return DMS_SUCCESS;
 }
 
 int dms_init_mes(dms_profile_t *dms_profile)
@@ -680,6 +794,11 @@ int dms_init_mes(dms_profile_t *dms_profile)
     dms_init_mes_compress(&mes_profile);
     dms_set_mes_buffer_pool(dms_profile->recv_msg_buf_size, &mes_profile);
     dms_set_task_worker_num(dms_profile, &mes_profile);
+
+    if (dms_profile->enable_mes_task_threadpool) {
+        mes_profile.tpool_attr.enable_threadpool = CM_TRUE;
+        dms_set_mes_task_threadpool_attr(dms_profile, &mes_profile);
+    }
 
     ret = mfc_init(&mes_profile);
     if (ret != CM_SUCCESS) {
@@ -1183,7 +1302,15 @@ void dms_set_min_scn(unsigned char inst_id, unsigned long long min_scn)
 int dms_register_thread_init(dms_thread_init_t thrd_init)
 {
     dms_reset_error();
-    return set_mes_worker_init_cb(thrd_init);
+    mes_set_worker_init_cb(thrd_init);
+    return DMS_SUCCESS;
+}
+
+int dms_register_thread_deinit(dms_thread_deinit_t thrd_deinit)
+{
+    dms_reset_error();
+    mes_set_worker_deinit_cb(thrd_deinit);
+    return DMS_SUCCESS;
 }
 
 int dms_register_ssl_decrypt_pwd(dms_decrypt_pwd_t cb_func)
