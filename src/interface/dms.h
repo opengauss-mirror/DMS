@@ -881,6 +881,14 @@ DMS_DECLARE void dms_reform_judgement_stat_fetch(unsigned int curr_pos, unsigned
 
 DMS_DECLARE void dms_reset_error(void);
 
+/*
+ * @brief request primary node do checkpoint immediately, only for openGauss
+ * @[in]param dms_ctx - context information.
+ * @[out]ckpt_loc - primary checkpoint redo loc.
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long *ckpt_loc);
+
 #ifdef __cplusplus
 }
 #endif

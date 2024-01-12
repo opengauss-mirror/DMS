@@ -136,6 +136,8 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_XA_REBUILD,             dms_reform_proc_xa_rebuild,      CM_TRUE, CM_TRUE,  "xa res rebuild" },
     { MSG_REQ_XA_OWNERS,              dms_reform_proc_req_xaowners,    CM_TRUE, CM_TRUE,  "ask xa owners" },
     { MSG_REQ_RECYCLE,                drc_proc_buf_ctrl_recycle,       CM_TRUE, CM_TRUE,  "req buf ctrl recycle" },
+    { MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, dms_proc_opengauss_immediate_ckpt,
+        CM_TRUE, CM_FALSE, "dms notify primary node do ckpt immediately" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -193,6 +195,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_ASK_XA_OWNER_ID,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack ask xa res owner id" },
     { MSG_ACK_END_XA,                       dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack end xa transactions" },
     { MSG_ACK_XA_IN_USE,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack ask xa in use or not" },
+    { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack immediate ckpt request" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)

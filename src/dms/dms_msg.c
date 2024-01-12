@@ -1958,6 +1958,61 @@ void drc_recycle_buf_res_notify_db(uint32 sess_id)
     }
 }
 
+int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long *redo_lsn)
+{
+    dms_message_head_t head;
+    dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
+    dms_message_t message = { 0 };
+
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, 0, dms_ctx->inst_id,
+        xmap_ctx->dest_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    head.size = (uint16)sizeof(dms_message_head_t);
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_REQ_CKPT, CM_TRUE);
+    int32 ret = mfc_send_data(&head);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_ERR("[DMS][request_immediately_ckpt] send openGauss checkpoint request failed, "
+            "src_inst %u src_sid %u dst_inst %u", dms_ctx->inst_id, dms_ctx->sess_id, xmap_ctx->dest_id);
+        return ret;
+    }
+
+    ret = mfc_get_response((uint16)dms_ctx->sess_id, &message, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        dms_end_stat(dms_ctx->sess_id);
+        LOG_DEBUG_ERR("[DMS][request_immediately_ckpt] receive message to instance(%u) failed, "
+            "cmd(%u) ruid(%llu) errcode(%d)", xmap_ctx->dest_id, (uint32)MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT,
+            head.ruid, ret);
+        return ret;
+    }
+
+    dms_end_stat(dms_ctx->sess_id);
+
+    CM_CHK_PROC_MSG_SIZE(&message, (uint32)(sizeof(dms_message_head_t) + sizeof(uint64)), CM_FALSE);
+    *redo_lsn = *(unsigned long long *)(message.buffer + sizeof(dms_message_head_t));
+
+    mfc_release_response(&message);
+    return DMS_SUCCESS;
+}
+
+void dms_proc_opengauss_immediate_ckpt(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
+{
+    dms_message_head_t *req_head = receive_msg->head;
+    dms_message_head_t ack_head;
+    unsigned long long redo_lsn;
+
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
+    g_dms.callback.opengauss_do_ckpt_immediate(&redo_lsn);
+
+    dms_init_ack_head(req_head, &ack_head, MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,
+        sizeof(unsigned long long) + sizeof(dms_message_head_t), process_ctx->sess_id);
+
+    if (mfc_send_data3(&ack_head, sizeof(dms_message_head_t), &redo_lsn) != CM_SUCCESS) {
+        LOG_DEBUG_ERR( "[DMS][request_immediately_ckpt] send openGauss checkpoint result ack message failed, "
+            "src_inst = %u, dst_inst = %u",  (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
