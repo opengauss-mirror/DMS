@@ -242,6 +242,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_XA_REBUILD, "req xa rebuild", "", "dms" },
     { MSG_REQ_XA_OWNERS, "req xa owners", "", "dms" },
     { MSG_REQ_RECYCLE, "req recycle", "", "dms" },
+    { MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, "notify primary do ckpt", "", "dms"},
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },
@@ -295,6 +296,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_ACK_ASK_XA_OWNER_ID, "ack ask xa owner id", "", "dms" },
     { MSG_ACK_END_XA, "ack end xa", "", "dms" },
     { MSG_ACK_XA_IN_USE, "ack xa in use", "", "dms" },
+    { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT, "ack immediate ckpt request", "", "dms" },
 };
 
 /* g_wait_cmd_desc size */

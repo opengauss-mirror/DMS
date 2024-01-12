@@ -92,6 +92,7 @@ typedef enum en_msg_command {
     MSG_REQ_XA_REBUILD = 63,
     MSG_REQ_XA_OWNERS = 64,
     MSG_REQ_RECYCLE = 65,
+    MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT = 66,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -148,6 +149,7 @@ typedef enum en_msg_command {
     MSG_ACK_ASK_XA_OWNER_ID = 178,
     MSG_ACK_END_XA = 179,
     MSG_ACK_XA_IN_USE = 180,
+    MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT = 181,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
