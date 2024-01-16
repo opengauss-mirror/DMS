@@ -580,9 +580,9 @@ void dms_reform_clean_xa_res_by_part(drc_part_list_t *part)
     }
 }
 
-void dms_reform_delete_xa_rms(uint8 undo_set_id)
+void dms_reform_delete_xa_rms(void *db_handle, uint8 undo_set_id)
 {
-    g_dms.callback.dms_shrink_xa_rms(undo_set_id);
+    g_dms.callback.dms_shrink_xa_rms(db_handle, undo_set_id);
 }
 
 int dms_reform_xa_drc_access(void)

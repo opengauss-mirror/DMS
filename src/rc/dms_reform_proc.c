@@ -531,6 +531,7 @@ static int dms_reform_txn_deposit(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     instance_list_t *list_withdraw = &share_info->list_withdraw;
     uint8 inst_id = CM_INVALID_ID8;
 
@@ -541,7 +542,7 @@ static int dms_reform_txn_deposit(void)
         }
 
         dms_reform_proc_stat_start(DRPS_TXN_DEPOSIT_DELETE_XA);
-        dms_reform_delete_xa_rms(inst_id);
+        dms_reform_delete_xa_rms(reform_ctx->handle_normal, inst_id);
         dms_reform_proc_stat_end(DRPS_TXN_DEPOSIT_DELETE_XA);
     }
 
