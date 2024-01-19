@@ -528,8 +528,7 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
 
     dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -596,8 +595,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
 
     dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -660,8 +658,7 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
 
     dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -733,8 +730,7 @@ int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, 
 
     dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -794,8 +790,7 @@ int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst
 
     dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -867,8 +862,7 @@ int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_
 
     dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(recv_msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, recv_msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }

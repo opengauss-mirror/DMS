@@ -249,6 +249,22 @@ static inline void cm_print_error_msg(const void *msg_data)
     LOG_DEBUG_ERR("errno code: %d, errno info: %s", error_msg->code, message);
 }
 
+static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
+{
+    dms_message_head_t *head = (dms_message_head_t*)msg_data;
+    if (head->size < sizeof(msg_error_t)) {
+        LOG_DEBUG_ERR("invalid error msg, please check.");
+    } else if (head->size == sizeof(msg_error_t)) {
+        msg_error_t *error_msg = (msg_error_t *)msg_data;
+        LOG_DEBUG_ERR("errno code: %d, error msg is null, please check.", error_msg->code);
+    } else {
+        msg_error_t *error_msg = (msg_error_t *)msg_data;
+        char *message = (char*)error_msg + sizeof(msg_error_t);
+        LOG_DEBUG_ERR("errno code: %d, errno info:%s", error_msg->code, message);
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, message);
+    }
+}
+
 #define CM_CHK_RESPONSE_SIZE(msg, len, has_ack)                                                 \
     do {                                                                                        \
         if ((msg)->head->cmd == MSG_ACK_ERROR) {                                                \

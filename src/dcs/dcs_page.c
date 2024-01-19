@@ -883,8 +883,7 @@ static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t 
         CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(msg_ack_owner_id_t), CM_FALSE);
         *owner_id = (uint8)(*(uint32 *)DMS_MESSAGE_BODY(&msg));
     } else {
-        cm_print_error_msg(msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(msg.buffer);
         ret = ERRNO_DMS_COMMON_MSG_ACK;
     }
 
