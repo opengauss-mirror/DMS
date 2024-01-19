@@ -710,8 +710,7 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
 
     dms_message_head_t *ack_dms_head = get_dms_head(&msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
-        cm_print_error_msg(msg.buffer);
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        cm_print_error_msg_and_throw_error(msg.buffer);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;

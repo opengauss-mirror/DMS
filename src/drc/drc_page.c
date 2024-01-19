@@ -315,6 +315,7 @@ static int drc_request_page_owner_internal(char *resid, uint8 type,
 {
     if (req_info->sess_type == DMS_SESSION_NORMAL && buf_res->in_recovery) {
         LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
         return ERRNO_DMS_DRC_RECOVERY_PAGE;
     }
 
