@@ -487,12 +487,7 @@ static int dms_register_proc(void)
 
 static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 {
-    uint32 work_thread_cnt = dms_profile->work_thread_cnt;
-    if (dms_profile->enable_mes_task_threadpool) {
-        work_thread_cnt = dms_profile->mes_task_worker_max_cnt;
-    }
-
-    uint32 total_ctx_cnt = work_thread_cnt + dms_profile->channel_cnt;
+    uint32 total_ctx_cnt = DMS_WORK_THREAD_COUNT + dms_profile->channel_cnt;
     if (total_ctx_cnt == 0) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, total_ctx_cnt);
         return ERRNO_DMS_PARAM_INVALID;
@@ -612,14 +607,10 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 /* Work thread allocation */
 void dms_set_task_worker_num(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
-    unsigned worker_num = DMS_WORK_THREAD_COUNT;
-    if (dms_profile->enable_mes_task_threadpool) {
-        worker_num = dms_profile->mes_task_worker_max_cnt;
-    }
     uint32 sp_count = DMS_WORK_THREAD_PRIO_0 + DMS_WORK_THREAD_PRIO_1 + DMS_WORK_THREAD_PRIO_2 +
         DMS_WORK_THREAD_PRIO_3 + DMS_WORK_THREAD_PRIO_4 + DMS_WORK_THREAD_PRIO_5;
-    CM_ASSERT(sp_count < worker_num);
-    uint32 common_count = worker_num - sp_count;
+    CM_ASSERT(sp_count < DMS_WORK_THREAD_COUNT);
+    uint32 common_count = DMS_WORK_THREAD_COUNT - sp_count;
     uint32 common_recv_count = MAX(1, (uint32)(common_count * DMS_RECV_WORK_THREAD_RATIO));
 
     mes_profile->send_task_count[MES_PRIORITY_ZERO] = DMS_WORK_THREAD_PRIO_0;
@@ -755,8 +746,8 @@ static status_t dms_set_mes_task_threadpool_attr(dms_profile_t *dms_profile, mes
     tpool_attr->group_attr[MES_PRIORITY_SIX].min_cnt = DMS_WORK_THREAD_MAJOR_MIN_CNT;
     tpool_attr->group_attr[MES_PRIORITY_SIX].max_cnt = left_max_cnt;
     tpool_attr->group_attr[MES_PRIORITY_SIX].num_fixed = CM_FALSE;
-    tpool_attr->group_attr[MES_PRIORITY_SIX].task_num_ceiling = DMS_MAJOR_MSG_NUM_CEILING;
-    tpool_attr->group_attr[MES_PRIORITY_SIX].task_num_floor = DMS_MAJOR_MSG_NUM_FLOOR;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].task_num_ceiling = DMS_DEFAULT_MSG_NUM_CEILING;
+    tpool_attr->group_attr[MES_PRIORITY_SIX].task_num_floor = DMS_DEFAULT_MSG_NUM_FLOOR;
     return DMS_SUCCESS;
 }
 
