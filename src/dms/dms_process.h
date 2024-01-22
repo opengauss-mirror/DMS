@@ -89,7 +89,8 @@ typedef struct st_dms_instance {
 #define DMS_THIRDLY_BUFFER_RATIO (1.0f / 2)
 #define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
 
-#define DMS_WORK_THREAD_COUNT       (dms_profile->work_thread_cnt)
+#define DMS_WORK_THREAD_COUNT       (dms_profile->enable_mes_task_threadpool == CM_TRUE ? \
+    dms_profile->mes_task_worker_max_cnt : dms_profile->work_thread_cnt)
 #define DMS_CURR_PRIORITY_COUNT     7
 #define DMS_WORK_THREAD_PRIO_0      2
 #define DMS_WORK_THREAD_PRIO_1      1
@@ -134,14 +135,12 @@ typedef struct st_dms_instance {
 #define DMS_WORK_THREAD_PRIO_4_RATIO DMS_CLEAN_EDP_TASK_RATIO
 #define DMS_WORK_THREAD_PRIO_5_RATIO DMS_DERIVED_TASK_RATIO
 
-#define DMS_PRIO_0_MSG_NUM_CEILING 5
+#define DMS_PRIO_0_MSG_NUM_CEILING 2
 #define DMS_PRIO_0_MSG_NUM_FLOOR 0
-#define DMS_PRIO_2_MSG_NUM_CEILING 5
+#define DMS_PRIO_2_MSG_NUM_CEILING 2
 #define DMS_PRIO_2_MSG_NUM_FLOOR 0
-#define DMS_DEFAULT_MSG_NUM_CEILING 10
-#define DMS_DEFAULT_MSG_NUM_FLOOR 2
-#define DMS_MAJOR_MSG_NUM_CEILING 40
-#define DMS_MAJOR_MSG_NUM_FLOOR 5
+#define DMS_DEFAULT_MSG_NUM_CEILING 5
+#define DMS_DEFAULT_MSG_NUM_FLOOR 0
 
 extern dms_instance_t g_dms;
 
