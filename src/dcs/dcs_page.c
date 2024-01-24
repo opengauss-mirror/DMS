@@ -821,7 +821,7 @@ static inline void dcs_set_page_req_parameter(dms_context_t *dms_ctx, dms_buf_ct
     page_req->curr_mode = ctrl->lock_mode;
 }
 
-static status_t dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
+static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t req_mode,
     uint8 master_id, uint8 *owner_id)
 {
     dms_ask_res_req_t page_req = { 0 };
