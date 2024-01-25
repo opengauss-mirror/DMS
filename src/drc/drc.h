@@ -387,15 +387,18 @@ static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
 
 static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_type)
 {
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        return &g_drc_res_ctx.global_buf_res;
+    switch (res_type)
+    {
+        case DRC_RES_PAGE_TYPE:
+            return &g_drc_res_ctx.global_buf_res;
+        case DRC_RES_LOCK_TYPE:
+            return &g_drc_res_ctx.global_lock_res;
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return &g_drc_res_ctx.global_xa_res;
+        default:
+            cm_panic(0);
+            return NULL;
     }
-
-    if (res_type == DRC_RES_LOCK_TYPE) {
-        return &g_drc_res_ctx.global_lock_res;
-    }
-
-    return &g_drc_res_ctx.global_xa_res;
 }
 
 /* page resource related API */

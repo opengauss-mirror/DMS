@@ -81,12 +81,16 @@ int dms_drc_accessible(unsigned char res_type)
     }
 #endif
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
-    if (res_type == (uint8)DRC_RES_PAGE_TYPE) {
-        return (int)res_map->data_access;
-    } else if (res_type == (uint8)DRC_RES_LOCK_TYPE) {
-        return (int)res_map->drc_access;
-    } else {
-        return (int)res_map->drc_access;
+    switch (res_type)
+    {
+        case DRC_RES_PAGE_TYPE:
+            return (int)res_map->data_access;
+        case DRC_RES_LOCK_TYPE:
+            return (int)res_map->drc_access;
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return (int)res_map->drc_access;
+        default:
+            return CM_TRUE;
     }
 }
 
