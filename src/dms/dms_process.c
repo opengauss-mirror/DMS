@@ -751,47 +751,56 @@ static status_t dms_set_mes_task_threadpool_attr(dms_profile_t *dms_profile, mes
     return DMS_SUCCESS;
 }
 
-int dms_init_mes(dms_profile_t *dms_profile)
+int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
-    int ret;
-    mes_profile_t mes_profile = { 0 };
-    mes_profile.inst_id = dms_profile->inst_id;
-    mes_profile.inst_cnt = dms_profile->inst_cnt;
+    mes_profile->inst_id = dms_profile->inst_id;
+    mes_profile->inst_cnt = dms_profile->inst_cnt;
     if (dms_profile->pipe_type == DMS_CONN_MODE_TCP) {
-        mes_profile.pipe_type = DMS_CS_TYPE_TCP;
+        mes_profile->pipe_type = DMS_CS_TYPE_TCP;
     } else if (dms_profile->pipe_type == DMS_CONN_MODE_RDMA) {
-        mes_profile.pipe_type = DMS_CS_TYPE_RDMA;
+        mes_profile->pipe_type = DMS_CS_TYPE_RDMA;
     } else {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, dms_profile->pipe_type);
         return ERRNO_DMS_PARAM_INVALID;
     }
 
-    mes_profile.conn_created_during_init = dms_profile->conn_created_during_init;
-    mes_profile.channel_cnt = dms_profile->channel_cnt;
-    mes_profile.priority_cnt = DMS_CURR_PRIORITY_COUNT;
-    mes_profile.mes_elapsed_switch = dms_profile->elapsed_switch;
-    mes_profile.rdma_rpc_use_busypoll = dms_profile->rdma_rpc_use_busypoll;
-    mes_profile.rdma_rpc_is_bind_core = dms_profile->rdma_rpc_is_bind_core;
-    mes_profile.rdma_rpc_bind_core_start = dms_profile->rdma_rpc_bind_core_start;
-    mes_profile.rdma_rpc_bind_core_end = dms_profile->rdma_rpc_bind_core_end;
-    mes_profile.frag_size = DMS_MESSAGE_BUFFER_SIZE;
-    mes_profile.connect_timeout = (int)CM_CONNECT_TIMEOUT;
-    mes_profile.socket_timeout = (int)CM_CONNECT_TIMEOUT;
-    mes_profile.send_directly = CM_TRUE;
-    mes_profile.need_serial = CM_FALSE;
-    ret = memcpy_s(mes_profile.inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
+    mes_profile->conn_created_during_init = dms_profile->conn_created_during_init;
+    mes_profile->channel_cnt = dms_profile->channel_cnt;
+    mes_profile->priority_cnt = DMS_CURR_PRIORITY_COUNT;
+    mes_profile->mes_elapsed_switch = dms_profile->elapsed_switch;
+    mes_profile->rdma_rpc_use_busypoll = dms_profile->rdma_rpc_use_busypoll;
+    mes_profile->rdma_rpc_is_bind_core = dms_profile->rdma_rpc_is_bind_core;
+    mes_profile->rdma_rpc_bind_core_start = dms_profile->rdma_rpc_bind_core_start;
+    mes_profile->rdma_rpc_bind_core_end = dms_profile->rdma_rpc_bind_core_end;
+    mes_profile->frag_size = DMS_MESSAGE_BUFFER_SIZE;
+    mes_profile->connect_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile->socket_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile->send_directly = CM_TRUE;
+    mes_profile->need_serial = CM_FALSE;
+    errno_t err = memcpy_s(mes_profile->inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
         sizeof(mes_addr_t) * DMS_MAX_INSTANCES);
-    DMS_SECUREC_CHECK(ret);
-    ret = memcpy_s(mes_profile.ock_log_path, MES_MAX_LOG_PATH, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
-    DMS_SECUREC_CHECK(ret);
+    DMS_SECUREC_CHECK(err);
+    err = memcpy_s(mes_profile->ock_log_path, MES_MAX_LOG_PATH, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
+    DMS_SECUREC_CHECK(err);
 
-    dms_init_mes_compress(&mes_profile);
-    dms_set_mes_buffer_pool(dms_profile->recv_msg_buf_size, &mes_profile);
-    dms_set_task_worker_num(dms_profile, &mes_profile);
+    dms_init_mes_compress(mes_profile);
+    dms_set_mes_buffer_pool(dms_profile->recv_msg_buf_size, mes_profile);
+    dms_set_task_worker_num(dms_profile, mes_profile);
 
     if (dms_profile->enable_mes_task_threadpool) {
-        mes_profile.tpool_attr.enable_threadpool = CM_TRUE;
-        dms_set_mes_task_threadpool_attr(dms_profile, &mes_profile);
+        mes_profile->tpool_attr.enable_threadpool = CM_TRUE;
+        dms_set_mes_task_threadpool_attr(dms_profile, mes_profile);
+    }
+    return DMS_SUCCESS;
+}
+
+int dms_init_mes(dms_profile_t *dms_profile)
+{
+    int ret;
+    mes_profile_t mes_profile = { 0 };
+    ret = dms_set_mes_profile(dms_profile, &mes_profile);
+    if (ret != CM_SUCCESS) {
+        return ret;
     }
 
     ret = mfc_init(&mes_profile);
@@ -1447,4 +1456,48 @@ int dms_end_global_xa(dms_context_t *dms_ctx, uint64 flags, uint64 scn, bool8 is
     }
 
     return dms_request_end_xa(dms_ctx, owner_id, flags, scn, is_commit, remote_result);
+}
+
+uint64 dms_calc_res_map_mem(uint32 item_num, uint32 item_size, uint32 max_extend_num)
+{
+    uint32 buccket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
+    // bucket size
+    uint64 total_mem = (uint64)(buccket_num * sizeof(drc_res_bucket_t));
+    // pool size
+    total_mem += item_size * item_num * max_extend_num;
+    return total_mem;
+}
+
+int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long long *total_mem)
+{
+    // dms proc_ctx
+    *total_mem = (dms_profile->work_thread_cnt + dms_profile->channel_cnt) * sizeof(dms_process_context_t);
+    // dms sess_stats
+    *total_mem += (uint64)((dms_profile->work_thread_cnt + dms_profile->channel_cnt + dms_profile->max_session_cnt) * sizeof(session_stat_t));
+    // common res
+    *total_mem += DMS_CM_MAX_SESSIONS * 2 * sizeof(drc_lock_item_t) * DMS_MAX_INSTANCES;
+    // page res
+    uint32 page_res_num = (uint32)MAX(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size, SIZE_M(1));
+    *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_buf_res_t), DMS_MAX_INSTANCES);
+    // global lock res
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_buf_res_t), DMS_MAX_INSTANCES);
+    // local lock res
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_local_lock_res_t), DMS_MAX_INSTANCES);
+    // xa res
+    *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_global_xa_res_t), DMS_MAX_INSTANCES);
+    // local txn res
+    *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
+    // global txn res
+    *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
+    // dms smon ctx
+    *total_mem += DRC_SMON_QUEUE_SIZE * sizeof(res_id_t) + sizeof(chan_t);
+
+    mes_profile_t mes_profile = {0};
+    int ret = dms_set_mes_profile(dms_profile, &mes_profile);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+    *total_mem += mes_calc_mem_usage(&mes_profile);
+
+    return DMS_SUCCESS;
 }
