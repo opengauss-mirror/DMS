@@ -83,6 +83,7 @@ typedef enum en_reform_repair_stat {
     DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH,
     DRPS_DRC_REPAIR_WITH_LAST_EDP,
     DRPS_DRC_REPAIR_WITH_EDP_MAP,
+    DRPS_DRC_REPAIR_WITH_EDP_MAP_GET_LSN,
 
     DRPS_DRC_REPAIR_COUNT,
 } reform_repair_stat_t;

@@ -33,6 +33,7 @@
 #include "dms_msg_protocol.h"
 #include "dcs_page.h"
 #include "dms_reform_xa.h"
+#include "dms_reform_proc_stat.h"
 
 static dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
      [DMS_PROTO_VER_1] = { OFFSET_OF(dms_reform_req_sync_share_info_t, share_info.inst_bitmap), },
@@ -971,9 +972,13 @@ static void dms_reform_proc_req_confirm_owner(dms_process_context_t *process_ctx
     int ret = DMS_SUCCESS;
 
     if (req->res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_CONFIRM_OWNER_PAGE);
         ret = g_dms.callback.confirm_owner(process_ctx->db_handle, req->resid, &lock_mode, &is_edp, &lsn);
+        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_CONFIRM_OWNER_PAGE);
     } else {
+        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_CONFIRM_OWNER_LOCK);
         ret = drc_confirm_owner(req->resid, &lock_mode);
+        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_CONFIRM_OWNER_LOCK);
     }
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]confirm_owner fail, error: %d",
@@ -1003,10 +1008,14 @@ static void dms_reform_proc_req_confirm_converting(dms_process_context_t *proces
 
     mes_discard_response(req->ruid);
     if (req->res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_CONFIRM_CVT_PAGE);
         ret = g_dms.callback.confirm_converting(process_ctx->db_handle,
             req->resid, CM_FALSE, &lock_mode, &edp_map, &lsn);
+        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_CONFIRM_CVT_PAGE);
     } else {
+        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_CONFIRM_CVT_LOCK);
         ret = drc_confirm_converting(req->resid, CM_FALSE, &lock_mode);
+        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_CONFIRM_CVT_LOCK);
     }
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]confirm_converting fail, error: %d",
@@ -1069,7 +1078,9 @@ static void dms_reform_proc_req_need_flush(dms_process_context_t *process_ctx, d
     dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
     dms_reform_ack_common_t ack_common;
 
+    dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_NEED_FLUSH);
     int ret = g_dms.callback.need_flush(process_ctx->db_handle, req->resid, &ack_common.is_edp);
+    dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_NEED_FLUSH);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]need_flush fail, error: %d", cm_display_pageid(req->resid), ret);
     }
@@ -1088,7 +1099,9 @@ static void dms_reform_proc_edp_to_owner(dms_process_context_t *process_ctx, dms
     dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
     dms_reform_ack_common_t ack_common;
 
+    dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_EDP_TO_OWNER);
     int ret = g_dms.callback.edp_to_owner(process_ctx->db_handle, req->resid, &ack_common.is_edp);
+    dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_EDP_TO_OWNER);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]edp_to_owner fail, error: %d", cm_display_pageid(req->resid), ret);
     }

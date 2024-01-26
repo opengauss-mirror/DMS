@@ -47,6 +47,7 @@
 #include "scrlock_adapter.h"
 #include "cm_log.h"
 #include "dms_reform_xa.h"
+#include "dms_reform_proc_stat.h"
 
 dms_instance_t g_dms = { 0 };
 
@@ -369,6 +370,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 
     dms_message_t dms_msg;
     dms_cast_mes_msg(mes_msg, &dms_msg);
+    dms_reform_proc_stat_bind_mes_task(work_idx);
     dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
     dms_message_head_t* head = get_dms_head(&dms_msg);
 

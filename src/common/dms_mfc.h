@@ -46,6 +46,8 @@ extern "C" {
     } while (0)
 
 #define DMS_MSG_HEAD_UNUSED_SIZE 24
+#define DMS_MAX_WORK_THREAD_CNT  128
+
 typedef struct st_dms_message_head {
     unsigned int msg_proto_ver;
     unsigned int sw_proto_ver;
