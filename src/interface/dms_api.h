@@ -24,6 +24,7 @@
 #ifndef __DMS_API_H__
 #define __DMS_API_H__
 
+#include <stdlib.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,7 +33,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           129
+#define DMS_LOCAL_VERSION           130
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -874,6 +875,8 @@ typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long 
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
 typedef void (*dms_buf_ctrl_recycle)(void *db_handle);
+typedef void *(*dms_malloc_prot_proc)(size_t size);
+typedef void (*dms_free_prot_proc)(void *ptr);
 typedef int (*dms_get_kernel_error_code)();
 typedef struct st_dms_callback {
     // used in reform
@@ -1026,6 +1029,8 @@ typedef struct st_dms_callback {
     dms_get_part_changed get_part_changed;
 
     dms_buf_ctrl_recycle buf_ctrl_recycle;
+    dms_malloc_prot_proc dms_malloc_prot;
+    dms_free_prot_proc dms_free_prot;
     dms_get_kernel_error_code db_get_kernel_error_code;
 } dms_callback_t;
 

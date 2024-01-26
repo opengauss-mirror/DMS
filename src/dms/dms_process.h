@@ -171,6 +171,15 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
 
 unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
+void *dms_malloc(size_t size);
+void dms_free(void *ptr);
+#define DMS_FREE_PROT_PTR(pointer) \
+    do {                           \
+        if ((pointer) != NULL) {   \
+            dms_free(pointer);     \
+            (pointer) = NULL;      \
+        }                          \
+    } while (0)
 
 #ifdef __cplusplus
 }
