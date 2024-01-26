@@ -889,6 +889,14 @@ DMS_DECLARE void dms_reset_error(void);
  */
 DMS_DECLARE int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long *ckpt_loc);
 
+/*
+ * @brief estimated total memory consumed by dms_init
+ * @[in]param profile - config value
+ * @[out]total memory consumed by dms_init
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long long *total_mem);
+
 #ifdef __cplusplus
 }
 #endif
