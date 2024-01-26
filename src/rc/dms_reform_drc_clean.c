@@ -36,6 +36,36 @@
 #include "dms_reform_xa.h"
 #include "dms_reform_fault_inject.h"
 
+static void dms_reform_clean_proc_stat_times(uint8 res_type, reform_clean_stat_t stat)
+{
+    CM_ASSERT(stat < DRPS_DRC_CLEAN_COUNT);
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_times((uint32)(DRPS_DRC_CLEAN_PAGE + stat));
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
+        dms_reform_proc_stat_times((uint32)(DRPS_DRC_CLEAN_LOCK + stat));
+    }
+}
+
+static void dms_reform_clean_proc_stat_start(uint8 res_type, reform_clean_stat_t stat)
+{
+    CM_ASSERT(stat < DRPS_DRC_CLEAN_COUNT);
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_start((uint32)(DRPS_DRC_CLEAN_PAGE + stat));
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
+        dms_reform_proc_stat_start((uint32)(DRPS_DRC_CLEAN_LOCK + stat));
+    }
+}
+
+static void dms_reform_clean_proc_stat_end(uint8 res_type, reform_clean_stat_t stat)
+{
+    CM_ASSERT(stat < DRPS_DRC_CLEAN_COUNT);
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        dms_reform_proc_stat_end((uint32)(DRPS_DRC_CLEAN_PAGE + stat));
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
+        dms_reform_proc_stat_end((uint32)(DRPS_DRC_CLEAN_LOCK + stat));
+    }
+}
+
 static void dms_reform_clean_buf_res_fault_inst_info_inner(drc_buf_res_t *buf_res)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -66,7 +96,6 @@ static int dms_reform_confirm_owner_inner(drc_buf_res_t *buf_res, uint32 sess_id
             return ERRNO_DMS_REFORM_FAIL;
         }
 
-        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_confirm_owner_inner SEND error: %d, dst_id: %d", ret, dst_id);
@@ -75,6 +104,7 @@ static int dms_reform_confirm_owner_inner(drc_buf_res_t *buf_res, uint32 sess_id
 
         ret = dms_reform_req_page_wait(&result, lock_mode, is_edp, lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
+            dms_reform_proc_stat_times(DRPS_DRC_CLEAN_TIMEOUT);
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_confirm_owner_inner WAIT timeout, dst_id: %d", dst_id);
             continue;
         } else {
@@ -167,6 +197,7 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
 
         ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
+            dms_reform_proc_stat_times(DRPS_DRC_CLEAN_TIMEOUT);
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_confirm_converting WAIT timeout, dst_id: %d", dst_id);
             continue;
         } else {
@@ -206,36 +237,6 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
     }
     init_drc_cvt_item(&buf_res->converting);
     return DMS_SUCCESS;
-}
-
-static void dms_reform_clean_proc_stat_times(uint8 res_type, reform_clean_stat_t stat)
-{
-    CM_ASSERT(stat < DRPS_DRC_CLEAN_COUNT);
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        dms_reform_proc_stat_times((uint32)(DRPS_DRC_CLEAN_PAGE + stat));
-    } else if (res_type == DRC_RES_LOCK_TYPE) {
-        dms_reform_proc_stat_times((uint32)(DRPS_DRC_CLEAN_LOCK + stat));
-    }
-}
-
-static void dms_reform_clean_proc_stat_start(uint8 res_type, reform_clean_stat_t stat)
-{
-    CM_ASSERT(stat < DRPS_DRC_CLEAN_COUNT);
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        dms_reform_proc_stat_start((uint32)(DRPS_DRC_CLEAN_PAGE + stat));
-    } else if (res_type == DRC_RES_LOCK_TYPE) {
-        dms_reform_proc_stat_start((uint32)(DRPS_DRC_CLEAN_LOCK + stat));
-    }
-}
-
-static void dms_reform_clean_proc_stat_end(uint8 res_type, reform_clean_stat_t stat)
-{
-    CM_ASSERT(stat < DRPS_DRC_CLEAN_COUNT);
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        dms_reform_proc_stat_end((uint32)(DRPS_DRC_CLEAN_PAGE + stat));
-    } else if (res_type == DRC_RES_LOCK_TYPE) {
-        dms_reform_proc_stat_end((uint32)(DRPS_DRC_CLEAN_LOCK + stat));
-    }
 }
 
 static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint32 sess_id)
@@ -375,7 +376,7 @@ void dms_reform_drc_clean_full_by_partid(uint16 part_id)
     drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
     dms_reform_proc_stat_end(DRPS_DRC_CLEAN_PAGE);
 #ifndef OPENGAUSS
-    part = &ctx->global_buf_res.res_parts[part_id];
+    part = &ctx->global_xa_res.res_parts[part_id];
     dms_reform_proc_stat_start(DRPS_DRC_CLEAN_XA);
     drc_release_xa_by_part(part);
     dms_reform_proc_stat_end(DRPS_DRC_CLEAN_XA);

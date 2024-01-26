@@ -54,7 +54,6 @@ static int dms_reform_set_edp_to_owner(drc_buf_res_t *buf_res, uint32 sess_id, b
             return ERRNO_DMS_REFORM_FAIL;
         }
 
-
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_set_edp_to_owner SEND error: %d, dst_id: %d", ret, dst_id);
@@ -63,6 +62,7 @@ static int dms_reform_set_edp_to_owner(drc_buf_res_t *buf_res, uint32 sess_id, b
 
         ret = dms_reform_req_page_wait(&result, &lock_mode, is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
+            dms_reform_proc_stat_times(DRPS_DRC_FLUSH_COPY_TIMEOUT);
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_set_edp_to_owner WAIT timeout, dst_id: %d", dst_id);
             continue;
         } else {
@@ -96,7 +96,6 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
             return ERRNO_DMS_REFORM_FAIL;
         }
 
-        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_flush_copy_page SEND error: %d, dst_id: %d", ret, dst_id);
@@ -105,6 +104,7 @@ static int dms_reform_flush_copy_page(drc_buf_res_t *buf_res, uint32 sess_id)
 
         ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
+            dms_reform_proc_stat_times(DRPS_DRC_FLUSH_COPY_TIMEOUT);
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_flush_copy_page WAIT timeout, dst_id: %d", dst_id);
             continue;
         } else {

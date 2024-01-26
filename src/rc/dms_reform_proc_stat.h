@@ -35,6 +35,7 @@ extern "C" {
 typedef enum en_dms_reform_proc_stat {
     DRPS_BASE = DMS_REFORM_STEP_COUNT - 1,
     DRPS_DISCONNECT_GET_LOCK,
+    DRPS_DRC_CLEAN_TIMEOUT,
     DRPS_DRC_CLEAN_PAGE,
     DRPS_DRC_CLEAN_PAGE_NO_OWNER = DRPS_DRC_CLEAN_PAGE + DRPS_DRC_CLEAN_NO_OWNER,
     DRPS_DRC_CLEAN_PAGE_NO_CVT = DRPS_DRC_CLEAN_PAGE + DRPS_DRC_CLEAN_NO_CVT,
@@ -66,6 +67,7 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_DRC_MIGRATE_PAGE,
     DRPS_DRC_MIGRATE_LOCK,
     DRPS_DRC_MIGRATE_XA,
+    DRPS_DRC_REPAIR_TIMEOUT,
     DRPS_DRC_REPAIR_PAGE,
     DRPS_DRC_REPAIR_PAGE_NEED_FLUSH = DRPS_DRC_REPAIR_PAGE + DRPS_DRC_REPAIR_NEED_FLUSH,
     DRPS_DRC_REPAIR_PAGE_NEED_NOT_FLUSH = DRPS_DRC_REPAIR_PAGE + DRPS_DRC_REPAIR_NEED_NOT_FLUSH,
@@ -73,6 +75,7 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_DRC_REPAIR_PAGE_WITH_COPY_NEED_FLUSH = DRPS_DRC_REPAIR_PAGE + DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH,
     DRPS_DRC_REPAIR_PAGE_WITH_LAST_EDP = DRPS_DRC_REPAIR_PAGE + DRPS_DRC_REPAIR_WITH_LAST_EDP,
     DRPS_DRC_REPAIR_PAGE_WITH_EDP_MAP = DRPS_DRC_REPAIR_PAGE + DRPS_DRC_REPAIR_WITH_EDP_MAP,
+    DRPS_DRC_REPAIR_PAGE_WITH_EDP_MAP_GET_LSN = DRPS_DRC_REPAIR_PAGE + DRPS_DRC_REPAIR_WITH_EDP_MAP_GET_LSN,
     DRPS_DRC_REPAIR_LOCK,
     DRPS_DRC_REPAIR_LOCK_NEED_FLUSH = DRPS_DRC_REPAIR_LOCK + DRPS_DRC_REPAIR_NEED_FLUSH,
     DRPS_DRC_REPAIR_LOCK_NEED_NOT_FLUSH = DRPS_DRC_REPAIR_LOCK + DRPS_DRC_REPAIR_NEED_NOT_FLUSH,
@@ -80,6 +83,8 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_DRC_REPAIR_LOCK_WITH_COPY_NEED_FLUSH = DRPS_DRC_REPAIR_LOCK + DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH,
     DRPS_DRC_REPAIR_LOCK_WITH_LAST_EDP = DRPS_DRC_REPAIR_LOCK + DRPS_DRC_REPAIR_WITH_LAST_EDP,
     DRPS_DRC_REPAIR_LOCK_WITH_EDP_MAP = DRPS_DRC_REPAIR_LOCK + DRPS_DRC_REPAIR_WITH_EDP_MAP,
+    DRPS_DRC_REPAIR_LOCK_WITH_EDP_MAP_GET_LSN = DRPS_DRC_REPAIR_LOCK + DRPS_DRC_REPAIR_WITH_EDP_MAP_GET_LSN,
+    DRPS_DRC_FLUSH_COPY_TIMEOUT,
     DRPS_DRC_FLUSH_COPY_LOCAL,
     DRPS_DRC_FLUSH_COPY_REMOTE,
     DRPS_DRC_EDP_TO_OWNER_LOCAL,
@@ -91,6 +96,28 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_ROLLBACK_CVT_TO_RW,
     DRPS_DRC_BLOCK,
     DRPS_REFORM,
+    DRPS_CALLBACK_STAT_CKPT_LATCH,
+    DRPS_CALLBACK_STAT_BUCKET_LOCK,
+    DRPS_CALLBACK_STAT_SS_READ_LOCK,
+    DRPS_CALLBACK_STAT_GET_DISK_LSN,
+    DRPS_CALLBACK_STAT_DRC_EXIST,
+    DRPS_CALLBACK_STAT_CLEAN_EDP,
+    DRPS_CALLBACK_STAT_NEED_NOT_REBUILD,
+    DRPS_CALLBACK_STAT_EXPIRE,
+    DRPS_MES_TASK_STAT_CONFIRM_OWNER_PAGE,
+    DRPS_CALLBACK_MES_TASK_STAT_CONFIRM_OWNER_BUCKET_LOCK,
+    DRPS_CALLBACK_MES_TASK_STAT_CONFIRM_OWNER_GET_DISK_LSN,
+    DRPS_MES_TASK_STAT_CONFIRM_OWNER_LOCK,
+    DRPS_MES_TASK_STAT_CONFIRM_CVT_PAGE,
+    DRPS_CALLBACK_MES_TASK_STAT_CONFIRM_CVT_BUCKET_LOCK,
+    DRPS_CALLBACK_MES_TASK_STAT_CONFIRM_CVT_SS_READ_LOCK,
+    DRPS_MES_TASK_STAT_CONFIRM_CVT_LOCK,
+    DRPS_MES_TASK_STAT_NEED_FLUSH,
+    DRPS_CALLBACK_MES_TASK_STAT_NEED_FLUSH_ALLOC_CTRL,
+    DRPS_CALLBACK_MES_TASK_STAT_NEED_FLUSH_SS_READ_LOCK,
+    DRPS_MES_TASK_STAT_EDP_TO_OWNER,
+    DRPS_CALLBACK_MES_TASK_STAT_EDP_TO_OWNER_GET_DISK_LSN,
+    DRPS_CALLBACK_MES_TASK_STAT_EDP_TO_OWNER_ALLOC_CTRL,
 
     /* add new item above */
     DRPS_COUNT
@@ -109,8 +136,10 @@ typedef struct st_dms_reform_proc_stat_items {
 
 typedef struct st_dms_reform_proc_stat {
     drps_items_t    items_total;
-    drps_items_t    items_proc;
+    drps_items_t    items_proc_total;
     drps_items_t    items_proc_parallel[DMS_PARALLEL_MAX_THREAD];
+    drps_items_t    items_mes_total;
+    drps_items_t    items_mes_task[DMS_MAX_WORK_THREAD_CNT];
 } drps_t;
 
 typedef struct st_dms_reform_proc_stat_desc {
@@ -137,12 +166,14 @@ void dms_reform_proc_stat_end(uint32 item);
 void dms_reform_proc_stat_times(uint32 item);
 void dms_reform_proc_stat_bind_proc(void);
 void dms_reform_proc_stat_bind_proc_parallel(uint32 index);
+void dms_reform_proc_stat_bind_mes_task(uint32 index);
 void dms_reform_proc_stat_clear_total(void);
 void dms_reform_proc_stat_clear_current(void);
 void dms_reform_proc_stat_collect_total(void);
 void dms_reform_proc_stat_collect_current(void);
 void dms_reform_proc_stat_log_total(void);
 void dms_reform_proc_stat_log_current(void);
+bool32 dms_reform_proc_stat_desc_check(void);
 
 #ifdef __cplusplus
 }

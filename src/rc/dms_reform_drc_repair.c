@@ -65,6 +65,7 @@ static int dms_reform_may_need_flush(drc_buf_res_t *buf_res, uint32 sess_id, uin
 
         ret = dms_reform_req_page_wait(&result, &lock_mode, is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
+            dms_reform_proc_stat_times(DRPS_DRC_REPAIR_TIMEOUT);
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_may_need_flush WAIT timeout, dst_id: %d", dst_id);
             continue;
         } else {
@@ -196,7 +197,6 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
             return ERRNO_DMS_REFORM_FAIL;
         }
 
-        
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_repair_with_edp_map_inner SEND error: %d, dst_id: %d", ret, inst_id);
@@ -205,6 +205,7 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
 
         ret = dms_reform_req_page_wait(&result, &lock_mode, &is_edp, &lsn, req.head.ruid);
         if (ret == ERR_MES_WAIT_OVERTIME) {
+            dms_reform_proc_stat_times(DRPS_DRC_REPAIR_TIMEOUT);
             LOG_DEBUG_WAR("[DMS REFORM]dms_reform_repair_with_edp_map_inner WAIT timeout, dst_id: %d", inst_id);
             continue;
         } else {
@@ -228,6 +229,7 @@ static int dms_reform_repair_with_edp_map_inner(drc_buf_res_t *buf_res, uint8 in
 static int dms_reform_repair_with_edp_map(drc_buf_res_t *buf_res, void *handle, uint32 sess_id)
 {
     int ret = DMS_SUCCESS;
+    uint64 disk_lsn = 0;
 
     buf_res->lsn = 0;
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
@@ -238,7 +240,18 @@ static int dms_reform_repair_with_edp_map(drc_buf_res_t *buf_res, void *handle, 
         DMS_RETURN_IF_ERROR(ret);
     }
 
-    return dms_reform_repair_with_last_edp(buf_res, handle);
+    dms_reform_repair_proc_stat_start(buf_res->type, DRPS_DRC_REPAIR_WITH_EDP_MAP_GET_LSN);
+    ret = g_dms.callback.disk_lsn(handle, buf_res->data, &disk_lsn);
+    dms_reform_repair_proc_stat_end(buf_res->type, DRPS_DRC_REPAIR_WITH_EDP_MAP_GET_LSN);
+    DMS_RETURN_IF_ERROR(ret);
+
+    if (disk_lsn >= buf_res->lsn) {
+        buf_res->last_edp = CM_INVALID_ID8;
+        buf_res->lsn = 0;
+        buf_res->edp_map = 0;
+    }
+
+    return DMS_SUCCESS;
 }
 
 static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle, uint32 sess_id)
@@ -313,6 +326,7 @@ int dms_reform_repair_by_partid(uint16 part_id, void *handle, uint32 sess_id)
     ret = dms_reform_repair_by_part(part, handle, sess_id);
     dms_reform_proc_stat_end(DRPS_DRC_REPAIR_LOCK);
     DMS_RETURN_IF_ERROR(ret);
+
     part = &ctx->global_buf_res.res_parts[part_id];
     dms_reform_proc_stat_start(DRPS_DRC_REPAIR_PAGE);
     ret = dms_reform_repair_by_part(part, handle, sess_id);
