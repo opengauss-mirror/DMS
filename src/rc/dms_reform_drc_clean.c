@@ -375,7 +375,7 @@ void dms_reform_drc_clean_full_by_partid(uint16 part_id)
     drc_release_buf_res_by_part(part, DRC_RES_PAGE_TYPE);
     dms_reform_proc_stat_end(DRPS_DRC_CLEAN_PAGE);
 #ifndef OPENGAUSS
-    part = &ctx->global_buf_res.res_parts[part_id];
+    part = &ctx->global_xa_res.res_parts[part_id];
     dms_reform_proc_stat_start(DRPS_DRC_CLEAN_XA);
     drc_release_xa_by_part(part);
     dms_reform_proc_stat_end(DRPS_DRC_CLEAN_XA);

@@ -32,7 +32,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           128
+#define DMS_LOCAL_VERSION           129
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1126,6 +1126,19 @@ typedef struct st_drc_local_lock_res_result {
     unsigned char      lock_mode;
     unsigned char      is_valid;
 } drc_local_lock_res_result_t;
+
+typedef enum en_reform_callback_stat {
+    REFORM_CALLBACK_STAT_CKPT_LATCH = 0,
+    REFORM_CALLBACK_STAT_BUCKET_LOCK,
+    REFORM_CALLBACK_STAT_SS_READ_LOCK,
+    REFORM_CALLBACK_STAT_GET_DISK_LSN,
+    REFORM_CALLBACK_STAT_DRC_EXIST,
+    REFORM_CALLBACK_STAT_CLEAN_EDP,
+    REFORM_CALLBACK_STAT_NEED_NOT_REBUILD,
+    REFORM_CALLBACK_STAT_EXPIRE,
+
+    REFORM_CALLBACK_STAT_COUNT
+} reform_callback_stat_e;
 
 #ifdef __cplusplus
 }

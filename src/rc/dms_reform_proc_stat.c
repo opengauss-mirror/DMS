@@ -152,6 +152,14 @@ drps_desc_t g_drps_desc_t[DRPS_COUNT] = {
     {DRPS_DRC_CLEAN_XA,                             DRPS_LEVEL_ONE,     "XA"},
     {DMS_REFORM_STEP_REBUILD,                       DRPS_LEVEL_TOP,     "REBUILD"},
     {DRPS_DRC_REBUILD_PAGE,                         DRPS_LEVEL_ONE,     "PAGE"},
+    {DRPS_CALLBACK_STAT_CKPT_LATCH,                 DRPS_LEVEL_TWO,     "CKPT_LATCH"},
+    {DRPS_CALLBACK_STAT_BUCKET_LOCK,                DRPS_LEVEL_TWO,     "BUCKET_LOCK"},
+    {DRPS_CALLBACK_STAT_SS_READ_LOCK,               DRPS_LEVEL_TWO,     "SS_READ_LOCK"},
+    {DRPS_CALLBACK_STAT_GET_DISK_LSN,               DRPS_LEVEL_TWO,     "GET_DISK_LSN"},
+    {DRPS_CALLBACK_STAT_DRC_EXIST,                  DRPS_LEVEL_TWO,     "DRC_EXIST"},
+    {DRPS_CALLBACK_STAT_CLEAN_EDP,                  DRPS_LEVEL_TWO,     "CLEAN_EDP"},
+    {DRPS_CALLBACK_STAT_NEED_NOT_REBUILD,           DRPS_LEVEL_TWO,     "NEED_NOT"},
+    {DRPS_CALLBACK_STAT_EXPIRE,                     DRPS_LEVEL_TWO,     "EXPIRE"},
     {DRPS_DRC_REBUILD_PAGE_LOCAL,                   DRPS_LEVEL_TWO,     "LOCAL"},
     {DRPS_DRC_REBUILD_PAGE_REMOTE,                  DRPS_LEVEL_TWO,     "REMOTE"},
     {DRPS_DRC_REBUILD_PAGE_REMOTE_REST,             DRPS_LEVEL_TWO,     "REMOTE_REST"},
@@ -274,4 +282,42 @@ void dms_reform_proc_stat_log_current(void)
 {
     LOG_RUN_INF("[DMS REFORM PROC STAT]current statistic");
     dms_reform_proc_stat_log_inner(&g_drps.items_proc);
+}
+
+dms_reform_proc_stat_e g_callback_stat_map[REFORM_CALLBACK_STAT_COUNT] = {
+    [REFORM_CALLBACK_STAT_CKPT_LATCH] = DRPS_CALLBACK_STAT_CKPT_LATCH,
+    [REFORM_CALLBACK_STAT_BUCKET_LOCK] = DRPS_CALLBACK_STAT_BUCKET_LOCK,
+    [REFORM_CALLBACK_STAT_SS_READ_LOCK] = DRPS_CALLBACK_STAT_SS_READ_LOCK,
+    [REFORM_CALLBACK_STAT_GET_DISK_LSN] = DRPS_CALLBACK_STAT_GET_DISK_LSN,
+    [REFORM_CALLBACK_STAT_DRC_EXIST] = DRPS_CALLBACK_STAT_DRC_EXIST,
+    [REFORM_CALLBACK_STAT_CLEAN_EDP] = DRPS_CALLBACK_STAT_CLEAN_EDP,
+    [REFORM_CALLBACK_STAT_NEED_NOT_REBUILD] = DRPS_CALLBACK_STAT_NEED_NOT_REBUILD,
+    [REFORM_CALLBACK_STAT_EXPIRE] = DRPS_CALLBACK_STAT_EXPIRE,
+};
+
+void dms_reform_proc_callback_stat_start(reform_callback_stat_e callback_stat)
+{
+    if (callback_stat >= REFORM_CALLBACK_STAT_COUNT) {
+        return;
+    }
+    uint32 item = (uint32)g_callback_stat_map[callback_stat];
+    dms_reform_proc_stat_start(item);
+}
+
+void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat)
+{
+    if (callback_stat >= REFORM_CALLBACK_STAT_COUNT) {
+        return;
+    }
+    uint32 item = (uint32)g_callback_stat_map[callback_stat];
+    dms_reform_proc_stat_end(item);
+}
+
+void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat)
+{
+    if (callback_stat >= REFORM_CALLBACK_STAT_COUNT) {
+        return;
+    }
+    uint32 item = (uint32)g_callback_stat_map[callback_stat];
+    dms_reform_proc_stat_times(item);
 }

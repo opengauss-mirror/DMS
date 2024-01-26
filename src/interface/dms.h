@@ -897,6 +897,10 @@ DMS_DECLARE int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigne
  */
 DMS_DECLARE int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long long *total_mem);
 
+DMS_DECLARE void dms_reform_proc_callback_stat_start(reform_callback_stat_e callback_stat);
+DMS_DECLARE void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat);
+DMS_DECLARE void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat);
+
 #ifdef __cplusplus
 }
 #endif
