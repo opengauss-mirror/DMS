@@ -100,7 +100,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
     }
 
     sz = (uint64)res_size * ((uint64)res_num);
-    pool->addr[0] = (char *)malloc(sz);
+    pool->addr[0] = (char *)dms_malloc(sz);
     if (pool->addr[0] == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -138,7 +138,7 @@ char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
     uint64 sz = (uint64)pool->extend_step * (uint64)pool->item_size;
     uint32 try_times = 0;
     while (try_times <= DRC_RES_EXTEND_TRY_TIMES && sz > 0) {
-        pool->addr[pool->extend_num] = (char *)malloc(sz);
+        pool->addr[pool->extend_num] = (char *)dms_malloc(sz);
         if (pool->addr[pool->extend_num] == NULL) {
             try_times++;
             continue;
@@ -173,8 +173,7 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
 
     for (uint32 i = 0; i < pool->extend_num; i++) {
         if (pool->addr[i] != NULL) {
-            free(pool->addr[i]);
-            pool->addr[i] = NULL;
+            DMS_FREE_PROT_PTR(pool->addr[i]);
         }
     }
 
@@ -228,7 +227,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
 
     res_map->bucket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
     bucket_size = (uint64)(res_map->bucket_num * sizeof(drc_res_bucket_t));
-    res_map->buckets = (drc_res_bucket_t*)malloc(bucket_size);
+    res_map->buckets = (drc_res_bucket_t*)dms_malloc(bucket_size);
     if (res_map->buckets == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -237,8 +236,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
     drc_init_over2g_buffer(res_map->buckets, 0, bucket_size);
     ret = drc_res_pool_init(&res_map->res_pool, max_extend_num, item_size, item_num);
     if (ret != DMS_SUCCESS) {
-        free(res_map->buckets);
-        res_map->buckets = NULL;
+        DMS_FREE_PROT_PTR(res_map->buckets);
         return ret;
     }
 
@@ -254,7 +252,7 @@ void drc_res_map_destroy(drc_res_map_t* res_map)
 {
     drc_res_pool_destroy(&res_map->res_pool);
     if (res_map->buckets != NULL) {
-        free(res_map->buckets);
+        DMS_FREE_PROT_PTR(res_map->buckets);
     }
 
     res_map->buckets = NULL;

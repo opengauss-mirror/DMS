@@ -321,6 +321,24 @@ static void dms_unlock_instance_s(unsigned char cmd)
     }
 }
 
+void *dms_malloc(size_t size)
+{
+    if (g_dms.callback.dms_malloc_prot == NULL) {
+        return malloc(size);
+    } else {
+        return g_dms.callback.dms_malloc_prot(size);
+    }
+}
+
+void dms_free(void *ptr)
+{
+    if (g_dms.callback.dms_free_prot == NULL) {
+        CM_FREE_PTR(ptr);
+    } else {
+        g_dms.callback.dms_free_prot(ptr);
+    }
+}
+
 void dms_protocol_send_ack_version_not_match(dms_process_context_t *ctx, dms_message_t *receive_msg, bool8 support_cmd)
 {
     dms_protocol_result_ack_t ack_msg;
@@ -495,7 +513,8 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
         return ERRNO_DMS_PARAM_INVALID;
     }
 
-    dms_process_context_t *proc_ctx = (dms_process_context_t *)malloc(sizeof(dms_process_context_t) * total_ctx_cnt);
+    dms_process_context_t *proc_ctx =
+        (dms_process_context_t *)dms_malloc(sizeof(dms_process_context_t) * total_ctx_cnt);
     if (proc_ctx == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -521,7 +540,7 @@ static void dms_deinit_proc_ctx(void)
         DMS_RELEASE_DB_HANDLE(g_dms.proc_ctx[loop].db_handle);
     }
 
-    CM_FREE_PTR(g_dms.proc_ctx);
+    DMS_FREE_PROT_PTR(g_dms.proc_ctx);
 }
 
 void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
@@ -1097,7 +1116,7 @@ int32 dms_init_logger(logger_param_t *param_def)
     log_param->max_log_file_size = param_def->log_max_file_size;
     log_param->max_audit_file_size = param_def->log_max_file_size;
     log_param->log_compressed = true;
-    log_param->log_compress_buf = malloc(CM_LOG_COMPRESS_BUFSIZE);
+    log_param->log_compress_buf = dms_malloc(CM_LOG_COMPRESS_BUFSIZE);
     if (log_param->log_compress_buf == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
         return ERRNO_DMS_INIT_LOG_FAILED;
@@ -1140,7 +1159,7 @@ static int dms_init_stat(dms_profile_t *dms_profile)
     g_dms_stat.sess_cnt = dms_profile->work_thread_cnt + dms_profile->channel_cnt + dms_profile->max_session_cnt;
 
     size_t size = g_dms_stat.sess_cnt * sizeof(session_stat_t);
-    g_dms_stat.sess_stats = (session_stat_t *)malloc(size);
+    g_dms_stat.sess_stats = (session_stat_t *)dms_malloc(size);
 
     if (g_dms_stat.sess_stats == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
@@ -1165,6 +1184,9 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.gdb_in_progress = CM_FALSE;
     g_dms.max_wait_time = dms_check_max_wait_time(dms_profile->max_wait_time);
     dms_init_cluster_proto_version();
+    if (g_dms.callback.dms_malloc_prot != NULL) {
+        regist_cm_malloc_proc(g_dms.callback.dms_malloc_prot, g_dms.callback.dms_free_prot);
+    }
 }
 
 static void dms_init_mfc(dms_profile_t *dms_profile)
@@ -1277,8 +1299,8 @@ void dms_uninit(void)
     drc_destroy();
     cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
-    CM_FREE_PTR(g_dms_stat.sess_stats);
-    CM_FREE_PTR(cm_log_param_instance()->log_compress_buf);
+    DMS_FREE_PROT_PTR(g_dms_stat.sess_stats);
+    DMS_FREE_PROT_PTR(cm_log_param_instance()->log_compress_buf);
     dms_deinit_proc_ctx();
 }
 
