@@ -1976,7 +1976,7 @@ int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long 
         return ret;
     }
 
-    ret = mfc_get_response((uint16)dms_ctx->sess_id, &message, DMS_WAIT_MAX_TIME);
+    ret = mfc_get_response(head.ruid, &message, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
         LOG_DEBUG_ERR("[DMS][request_immediately_ckpt] receive message to instance(%u) failed, "
@@ -1987,7 +1987,7 @@ int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long 
 
     dms_end_stat(dms_ctx->sess_id);
 
-    CM_CHK_PROC_MSG_SIZE(&message, (uint32)(sizeof(dms_message_head_t) + sizeof(uint64)), CM_FALSE);
+    CM_CHK_RESPONSE_SIZE(&message, (uint32)(sizeof(dms_message_head_t) + sizeof(uint64)), CM_FALSE);
     *redo_lsn = *(unsigned long long *)(message.buffer + sizeof(dms_message_head_t));
 
     mfc_release_response(&message);
