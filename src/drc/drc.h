@@ -168,6 +168,10 @@ typedef struct st_drc_buf_res {
     bilist_t        convert_q;          /* current page's requester queue */
     char            data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
     bool8           is_using;
+    bool8           s_exists;
+    bool8           x_exists;
+    uint8           x_owner;
+    uint64          group_lsn;
 } drc_buf_res_t;
 
 typedef struct st_drc_buf_res_msg {
@@ -508,13 +512,15 @@ void drc_leave_xa_res(drc_global_res_map_t *xa_res_map, drc_res_bucket_t *bucket
 void drc_release_xa_by_part(drc_part_list_t *part);
 
 // [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
-#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, "        \
-    "EDP:%d-%llu-%llu, FLAG:%d-%d-%d", desc, cm_display_resid((drc)->data, (drc)->type),                            \
+// [x_owner-x_exists-s_exists-group_lsn]
+#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, "              \
+    "EDP:%d-%llu-%llu, FLAG:%d-%d-%d, VALIDATE:%d-%d-%d-%llu", desc, cm_display_resid((drc)->data, (drc)->type),    \
     (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts,                                                      \
     (drc)->converting.req_info.inst_id, (drc)->converting.req_info.curr_mode, (drc)->converting.req_info.req_mode,  \
-    (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.ruid,        \
+    (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.ruid,       \
     (drc)->converting.req_info.sess_id, (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                \
-    (drc)->in_recovery, (drc)->copy_promote, (drc)->recovery_skip)
+    (drc)->in_recovery, (drc)->copy_promote, (drc)->recovery_skip,                                                  \
+    (drc)->x_owner, (drc)->x_exists, (drc)->s_exists, (drc)->group_lsn)
 
 #ifdef __cplusplus
 }

@@ -127,7 +127,8 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
     return DMS_SUCCESS;
 }
 
-int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id, uint8 thread_index)
+static int dms_reform_rebuild_page_inner(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
+    uint8 thread_index)
 {
     int ret;
     if (master_id == g_dms.inst_id) {
@@ -136,17 +137,30 @@ int dms_reform_send_ctrl_info(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_REMOTE);
-        ret = dms_reform_req_page_rebuild(dms_ctx, ctrl_info, master_id);
+        ret = dms_reform_req_page_rebuild(MSG_REQ_PAGE_REBUILD, dms_ctx, ctrl_info, master_id);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_REMOTE);
     } else {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_REMOTE);
-        ret = dms_reform_req_page_rebuild_parallel(dms_ctx, ctrl_info, master_id, thread_index);
+        ret = dms_reform_req_page_rebuild_parallel(MSG_REQ_PAGE_REBUILD, dms_ctx, ctrl_info, master_id, thread_index);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_REMOTE);
     }
     return ret;
 }
 
-static int dms_reform_rebuild_send_rest(uint32 sess_id, uint8 thread_index)
+int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, unsigned char thread_index)
+{
+    dms_reset_error();
+    uint8 master_id = CM_INVALID_ID8;
+    int ret = drc_get_page_remaster_id(dms_ctx->resid, &master_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, fail to get remaster id", cm_display_pageid(dms_ctx->resid));
+        return ret;
+    }
+    LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, remaster(%d)", cm_display_pageid(dms_ctx->resid), master_id);
+    return dms_reform_rebuild_page_inner(dms_ctx, ctrl_info, master_id, thread_index);
+}
+
+int dms_reform_rebuild_send_rest(unsigned int sess_id, unsigned char thread_index)
 {
     dms_reform_req_rebuild_t *rebuild_data = NULL;
     int ret = DMS_SUCCESS;
@@ -267,11 +281,11 @@ static int dms_reform_rebuild_lock_inner(drc_local_lock_res_t *lock_res, uint8 n
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock(lock_res, new_master);
+        ret = dms_reform_req_rebuild_lock(MSG_REQ_LOCK_REBUILD, lock_res, new_master);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE);
     } else {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock_parallel(lock_res, new_master, thread_index);
+        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_LOCK_REBUILD, lock_res, new_master, thread_index);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE);
     }
     return ret;

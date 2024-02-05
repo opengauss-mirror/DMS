@@ -177,9 +177,30 @@ static bool32 dms_reform_health_check_partner(void)
     return dms_reform_cmp_online_status(online_status, online_times);
 }
 
+static reform_step_t g_abort_step[] = {
+    DMS_REFORM_STEP_VALIDATE_LOCK_MODE,
+    DMS_REFORM_STEP_VALIDATE_LSN,
+    DMS_REFORM_STEP_FLUSH_COPY,
+};
+
+static bool8 dms_reform_health_check_abort_step(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    for (int i = 0; i < sizeof(g_abort_step) / sizeof(reform_step_t); i++) {
+        if (reform_info->current_step == (uint8)g_abort_step[i] ||
+            reform_info->last_step == (uint8)g_abort_step[i]) {
+            return CM_TRUE;
+        }
+    }
+    return CM_FALSE;
+}
+
 static void dms_reform_health_handle_fail(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (dms_reform_health_check_abort_step()) {
+        cm_panic_log(CM_FALSE, "[DMS REFORM]abort step, health check");
+    }
 #ifdef OPENGAUSS
     reform_info->reform_fail = CM_TRUE;
     dms_reform_handle_fail_in_special_scenario();

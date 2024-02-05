@@ -102,6 +102,9 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
         ctrl->edp_map = (ack->edp_map) & (~(1ULL << dms_ctx->inst_id));
     }
     ctrl->is_remote_dirty = 1;
+#ifndef OPENGAUSS
+    g_dms.callback.ckpt_enque_one_page(dms_ctx->db_handle, ctrl);
+#endif
     ctrl->lock_mode = mode;
     CM_MFENCE;
     ctrl->is_edp = 0;
@@ -1050,19 +1053,6 @@ int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned cha
         ctrl->lock_mode = DMS_LOCK_NULL;
     }
     return DMS_SUCCESS;
-}
-
-int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, unsigned char thread_index)
-{
-    dms_reset_error();
-    uint8 master_id = CM_INVALID_ID8;
-    int ret = drc_get_page_remaster_id(dms_ctx->resid, &master_id);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, fail to get remaster id", cm_display_pageid(dms_ctx->resid));
-        return ret;
-    }
-    LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, remaster(%d)", cm_display_pageid(dms_ctx->resid), master_id);
-    return dms_reform_send_ctrl_info(dms_ctx, ctrl_info, master_id, thread_index);
 }
 
 void dcs_proc_ask_remote_for_edp(dms_process_context_t *ctx, dms_message_t *receive_msg)

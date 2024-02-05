@@ -267,9 +267,7 @@ static int dms_reform_drc_rcy_clean_parallel_proc(resource_id_t *res_id, paralle
 
 static int dms_reform_flush_copy_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = &ctx->global_buf_res.res_parts[res_id->part_id];
-    return dms_reform_flush_copy_by_part(part, parallel->handle, parallel->sess_id);
+    return dms_reform_flush_copy_by_part(res_id->part_id, (uint8)parallel->index);
 }
 
 static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
@@ -279,6 +277,20 @@ static int dms_reform_rebuild_parallel_proc(resource_id_t *res_id, parallel_thre
     uint8 thread_num = (uint8)parallel_info->parallel_num;
 
     return dms_reform_rebuild_inner(parallel->handle, parallel->sess_id, thread_index, thread_num);
+}
+
+static int dms_reform_validate_lock_mode_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
+{
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    uint8 thread_index = (uint8)parallel->index;
+    uint8 thread_num = (uint8)parallel_info->parallel_num;
+
+    return dms_reform_validate_lock_mode_inner(parallel->handle, parallel->sess_id, thread_index, thread_num);
+}
+
+static int dms_reform_validate_lsn_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
+{
+    return dms_reform_lsn_validate_by_partid(res_id->part_id, (uint8)parallel->index);
 }
 
 static int dms_reform_ctl_rcy_clean_parallel_proc(resource_id_t* res_id, parallel_thread_t* parallel)
@@ -298,32 +310,38 @@ static int drc_recycle_buf_res_proc(resource_id_t *res_id, parallel_thread_t *pa
 }
 
 dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
-    [DMS_REFORM_PARALLEL_RECONNECT] = { "dms_reform_reconnect_parallel", dms_reform_parallel_assign_channels,
-    dms_reform_reconnect_parallel_proc },
+    [DMS_REFORM_PARALLEL_RECONNECT] = { "dms_reform_reconnect_parallel",
+    dms_reform_parallel_assign_channels, dms_reform_reconnect_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_DRC_CLEAN] = { "dms_reform_drc_clean_parallel", dms_reform_parallel_assign_parts_for_clean,
-    dms_reform_drc_clean_parallel_proc },
+    [DMS_REFORM_PARALLEL_DRC_CLEAN] = { "dms_reform_drc_clean_parallel",
+    dms_reform_parallel_assign_parts_for_clean, dms_reform_drc_clean_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_MIGRATE] = { "dms_reform_migrate_parallel", dms_reform_parallel_assign_migrate_task,
-    dms_reform_migrate_parallel_proc },
+    [DMS_REFORM_PARALLEL_MIGRATE] = { "dms_reform_migrate_parallel",
+    dms_reform_parallel_assign_migrate_task, dms_reform_migrate_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_REPAIR] = { "dms_reform_repair_parallel", dms_reform_parallel_assign_parts,
-    dms_reform_repair_parallel_proc },
+    [DMS_REFORM_PARALLEL_REPAIR] = { "dms_reform_repair_parallel",
+    dms_reform_parallel_assign_parts, dms_reform_repair_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_DRC_RCY_CLEAN] = { "dms_reform_drc_rcy_clean_parallel", dms_reform_parallel_assign_parts,
-    dms_reform_drc_rcy_clean_parallel_proc },
+    [DMS_REFORM_PARALLEL_DRC_RCY_CLEAN] = { "dms_reform_drc_rcy_clean_parallel",
+    dms_reform_parallel_assign_parts, dms_reform_drc_rcy_clean_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_FLUSH_COPY] = { "dms_reform_flush_copy_parallel", dms_reform_parallel_assign_parts,
-    dms_reform_flush_copy_parallel_proc },
+    [DMS_REFORM_PARALLEL_FLUSH_COPY] = { "dms_reform_flush_copy_parallel",
+    dms_reform_parallel_assign_parts, dms_reform_flush_copy_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_REBUILD] = { "dms_reform_rebuild_parallel", dms_reform_parallel_assign_thread,
-    dms_reform_rebuild_parallel_proc },
+    [DMS_REFORM_PARALLEL_REBUILD] = { "dms_reform_rebuild_parallel",
+    dms_reform_parallel_assign_thread, dms_reform_rebuild_parallel_proc },
 
-    [DMS_REFORM_PARALLEL_CTL_RCY_CLEAN] = { "dms_reform_ctl_rcy_clean_parallel", dms_reform_parallel_assign_thread,
-    dms_reform_ctl_rcy_clean_parallel_proc },
+    [DMS_REFORM_PARALLEL_CTL_RCY_CLEAN] = { "dms_reform_ctl_rcy_clean_parallel",
+    dms_reform_parallel_assign_thread, dms_reform_ctl_rcy_clean_parallel_proc },
 
-    [DMS_PROC_PARALLEL_RECYCLE_BUF_RES] = { "drc_recycle_buf_res_parallel", dms_reform_parallel_assign_parts,
-    drc_recycle_buf_res_proc},
+    [DMS_PROC_PARALLEL_RECYCLE_BUF_RES] = { "drc_recycle_buf_res_parallel",
+    dms_reform_parallel_assign_parts, drc_recycle_buf_res_proc},
+
+    [DMS_REFORM_PARALLEL_VALIDATE_LOCK_MODE] = { "dms_reform_validate_lock_mode_parallel",
+    dms_reform_parallel_assign_thread, dms_reform_validate_lock_mode_parallel_proc },
+
+    [DMS_REFORM_PARALLEL_VALIDATE_LSN] = { "dms_reform_validate_lsn_parallel",
+    dms_reform_parallel_assign_parts, dms_reform_validate_lsn_parallel_proc },
 };
 
 static int dms_reform_parallel_inner(dms_parallel_proc parallel_proc)
@@ -476,4 +494,14 @@ int dms_reform_ctl_rcy_clean_parallel(void)
 int drc_recycle_buf_res_parallel(void)
 {
     return dms_proc_parallel(DMS_PROC_PARALLEL_RECYCLE_BUF_RES);
+}
+
+int dms_reform_validate_lock_mode_parallel(void)
+{
+    return dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE_LOCK_MODE);
+}
+
+int dms_reform_validate_lsn_parallel(void)
+{
+    return dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE_LSN);
 }

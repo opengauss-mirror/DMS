@@ -692,6 +692,9 @@ DMS_DECLARE int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsign
 DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
     unsigned char thread_index);
 
+DMS_DECLARE int dms_reform_validate_page_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
+    unsigned char thread_index);
+
 /*
  * @brief check if session is recovery session or not.
  * @[in]param sid - session id.
@@ -737,7 +740,8 @@ DMS_DECLARE int dms_get_ssl_param(const char *param_name, char *param_value, uns
  * @[out]skip--need skip or not
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc);
+DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc,
+    unsigned long long group_lsn);
 
 /*
  * @brief check reform if failed
@@ -900,6 +904,8 @@ DMS_DECLARE int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long lon
 DMS_DECLARE void dms_reform_proc_callback_stat_start(reform_callback_stat_e callback_stat);
 DMS_DECLARE void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat);
 DMS_DECLARE void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat);
+
+DMS_DECLARE int dms_reform_rebuild_send_rest(unsigned int sess_id, unsigned char thread_index);
 
 #ifdef __cplusplus
 }

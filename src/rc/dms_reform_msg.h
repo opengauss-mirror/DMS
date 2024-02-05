@@ -122,13 +122,17 @@ typedef struct st_dms_reform_req_rebuild {
     dms_message_head_t head;
     uint32 offset;
 } dms_reform_req_rebuild_t;
-int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id);
-int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
+int dms_reform_req_page_rebuild(msg_command_t cmd, dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
+    uint8 master_id);
+int dms_reform_req_page_rebuild_parallel(msg_command_t cmd, dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
+    uint8 master_id, uint8 thread_index);
+int dms_reform_req_rebuild_lock(msg_command_t cmd, drc_local_lock_res_t *lock_res, uint8 master_id);
+int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, drc_local_lock_res_t *lock_res, uint8 master_id,
     uint8 thread_index);
-int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 master_id);
-int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, uint8 master_id, uint8 thread_index);
 void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 enum dms_reform_req_page_action {
     DMS_REQ_CONFIRM_OWNER,
@@ -146,6 +150,7 @@ typedef struct st_dms_reform_req_res {
     uint64 ruid;
     char resid[DMS_RESID_SIZE];
     uint8 res_type;
+    uint64 lsn;
 } dms_reform_req_res_t;
 void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
     uint32 sess_id);
@@ -182,6 +187,23 @@ void dms_reform_ack_req_rebuild(dms_process_context_t *process_ctx, dms_message_
 
 void dms_reform_set_judge_time(dms_message_head_t *req_head);
 bool32 dms_reform_check_judge_time(dms_message_head_t *req_head);
+
+typedef struct st_dms_reform_req_group {
+    dms_message_head_t head;
+    uint32 offset;
+} dms_reform_req_group_t;
+
+void dms_reform_req_group_init(uint8 thread_index);
+void dms_reform_req_group_free(uint8 thread_index);
+int dms_reform_req_group(msg_command_t cmd, uint8 dst_id, uint8 thread_index, void *data, uint32 data_len);
+int dms_reform_req_group_send_rest(uint8 thread_index);
+
+typedef struct st_lsn_validate_item {
+    char    pageid[DMS_PAGEID_SIZE];
+    uint64  lsn;
+    bool8   in_recovery;
+} lsn_validate_item_t;
+void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

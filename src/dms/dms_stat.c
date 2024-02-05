@@ -242,6 +242,8 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_XA_REBUILD, "req xa rebuild", "", "dms" },
     { MSG_REQ_XA_OWNERS, "req xa owners", "", "dms" },
     { MSG_REQ_RECYCLE, "req recycle", "", "dms" },
+    { MSG_REQ_LOCK_VALIDATE, "req lock validate", "", "dms" },
+    { MSG_REQ_LSN_VALIDATE, "req lsn validate", "", "dms" },
     { MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, "notify primary do ckpt", "", "dms"},
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },

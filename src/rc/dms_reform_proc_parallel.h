@@ -40,6 +40,8 @@ int dms_reform_flush_copy_parallel(void);
 int dms_reform_rebuild_parallel(void);
 int dms_reform_ctl_rcy_clean_parallel(void);
 int drc_recycle_buf_res_parallel(void);
+int dms_reform_validate_lock_mode_parallel(void);
+int dms_reform_validate_lsn_parallel(void);
 
 int dms_reform_parallel_thread_init(dms_profile_t *dms_profile);
 void dms_reform_parallel_thread_deinit(void);
@@ -54,6 +56,8 @@ typedef enum en_dms_reform_parallel {
     DMS_REFORM_PARALLEL_REBUILD,
     DMS_REFORM_PARALLEL_CTL_RCY_CLEAN,
     DMS_PROC_PARALLEL_RECYCLE_BUF_RES,
+    DMS_REFORM_PARALLEL_VALIDATE_LOCK_MODE,
+    DMS_REFORM_PARALLEL_VALIDATE_LSN,
 
     /* add new items above here */
     DMS_REFORM_PARALLEL_COUNT,

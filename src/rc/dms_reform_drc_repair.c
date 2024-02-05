@@ -259,6 +259,12 @@ static int dms_reform_repair_by_part_inner(drc_buf_res_t *buf_res, void *handle,
     int ret;
     DRC_DISPLAY(buf_res, "repair");
 
+    // reset lock record and lsn before validate lock_mode
+    buf_res->s_exists = CM_FALSE;
+    buf_res->x_exists = CM_FALSE;
+    buf_res->x_owner = CM_INVALID_ID8;
+    buf_res->group_lsn = 0;
+
     if (buf_res->claimed_owner != CM_INVALID_ID8) {
         // set need_flush flag for pages which has been set edp flag.Otherwise ckpt will skip the pages
         if (bitmap64_exist(&buf_res->edp_map, buf_res->claimed_owner)) {

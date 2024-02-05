@@ -722,7 +722,8 @@ void drc_release_buf_res_by_part(drc_part_list_t *part, uint8 type)
     }
 }
 
-int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc)
+int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc,
+    unsigned long long group_lsn)
 {
     dms_reset_error();
     drc_buf_res_t *buf_res = NULL;
@@ -734,6 +735,9 @@ int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *ski
     if (buf_res == NULL) {
         *skip = CM_FALSE;
         return DMS_SUCCESS;
+    }
+    if (buf_res->group_lsn < group_lsn) {
+        buf_res->group_lsn = group_lsn;
     }
     if (buf_res->in_recovery || buf_res->claimed_owner == CM_INVALID_ID8) {
         buf_res->in_recovery = CM_TRUE;
