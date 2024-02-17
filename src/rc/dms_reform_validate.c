@@ -319,7 +319,8 @@ int dms_reform_lsn_validate_buf_res(drc_buf_res_t *buf_res, uint8 thread_index)
     uint8 dst = buf_res->claimed_owner;
 
     if (dst == CM_INVALID_ID8) {
-        CM_ASSERT(buf_res->converting.req_info.inst_id <= DMS_MAX_INSTANCES);
+        cm_panic_log(buf_res->converting.req_info.inst_id <= DMS_MAX_INSTANCES,
+            "[LSN validate][%s]no owner", cm_display_pageid(buf_res->data));
         dst = buf_res->converting.req_info.inst_id;
     }
 

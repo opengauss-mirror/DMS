@@ -744,6 +744,14 @@ DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsign
     unsigned long long group_lsn);
 
 /*
+ * @brief unregister lsn when analyse redo
+ * @[in] pageid
+ * @[in] group_lsn
+ * @* @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_recovery_unregister_group_lsn(char pageid[DMS_PAGEID_SIZE], unsigned long long group_lsn);
+
+/*
  * @brief check reform if failed
  * @* @return TRUE - reform failed; FALSE - reform normal
  */
