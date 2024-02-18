@@ -141,8 +141,10 @@ void dms_reform_update_reformer_version(uint64 start_time, uint8 inst_id)
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     cm_spin_lock(&reform_info->version_lock, NULL);
-    reform_info->reformer_version.start_time = start_time;
-    reform_info->reformer_version.inst_id = inst_id;
+    if (reform_info->reformer_version.start_time < start_time) {
+        reform_info->reformer_version.start_time = start_time;
+        reform_info->reformer_version.inst_id = inst_id;
+    }
     cm_spin_unlock(&reform_info->version_lock);
 }
 

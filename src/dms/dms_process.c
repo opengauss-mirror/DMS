@@ -795,7 +795,7 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
     mes_profile->rdma_rpc_bind_core_end = dms_profile->rdma_rpc_bind_core_end;
     mes_profile->frag_size = DMS_MESSAGE_BUFFER_SIZE;
     mes_profile->connect_timeout = (int)CM_CONNECT_TIMEOUT;
-    mes_profile->socket_timeout = (int)CM_CONNECT_TIMEOUT;
+    mes_profile->socket_timeout = (int)CM_NETWORK_IO_TIMEOUT;
     mes_profile->send_directly = CM_TRUE;
     mes_profile->need_serial = CM_FALSE;
     errno_t err = memcpy_s(mes_profile->inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
