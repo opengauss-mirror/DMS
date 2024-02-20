@@ -723,8 +723,8 @@ void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message
     dms_reform_ack_req_migrate(process_ctx, receive_msg, ret);
 }
 
-int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id,
-    uint8 thread_index)
+int dms_reform_req_page_rebuild_parallel(msg_command_t cmd, dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
+    uint8 master_id, uint8 thread_index)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
@@ -741,8 +741,8 @@ int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t
             return ERRNO_DMS_ALLOC_FAILED;
         }
         parallel->data[master_id] = req_rebuild;
-        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_PAGE_REBUILD, 0, dms_ctx->inst_id, master_id,
-            parallel->sess_id, CM_INVALID_ID16);
+        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, cmd, 0, dms_ctx->inst_id, master_id, parallel->sess_id,
+            CM_INVALID_ID16);
         dms_reform_set_judge_time(&req_rebuild->head);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
         req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
@@ -764,7 +764,8 @@ int dms_reform_req_page_rebuild_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t
     return DMS_SUCCESS;
 }
 
-int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info, uint8 master_id)
+int dms_reform_req_page_rebuild(msg_command_t cmd, dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
+    uint8 master_id)
 {
     rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)rebuild_info->rebuild_data[master_id];
@@ -780,7 +781,7 @@ int dms_reform_req_page_rebuild(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_in
             return ERRNO_DMS_ALLOC_FAILED;
         }
         rebuild_info->rebuild_data[master_id] = req_rebuild;
-        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_PAGE_REBUILD, 0, dms_ctx->inst_id, master_id,
+        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, cmd, 0, dms_ctx->inst_id, master_id,
             g_dms.reform_ctx.sess_proc, CM_INVALID_ID16);
         dms_reform_set_judge_time(&req_rebuild->head);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
@@ -852,7 +853,42 @@ void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t 
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
 }
 
-int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 master_id)
+void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
+    dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
+
+    if (!dms_reform_check_judge_time(&req_rebuild->head)) {
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        return;
+    }
+
+    uint8 inst_id = req_rebuild->head.src_inst;
+    uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
+    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t);
+    char pageid[DMS_PAGEID_SIZE];
+    dms_ctrl_info_t *ctrl_info = NULL;
+    int ret;
+
+    while (offset + unit_len <= req_rebuild->offset) {
+        ret = memcpy_s(pageid, DMS_PAGEID_SIZE, (uint8 *)req_rebuild + offset, DMS_PAGEID_SIZE);
+        DMS_SECUREC_CHECK(ret);
+        offset += DMS_PAGEID_SIZE;
+
+        ctrl_info = (dms_ctrl_info_t *)((uint8 *)req_rebuild + offset);
+        offset += sizeof(dms_ctrl_info_t);
+
+        ret = dms_reform_proc_page_validate(pageid, ctrl_info, inst_id);
+        if (ret != DMS_SUCCESS) {
+            LOG_RUN_ERR("[DRC][%s]dms_reform_proc_page_validate", cm_display_pageid(pageid));
+            break;
+        }
+    }
+    dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+}
+
+int dms_reform_req_rebuild_lock(msg_command_t cmd, drc_local_lock_res_t *lock_res, uint8 master_id)
 {
     rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
@@ -869,8 +905,8 @@ int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 mast
             return ERRNO_DMS_ALLOC_FAILED;
         }
         rebuild_info->rebuild_data[master_id] = req_rebuild;
-        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_LOCK_REBUILD, 0, g_dms.inst_id, master_id,
-            reform_ctx->sess_proc, CM_INVALID_ID16);
+        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, cmd, 0, g_dms.inst_id, master_id, reform_ctx->sess_proc,
+            CM_INVALID_ID16);
         dms_reform_set_judge_time(&req_rebuild->head);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
         req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
@@ -887,7 +923,8 @@ int dms_reform_req_rebuild_lock(const drc_local_lock_res_t *lock_res, uint8 mast
     return DMS_SUCCESS;
 }
 
-int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, uint8 master_id, uint8 thread_index)
+int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, drc_local_lock_res_t *lock_res, uint8 master_id,
+    uint8 thread_index)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
@@ -904,7 +941,7 @@ int dms_reform_req_rebuild_lock_parallel(const drc_local_lock_res_t *lock_res, u
             return ERRNO_DMS_ALLOC_FAILED;
         }
         parallel->data[master_id] = req_rebuild;
-        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, MSG_REQ_LOCK_REBUILD, 0, g_dms.inst_id, master_id, parallel->sess_id,
+        DMS_INIT_MESSAGE_HEAD(&req_rebuild->head, cmd, 0, g_dms.inst_id, master_id, parallel->sess_id,
             CM_INVALID_ID16);
         dms_reform_set_judge_time(&req_rebuild->head);
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
@@ -944,6 +981,34 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t 
         ret = dms_reform_proc_lock_rebuild(lock_res, inst_id);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DRC]dms_reform_proc_req_rebuild_lock, myid:%u", g_dms.inst_id);
+            break;
+        }
+    }
+    dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+}
+
+void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
+    dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
+
+    if (!dms_reform_check_judge_time(&req_rebuild->head)) {
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        return;
+    }
+
+    uint8 inst_id = req_rebuild->head.src_inst;
+    uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
+    drc_local_lock_res_t *lock_res;
+    int ret;
+
+    while (offset + sizeof(drc_local_lock_res_t) <= req_rebuild->offset) {
+        lock_res = (drc_local_lock_res_t *)((uint8 *)req_rebuild + offset);
+        offset += (uint32)sizeof(drc_local_lock_res_t);
+        ret = dms_reform_proc_lock_validate(lock_res, inst_id);
+        if (ret != DMS_SUCCESS) {
+            LOG_RUN_ERR("[DRC]dms_reform_proc_lock_validate, myid:%u", g_dms.inst_id);
             break;
         }
     }
@@ -1059,7 +1124,11 @@ static void dms_reform_proc_req_flush_copy(dms_process_context_t *process_ctx, d
     dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
     dms_reform_ack_common_t ack_common;
 
+#ifdef OPENGAUSS
     int ret = g_dms.callback.flush_copy(process_ctx->db_handle, req->resid);
+#else
+    int ret = g_dms.callback.flush_copy_check_lsn(process_ctx->db_handle, req->resid, req->lsn);
+#endif
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]flush_copy fail, error: %d", cm_display_pageid(req->resid), ret);
     }
@@ -1505,4 +1574,176 @@ bool32 dms_reform_check_judge_time(dms_message_head_t *req_head)
     } else {
         return CM_TRUE;
     }
+}
+
+#define DMS_REFORM_REQ_GROUP_INIT_OFFSET(req_group)                         \
+    do {                                                                    \
+        (req_group)->offset = (uint32)sizeof(dms_reform_req_group_t);       \
+    } while (0)
+
+#define DMS_REFORM_REQ_GROUP_IS_INIT_OFFSET(req_group)                      \
+    ((req_group)->offset == (uint32)sizeof(dms_reform_req_group_t))
+
+static dms_reform_req_group_t *dms_reform_req_group_get_buffer(msg_command_t cmd, uint8 dst_id, uint8 thread_index,
+    uint32 *sess_id)
+{
+    if (thread_index == CM_INVALID_ID8) {
+        rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
+        reform_context_t *ctx = DMS_REFORM_CONTEXT;
+        dms_reform_req_group_t *buffer = (dms_reform_req_group_t *)rebuild_info->rebuild_data[dst_id];
+        *sess_id = ctx->sess_proc;
+        if (buffer == NULL) {
+            buffer = (dms_reform_req_group_t *)g_dms.callback.mem_alloc(ctx->handle_proc, DMS_REFORM_MSG_MAX_LENGTH);
+            rebuild_info->rebuild_data[dst_id] = buffer;
+            DMS_INIT_MESSAGE_HEAD(&buffer->head, cmd, 0, g_dms.inst_id, dst_id, *sess_id, CM_INVALID_ID16);
+            dms_reform_set_judge_time(&buffer->head);
+            DMS_REFORM_REQ_GROUP_INIT_OFFSET(buffer);
+            buffer->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+        }
+        return buffer;
+    } else {
+        parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+        parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
+        dms_reform_req_group_t *buffer = (dms_reform_req_group_t *)parallel->data[dst_id];
+        *sess_id = parallel->sess_id;
+        if (buffer == NULL) {
+            buffer = (dms_reform_req_group_t *)g_dms.callback.mem_alloc(parallel->handle, DMS_REFORM_MSG_MAX_LENGTH);
+            parallel->data[dst_id] = buffer;
+            DMS_INIT_MESSAGE_HEAD(&buffer->head, cmd, 0, g_dms.inst_id, dst_id, *sess_id, CM_INVALID_ID16);
+            dms_reform_set_judge_time(&buffer->head);
+            DMS_REFORM_REQ_GROUP_INIT_OFFSET(buffer);
+            buffer->head.size = DMS_REFORM_MSG_MAX_LENGTH;
+        }
+        return buffer;
+    }
+}
+
+int dms_reform_req_group(msg_command_t cmd, uint8 dst_id, uint8 thread_index, void *data, uint32 data_len)
+{
+    int ret = DMS_SUCCESS;
+    uint32 sess_id = 0;
+    dms_reform_req_group_t *buffer = dms_reform_req_group_get_buffer(cmd, dst_id, thread_index, &sess_id);
+    if (buffer == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
+        return ERRNO_DMS_ALLOC_FAILED;
+    }
+
+    if (buffer->offset + data_len > DMS_REFORM_MSG_MAX_LENGTH) {
+        ret = dms_reform_send_data(&buffer->head, sess_id);
+        DMS_RETURN_IF_ERROR(ret);
+        DMS_REFORM_REQ_GROUP_INIT_OFFSET(buffer);
+    }
+
+    ret = memcpy_s((uint8 *)buffer + buffer->offset, DMS_REFORM_MSG_MAX_LENGTH - buffer->offset, data, data_len);
+    DMS_SECUREC_CHECK(ret);
+    buffer->offset += data_len;
+
+    return DMS_SUCCESS;
+}
+
+int dms_reform_req_group_send_rest(uint8 thread_index)
+{
+    dms_reform_req_group_t *buffer = NULL;
+    int ret = DMS_SUCCESS;
+
+    if (thread_index == CM_INVALID_ID8) {
+        rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
+        reform_context_t *ctx = DMS_REFORM_CONTEXT;
+        for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
+            buffer = (dms_reform_req_group_t *)rebuild_info->rebuild_data[i];
+            if (buffer == NULL) {
+                continue;
+            }
+
+            if (!DMS_REFORM_REQ_GROUP_IS_INIT_OFFSET(buffer)) {
+                ret = dms_reform_send_data(&buffer->head, ctx->sess_proc);
+                DMS_RETURN_IF_ERROR(ret);
+                DMS_REFORM_REQ_GROUP_INIT_OFFSET(buffer);
+            }
+        }
+    } else {
+        parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+        parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
+        for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
+            buffer = (dms_reform_req_group_t *)parallel->data[i];
+            if (buffer == NULL) {
+                continue;
+            }
+
+            if (!DMS_REFORM_REQ_GROUP_IS_INIT_OFFSET(buffer)) {
+                ret = dms_reform_send_data(&buffer->head, parallel->sess_id);
+                DMS_RETURN_IF_ERROR(ret);
+                DMS_REFORM_REQ_GROUP_INIT_OFFSET(buffer);
+            }
+        }
+    }
+
+    return DMS_SUCCESS;
+}
+
+void dms_reform_req_group_init(uint8 thread_index)
+{
+    if (thread_index == CM_INVALID_ID8) {
+        rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
+        for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+            rebuild_info->rebuild_data[i] = NULL;
+        }
+    } else {
+        parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+        parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
+        for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+            parallel->data[i] = NULL;
+        }
+    }
+}
+
+void dms_reform_req_group_free(uint8 thread_index)
+{
+    if (thread_index == CM_INVALID_ID8) {
+        rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
+        reform_context_t *ctx = DMS_REFORM_CONTEXT;
+        for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+            if (rebuild_info->rebuild_data[i] != NULL) {
+                g_dms.callback.mem_free(ctx->handle_proc, rebuild_info->rebuild_data[i]);
+                rebuild_info->rebuild_data[i] = NULL;
+            }
+        }
+    } else {
+        parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+        parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
+        for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+            if (parallel->data[i] != NULL) {
+                g_dms.callback.mem_free(parallel->handle, parallel->data[i]);
+                parallel->data[i] = NULL;
+            }
+        }
+    }
+}
+
+void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_group_t), CM_TRUE);
+    dms_reform_req_group_t *buffer = (dms_reform_req_group_t *)receive_msg->buffer;
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, buffer->offset, CM_TRUE);
+
+    if (!dms_reform_check_judge_time(&buffer->head)) {
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        return;
+    }
+
+    uint32 offset = (uint32)sizeof(dms_reform_req_group_t);
+    lsn_validate_item_t *item = NULL;
+    int ret = DMS_SUCCESS;
+    while (offset + sizeof(lsn_validate_item_t) <= buffer->offset) {
+        item = (lsn_validate_item_t *)((uint8 *)buffer + offset);
+        offset += (uint32)sizeof(lsn_validate_item_t);
+        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_VALIDATE_LSN);
+        ret = g_dms.callback.lsn_validate(ctx->db_handle, item->pageid, item->lsn, item->in_recovery);
+        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_VALIDATE_LSN);
+        if (ret != DMS_SUCCESS) {
+            LOG_RUN_ERR("[DRC]dms_reform_proc_req_lsn_validate error");
+            break;
+        }
+    }
+    dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
 }

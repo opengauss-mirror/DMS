@@ -887,6 +887,9 @@ static void dms_reform_judgement_recovery(instance_list_t *inst_lists)
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_RECOVERY);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
+        dms_reform_add_step(DMS_REFORM_STEP_VALIDATE_LSN);
+    }
     dms_reform_add_step(DMS_REFORM_STEP_DRC_RCY_CLEAN);
     dms_reform_add_step(DMS_REFORM_STEP_CTL_RCY_CLEAN);
 }
@@ -1290,6 +1293,17 @@ static void dms_reform_judgement_xa_access(void)
     dms_reform_add_step(DMS_REFORM_STEP_XA_DRC_ACCESS);
 }
 
+static void dms_reform_judgement_validate_lock_mode(instance_list_t *inst_lists)
+{
+    // if there is no old_join or old remove, DRC has not been traversed before. So no need to validate lock mode
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_OLD_REMOVE].inst_id_count == 0) {
+        return;
+    }
+
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_VALIDATE_LOCK_MODE);
+}
+
 static void dms_reform_judgement_normal(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
@@ -1308,6 +1322,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_df_recovery();
     dms_reform_judgement_reset_user();
+    dms_reform_judgement_validate_lock_mode(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);

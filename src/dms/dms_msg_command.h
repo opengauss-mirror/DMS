@@ -93,6 +93,8 @@ typedef enum en_msg_command {
     MSG_REQ_XA_OWNERS = 64,
     MSG_REQ_RECYCLE = 65,
     MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT = 66,
+    MSG_REQ_LOCK_VALIDATE = 67,
+    MSG_REQ_LSN_VALIDATE = 68,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,

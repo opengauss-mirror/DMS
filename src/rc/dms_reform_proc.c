@@ -1380,10 +1380,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE] = { "PROMOTE", dms_reform_switchover_promote, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECOVERY] = { "RECOVERY", dms_reform_recovery, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECOVERY_OPENGAUSS] = { "RECOVERY_OPENGAUSS", dms_reform_recovery_opengauss, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_DRC_RCY_CLEAN] =
-    { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel, CM_FALSE },
-    [DMS_REFORM_STEP_CTL_RCY_CLEAN] =
-    { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_RCY_CLEAN] = { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_CTL_RCY_CLEAN] = { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel, CM_FALSE },
     [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL, CM_FALSE },
     [DMS_REFORM_STEP_ROLLBACK] = { "ROLLBACK", dms_reform_rollback, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SUCCESS] = { "SUCCESS", dms_reform_success, NULL, CM_FALSE },
@@ -1396,10 +1394,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SPACE_RELOAD] = { "SPACE_RELOAD", dms_reform_space_reload, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DRC_ACCESS] = { "DRC_ACCESS", dms_reform_drc_access, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DRC_INACCESS] = { "DRC_INACCESS", dms_reform_drc_inaccess, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] =
-    { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] =
-    { "F_PROMOTE", dms_reform_failover_promote_opengauss, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] = { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] = { "F_PROMOTE", dms_reform_failover_promote_opengauss, NULL, CM_FALSE },
     [DMS_REFORM_STEP_STARTUP_OPENGAUSS] = { "STARTUP", dms_reform_startup_opengauss, NULL, CM_FALSE },
     [DMS_REFORM_STEP_FLUSH_COPY] = { "FLUSH_COPY", dms_reform_flush_copy, dms_reform_flush_copy_parallel, CM_FALSE },
     [DMS_REFORM_STEP_DONE_CHECK] = { "DONE_CHECK", dms_reform_done_check, NULL, CM_FALSE },
@@ -1417,6 +1413,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_MERGE_XA_OWNERS] = { "SYNC_XA_OWNER", dms_reform_merge_xa_owners, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECOVERY_XA] = { "RECOVERY_XA", dms_reform_recovery_xa, NULL, CM_FALSE },
     [DMS_REFORM_STEP_XA_DRC_ACCESS] = { "XA_DRC_ACCESS", dms_reform_xa_drc_access, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_VALIDATE_LOCK_MODE] = { "VALIDATE_LOCK", dms_reform_validate_lock_mode, dms_reform_validate_lock_mode_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_VALIDATE_LSN] = { "VALIDATE_LSN", dms_reform_validate_lsn, dms_reform_validate_lsn_parallel, CM_TRUE },
 };
 
 static int dms_reform_proc_inner(void)
