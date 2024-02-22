@@ -102,7 +102,6 @@ void dms_reformer_preempt_thread(thread_t *thread)
         if (dms_dst_id_is_self(reform_id)) {
             if (reform_info->dms_role != DMS_ROLE_REFORMER) {
                 LOG_RUN_INF("[DMS REFORM]dms_reformer_preempt set role reformer");
-                reform_info->start_time = (uint64)g_timer()->now;
             }
             reform_info->dms_role = DMS_ROLE_REFORMER;
         } else {

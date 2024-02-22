@@ -47,7 +47,11 @@ static int dms_reform_req_common_wait(uint64 ruid)
 
     ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
     DMS_RETURN_IF_ERROR(ret);
-
+    dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
+    if (ack_common->result != DMS_SUCCESS) {
+        mfc_release_response(&res);
+        return DMS_ERROR;
+    }
     mfc_release_response(&res);
     return DMS_SUCCESS;
 }
@@ -92,14 +96,14 @@ int dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, u
     return DMS_SUCCESS;
 }
 
-static void dms_reform_ack_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
+static void dms_reform_ack_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result)
 {
     dms_reform_ack_common_t ack_common;
     int ret = DMS_SUCCESS;
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
-    ack_common.result = DMS_SUCCESS;
+    ack_common.result = result;
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
@@ -113,7 +117,14 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
     if (ret != DMS_SUCCESS) {
         return;
     }
-
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (receive_msg->head->src_inst != reform_info->reformer_id) {
+        LOG_RUN_WAR(
+            "[DMS REFORM]Refusing to proc sync share info because the src %d is not the same as the local reformer %u",
+            receive_msg->head->src_inst, reform_info->reformer_id);
+        dms_reform_ack_sync_share_info(process_ctx, receive_msg, DMS_ERROR);
+        return;
+    }
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
 
     if (SECUREC_UNLIKELY(req.share_info.reform_type >= DMS_REFORM_TYPE_COUNT ||
@@ -135,14 +146,14 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
         dms_reform_version_same(&local_reform_info->reformer_version, &received_share_info->reformer_version)) {
         LOG_DEBUG_WAR("[DMS REFORM] current round(version num:%llu) of reform is being executed "
                       "or share info sync msg has been expired", local_share_info->version_num);
-        dms_reform_ack_sync_share_info(process_ctx, receive_msg);
+        dms_reform_ack_sync_share_info(process_ctx, receive_msg, DMS_SUCCESS);
         cm_spin_unlock(&reform_context->share_info_lock);
         return;
     }
 
     reform_context->share_info = req.share_info;
     cm_spin_unlock(&reform_context->share_info_lock);
-    dms_reform_ack_sync_share_info(process_ctx, receive_msg);
+    dms_reform_ack_sync_share_info(process_ctx, receive_msg, DMS_SUCCESS);
     dms_reform_judgement_step_log();
     dms_reform_set_start();
 }
@@ -246,9 +257,16 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
-    ack_common.result = DMS_SUCCESS;
-    ack_common.dms_status = (uint8)g_dms.callback.get_dms_status(process_ctx->db_handle);
-    ack_common.start_time = reform_info->start_time;
+    if (receive_msg->head->src_inst != reform_info->reformer_id) {
+        LOG_RUN_WAR(
+            "[DMS REFORM]Refusing to get dms status because the src %d is not the same as the local reformer %u",
+            receive_msg->head->src_inst, reform_info->reformer_id);
+        ack_common.result = DMS_ERROR;
+    } else {
+        ack_common.result = DMS_SUCCESS;
+        ack_common.dms_status = (uint8)g_dms.callback.get_dms_status(process_ctx->db_handle);
+        ack_common.start_time = reform_info->start_time;
+    }
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
@@ -267,6 +285,10 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
     }
 
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
+    if (ack_common->result != DMS_SUCCESS) {
+        mfc_release_response(&res);
+        return DMS_ERROR;
+    }
     online_status[dst_id] = ack_common->dms_status;
     online_times[dst_id] = ack_common->start_time;
     mfc_release_response(&res);
