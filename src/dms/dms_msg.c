@@ -943,12 +943,12 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t 
         cm_display_resid(req.resid, req.res_type),
         req.head.src_inst, req.head.src_sid, req.req_mode, req.curr_mode);
 
-    drc_request_info_t req_info;
+    drc_request_info_t req_info = { 0 };
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid,
         req.head.ruid, req.curr_mode, req.req_mode, req.is_try, req.sess_type, req.req_time, req.srsn,
         req.head.msg_proto_ver);
 
-    drc_req_owner_result_t result;
+    drc_req_owner_result_t result = { 0 };
     int ret = drc_request_page_owner(req.resid, req.len, req.res_type, &req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id, req_info.inst_id,
