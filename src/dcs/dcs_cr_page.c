@@ -112,7 +112,7 @@ static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *requ
 }
 
 static void dcs_init_pcr_assist(dms_cr_assist_t *pcr, void *handle, uint64 query_scn,
-    uint32 ssn, char *cr_page, char *xid, char *pageid)
+    uint32 ssn, char *cr_page, char *xid, char *pageid, char *rowid)
 {
     errno_t ret = memset_s(pcr, sizeof(dms_cr_assist_t), 0, sizeof(dms_cr_assist_t));
     DMS_SECUREC_CHECK(ret);
@@ -124,6 +124,10 @@ static void dcs_init_pcr_assist(dms_cr_assist_t *pcr, void *handle, uint64 query
     DMS_SECUREC_CHECK(ret);
     if (pageid != NULL) {
         ret = memcpy_s(pcr->pageid, DMS_PAGEID_SIZE, pageid, DMS_PAGEID_SIZE);
+        DMS_SECUREC_CHECK(ret);
+    }
+    if (rowid != NULL) {
+        ret = memcpy_s(pcr->rowid, DMS_ROWID_SIZE, rowid, DMS_ROWID_SIZE);
         DMS_SECUREC_CHECK(ret);
     }
 }
@@ -176,7 +180,7 @@ static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reques
     }
 
     dcs_init_pcr_assist(&pcr, ctx->db_handle, request->query_scn, request->sscn, cr_page,
-        request->xid, request->pageid);
+        request->xid, request->pageid, NULL);
     pcr.fb_mark = (char *)fb_mark;
     if (g_dms.callback.heap_construct_cr_page(&pcr) != DMS_SUCCESS) {
         return DMS_ERROR;
@@ -194,7 +198,7 @@ static int dcs_btree_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reque
     dms_cr_assist_t pcr;
     dcs_init_pcr_assist(&pcr, ctx->db_handle, index_pcr_req->pcr_request.query_scn,
         index_pcr_req->pcr_request.ssn, cr_page, index_pcr_req->pcr_request.xid,
-        index_pcr_req->pcr_request.pageid);
+        index_pcr_req->pcr_request.pageid, NULL);
     ret = memcpy_s(pcr.entry, DMS_PAGEID_SIZE, index_pcr_req->entry, DMS_PAGEID_SIZE);
     DMS_SECUREC_CHECK(ret);
     ret = memcpy_s(pcr.profile, DMS_INDEX_PROFILE_SIZE, index_pcr_req->profile, DMS_INDEX_PROFILE_SIZE);
@@ -747,7 +751,7 @@ static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
     char *page = (char *)check + sizeof(msg_cr_check_t);
     bool32 is_found = CM_TRUE;
     dms_cr_assist_t pcr;
-    dcs_init_pcr_assist(&pcr, ctx->db_handle, check->query_scn, check->ssn, page, check->xid, NULL);
+    dcs_init_pcr_assist(&pcr, ctx->db_handle, check->query_scn, check->ssn, page, check->xid, NULL, check->rowid);
     pcr.check_restart = CM_FALSE;
     pcr.check_found = &is_found;
 

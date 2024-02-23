@@ -33,7 +33,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           131
+#define DMS_LOCAL_VERSION           132
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -245,6 +245,7 @@ typedef struct st_dms_cr_assist_t {
     char wxid[DMS_XID_SIZE];                /* OUT parameter */
     char entry[DMS_PAGEID_SIZE];            /* IN parameter */
     char profile[DMS_INDEX_PROFILE_SIZE];   /* IN parameter */
+    char rowid[DMS_ROWID_SIZE];             /* IN parameter */
     unsigned int check_restart;             /* IN parameter */
     unsigned int *check_found;              /* IN & OUT parameter */
     dms_cr_phase_t phase;                   /* OUT parameter */
