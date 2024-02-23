@@ -64,7 +64,7 @@ void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t 
     bitmap64_union(&reform_info->bitmap_has_xa, req->bitmap_has_xa);
     cm_spin_unlock(&reform_info->xa_bitmap_lock);
 
-    dms_reform_ack_common_t ack_comm;
+    dms_reform_ack_common_t ack_comm = { 0 };
     dms_init_ack_head(&req->head, &ack_comm.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_comm.result = DMS_SUCCESS;
@@ -117,7 +117,7 @@ void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_messag
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
         return;
     }
-    dms_reform_ack_common_t ack_comm;
+    dms_reform_ack_common_t ack_comm = { 0 };
     dms_init_ack_head(receive_msg->head, &ack_comm.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     ack_comm.result = DMS_SUCCESS;

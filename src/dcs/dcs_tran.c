@@ -351,7 +351,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
 void dcs_proc_opengauss_txn_snapshot_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     dms_message_head_t ack;
-    dms_opengauss_txn_snapshot_t txn_snapshot;
+    dms_opengauss_txn_snapshot_t txn_snapshot = { 0 };
 
     uint8 src_inst = receive_msg->head->src_inst;
     int32 ret = g_dms.callback.get_opengauss_txn_snapshot(process_ctx->db_handle, &txn_snapshot, src_inst);
@@ -396,7 +396,7 @@ void dcs_proc_txn_snapshot_req(dms_process_context_t *process_ctx, dms_message_t
 #ifdef OPENGAUSS
 #else
     dms_message_head_t ack;
-    dms_txn_snapshot_t txn_snapshot;
+    dms_txn_snapshot_t txn_snapshot = { 0 };
 
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(msg_txn_snapshot_t), CM_TRUE);
     msg_txn_snapshot_t *req = (msg_txn_snapshot_t *)receive_msg->buffer;

@@ -382,8 +382,8 @@ int dms_reform_req_gcv_sync_wait(bool8 *local_updated, bool8 pushing, uint64 rui
         pushing ? "PUSH" : "SYNC", res.head->dst_inst, DMS_GLOBAL_CLUSTER_VER, res.head->src_inst,
         res.head->cluster_ver, ack->updated ? "Y" : "N");
 
-    /* reformer should have the biggest gcv, unless it's just failover promoted */
-    *local_updated = dms_lamport_update_cluster_version(res.head->cluster_ver, CM_FALSE);
+    /* reformer should have the biggest gcv, unless cluster has partially rebooted */
+    *local_updated |= dms_lamport_update_cluster_version(res.head->cluster_ver, CM_FALSE);
     mfc_release_response(&res);
     return DMS_SUCCESS;
 }
@@ -400,7 +400,7 @@ void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id)
 
 static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int in_reform)
 {
-    dms_reform_ack_common_t ack_common;
+    dms_reform_ack_common_t ack_common = { 0 };
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
 
@@ -476,7 +476,7 @@ void dms_reform_init_req_sync_next_step(dms_reform_req_sync_step_t *req, uint8 d
 
 void dms_reform_ack_sync_next_step(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    dms_reform_ack_common_t ack_common;
+    dms_reform_ack_common_t ack_common = { 0 };
     int ret = DMS_SUCCESS;
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
@@ -1355,7 +1355,7 @@ void dms_reform_proc_reform_done_req(dms_process_context_t *process_ctx, dms_mes
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE);
 
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    dms_reform_ack_common_t ack_common;
+    dms_reform_ack_common_t ack_common = { 0 };
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
@@ -1488,7 +1488,10 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, dms_messag
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_message_head_t), CM_TRUE);
 
+    errno_t err;
     dms_reform_ack_map_t ack_map;
+    err = memset_s(&ack_map, sizeof(dms_reform_ack_map_t), 0, sizeof(dms_reform_ack_map_t));
+    DMS_SECUREC_CHECK(err);
     remaster_info_t *remaster_info = &ack_map.remaster_info;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -1497,7 +1500,7 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, dms_messag
         process_ctx->sess_id);
 
     uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
-    errno_t err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
+    err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
     DMS_SECUREC_CHECK(err);
 
     size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
