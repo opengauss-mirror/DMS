@@ -487,6 +487,7 @@ static int dms_register_proc_func(processor_func_t *proc_func)
 static int dms_register_proc(void)
 {
     int ret;
+    LOG_RUN_INF("[DMS] dms_register_proc start");
     // register req
     for (uint32 i = MSG_REQ_BEGIN; i < MSG_REQ_END; i++) {
         ret = dms_register_proc_func(&g_proc_func_req[i - MSG_REQ_BEGIN]);
@@ -504,11 +505,13 @@ static int dms_register_proc(void)
     }
 
     mfc_register_proc_func(dms_process_message);
+    LOG_RUN_INF("[DMS] dms_register_proc end");
     return DMS_SUCCESS;
 }
 
 static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 {
+    LOG_RUN_INF("[DMS] dms_init_proc_ctx start");
     uint32 total_ctx_cnt = DMS_WORK_THREAD_COUNT + dms_profile->channel_cnt;
     if (total_ctx_cnt == 0) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, total_ctx_cnt);
@@ -529,6 +532,7 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
 
     g_dms.proc_ctx_cnt = total_ctx_cnt;
     g_dms.proc_ctx = proc_ctx;
+    LOG_RUN_INF("[DMS] dms_init_proc_ctx end");
     return DMS_SUCCESS;
 }
 
@@ -776,6 +780,7 @@ static status_t dms_set_mes_task_threadpool_attr(dms_profile_t *dms_profile, mes
 
 int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
+    LOG_RUN_INF("[DMS] dms_set_mes_profile start");
     mes_profile->inst_id = dms_profile->inst_id;
     mes_profile->inst_cnt = dms_profile->inst_cnt;
     if (dms_profile->pipe_type == DMS_CONN_MODE_TCP) {
@@ -814,6 +819,7 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
         mes_profile->tpool_attr.enable_threadpool = CM_TRUE;
         dms_set_mes_task_threadpool_attr(dms_profile, mes_profile);
     }
+    LOG_RUN_INF("[DMS] dms_set_mes_profile end");
     return DMS_SUCCESS;
 }
 
@@ -991,6 +997,7 @@ static int32 init_drc_smon_ctx(void)
 int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
 {
     int ret;
+    LOG_RUN_INF("[DMS] dms_init_drc_res_ctx start");
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ret = memset_s(ctx, sizeof(drc_res_ctx_t), 0, sizeof(drc_res_ctx_t));
     DMS_SECUREC_CHECK(ret);
@@ -1027,7 +1034,7 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
         drc_smon_ctx_deinit();
         drc_destroy();
     }
-
+    LOG_RUN_INF("[DMS] dms_init_drc_res_ctx end");
     return ret;
 }
 
@@ -1176,6 +1183,7 @@ static int dms_init_stat(dms_profile_t *dms_profile)
 
 static void dms_set_global_dms(dms_profile_t *dms_profile)
 {
+    LOG_RUN_INF("[DMS] dms_set_global_dms start");
     g_dms.callback = dms_profile->callback;
     g_dms.page_size = dms_profile->page_size;
     g_dms.inst_id = dms_profile->inst_id;
@@ -1189,10 +1197,12 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     if (g_dms.callback.dms_malloc_prot != NULL) {
         regist_cm_malloc_proc(g_dms.callback.dms_malloc_prot, g_dms.callback.dms_free_prot);
     }
+    LOG_RUN_INF("[DMS] dms_set_global_dms end");
 }
 
 static void dms_init_mfc(dms_profile_t *dms_profile)
 {
+    LOG_RUN_INF("[DMS] dms_init_mfc start");
     g_dms.mfc.profile_tickets = dms_profile->mfc_tickets;
     g_dms.mfc.max_wait_ticket_time = dms_profile->mfc_max_wait_ticket_time;
 
@@ -1203,12 +1213,14 @@ static void dms_init_mfc(dms_profile_t *dms_profile)
         g_dms.mfc.recv_tickets[i].count = 0;
         GS_INIT_SPIN_LOCK(g_dms.mfc.recv_tickets[i].lock);
     }
+    LOG_RUN_INF("[DMS] dms_init_mfc end");
 }
 
 int dms_init(dms_profile_t *dms_profile)
 {
     int ret;
 
+    LOG_RUN_INF("[DMS] dms_init start");
     ret = cm_start_timer(g_timer());
     if (ret != DMS_SUCCESS) {
         return ret;

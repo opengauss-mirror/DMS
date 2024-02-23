@@ -298,6 +298,7 @@ static int32 dms_reform_init_db_handle()
 
 int dms_reform_init(dms_profile_t *dms_profile)
 {
+    LOG_RUN_INF("[DMS] dms_reform_init start");
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
