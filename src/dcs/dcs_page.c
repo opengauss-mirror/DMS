@@ -92,6 +92,7 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
             !g_dms.callback.verify_page_checksum(dms_ctx->db_handle, ctrl, g_dms.page_size, ack->checksum)) {
             LOG_RUN_ERR("[DCS][%s][%s]: edp page checksum failed", cm_display_pageid(dms_ctx->resid),
                 dms_get_mescmd_msg(ack->head.cmd));
+            DMS_THROW_ERROR(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED);
             return ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED;
         }
 
@@ -273,6 +274,7 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
             !g_dms.callback.verify_page_checksum(dms_ctx->db_handle, ctrl, g_dms.page_size, ack->checksum)) {
             LOG_RUN_ERR("[DCS][%s][%s]: page checksum failed", cm_display_pageid(dms_ctx->resid),
                 dms_get_mescmd_msg(msg->head->cmd));
+            DMS_THROW_ERROR(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED);
             return ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED;
         }
 #endif
@@ -542,7 +544,8 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
     ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
 #endif
 
-    if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
+    int32 ret = mfc_send_data(&ack.head);
+    if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s]send failed, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
             cm_display_pageid(req->resid), (uint32)ack.head.src_inst, (uint32)ack.head.src_sid,
             (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid, (uint32)req->req_mode);
@@ -552,6 +555,7 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
     LOG_DEBUG_INF("[DCS][%s]send OK, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
         cm_display_pageid(req->resid), (uint32)ack.head.src_inst, (uint32)ack.head.src_sid,
         (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid, (uint32)req->req_mode);
+    DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, ack.head.cmd, ack.head.dst_inst);
     return DMS_SUCCESS;
 }
 
