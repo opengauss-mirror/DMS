@@ -254,7 +254,7 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
     dms_reform_ack_common_t ack_common;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
-
+    dms_reform_req_partner_status_t *req = (dms_reform_req_partner_status_t*)receive_msg->head;
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     if (receive_msg->head->src_inst != reform_info->reformer_id) {
@@ -263,6 +263,7 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
             receive_msg->head->src_inst, reform_info->reformer_id);
         ack_common.result = DMS_ERROR;
     } else {
+        dms_reform_update_reformer_version(req->lsn, req->head.src_inst);
         ack_common.result = DMS_SUCCESS;
         ack_common.dms_status = (uint8)g_dms.callback.get_dms_status(process_ctx->db_handle);
         ack_common.start_time = reform_info->start_time;
@@ -298,8 +299,6 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_FALSE);
-    dms_reform_req_partner_status_t *req = (dms_reform_req_partner_status_t*)receive_msg->head;
-    dms_reform_update_reformer_version(req->lsn, req->head.src_inst);
     dms_reform_ack_req_dms_status(process_ctx, receive_msg);
 }
 
