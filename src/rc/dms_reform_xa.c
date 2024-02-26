@@ -158,7 +158,7 @@ static int dms_reform_req_xa_owners(void)
         }
 
         dms_message_t res = { 0 };
-        ret = mfc_get_response(req.ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+        ret = mfc_get_response(req.ruid, &res, DMS_WAIT_MAX_TIME);
         if (ret == ERR_MES_WAIT_OVERTIME) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners wait timeout, dst_id: %d", share_info->promote_id);
             cm_reset_error();

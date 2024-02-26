@@ -33,11 +33,6 @@
 extern "C" {
 #endif
 
-#define DCS_RESEND_MSG_INTERVAL (5)  // unit: ms
-#define DCS_WAIT_MSG_TIMEOUT (5000)   // unit: ms
-#define DCS_CR_REQ_TIMEOUT (10000) // unit: ms
-#define DCS_RLS_PAGE_OWN_INTERVAL (10)
-
 #define DCS_INSTID_VALID(instid) ((instid) != CM_INVALID_ID8)
 
 typedef struct st_msg_page_batch_op {

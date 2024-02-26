@@ -959,7 +959,7 @@ static int dcs_release_owner_r(dms_context_t *dms_ctx, uint8 master_id, unsigned
         return ret;
     }
 
-    ret = mfc_get_response(ruid, &msg, DCS_WAIT_MSG_TIMEOUT);
+    ret = mfc_get_response(ruid, &msg, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s][release owner ack fail] error: %d", cm_display_pageid(dms_ctx->resid), ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);

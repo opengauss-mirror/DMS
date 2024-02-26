@@ -407,7 +407,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
             break;
         }
 
-        ret = mfc_get_response(request->head.ruid, &message, DCS_CR_REQ_TIMEOUT);
+        ret = mfc_get_response(request->head.ruid, &message, DMS_WAIT_MAX_TIME);
         if (ret != DMS_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
@@ -851,7 +851,7 @@ int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned 
             break;
         }
 
-        if (mfc_get_response(request.head.ruid, &message, DCS_CR_REQ_TIMEOUT) != CM_SUCCESS) {
+        if (mfc_get_response(request.head.ruid, &message, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
@@ -975,7 +975,7 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
             break;
         }
 
-        if (mfc_get_response(check.head.ruid, &message, DCS_CR_REQ_TIMEOUT) != CM_SUCCESS) {
+        if (mfc_get_response(check.head.ruid, &message, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
