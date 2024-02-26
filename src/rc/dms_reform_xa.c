@@ -64,11 +64,11 @@ void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t 
     bitmap64_union(&reform_info->bitmap_has_xa, req->bitmap_has_xa);
     cm_spin_unlock(&reform_info->xa_bitmap_lock);
 
-    dms_reform_ack_common_t ack_comm = { 0 };
-    dms_init_ack_head(&req->head, &ack_comm.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    dms_reform_ack_common_t ack_common = { 0 };
+    dms_init_ack_head(&req->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
-    ack_comm.result = DMS_SUCCESS;
-    int ret = mfc_send_data(&ack_comm.head);
+    ack_common.result = DMS_SUCCESS;
+    int ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
     }
@@ -117,12 +117,12 @@ void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_messag
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
         return;
     }
-    dms_reform_ack_common_t ack_comm = { 0 };
-    dms_init_ack_head(receive_msg->head, &ack_comm.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+    dms_reform_ack_common_t ack_common = { 0 };
+    dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
-    ack_comm.result = DMS_SUCCESS;
-    ack_comm.bitmap_has_xa = reform_info->bitmap_has_xa;
-    int ret = mfc_send_data(&ack_comm.head);
+    ack_common.result = DMS_SUCCESS;
+    ack_common.bitmap_has_xa = reform_info->bitmap_has_xa;
+    int ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
     }
@@ -170,8 +170,8 @@ static int dms_reform_req_xa_owners(void)
             return ERRNO_DMS_RECV_MSG_FAILED;
         }
 
-        dms_reform_ack_common_t *ack_comm = (dms_reform_ack_common_t *)res.buffer;
-        ret = ack_comm->result;
+        dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
+        ret = ack_common->result;
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners result: %d, dst_id: %d", ret, share_info->promote_id);
             DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, "request xa owners from remote node failed");
@@ -179,7 +179,7 @@ static int dms_reform_req_xa_owners(void)
             return ERRNO_DMS_COMMON_MSG_ACK;
         }
 
-        reform_info->bitmap_has_xa = ack_comm->bitmap_has_xa;
+        reform_info->bitmap_has_xa = ack_common->bitmap_has_xa;
         mfc_release_response(&res);
         break;
     }

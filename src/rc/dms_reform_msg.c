@@ -701,7 +701,7 @@ static int dms_reform_proc_req_migrate_res(dms_process_context_t *process_ctx, d
 
 void dms_reform_ack_req_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result)
 {
-    dms_reform_ack_common_t ack_common;
+    dms_reform_ack_common_t ack_common = { 0 };
     int ret = DMS_SUCCESS;
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
