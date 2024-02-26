@@ -828,12 +828,12 @@ int dms_init_mes(dms_profile_t *dms_profile)
     int ret;
     mes_profile_t mes_profile = { 0 };
     ret = dms_set_mes_profile(dms_profile, &mes_profile);
-    if (ret != CM_SUCCESS) {
+    if (ret != DMS_SUCCESS) {
         return ret;
     }
 
     ret = mfc_init(&mes_profile);
-    if (ret != CM_SUCCESS) {
+    if (ret != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -1498,15 +1498,15 @@ int dms_end_global_xa(dms_context_t *dms_ctx, uint64 flags, uint64 scn, bool8 is
 
 uint64 dms_calc_res_map_mem(uint32 item_num, uint32 item_size, uint32 max_extend_num)
 {
-    uint32 buccket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
+    uint32 bucket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
     // bucket size
-    uint64 total_mem = (uint64)(buccket_num * sizeof(drc_res_bucket_t));
+    uint64 total_mem = (uint64)(bucket_num * sizeof(drc_res_bucket_t));
     // pool size
     total_mem += item_size * item_num * max_extend_num;
     return total_mem;
 }
 
-int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long long *total_mem)
+int dms_calc_mem_usage(dms_profile_t *dms_profile, uint64 *total_mem)
 {
     // dms proc_ctx
     *total_mem = (dms_profile->work_thread_cnt + dms_profile->channel_cnt) * sizeof(dms_process_context_t);
