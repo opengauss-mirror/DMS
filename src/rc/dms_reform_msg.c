@@ -45,7 +45,7 @@ static int dms_reform_req_common_wait(uint64 ruid)
     dms_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     DMS_RETURN_IF_ERROR(ret);
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     if (ack_common->result != DMS_SUCCESS) {
@@ -278,7 +278,7 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
     dms_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_req_dms_status_wait error: %d, dst_id: %d", ret, dst_id);
         return ret;
@@ -366,7 +366,7 @@ int dms_reform_req_gcv_sync_wait(bool8 *local_updated, bool8 pushing, uint64 rui
     dms_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
@@ -445,7 +445,7 @@ int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, uint64 ruid)
     dms_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
@@ -1251,7 +1251,7 @@ int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint6
     int ret = DMS_SUCCESS;
 
     *result = DMS_SUCCESS;
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
@@ -1337,7 +1337,7 @@ int dms_reform_req_switchover_wait(uint64 ruid, uint64 *start_time)
     int result = DMS_SUCCESS;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
@@ -1384,7 +1384,7 @@ static int dms_reform_req_check_reform_done_wait(uint8 dst_id, uint64 ruid)
     dms_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_req_check_reform_done_wait error: %d, dst_id: %d", ret, dst_id);
         return ret;
@@ -1458,7 +1458,7 @@ void dms_reform_init_map_info_req(dms_message_head_t *head, uint8 dst_id)
 int dms_reform_map_info_req_wait(uint64 ruid)
 {
     dms_message_t res;
-    int ret = mfc_get_response(ruid, &res, DMS_REFORM_LONG_TIMEOUT);
+    int ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
