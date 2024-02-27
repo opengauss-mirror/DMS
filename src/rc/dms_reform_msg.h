@@ -40,7 +40,10 @@ typedef struct st_dms_reform_ack_common {
     dms_message_head_t  head;
     int                 result;         // proc result
     uint8               last_fail;      // for ack MSG_REQ_REFORM_PREPARE
-    uint8               dms_status;     // for ack MSG_REQ_DATABASE_STATUS
+    union {
+        uint8               dms_status;     // for ack MSG_REQ_DATABASE_STATUS
+        uint8               has_ddl_2phase;
+    };
     uint8               lock_mode;
     bool8               is_edp;
     uint64              lsn;
@@ -91,7 +94,7 @@ typedef struct st_dms_reform_req_prepare {
     bool8               last_fail;
 } dms_reform_req_prepare_t;
 void dms_reform_init_req_prepare(dms_reform_req_prepare_t *req, uint8 dst_id);
-int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, uint64 ruid);
+int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, bool8 *has_ddl_2phase, uint64 ruid);
 void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_gcv_sync {

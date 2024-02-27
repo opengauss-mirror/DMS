@@ -39,6 +39,7 @@ extern "C" {
 #define DRC_RES_CHECK_ACCESS        2   // handle_reform & handle_proc should not to check access
 #define DRC_RES_CHECK_MASTER        4   // if recheck master id or not
 #define DRC_RES_RELEASE             8   // if for release, no need wait recovery finish
+#define DRC_CHECK_BIZ_SESSION  16
 
 #define DMS_RES_MAP_INIT_PARAM 2
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
@@ -77,7 +78,7 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
 int drc_enter_buf_res(char *resid, uint16 len, uint8 res_type, uint8 options, drc_buf_res_t **buf_res);
 void drc_leave_buf_res(drc_buf_res_t *buf_res);
 void drc_buf_res_unlatch(uint8 res_type);
-uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_master);
+uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master);
 drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options);
 void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
 void drc_recycle_buf_res_thread(thread_t *thread);

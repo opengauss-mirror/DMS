@@ -192,7 +192,7 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
 static void drc_clean_share_copy_insts(char *resid, uint16 len, uint8 type, dms_session_e sess_type, uint64 owner_map)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 opts = drc_build_options(CM_FALSE, sess_type, CM_TRUE);
+    uint8 opts = drc_build_options(CM_FALSE, sess_type, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     if (drc_enter_buf_res(resid, len, type, opts, &buf_res) != DMS_SUCCESS || buf_res == NULL) {
         return;
     }
@@ -374,6 +374,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     req.is_try    = (bool8)dms_ctx->is_try;
     req.len       = dms_ctx->len;
     req.sess_type = dms_ctx->sess_type;
+    req.intercept_type = dms_ctx->intercept_type;
     int32 ret = memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, req.len);
     if (ret != EOK) {
         LOG_DEBUG_ERR("[DMS][%s][dms_ask_owner_for_res]: system call failed",
@@ -560,7 +561,8 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     uint32 srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, req_id, (uint16)dms_ctx->sess_id, dms_ctx->ctx_ruid,
-        curr_mode, req_mode, dms_ctx->is_try, dms_ctx->sess_type, g_timer()->now, srsn, DMS_SW_PROTO_VER);
+        curr_mode, req_mode, dms_ctx->is_try, dms_ctx->sess_type, g_timer()->now, srsn, dms_ctx->intercept_type,
+        DMS_SW_PROTO_VER);
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY, CM_TRUE);
 
@@ -602,6 +604,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     req.req_mode  = req_mode;
     req.curr_mode = curr_mode;
     req.sess_type = dms_ctx->sess_type;
+    req.intercept_type = dms_ctx->intercept_type;
     req.is_try    = dms_ctx->is_try;
     req.res_type  = dms_ctx->type;
     req.len       = dms_ctx->len;
@@ -672,6 +675,7 @@ static int32 dms_send_ask_res_owner_id_req(dms_context_t *dms_ctx, uint8 master_
     req.head.size = (uint16)sizeof(dms_ask_res_req_t);
     req.sess_type = dms_ctx->sess_type;
     req.res_type  = dms_ctx->type;
+    req.intercept_type  = dms_ctx->intercept_type;
     req.len       = dms_ctx->len;
     errno_t ret = memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, dms_ctx->len);
     if (ret != EOK) {
@@ -784,6 +788,7 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
         req.req_mode  = req_info->req_mode;
         req.curr_mode = req_info->curr_mode;
         req.sess_type = req_info->sess_type;
+        req.intercept_type = req_info->intercept_type;
         req.res_type = req_info->res_type;
         req.is_try = req_info->is_try;
         req.len = (uint16)req_info->len;
@@ -871,6 +876,7 @@ static int dms_send_req2owner(dms_process_context_t *ctx, dms_ask_res_req_t *req
     req_info.curr_mode = req_msg->curr_mode;
     req_info.req_mode  = req_msg->req_mode;
     req_info.sess_type = req_msg->sess_type;
+    req_info.intercept_type = req_msg->intercept_type;
     req_info.res_type = req_msg->res_type;
     req_info.is_try   = req_msg->is_try;
     req_info.len      = req_msg->len;
@@ -946,7 +952,7 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t 
     drc_request_info_t req_info = { 0 };
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid,
         req.head.ruid, req.curr_mode, req.req_mode, req.is_try, req.sess_type, req.req_time, req.srsn,
-        req.head.msg_proto_ver);
+        req.intercept_type, req.head.msg_proto_ver);
 
     drc_req_owner_result_t result = { 0 };
     int ret = drc_request_page_owner(req.resid, req.len, req.res_type, &req_info, &result);
@@ -989,7 +995,7 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *proc_ctx, dms_message_t *r
 
     uint8 owner_id = CM_INVALID_ID8;
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, req.sess_type, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, req.sess_type, req.intercept_type, CM_TRUE);
     int ret = drc_enter_buf_res(req.resid, req.len, req.res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(
@@ -1035,9 +1041,20 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *
         return;
     }
 
-    if (req.res_type == DRC_RES_PAGE_TYPE && ctx->global_buf_res.data_access == CM_FALSE &&
+    if (req.res_type == DRC_RES_PAGE_TYPE &&
+        ctx->global_buf_res.drc_accessible_stage < PAGE_ACCESS_STAGE_ALL_ACCESS &&
         req.sess_type == DMS_SESSION_NORMAL) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
+            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
+        return;
+    }
+
+    if (req.res_type == DRC_RES_LOCK_TYPE &&
+        (ctx->global_lock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS ||
+         (req.intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION &&
+          ctx->global_lock_res.drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS))) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but lock access is forbidden, req_id=%u, "
             "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
             (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
         return;
@@ -1055,6 +1072,7 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *
     req_info.req_mode  = req.req_mode;
     req_info.req_ruid = req.head.ruid;
     req_info.sess_type = DMS_SESSION_NORMAL;
+    req_info.intercept_type = DMS_RES_INTERCEPT_TYPE_NONE;
     req_info.res_type = req.res_type;
     req_info.is_try   = req.is_try;
     req_info.len      = req.len;
@@ -1120,6 +1138,7 @@ static int dms_try_notify_owner_for_res(dms_process_context_t *ctx, cvt_info_t *
     req_info.curr_mode = cvt_info->curr_mode;
     req_info.req_mode  = cvt_info->req_mode;
     req_info.sess_type = DMS_SESSION_NORMAL;
+    req_info.intercept_type = DMS_RES_INTERCEPT_TYPE_NONE;
     req_info.res_type    = cvt_info->res_type;
     req_info.is_try      = cvt_info->is_try;
     req_info.len         = cvt_info->len;
@@ -1283,6 +1302,7 @@ void dms_cancel_request_res(dms_context_t *dms_ctx)
     req.len = dms_ctx->len;
     req.res_type = (uint8)dms_ctx->type;
     req.sess_type = dms_ctx->sess_type;
+    req.intercept_type = dms_ctx->intercept_type;
     req.srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
     ret = memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, dms_ctx->len);
     if (SECUREC_UNLIKELY(ret != EOK)) {
@@ -1318,7 +1338,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t 
 
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid, req.head.ruid, 0, 0, CM_FALSE,
-        req.sess_type, g_timer()->now, req.srsn, req.head.msg_proto_ver);
+        req.sess_type, g_timer()->now, req.srsn, req.intercept_type, req.head.msg_proto_ver);
 
     cvt_info_t cvt_info;
     drc_cancel_request_res(req.resid, req.len, req.res_type, &req_info, &cvt_info);
@@ -1419,7 +1439,7 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
     res_id_t *res_id, drc_request_info_t *cvt_req, dms_confirm_cvt_ack_t *ack)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
     int ret = drc_enter_buf_res(res_id->data, res_id->len, res_id->type, options, &buf_res);
     if (ret != DMS_SUCCESS || buf_res == NULL) {
         return;
@@ -1464,7 +1484,7 @@ static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t
     drc_request_info_t *cvt_req)
 {
     drc_buf_res_t *buf_res = NULL;
-     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, CM_TRUE);
+     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
     int ret = drc_enter_buf_res(res_id->data, res_id->len, res_id->type, options, &buf_res);
     if (ret != DMS_SUCCESS || buf_res == NULL) {
         return;
@@ -1477,7 +1497,7 @@ static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t
 
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid, 0, 0,
-        CM_FALSE, CM_FALSE, cvt_req->req_time, cvt_req->srsn, cvt_req->req_proto_ver);
+        CM_FALSE, CM_FALSE, cvt_req->req_time, cvt_req->srsn, DMS_RES_INTERCEPT_TYPE_NONE, cvt_req->req_proto_ver);
 
     cvt_info_t cvt_info;
     cvt_info.invld_insts = 0;
@@ -1538,7 +1558,7 @@ static void dms_smon_handle_confirm_ack(uint64 ruid, res_id_t *res_id, drc_reque
 static void dms_smon_confirm_converting(res_id_t *res_id)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
     int ret = drc_enter_buf_res(res_id->data, res_id->len, res_id->type, options, &buf_res);
     if (ret != DMS_SUCCESS || buf_res == NULL) {
         return;

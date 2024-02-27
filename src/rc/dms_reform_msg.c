@@ -407,6 +407,7 @@ static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, dms_m
         process_ctx->sess_id);
     ack_common.result = in_reform;
     ack_common.last_fail = reform_info->last_fail;
+    ack_common.has_ddl_2phase = (bool8)g_dms.callback.reform_is_need_ddl_2phase_rcy(process_ctx->db_handle);
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
@@ -439,7 +440,7 @@ void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, dms_message
     }
 }
 
-int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, uint64 ruid)
+int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, bool8 *has_ddl_2phase, uint64 ruid)
 {
     dms_message_t res;
     int ret = DMS_SUCCESS;
@@ -453,6 +454,7 @@ int dms_reform_req_prepare_wait(bool8 *last_fail, int *in_reform, uint64 ruid)
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     *last_fail = ack_common->last_fail;
     *in_reform = ack_common->result;
+    *has_ddl_2phase = ack_common->has_ddl_2phase;
     mfc_release_response(&res);
     return DMS_SUCCESS;
 }
@@ -639,7 +641,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, drc_buf_res_msg_t *res_msg, uint8 type)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, CM_TRUE);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(res_msg->resid, res_msg->len, type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;

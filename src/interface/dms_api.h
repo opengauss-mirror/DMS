@@ -328,6 +328,7 @@ typedef struct st_dms_context {
         unsigned char edp_inst;
         drc_global_xid_t global_xid;
     };
+    unsigned char intercept_type;
 } dms_context_t;
 
 typedef struct st_dms_cr {
@@ -652,6 +653,9 @@ typedef enum st_dms_session_type {
     DMS_SESSION_TYPE_FULL_RCY_PARAL = 3,
 }dms_session_type_e;
 
+#define DMS_RES_INTERCEPT_TYPE_NONE 0
+#define DMS_RES_INTERCEPT_TYPE_BIZ_SESSION 1
+
 #define DCS_BATCH_BUF_SIZE (1024 * 30)
 #define DCS_RLS_OWNER_BATCH_SIZE (DCS_BATCH_BUF_SIZE / DMS_PAGEID_SIZE)
 typedef struct st_dcs_batch_buf {
@@ -744,6 +748,7 @@ typedef void(*dms_reform_start_notify)(void *db_handle, dms_reform_start_context
 typedef int(*dms_undo_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_init)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_tx_area_load)(void *db_handle, unsigned char inst_id);
+typedef int(*dms_tx_rollback_start)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_convert_to_readwrite)(void *db_handle);
 typedef int(*dms_tx_rollback_finish)(void *db_handle, unsigned char inst_id);
 typedef unsigned char(*dms_recovery_in_progress)(void *db_handle);
@@ -877,6 +882,8 @@ typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long 
     unsigned char is_commit);
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
 typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
+typedef int (*dms_ddl_2phase_rcy)(void *db_handle, unsigned long long inst_remove_bitmap);
+typedef int (*dms_reform_is_need_ddl_2phase_rcy)(void *db_handle);
 typedef void (*dms_buf_ctrl_recycle)(void *db_handle);
 typedef void *(*dms_malloc_prot_proc)(size_t size);
 typedef void (*dms_free_prot_proc)(void *ptr);
@@ -905,6 +912,7 @@ typedef struct st_dms_callback {
     dms_undo_init undo_init;
     dms_tx_area_init tx_area_init;
     dms_tx_area_load tx_area_load;
+    dms_tx_rollback_start tx_rollback_start;
     dms_convert_to_readwrite convert_to_readwrite;
     dms_tx_rollback_finish tx_rollback_finish;
     dms_recovery_in_progress recovery_in_progress;
@@ -1034,6 +1042,8 @@ typedef struct st_dms_callback {
     dms_xa_inuse xa_inuse;
     dms_get_part_changed get_part_changed;
 
+    dms_ddl_2phase_rcy ddl_2phase_rcy;
+    dms_reform_is_need_ddl_2phase_rcy reform_is_need_ddl_2phase_rcy;
     dms_buf_ctrl_recycle buf_ctrl_recycle;
     dms_malloc_prot_proc dms_malloc_prot;
     dms_free_prot_proc dms_free_prot;

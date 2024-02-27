@@ -269,8 +269,8 @@ static int32 drc_new_xa_res(drc_global_res_map_t *xa_res_map, drc_global_xid_t *
 static int32 drc_enter_xa_res_precheck(drc_global_xid_t *global_xid, drc_global_res_map_t *xa_res_map,
     bool32 check_xa_drc)
 {
-    if (check_xa_drc && !xa_res_map->drc_access) {
-        LOG_DEBUG_ERR("[%s][drc_enter_xa_res_precheck] XA drc is inaccessable", cm_display_resid((char *)global_xid,
+    if (check_xa_drc && xa_res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_INACCESS) {
+        LOG_DEBUG_ERR("[%s][drc_enter_xa_res_precheck] XA drc is inaccessiable", cm_display_resid((char *)global_xid,
             DRC_RES_GLOBAL_XA_TYPE));
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;

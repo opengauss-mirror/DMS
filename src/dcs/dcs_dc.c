@@ -28,6 +28,7 @@
 #include "dms_msg_protocol.h"
 #include "dms_error.h"
 #include "dms_api.h"
+#include "cm_utils.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,10 +68,15 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
 
     for (i = 0; i < recv_msg->count; i++) {
         head = (dms_message_head_t *)recv_msg->messages[i].buffer;
-        data = recv_msg->messages[i].buffer + sizeof(dms_message_head_t);
-        len = (uint32)(head->size - sizeof(dms_message_head_t));
-        dms_broadcast_context_t broad_ctx = {.data = data, .len = len};
-        ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
+        if (head->cmd == MSG_ACK_BROADCAST) {
+            dms_common_ack_t *ack_msg = (dms_common_ack_t *)head;
+            ret = ack_msg->ret;
+        } else {
+            data = recv_msg->messages[i].buffer + sizeof(dms_message_head_t);
+            len = (uint32)(head->size - sizeof(dms_message_head_t));
+            dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = NULL, .output_msg_len = NULL};
+            ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
+        }
         if (ret != DMS_SUCCESS) {
             return ret;
         }
@@ -130,7 +136,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 }
 
 int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
-    unsigned int timeout, msg_command_t cmd, dms_broadcast_scope_e scope)
+    unsigned int timeout, msg_command_t cmd, dms_broadcast_scope_e scope, unsigned char check_session_kill)
 {
     int ret = DMS_SUCCESS;
 
@@ -144,7 +150,7 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
             return DMS_SUCCESS;
         }
 #ifndef OPENGAUSS
-        if (g_dms.callback.check_session_invalid(dms_ctx->sess_id)) {
+        if (check_session_kill && g_dms.callback.check_session_invalid(dms_ctx->sess_id)) {
             LOG_RUN_INF("[DCS] session %u is killed or canneled during the broadcast process.", dms_ctx->sess_id);
             return DMS_ERROR;
         }
@@ -157,7 +163,8 @@ int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data, unsigned in
     unsigned char handle_recv_msg, unsigned int timeout, dms_broadcast_scope_e scope)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST, scope);
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST, scope,
+        CM_TRUE);
 }
 
 int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
@@ -165,7 +172,7 @@ int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
 {
     dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST,
-        DMS_BROADCAST_ONLINE_LIST);
+        DMS_BROADCAST_ONLINE_LIST, CM_TRUE);
 }
 
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -315,10 +322,11 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
 }
 
 int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
-    unsigned int timeout, dms_broadcast_scope_e scope)
+    unsigned int timeout, dms_broadcast_scope_e scope, unsigned char check_session_kill)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC, scope);
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC, scope,
+        check_session_kill);
 }
 
 #ifdef __cplusplus

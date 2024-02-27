@@ -55,6 +55,7 @@ int dms_reform_rebuild_xa_res(void *handle, uint32 sess_id, uint8 thread_index, 
 int dms_reform_undo_init(instance_list_t *list);
 int dms_reform_tx_area_init(instance_list_t *list);
 int dms_reform_tx_area_load(instance_list_t *list);
+int dms_reform_tx_rollback_start(instance_list_t *list);
 int dms_reform_drc_clean(void);
 int dms_reform_migrate(void);
 int dms_reform_rebuild(void);

@@ -58,7 +58,8 @@ typedef struct st_dms_ask_res_req {
     uint16 len;
     bool8 is_try;
     uint8 res_type;
-    uint8 unused[4];
+    uint8 intercept_type;
+    uint8 unused[3];
     date_t req_time;
     char resid[DMS_RESID_SIZE];
     uint32 srsn;
@@ -113,7 +114,7 @@ typedef struct st_dms_ask_res_owner_id_req {
     dms_session_e sess_type;
     uint16 len;
     uint8 res_type;
-    uint8 unused;
+    uint8 intercept_type;
     uint64 lsn;
     char resid[DMS_RESID_SIZE];
 } dms_ask_res_owner_id_req_t;
@@ -129,7 +130,8 @@ typedef struct st_dms_res_req_info {
     uint8 owner_id;
     uint8 res_type;
     bool8 is_try;
-    uint8 unused[2];
+    uint8 unused;
+    uint8 intercept_type;
     uint16 req_sid;
     dms_session_e sess_type;
     uint64 req_ruid;
@@ -145,7 +147,7 @@ typedef struct st_dms_cancel_request_res {
     dms_session_e sess_type;
     uint16 len;
     uint8  res_type;
-    uint8  unused;
+    uint8  intercept_type;
     char resid[DMS_RESID_SIZE];
     uint32 srsn;
 }dms_cancel_request_res_t;
@@ -348,7 +350,7 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
 
 static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 ruid,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try,
-    dms_session_e sess_type, date_t req_time, uint32 srsn, uint32 req_proto_ver)
+    dms_session_e sess_type, date_t req_time, uint32 srsn, uint8 intercept_type, uint32 req_proto_ver)
 {
     req_info->ruid = ruid;
     req_info->inst_id = req_id;
@@ -359,6 +361,7 @@ static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, 
     req_info->sess_type = sess_type;
     req_info->req_time = req_time;
     req_info->srsn = srsn;
+    req_info->intercept_type = intercept_type;
     req_info->req_proto_ver = req_proto_ver;
 }
 

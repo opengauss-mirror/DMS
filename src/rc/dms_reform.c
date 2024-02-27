@@ -81,16 +81,12 @@ int dms_drc_accessible(unsigned char res_type)
     }
 #endif
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
-    switch (res_type)
-    {
-        case DRC_RES_PAGE_TYPE:
-            return (int)res_map->data_access;
-        case DRC_RES_LOCK_TYPE:
-            return (int)res_map->drc_access;
-        case DRC_RES_GLOBAL_XA_TYPE:
-            return (int)res_map->drc_access;
-        default:
-            return CM_TRUE;
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        return (int)res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_ACCESS;
+    } else if (res_type == DRC_RES_LOCAL_LOCK_TYPE) {
+        return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
+    } else {
+        return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
     }
 }
 
@@ -214,8 +210,8 @@ static void dms_reform_init_for_maintain(void)
         return;
     }
 
-    ctx->global_lock_res.drc_access = CM_TRUE;
-    ctx->global_xa_res.drc_access = CM_TRUE;
+    ctx->global_lock_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
+    ctx->global_xa_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     inst_part->count = DRC_MAX_PART_NUM;
     inst_part->expected_num = DRC_MAX_PART_NUM;
     inst_part->first = CM_INVALID_ID16;
@@ -308,10 +304,8 @@ int dms_reform_init(dms_profile_t *dms_profile)
 #ifdef OPENGAUSS
     if (!dms_profile->enable_reform) {
         drc_res_ctx_t *ctx = DRC_RES_CTX;
-        ctx->global_buf_res.drc_access = CM_TRUE;
-        ctx->global_buf_res.data_access = CM_TRUE;
-        ctx->global_lock_res.drc_access = CM_TRUE;
-        ctx->global_lock_res.data_access = CM_TRUE;
+        ctx->global_buf_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
+        ctx->global_lock_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
         return DMS_SUCCESS;
     }
 #endif
