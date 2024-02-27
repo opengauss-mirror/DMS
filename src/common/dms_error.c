@@ -58,6 +58,7 @@ const char *g_dms_errno_dcs_desc[] = {
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_TXN_STATUS_FAILED)] = "dms get txn status fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_XID_CSN_FAILED)] = "dms get xid csn fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_LOCK_BUFFER_FAILED)] = "dms lock buffer fail",
+    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms get page in buffer fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms page checksum fail",
 };
 

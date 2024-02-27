@@ -52,6 +52,7 @@ static inline int32 chk_convertq_4_conflict_reverse(drc_buf_res_t *buf_res, drc_
 {
     while (next != NULL) {
         if (chk_conflict_with_x_lock(buf_res->data, buf_res->type, req, &next->req_info)) {
+            DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
             return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
         }
         next = (drc_lock_item_t*)next->node.next;
@@ -69,6 +70,7 @@ static int32 chk_if_valid_retry_request(drc_buf_res_t *buf_res, drc_request_info
             (uint32)new_req->sess_id, new_req->ruid, (uint32)new_req->req_mode, (uint32)new_req->curr_mode,
             new_req->req_time, (uint32)old_req->inst_id, (uint32)old_req->sess_id, old_req->ruid,
             (uint32)old_req->req_mode, (uint32)old_req->curr_mode, old_req->req_time);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
         return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
     }
     if (new_req->req_mode > old_req->req_mode) {
@@ -93,6 +95,7 @@ static int32 chk_convertq_4_conflict(drc_buf_res_t* buf_res, drc_request_info_t*
         }
 
         if (chk_conflict_with_x_lock(buf_res->data, buf_res->type, &tmp->req_info, req)) {
+            DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
             return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
         }
         tmp = (drc_lock_item_t*)tmp->node.next;
@@ -142,6 +145,7 @@ static int32 drc_check_req_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
             (uint32)buf_res->lock_mode, (uint32)converting->req_info.inst_id, (uint32)converting->req_info.req_mode,
             (uint32)req->inst_id, (uint32)req->sess_id, req->ruid, (uint32)req->req_mode, (uint32)req->curr_mode);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
 
@@ -152,6 +156,7 @@ static int32 drc_check_req_4_conflict(drc_buf_res_t *buf_res, drc_request_info_t
             cm_display_resid(buf_res->data, buf_res->type), (uint32)buf_res->claimed_owner,
             (uint32)buf_res->lock_mode, (uint32)req->inst_id, (uint32)req->sess_id,
             req->ruid, (uint32)req->req_mode, (uint32)req->curr_mode);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
     *can_cvt = CM_FALSE;
@@ -489,6 +494,7 @@ int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
     }
     if (buf_res == NULL) {
         LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL", cm_display_pageid(claim_info->resid));
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_NOT_FOUND, cm_display_pageid(claim_info->resid));
         return ERRNO_DMS_DRC_PAGE_NOT_FOUND;
     }
     drc_convert_page_owner(buf_res, claim_info, cvt_info);
