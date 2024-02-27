@@ -124,7 +124,8 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_DRC_RCY_CLEAN,
     DMS_REFORM_STEP_CTL_RCY_CLEAN,
     DMS_REFORM_STEP_TXN_DEPOSIT,
-    DMS_REFORM_STEP_ROLLBACK,
+    DMS_REFORM_STEP_ROLLBACK_PREPARE,
+    DMS_REFORM_STEP_ROLLBACK_START,
     DMS_REFORM_STEP_SUCCESS,
     DMS_REFORM_STEP_SELF_FAIL,                      // cause by self
     DMS_REFORM_STEP_REFORM_FAIL,                    // cause by notification from reformer
@@ -155,8 +156,11 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_MERGE_XA_OWNERS,                // for Gauss100, merge xa owners from all nodes
     DMS_REFORM_STEP_RECOVERY_XA,                    // for Gauss100, recovery xa
     DMS_REFORM_STEP_XA_DRC_ACCESS,                  // for Gauss100, set xa drc access
+    DMS_REFORM_STEP_DDL_2PHASE_DRC_ACCESS,
+    DMS_REFORM_STEP_DDL_2PHASE_RCY,
     DMS_REFORM_STEP_VALIDATE_LOCK_MODE,
     DMS_REFORM_STEP_VALIDATE_LSN,
+    DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS,
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
@@ -306,6 +310,7 @@ typedef struct st_reform_info {
     log_point_t         curr_points[DMS_MAX_INSTANCES];
     uint64              bitmap_in;
     bool8               is_locking;
+    bool8               has_ddl_2phase;
 } reform_info_t;
 
 typedef struct st_switchover_info {

@@ -589,7 +589,7 @@ int dms_reform_xa_drc_access(void)
 {
     LOG_RUN_FUNC_ENTER;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ctx->global_xa_res.drc_access = CM_TRUE;
+    ctx->global_xa_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;

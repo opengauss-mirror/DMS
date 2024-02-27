@@ -321,8 +321,7 @@ static drc_buf_res_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint
 void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
 {
     cm_latch_x(&res_map->res_latch, g_dms.reform_ctx.sess_proc, NULL);
-    res_map->drc_access = CM_FALSE;
-    res_map->data_access = CM_FALSE;
+    res_map->drc_accessible_stage = DRC_ACCESS_STAGE_ALL_INACCESS;
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
@@ -368,13 +367,22 @@ static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
     }
 
     if (options & DRC_RES_CHECK_ACCESS) {
-        if (!res_map->drc_access) {
+        if (res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_INACCESS) {
             LOG_DEBUG_WAR("[%s][drc_buf_res_latch]drc is inaccessible", cm_display_resid(resid, res_type));
             cm_unlatch(&res_map->res_latch, NULL);
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
             return ERRNO_DMS_REFORM_IN_PROCESS;
         }
-        if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) && !res_map->data_access) {
+        if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
+            res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
+            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
+            cm_unlatch(&res_map->res_latch, NULL);
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+            return ERRNO_DMS_REFORM_IN_PROCESS;
+        }
+
+        if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
+            res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
             LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
             cm_unlatch(&res_map->res_latch, NULL);
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
@@ -527,7 +535,7 @@ void drc_destroy(void)
 int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, sess_type, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, sess_type, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -669,12 +677,16 @@ int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
     return drc_get_lock_master_id((dms_drid_t*)resid, master_id);
 }
 
-uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, bool32 check_master)
+uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master)
 {
     uint8 options = DRC_RES_NORMAL;
 
     if (alloc) {
         options |= DRC_RES_ALLOC;
+    }
+
+    if (intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
+        options |= DRC_RES_CHECK_ACCESS | DRC_CHECK_BIZ_SESSION;
     }
 
     switch (sess_type) {

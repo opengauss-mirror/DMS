@@ -344,7 +344,7 @@ int32 drc_request_page_owner(char* resid, uint16 len, uint8 res_type,
 {
     result->invld_insts    = 0;
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_TRUE, req_info->sess_type, CM_TRUE);
+    uint8 options = drc_build_options(CM_TRUE, req_info->sess_type, req_info->intercept_type, CM_TRUE);
     int ret = drc_enter_buf_res(resid, len, res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -482,7 +482,7 @@ void drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cv
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, claim_info->sess_type, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, claim_info->sess_type, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(claim_info->resid, (uint16)claim_info->len, claim_info->res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -560,7 +560,7 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
     cvt_info->invld_insts = 0;
 
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, req->sess_type, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, req->sess_type, req->intercept_type, CM_TRUE);
     int ret = drc_enter_buf_res(resid, len, res_type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return;
@@ -727,7 +727,7 @@ int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *ski
 {
     dms_reset_error();
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(alloc, DMS_SESSION_REFORM, CM_TRUE);
+    uint8 options = drc_build_options(alloc, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -755,7 +755,7 @@ int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *ski
 int dms_recovery_unregister_group_lsn(char pageid[DMS_PAGEID_SIZE], unsigned long long group_lsn)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;

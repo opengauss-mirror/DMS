@@ -211,7 +211,7 @@ static int32 dcs_owner_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, 
 static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
 {
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(edp->page, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return CM_FALSE;

@@ -126,12 +126,9 @@ int dms_reform_cm_res_init(void)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
 
     reform_info->first_reform_finish = CM_TRUE;
-    ctx->global_buf_res.drc_access = CM_TRUE;
-    ctx->global_buf_res.data_access = CM_TRUE;
-    ctx->global_lock_res.drc_access = CM_TRUE;
-    ctx->global_lock_res.data_access = CM_TRUE;
-    ctx->global_xa_res.drc_access = CM_TRUE;
-    ctx->global_xa_res.data_access = CM_TRUE;
+    ctx->global_buf_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
+    ctx->global_lock_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
+    ctx->global_xa_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     printf("DMS FOR UT TEST.\n");
     LOG_RUN_INF("[DMS REFORM]cm_res_init success(FOR UT TEST)");
 #else

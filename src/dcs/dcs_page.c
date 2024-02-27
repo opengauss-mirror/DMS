@@ -744,7 +744,7 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, page_req.head.src_inst, page_req.head.src_sid, page_req.head.ruid,
         page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_type, page_req.req_time, page_req.srsn,
-        page_req.head.msg_proto_ver);
+        page_req.intercept_type, page_req.head.msg_proto_ver);
 
     LOG_DEBUG_INF("[DMS[%s][dcs_proc_try_ask_master_for_page]: src_id=%d, src_sid=%d, req_mode=%u, curr_mode=%u",
         cm_display_resid(page_req.resid, page_req.res_type), page_req.head.src_inst, page_req.head.src_sid,
@@ -795,7 +795,7 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
 
     uint32 srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
     dms_set_req_info(&req_info, self_id, (uint16)dms_ctx->sess_id, 0, ctrl->lock_mode, /* not a real request */
-        req_mode, CM_TRUE, dms_ctx->sess_type, g_timer()->now, srsn, DMS_SW_PROTO_VER);
+        req_mode, CM_TRUE, dms_ctx->sess_type, g_timer()->now, srsn, dms_ctx->intercept_type, DMS_SW_PROTO_VER);
 
     int ret = drc_request_page_owner(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -835,6 +835,7 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     dcs_set_page_req_parameter(dms_ctx, ctrl, req_mode, &page_req);
     page_req.len = DMS_PAGEID_SIZE;
     page_req.sess_type = dms_ctx->sess_type;
+    page_req.intercept_type = dms_ctx->intercept_type;
     int ret = memcpy_sp(page_req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
     if (SECUREC_UNLIKELY(ret != EOK)) {
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(dms_ctx->resid));

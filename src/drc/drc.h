@@ -125,6 +125,7 @@ typedef struct st_drc_request_info {
     date_t  req_time;
     uint32 srsn;
     uint32 req_proto_ver;
+    uint8  intercept_type;
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -191,10 +192,24 @@ typedef struct st_drc_part_list {
     bilist_t            list;
 } drc_part_list_t;
 
+#define DRC_ACCESS_STAGE_ALL_INACCESS 0
+#define DRC_ACCESS_STAGE_ALL_ACCESS 255
+enum {
+    PAGE_ACCESS_STAGE_ALL_INACCESS = DRC_ACCESS_STAGE_ALL_INACCESS,
+    PAGE_ACCESS_STAGE_REALESE_ACCESS = 1,
+    PAGE_ACCESS_STAGE_ALL_ACCESS = DRC_ACCESS_STAGE_ALL_ACCESS
+};
+
+enum {
+    LOCK_ACCESS_STAGE_ALL_INACCESS = DRC_ACCESS_STAGE_ALL_INACCESS,
+    LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS = 1,
+    LOCK_ACCESS_STAGE_ALL_ACCESS = DRC_ACCESS_STAGE_ALL_ACCESS
+};
+
 typedef struct st_drc_global_res_map {
     latch_t res_latch;
-    bool32 drc_access;  // drc access means we can modify drc
-    bool32 data_access; // data access means we can modify data control by this drc
+    volatile uint8 drc_accessible_stage;
+    uint8 resvered[3]; // 3 for resvered
     drc_res_map_t res_map;
     drc_part_list_t res_parts[DRC_MAX_PART_NUM];
 } drc_global_res_map_t;

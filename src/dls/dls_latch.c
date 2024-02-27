@@ -728,7 +728,7 @@ static int dms_ask_res_owner_id_l(dms_context_t *dms_ctx, unsigned char *owner_i
 {
     *owner_id = CM_INVALID_ID8;
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, dms_ctx->sess_type, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, dms_ctx->sess_type, dms_ctx->intercept_type, CM_TRUE);
     int ret = drc_enter_buf_res(dms_ctx->resid, DMS_DRID_SIZE, dms_ctx->type, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;

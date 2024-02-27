@@ -186,7 +186,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
         return;
     }
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, CM_TRUE);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
 
     int ret = drc_enter_buf_res(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS || buf_res == NULL) {
@@ -590,6 +590,19 @@ int dms_reform_tx_area_load(instance_list_t *list)
     return DMS_SUCCESS;
 }
 
+int dms_reform_tx_rollback_start(instance_list_t *list)
+{
+    for (uint8 i = 0; i < list->inst_id_count; i++) {
+        if (g_dms.callback.tx_rollback_start(g_dms.reform_ctx.handle_normal, list->inst_id_list[i]) != DMS_SUCCESS) {
+            DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_RC_TX_AREA_LOAD);
+            return ERRNO_DMS_CALLBACK_RC_TX_AREA_LOAD;
+        }
+    }
+
+    return DMS_SUCCESS;
+}
+
+
 static int dms_reform_convert_to_readwrite(void)
 {
 #ifndef OPENGAUSS
@@ -599,18 +612,12 @@ static int dms_reform_convert_to_readwrite(void)
 #endif
 }
 
-static int dms_reform_rollback(void)
+static int dms_reform_rollback_prepare(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_rollback = &share_info->list_rollback;
 
     LOG_RUN_FUNC_ENTER;
-    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_FAILOVER) {
-        for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
-            g_drc_res_ctx.deposit_map[inst_id] = share_info->reformer_id;
-        }
-    }
-
     if (DMS_IS_SHARE_PARTNER || list_rollback->inst_id_count == 0) {
         dms_reform_next_step();
         LOG_RUN_FUNC_SKIP;
@@ -652,6 +659,27 @@ static int dms_reform_rollback(void)
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
+}
+
+static int dms_reform_rollback_start(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    instance_list_t *list_rollback = &share_info->list_rollback;
+    if (DMS_IS_SHARE_PARTNER || list_rollback->inst_id_count == 0) {
+        dms_reform_next_step();
+        LOG_RUN_FUNC_SKIP;
+        return DMS_SUCCESS;
+    }
+
+    int ret = dms_reform_tx_rollback_start(list_rollback);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return ret;
 }
 
 // set sync wait before done
@@ -1118,7 +1146,7 @@ static int dms_reform_page_access(void)
 {
     LOG_RUN_FUNC_ENTER;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ctx->global_buf_res.data_access = CM_TRUE;
+    ctx->global_buf_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -1128,8 +1156,33 @@ static int dms_reform_drc_access(void)
 {
     LOG_RUN_FUNC_ENTER;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    ctx->global_lock_res.drc_access = CM_TRUE;
-    ctx->global_buf_res.drc_access = CM_TRUE;
+    ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
+    ctx->global_buf_res.drc_accessible_stage = PAGE_ACCESS_STAGE_REALESE_ACCESS;
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_ddl_2phase_drc_access(void)
+{
+    LOG_RUN_FUNC_ENTER;
+
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS;
+    ctx->global_buf_res.drc_accessible_stage = PAGE_ACCESS_STAGE_REALESE_ACCESS;
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_drc_lock_all_access(void)
+{
+    LOG_RUN_FUNC_ENTER;
+
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
+
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -1363,6 +1416,17 @@ static int dms_reform_reset_user()
     return DMS_SUCCESS;
 }
 
+
+static int dms_reform_ddl_2phase_rcy(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    g_dms.callback.ddl_2phase_rcy(g_dms.reform_ctx.handle_normal,
+        share_info->inst_bitmap[INST_LIST_OLD_REMOVE] | share_info->inst_bitmap[INST_LIST_OLD_JOIN]);
+
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL, CM_FALSE },
     [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL, CM_FALSE },
@@ -1383,7 +1447,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DRC_RCY_CLEAN] = { "DRC_RCY_CLEAN", dms_reform_drc_rcy_clean, dms_reform_drc_rcy_clean_parallel, CM_FALSE },
     [DMS_REFORM_STEP_CTL_RCY_CLEAN] = { "DRC_CTL_CLEAN", dms_reform_ctl_rcy_clean, dms_reform_ctl_rcy_clean_parallel, CM_FALSE },
     [DMS_REFORM_STEP_TXN_DEPOSIT] = { "TXN_DEPOSIT", dms_reform_txn_deposit, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_ROLLBACK] = { "ROLLBACK", dms_reform_rollback, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_ROLLBACK_PREPARE] = { "ROLLBACK_PREPARE", dms_reform_rollback_prepare, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_ROLLBACK_START] = { "ROLLBACK_START", dms_reform_rollback_start, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SUCCESS] = { "SUCCESS", dms_reform_success, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SELF_FAIL] = { "SELF_FAIL", dms_reform_self_fail, NULL, CM_FALSE },
     [DMS_REFORM_STEP_REFORM_FAIL] = { "REFORM_FAIL", dms_reform_fail, NULL, CM_FALSE },
@@ -1413,6 +1478,9 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_MERGE_XA_OWNERS] = { "SYNC_XA_OWNER", dms_reform_merge_xa_owners, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECOVERY_XA] = { "RECOVERY_XA", dms_reform_recovery_xa, NULL, CM_FALSE },
     [DMS_REFORM_STEP_XA_DRC_ACCESS] = { "XA_DRC_ACCESS", dms_reform_xa_drc_access, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DDL_2PHASE_DRC_ACCESS] = { "DDL_2PHASE_DRC_ACCESS", dms_reform_ddl_2phase_drc_access, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DDL_2PHASE_RCY] = { "DDL_2PHASE_RCY", dms_reform_ddl_2phase_rcy, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS] = { "DRC_LOCK_ACCESS", dms_reform_drc_lock_all_access, NULL, CM_FALSE },
     [DMS_REFORM_STEP_VALIDATE_LOCK_MODE] = { "VALIDATE_LOCK", dms_reform_validate_lock_mode, dms_reform_validate_lock_mode_parallel, CM_FALSE },
     [DMS_REFORM_STEP_VALIDATE_LSN] = { "VALIDATE_LSN", dms_reform_validate_lsn, dms_reform_validate_lsn_parallel, CM_TRUE },
 };
