@@ -571,12 +571,16 @@ static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t
 
     if (ret != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
+        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid,
+            req_info->req_ruid, ret, req_info->req_proto_ver);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
     if (ctrl == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: ctrl is NULL", cm_display_pageid(req_info->resid));
+        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid,
+            req_info->req_ruid, ret, req_info->req_proto_ver);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
@@ -1100,6 +1104,7 @@ void drc_proc_buf_ctrl_recycle(dms_process_context_t *ctx, dms_message_t *receiv
     if (g_dms.callback.buf_ctrl_recycle != NULL) {
         g_dms.callback.buf_ctrl_recycle(ctx->db_handle);
     }
+    /* There is no ack message. */
 }
 
 #ifdef __cplusplus

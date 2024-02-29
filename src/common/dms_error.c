@@ -103,6 +103,8 @@ const char *g_dms_errno_cb_desc[] = {
     [ERRNO_DMS_CB_INDEX(ERRNO_DMS_CALLBACK_RC_TX_AREA_INIT)] = "dms callback rc transaction area init fail",
     [ERRNO_DMS_CB_INDEX(ERRNO_DMS_CALLBACK_RC_TX_AREA_LOAD)] = "dms callback rc transaction area load fail",
     [ERRNO_DMS_CB_INDEX(ERRNO_DMS_CALLBACK_GET_DB_HANDLE)] = "dms get db handle fail",
+    [ERRNO_DMS_CB_INDEX(ERRNO_DMS_CALLBACK_FLUSH_COPY)] = "dms callback flush copy fail",
+    [ERRNO_DMS_CB_INDEX(ERRNO_DMS_CALLBACK_GET_TXN_INFO)] = "dms callback get txn info fail",
 };
 
 const char *g_dms_errno_reform_desc[] = {

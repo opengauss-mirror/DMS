@@ -329,6 +329,7 @@ void dcs_proc_master_ckpt_edp_req(dms_process_context_t *process_ctx, dms_messag
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
+    /* There is no ack message. */
     return;
 }
 
@@ -348,6 +349,7 @@ void dcs_proc_owner_ckpt_edp_req(dms_process_context_t *process_ctx, dms_message
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_ckpt_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
+    /* There is no ack message. */
     return;
 }
 
@@ -367,6 +369,7 @@ void dcs_proc_master_clean_edp_req(dms_process_context_t *process_ctx, dms_messa
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_master_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
+    /* There is no ack message. */
     return;
 }
 
@@ -386,5 +389,6 @@ void dcs_proc_owner_clean_edp_req(dms_process_context_t *process_ctx, dms_messag
     char *pages = receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint32);
     (void)dcs_owner_clean_edp(&dms_ctx, (dms_edp_info_t *)pages, count);
 #endif
+    /* There is no ack message. */
     return;
 }
