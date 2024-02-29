@@ -439,9 +439,21 @@ static inline uint32 drc_resource_id_hash(uint8 *id, uint32 len, uint32 range)
     return (hash % range);
 }
 
+static inline uint32 drc_get_lock_partid(uint8 *id, uint32 len, uint32 range)
+{
+    uint32 trunc_len = 0;
+#ifndef OPENGAUSS
+    if (DMS_DR_IS_TABLE_TYPE(((dms_drid_t *)id)->type)) {
+        trunc_len = sizeof(((dms_drid_t *)0)->parent_part) + ((dms_drid_t *)0)->part));
+    }
+#endif
+
+    return drc_resource_id_hash(id, len - trunc_len, range);
+}
+
 static inline int32 drc_get_lock_master_id(dms_drid_t *lock_id, uint8 *master_id)
 {
-    uint32 part_id = drc_resource_id_hash((uint8 *)lock_id, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
+    uint32 part_id = drc_get_lock_partid((uint8 *)lock_id, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
     *master_id = DRC_PART_MASTER_ID(part_id);
     return CM_SUCCESS;
 }

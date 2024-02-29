@@ -44,15 +44,11 @@ static drc_local_lock_res_t *drc_create_local_lock_res(drc_res_bucket_t *bucket,
     lock_res->resid = *lock_id;
     lock_res->is_locked = CM_FALSE;
     lock_res->is_owner = CM_FALSE;
-    lock_res->count = 0;
     lock_res->lock = 0;
-    lock_res->lockc = 0;
     lock_res->latch_stat.lock_mode = DMS_LOCK_NULL;
     lock_res->latch_stat.shared_count = 0;
     lock_res->latch_stat.stat = LATCH_STATUS_IDLE;
     lock_res->latch_stat.sid = 0;
-    lock_res->latch_stat.rmid = 0;
-    lock_res->latch_stat.rmid_sum = 0;
     lock_res->releasing = CM_FALSE;
     drc_res_map_add_res(bucket, (char *)lock_res);
     return lock_res;
@@ -90,16 +86,6 @@ void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
     cm_spin_unlock(&lock_res->lock);
 }
 
-void drc_lock_local_res_count(drc_local_lock_res_t *lock_res)
-{
-    cm_spin_lock(&lock_res->lockc, NULL);
-}
-
-void drc_unlock_local_res_count(drc_local_lock_res_t *lock_res)
-{
-    cm_spin_unlock(&lock_res->lockc);
-}
-
 void drc_get_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 *is_locked, bool8 *is_owner)
 {
     *is_locked = lock_res->is_locked;
@@ -120,17 +106,33 @@ void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t
     *latch_stat = &lock_res->latch_stat;
 }
 
-int drc_confirm_owner(char* resid, uint8 *lock_mode)
+int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
 {
-    drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);
+    dms_drid_t *drid = (dms_drid_t *)resid;
+#ifndef OPENGAUSS
+    if (DMS_DR_IS_TABLE_TYPE(drid->type)) {
+        *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
+        return DMS_SUCCESS;
+    }
+#endif
+    drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
+    drc_lock_local_resx(lock_res);
     *lock_mode = lock_res->latch_stat.lock_mode;
+    drc_unlock_local_resx(lock_res);
+    
     return DMS_SUCCESS;
 }
 
-int drc_confirm_converting(char* resid, bool8 smon_chk, uint8 *lock_mode)
+int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
 {
-    drc_local_lock_res_t *lock_res = drc_get_local_resx((dms_drid_t *)resid);
-
+    dms_drid_t *drid = (dms_drid_t *)resid;
+#ifndef OPENGAUSS
+    if (DMS_DR_IS_TABLE_TYPE(drid->type)) {
+        *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
+        return DMS_SUCCESS;
+    }
+#endif
+    drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
     drc_lock_local_resx(lock_res);
     *lock_mode = lock_res->latch_stat.lock_mode;
     drc_unlock_local_resx(lock_res);

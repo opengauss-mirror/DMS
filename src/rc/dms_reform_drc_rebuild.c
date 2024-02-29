@@ -212,34 +212,42 @@ int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index,
     return ret;
 }
 
-static void drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id)
+int drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id)
 {
     uint16 part_id;
+    uint8 inst_id;
 
-    part_id = (uint16)drc_resource_id_hash((uint8 *)lock_id, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
-    *master_id = DRC_PART_REMASTER_ID(part_id);
+    part_id = (uint16)drc_get_lock_partid((uint8 *)lock_id, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
+    inst_id = DRC_PART_REMASTER_ID(part_id);
+    if (inst_id == CM_INVALID_ID8) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_LOCK_MASTER_NOT_FOUND, cm_display_lockid(lock_id));
+        return ERRNO_DMS_DRC_LOCK_MASTER_NOT_FOUND;
+    }
+
+    *master_id = inst_id;
+    return DMS_SUCCESS;
 }
 
-int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
+int dms_reform_proc_lock_rebuild(dms_drid_t *resid, uint8 lock_mode, uint8 src_inst)
 {
-    if (SECUREC_UNLIKELY(lock_res->latch_stat.lock_mode >= DMS_LOCK_MODE_MAX)) {
-        LOG_DEBUG_ERR("[DRC][lock rebuild] invalid lock_mode: %u", lock_res->latch_stat.lock_mode);
+    if (SECUREC_UNLIKELY(lock_mode >= DMS_LOCK_MODE_MAX)) {
+        LOG_DEBUG_ERR("[DRC][lock rebuild] invalid lock_mode: %u", lock_mode);
         DMS_THROW_ERROR(ERRNO_DMS_DRC_LOCK_STATUS_FAIL);
         return ERRNO_DMS_DRC_LOCK_STATUS_FAIL;
     }
 
-    if (lock_res->latch_stat.lock_mode == DMS_LOCK_NULL) {
-        LOG_DEBUG_INF("[DRC][lock rebuild](%s) lock skip, is_owner(%d), lock_mode: %d, src_inst: %d",
-            cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode, src_inst);
+    if (lock_mode == DMS_LOCK_NULL) {
+        LOG_DEBUG_INF("[DRC][lock rebuild](%s) lock skip, lock_mode: %d, src_inst: %d", cm_display_lockid(resid),
+            lock_mode, src_inst);
         return DMS_SUCCESS;
     }
 
-    LOG_DEBUG_INF("[DRC][lock rebuild](%s), is_owner(%d), lock_mode: %d, src_inst: %d",
-        cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode, src_inst);
+    LOG_DEBUG_INF("[DRC][lock rebuild](%s), lock_mode: %d, src_inst: %d", cm_display_lockid(resid), lock_mode,
+        src_inst);
 
     drc_buf_res_t *buf_res = NULL;
     uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_FALSE);
-    int ret = drc_enter_buf_res((char *)&lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, options, &buf_res);
+    int ret = drc_enter_buf_res((char *)resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -248,10 +256,10 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
 
-    cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == lock_res->latch_stat.lock_mode,
-        "lock mode not matched, drc: %d, lock_res: %d", buf_res->lock_mode, lock_res->latch_stat.lock_mode);
+    cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == lock_mode,
+        "lock mode not matched, drc: %d, local_res: %d", buf_res->lock_mode, lock_mode);
 
-    if (lock_res->latch_stat.lock_mode == DMS_LOCK_EXCLUSIVE) {
+    if (lock_mode == DMS_LOCK_EXCLUSIVE) {
         cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_EXCLUSIVE,
             "lock X not matched");
         cm_panic_log(buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == src_inst,
@@ -275,17 +283,19 @@ int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 src_inst)
 static int dms_reform_rebuild_lock_inner(drc_local_lock_res_t *lock_res, uint8 new_master, uint8 thread_index)
 {
     int ret = DMS_SUCCESS;
+    uint32 append_size = (uint32)sizeof(drc_local_lock_res_t);
     if (new_master == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_LOCAL);
-        ret = dms_reform_proc_lock_rebuild(lock_res, new_master);
+        ret = dms_reform_proc_lock_rebuild(&lock_res->resid, lock_res->latch_stat.lock_mode, new_master);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock(MSG_REQ_LOCK_REBUILD, lock_res, new_master);
+        ret = dms_reform_req_rebuild_lock(MSG_REQ_LOCK_REBUILD, (void *)lock_res, append_size, new_master);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE);
     } else {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_LOCK_REBUILD, lock_res, new_master, thread_index);
+        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_LOCK_REBUILD, (void *)lock_res, append_size, new_master,
+            thread_index);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE);
     }
     return ret;
@@ -334,7 +344,13 @@ static int dms_reform_rebuild_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thr
         DMS_BREAK_IF_ERROR(ret);
         if (need_rebuild) {
             dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_RES);
-            drc_get_lock_remaster_id(&lock_res->resid, &remaster_id);
+            ret = drc_get_lock_remaster_id(&lock_res->resid, &remaster_id);
+            if (ret != DMS_SUCCESS) {
+                dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_RES);
+                LOG_DEBUG_ERR("[lock rebuild][%s]rebuild_lock fail to get remaster id",
+                    cm_display_lockid(&lock_res->resid));
+                break;
+            }
             drc_lock_local_resx(lock_res);
             LOG_DEBUG_INF("[lock rebuild][%s]local_lock_res lock_mode: %d",
                 cm_display_lockid(&lock_res->resid), lock_res->latch_stat.lock_mode);
@@ -374,6 +390,50 @@ int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num
     ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
     dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_REMOTE_REST);
     return ret;
+}
+
+int dms_reform_rebuild_tlock(void *handle, uint8 thread_index, uint8 thread_num)
+{
+    return g_dms.callback.dms_reform_rebuild_tlock_parallel(handle, thread_index, thread_num);
+}
+
+static int dms_tlock_rebuild_drc(dms_drid_t *resid, dms_tlock_info_t *lock_info, uint8 new_master, uint8 thread_index)
+{
+    int ret = DMS_SUCCESS;
+    uint32 append_size = (uint32)sizeof(dms_tlock_info_t);
+    if (new_master == g_dms.inst_id) {
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_TLOCK_LOCAL);
+        ret = dms_reform_proc_lock_rebuild(resid, lock_info->lock_mode, new_master);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TLOCK_LOCAL);
+    } else if (thread_index == CM_INVALID_ID8) {
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_TLOCK_REMOTE);
+        ret = dms_reform_req_rebuild_lock(MSG_REQ_TLOCK_REBUILD, (void *)lock_info, append_size, new_master);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TLOCK_REMOTE);
+    } else {
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
+        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_TLOCK_REBUILD, (void *)lock_info, append_size, new_master,
+            thread_index);
+        dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TLOCK_REMOTE);
+    }
+    return ret;
+}
+
+int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info, uint8 thread_index)
+{
+    dms_reset_error();
+    uint8 remaster_id;
+    dms_drid_t *lock_id = (dms_drid_t *)&dms_ctx->resid;
+    int ret = drc_get_lock_remaster_id(lock_id, &remaster_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DRC][%s]dms_tlock_rebuild_drc_parallel, fail to get remaster id", cm_display_lockid(lock_id));
+        return ret;
+    }
+    
+
+    LOG_DEBUG_INF("[DRC][%s]dms_tlock_rebuild_drc_parallel, remaster(%d)", cm_display_lockid(lock_id),
+        remaster_id);
+
+    return dms_tlock_rebuild_drc(lock_id, lock_info, remaster_id, thread_index);
 }
 
 void dms_reform_rebuild_buffer_init(uint8 thread_index)
@@ -433,6 +493,13 @@ int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, u
     DMS_RETURN_IF_ERROR(ret);
 
 #ifndef OPENGAUSS
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_TABLE_LOCK);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_rebuild_tlock(sess_id, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TABLE_LOCK);
+    DMS_RETURN_IF_ERROR(ret);
+
     dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);
     dms_reform_rebuild_buffer_init(thread_index);
     ret = dms_reform_rebuild_xa_res(handle, sess_id, thread_index, thread_num);

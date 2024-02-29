@@ -245,6 +245,8 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_LOCK_VALIDATE, "req lock validate", "", "dms" },
     { MSG_REQ_LSN_VALIDATE, "req lsn validate", "", "dms" },
     { MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, "notify primary do ckpt", "", "dms"},
+    { MSG_REQ_TLOCK_REBUILD, "req table lock rebuild", "", "dms" },
+    { MSG_REQ_TLOCK_VALIDATE, "req table lock validate", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },

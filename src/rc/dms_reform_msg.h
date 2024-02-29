@@ -129,13 +129,15 @@ int dms_reform_req_page_rebuild(msg_command_t cmd, dms_context_t *dms_ctx, dms_c
     uint8 master_id);
 int dms_reform_req_page_rebuild_parallel(msg_command_t cmd, dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
     uint8 master_id, uint8 thread_index);
-int dms_reform_req_rebuild_lock(msg_command_t cmd, drc_local_lock_res_t *lock_res, uint8 master_id);
-int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, drc_local_lock_res_t *lock_res, uint8 master_id,
-    uint8 thread_index);
+int dms_reform_req_rebuild_lock(msg_command_t cmd, void *lock_res, uint32 append_size, uint8 master_id);
+int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, void *lock_res, uint32 append_size, 
+    uint8 master_id, uint8 thread_index);
 void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dms_reform_proc_req_tlock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 enum dms_reform_req_page_action {
     DMS_REQ_CONFIRM_OWNER,

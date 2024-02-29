@@ -95,6 +95,8 @@ typedef enum en_msg_command {
     MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT = 66,
     MSG_REQ_LOCK_VALIDATE = 67,
     MSG_REQ_LSN_VALIDATE = 68,
+    MSG_REQ_TLOCK_REBUILD = 69,
+    MSG_REQ_TLOCK_VALIDATE = 70,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -157,5 +159,6 @@ typedef enum en_msg_command {
 } msg_command_t;
 
 #define DMS_CMD_SIZE (MSG_CMD_CEIL - (MSG_ACK_BEGIN - MSG_REQ_END))
+#define MSG_REQ_REFORM_TLOCK_TYPE(cmd) ((cmd) == MSG_REQ_TLOCK_REBUILD || (cmd) == MSG_REQ_TLOCK_VALIDATE)
 
 #endif // __DMS_MSG_COMMAND_H__

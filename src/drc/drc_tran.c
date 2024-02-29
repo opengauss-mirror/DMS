@@ -362,7 +362,6 @@ int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *gl
 
     dms_ctx.inst_id = g_dms.inst_id;
     dms_ctx.sess_id = session_id;
-    dms_ctx.rmid = CM_INVALID_ID16;
     dms_ctx.db_handle = db_handle;
     dms_ctx.sess_type = dms_is_recovery_session(session_id);
     ret = memcpy_sp(&dms_ctx.global_xid, sizeof(drc_global_xid_t), global_xid, sizeof(drc_global_xid_t));

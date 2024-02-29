@@ -39,7 +39,7 @@ static bool8 dls_request_spin_lock(dms_context_t *dms_ctx, drc_local_lock_res_t 
             return CM_FALSE;
         }
 
-        if (dls_request_lock(dms_ctx, lock_res, DMS_LOCK_NULL, DMS_LOCK_EXCLUSIVE) == DMS_SUCCESS) {
+        if (dls_request_lock(dms_ctx, lock_res, &lock_res->resid, DMS_LOCK_NULL, DMS_LOCK_EXCLUSIVE) == DMS_SUCCESS) {
             return CM_TRUE;
         }
 
@@ -53,7 +53,6 @@ static bool8 dls_request_spin_lock(dms_context_t *dms_ctx, drc_local_lock_res_t 
 static inline void dls_request_spin_unlock(drc_local_lock_res_t *lock_res)
 {
     drc_set_local_lock_statx(lock_res, CM_FALSE, CM_TRUE);
-    lock_res->count = 0;
     return;
 }
 
@@ -171,7 +170,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 
     LOG_DEBUG_INF("[DLS] try add spinlock(%s), is_owner=%u", cm_display_lockid(&dlock->drid), (uint32)is_owner);
     if (!is_owner) {
-        int32 ret = dls_try_request_lock(dms_ctx, lock_res, DMS_LOCK_NULL, DMS_LOCK_EXCLUSIVE);
+        int32 ret = dls_try_request_lock(dms_ctx, lock_res, &lock_res->resid, DMS_LOCK_NULL, DMS_LOCK_EXCLUSIVE);
         if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_LOCK_ABANDON_TRY) {
             drc_set_local_lock_statx(lock_res, CM_FALSE, CM_FALSE);
             drc_unlock_local_resx(lock_res);
@@ -255,7 +254,6 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
             CM_ASSERT(latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE);
             CM_ASSERT(lock_res->is_owner && lock_res->is_locked && latch_stat->shared_count > 0);
             latch_stat->shared_count++;
-            latch_stat->rmid_sum += dms_ctx->rmid;
             drc_unlock_local_resx(lock_res);
             break;
         }
@@ -272,8 +270,6 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         latch_stat->stat = LATCH_STATUS_S;
         latch_stat->shared_count = 1;
         latch_stat->sid = dms_ctx->sess_id;
-        latch_stat->rmid = dms_ctx->rmid;
-        latch_stat->rmid_sum = dms_ctx->rmid;
         lock_res->is_locked = CM_TRUE;
         drc_unlock_local_resx(lock_res);
         break;
@@ -293,11 +289,9 @@ void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     drc_lock_local_resx(lock_res);
     CM_ASSERT(latch_stat->shared_count > 0);
     latch_stat->shared_count--;
-    latch_stat->rmid_sum -= dms_ctx->rmid;
     
     if (latch_stat->shared_count == 0) {
         lock_res->is_locked = CM_FALSE;
-        latch_stat->rmid_sum = 0;
         latch_stat->stat = LATCH_STATUS_IDLE;
     }
     LOG_DEBUG_INF("[DLS] shared_innode unlock(%s), shared_count=%u, is_locked:%u, ",

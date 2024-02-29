@@ -71,6 +71,7 @@ const char *g_dms_errno_drc_desc[] = {
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_LOCK_ABANDON_TRY)] = "abandon to try lock",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND)] = "page master not found, pageid is %s",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER)] = "dms req conflict with other requester",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_LOCK_MASTER_NOT_FOUND)] = "lock master not found, lockid is %s",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_RECOVERY_PAGE)] = "page in recovery, please try again, pageid is %s",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_LOCK_STATUS_FAIL)] = "lock status fail",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST)] = "invalid repeat request",
