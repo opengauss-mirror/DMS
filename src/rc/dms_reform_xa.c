@@ -57,6 +57,7 @@ void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t 
     dms_reform_req_sync_xa_owners_t *req = (dms_reform_req_sync_xa_owners_t *)receive_msg->buffer;
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 
@@ -115,6 +116,7 @@ void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_messag
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
     if (!dms_reform_check_judge_time(receive_msg->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
     dms_reform_ack_common_t ack_common = { 0 };
@@ -530,6 +532,7 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
     uint8 owner_id = req_rebuild->head.src_inst;

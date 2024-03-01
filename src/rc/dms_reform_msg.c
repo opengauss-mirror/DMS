@@ -115,6 +115,7 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
     dms_reform_req_sync_share_info_t req;
     int ret = dms_recv_versioned_msg(g_req_share_info_version_ctrl, receive_msg, &req, sizeof(req));
     if (ret != DMS_SUCCESS) {
+        dms_reform_ack_sync_share_info(process_ctx, receive_msg, DMS_ERROR);
         return;
     }
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -209,6 +210,7 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
 
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 
@@ -849,6 +851,7 @@ void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t 
 
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 
@@ -884,6 +887,7 @@ void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t
 
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 
@@ -990,6 +994,7 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t 
 
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 
@@ -1018,6 +1023,7 @@ void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t
 
     if (!dms_reform_check_judge_time(&req_rebuild->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 
@@ -1154,6 +1160,7 @@ static void dms_reform_proc_req_flush_copy(dms_process_context_t *process_ctx, d
 #endif
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][%s]flush_copy fail, error: %d", cm_display_pageid(req->resid), ret);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_CALLBACK_FLUSH_COPY, "fail to flush copy");
     }
 
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
@@ -1213,6 +1220,7 @@ void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t 
     dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
     switch (req->action) {
@@ -1754,6 +1762,7 @@ void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t 
 
     if (!dms_reform_check_judge_time(&buffer->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
         return;
     }
 

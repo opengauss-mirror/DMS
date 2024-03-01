@@ -278,7 +278,7 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, dms_message_t *re
 
     int ret = g_dms.callback.get_txn_info(process_ctx->db_handle, xid, (bool8)is_scan, &txn_info);
     if (ret != DMS_SUCCESS) {
-        /* need to response error message */
+        cm_send_error_msg(req_head, ERRNO_DMS_CALLBACK_GET_TXN_INFO, "get txn info failed");
         return;
     }
 
@@ -574,8 +574,10 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, dms_message_t *re
     uint64 xid = txn_wait_req->xid;
     uint64 scn = 0;
     dms_txn_info_t txn_info;
+    dms_message_head_t *req_head = receive_msg->head;
     int ret = g_dms.callback.get_txn_info(process_ctx->db_handle, xid, CM_FALSE, &txn_info);
     if (ret != DMS_SUCCESS) {
+        cm_send_error_msg(req_head, ERRNO_DMS_CALLBACK_GET_TXN_INFO, "get txn info failed");
         return;
     }
 
@@ -583,15 +585,15 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, dms_message_t *re
         ret = DMS_REMOTE_TXN_END;
         scn = txn_info.scn;
     } else {
-        drc_enqueue_txn(&xid, receive_msg->head->src_inst);
+        drc_enqueue_txn(&xid, req_head->src_inst);
         ret = DMS_REMOTE_TXN_WAIT;
     }
 
-    dms_init_ack_head2(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, receive_msg->head->dst_inst,
-        receive_msg->head->src_inst, (uint16)process_ctx->sess_id, receive_msg->head->src_sid,
-        receive_msg->head->msg_proto_ver);
+    dms_init_ack_head2(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, req_head->dst_inst,
+        req_head->src_inst, (uint16)process_ctx->sess_id, req_head->src_sid,
+        req_head->msg_proto_ver);
     txn_wait_ack.head.size = (uint16)sizeof(msg_txn_wait_ack_t);
-    txn_wait_ack.head.ruid = receive_msg->head->ruid;
+    txn_wait_ack.head.ruid = req_head->ruid;
     txn_wait_ack.status = ret;
     txn_wait_ack.scn = scn;
 
@@ -984,6 +986,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
 
     drc_global_xid_t *xid = &req.xa_xid;
     if (dms_proc_check_xid_valid(xid)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa creation");
         return;
     }
 
@@ -1068,6 +1071,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
 
     drc_global_xid_t *xid = &req.xa_xid;
     if (dms_proc_check_xid_valid(xid)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa deletion");
         return;
     }
 
@@ -1094,6 +1098,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
 
     drc_global_xid_t *xid = &req.xa_xid;
     if (dms_proc_check_xid_valid(xid)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for req xa owner");
         return;
     }
     
@@ -1296,6 +1301,7 @@ void dms_proc_end_xa(dms_process_context_t *proc_ctx, dms_message_t *receive_msg
 
     drc_global_xid_t *xid = &req.xa_xid;
     if (!dms_proc_check_xid_valid(xid)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa end");
         return;
     }
 
@@ -1390,6 +1396,7 @@ void dms_proc_ask_xa_inuse(dms_process_context_t *proc_ctx, dms_message_t *recei
 
     drc_global_xid_t *xid = &req.xa_xid;
     if (!dms_proc_check_xid_valid(xid)) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa inuse");
         return;
     }
 

@@ -256,6 +256,7 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *recei
     }
     char *sql_str = (char *)g_dms.callback.mem_alloc(ctx->db_handle, DMS_SMON_MAX_SQL_LEN);
     if (sql_str == NULL) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "mem alloc failed");
         return;
     }
 
@@ -285,6 +286,7 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *recei
             g_dms.callback.mem_free(ctx->db_handle, send_msg);
             g_dms.callback.mem_free(ctx->db_handle, sql_str);
             CM_THROW_ERROR(ERR_SYSTEM_CALL, retMemcpy);
+            cm_send_error_msg(receive_msg->head, ERRNO_DMS_SECUREC_CHECK_FAIL, "memcpy syscall failed");
             return;
         }
     }
@@ -382,6 +384,7 @@ void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, dms_message_t *
     mes_size = DMS_SMON_TLOCK_MSG_MAX_LEN * MAX_TABLE_LOCK_NUM;
     char *rsp = (char *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (rsp == NULL) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
         return;
     }
 
@@ -410,6 +413,7 @@ void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, dms_message_t *
             g_dms.callback.mem_free(ctx->db_handle, send_msg);
             g_dms.callback.mem_free(ctx->db_handle, rsp);
             CM_THROW_ERROR(ERR_SYSTEM_CALL, retMemcpy);
+            cm_send_error_msg(receive_msg->head, ERRNO_DMS_SECUREC_CHECK_FAIL, "memcpy syscall failed");
             return;
         }
     }
