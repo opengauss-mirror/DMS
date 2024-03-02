@@ -91,6 +91,7 @@ typedef struct st_dms_ask_res_ack {
 #ifdef OPENGAUSS
     uint8 seg_fileno;
     uint32 seg_blockno;
+    bool8 need_check_pincount;
 #endif
     bool8 enable_cks; // enable checksum
     uint8 unused;

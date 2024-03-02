@@ -314,6 +314,9 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
 #ifdef OPENGAUSS
         ctrl->seg_fileno = ack->seg_fileno;
         ctrl->seg_blockno = ack->seg_blockno;
+        if (!ctrl->need_check_pincount) {
+            ctrl->need_check_pincount = ack->need_check_pincount;
+        }
         if (g_dms.callback.verify_page != NULL) {
             g_dms.callback.verify_page(ctrl, msg->buffer + sizeof(dms_ask_res_ack_t));
         }
@@ -543,6 +546,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
 #ifdef OPENGAUSS
     page_ack.seg_fileno = ctrl->seg_fileno;
     page_ack.seg_blockno = ctrl->seg_blockno;
+    page_ack.need_check_pincount = ctrl->need_check_pincount;
 #endif
     page_ack.lsn = 0;
 #ifndef OPENGAUSS
