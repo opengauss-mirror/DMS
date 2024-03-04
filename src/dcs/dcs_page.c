@@ -386,6 +386,16 @@ int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode
     return ret;
 }
 
+void dms_request_page_wait(void)
+{
+    int code;
+    const char *message = NULL;
+    cm_get_error(&code, &message);
+    if (code == ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+        cm_sleep(DCS_DMS_REQUEST_PAGE_WAIT_TIME);
+    }
+}
+
 void dcs_send_requester_edp_local(dms_process_context_t *ctx, dms_ask_res_req_t *page_req)
 {
     dms_ask_res_ack_ld_t ack;

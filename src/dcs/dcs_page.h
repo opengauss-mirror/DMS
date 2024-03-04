@@ -34,6 +34,7 @@ extern "C" {
 #endif
 
 #define DCS_INSTID_VALID(instid) ((instid) != CM_INVALID_ID8)
+#define DCS_DMS_REQUEST_PAGE_WAIT_TIME  2000
 
 typedef struct st_msg_page_batch_op {
     dms_message_head_t head;

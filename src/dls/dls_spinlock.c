@@ -200,7 +200,7 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
             return CM_TRUE;
         }
 
-        if (ret != ERRNO_DMS_DCS_MSG_EAGAIN) {
+        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
             return CM_FALSE;
         }
         
