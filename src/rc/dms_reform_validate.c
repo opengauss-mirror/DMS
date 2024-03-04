@@ -196,9 +196,17 @@ int dms_reform_validate_page_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *c
     return dms_reform_validate_page_inner(dms_ctx, ctrl_info, master_id, thread_index);
 }
 
-static int dms_reform_validate_page(void *handle, uint8 thread_index, uint8 thread_num)
+static int dms_reform_validate_page(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num)
 {
-    return g_dms.callback.validate_page(handle, thread_index, thread_num);
+    int ret = g_dms.callback.validate_page(handle, thread_index, thread_num);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_PAGE_REMOTE);
+    ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_PAGE_REMOTE);
+    return ret;
 }
 
 static int dms_reform_validate_lock_inner(drc_local_lock_res_t *lock_res, uint8 master, uint8 thread_index)
@@ -220,7 +228,7 @@ static int dms_reform_validate_lock_inner(drc_local_lock_res_t *lock_res, uint8 
     return ret;
 }
 
-static int dms_reform_validate_lock_by_bucket(drc_res_bucket_t *bucket, uint32 sess_id, uint8 thread_index)
+static int dms_reform_validate_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thread_index)
 {
     bilist_node_t *node;
     drc_local_lock_res_t *lock_res;
@@ -242,9 +250,6 @@ static int dms_reform_validate_lock_by_bucket(drc_res_bucket_t *bucket, uint32 s
         DMS_BREAK_IF_ERROR(ret);
         node = BINODE_NEXT(node);
     }
-    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
-    ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
-    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
     cm_spin_unlock(&bucket->lock);
     return ret;
 }
@@ -265,10 +270,14 @@ static int dms_reform_validate_lock(uint32 sess_id, uint8 thread_index, uint8 th
 
     while (bucket_index < ctx->local_lock_res.bucket_num) {
         bucket = &ctx->local_lock_res.buckets[bucket_index];
-        ret = dms_reform_validate_lock_by_bucket(bucket, sess_id, thread_index);
+        ret = dms_reform_validate_lock_by_bucket(bucket, thread_index);
         DMS_RETURN_IF_ERROR(ret);
         bucket_index += step;
     }
+
+    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
+    ret = dms_reform_rebuild_send_rest(sess_id, thread_index);
+    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
 
     return ret;
 }
@@ -279,7 +288,7 @@ int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thre
 
     dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_PAGE);
     dms_reform_rebuild_buffer_init(thread_index);
-    ret = dms_reform_validate_page(handle, thread_index, thread_num);
+    ret = dms_reform_validate_page(handle, sess_id, thread_index, thread_num);
     dms_reform_rebuild_buffer_free(handle, thread_index);
     dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_PAGE);
     DMS_RETURN_IF_ERROR(ret);
