@@ -81,7 +81,7 @@ typedef struct st_dms_instance {
 #define DMS_THIRD_BUFFER_LENGTH (SIZE_K(32) + 256)
 #define DMS_CKPT_NOTIFY_TASK_RATIO (1.0f / 32)
 #define DMS_CLEAN_EDP_TASK_RATIO (1.0f / 32)
-#define DMS_DERIVED_TASK_RATIO (1.0f / 16)
+#define DMS_DERIVED_TASK_RATIO (1.0f / 8)
 #define DMS_TXN_INFO_TASK_RATIO (1.0f / 16)
 #define DMS_RECV_WORK_THREAD_RATIO (1.0f / 4)
 #define DMS_FIRST_BUFFER_RATIO (1.0f / 4)
