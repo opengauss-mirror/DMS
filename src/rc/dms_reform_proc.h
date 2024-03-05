@@ -35,8 +35,8 @@ extern "C" {
 
 void dms_reform_proc_thread(thread_t *thread);
 int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
-int dms_reform_proc_lock_rebuild(drc_local_lock_res_t *lock_res, uint8 inst_id);
-int dms_reform_proc_lock_validate(drc_local_lock_res_t *lock_res, uint8 inst_id);
+int dms_reform_proc_lock_rebuild(dms_drid_t *resid, uint8 lock_mode, uint8 src_inst);
+int dms_reform_proc_lock_validate(dms_drid_t *resid, uint8 lock_mode, uint8 inst_id);
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
 int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
 bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2);
@@ -71,6 +71,7 @@ int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thre
 int dms_reform_repair_by_partid(uint16 part_id, void *handle, uint32 sess_id);
 int dms_reform_lsn_validate_by_partid(uint16 part_id, uint8 thread_index);
 int dms_reform_lsn_validate_buf_res(drc_buf_res_t *buf_res, uint8 thread_index);
+int drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id);
 
 typedef enum en_reform_clean_stat {
     DRPS_DRC_CLEAN_NO_OWNER = 1,

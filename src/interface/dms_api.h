@@ -33,7 +33,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           132
+#define DMS_LOCAL_VERSION           133
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -98,6 +98,8 @@ typedef enum en_dms_dr_type {
     DMS_DR_TYPE_PART_TABLE,
     DMS_DR_TYPE_MAX,
 } dms_dr_type_t;
+
+#define DMS_DR_IS_TABLE_TYPE(type) ((type) == DMS_DR_TYPE_TABLE || (type) == DMS_DR_TYPE_PART_TABLE)
 
 // persistent distributed resource id
 typedef enum en_dms_persistent_id {
@@ -292,7 +294,6 @@ typedef struct st_dms_xmap_ctx {
 typedef struct st_dms_process_context {
     void *db_handle;
     unsigned int sess_id; // current session id
-    unsigned int rmid;    // current rm id
     unsigned int inst_id;  // current instance id
 } dms_process_context_t;
 
@@ -309,7 +310,6 @@ typedef struct st_dms_context {
         struct {
             void *db_handle;
             unsigned int sess_id; // current session id
-            unsigned int rmid;    // current rm id
             unsigned int inst_id;  // current instance id
         };
         dms_process_context_t proc_ctx;
@@ -329,6 +329,7 @@ typedef struct st_dms_context {
         drc_global_xid_t global_xid;
     };
     unsigned char intercept_type;
+    unsigned char curr_mode;    // used for table lock
 } dms_context_t;
 
 typedef struct st_dms_cr {
@@ -821,7 +822,9 @@ typedef char *(*dms_display_rowid)(char *display_buf, unsigned int count, char *
 typedef int (*dms_check_session_invalid)(unsigned int sid);
 typedef int (*dms_drc_buf_res_rebuild)(void *db_handle);
 typedef int (*dms_drc_buf_res_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
+typedef int (*dms_drc_tlock_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef int (*dms_drc_validate_page)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
+typedef int (*dms_drc_validate_tlock)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef int(*dms_ctl_rcy_clean_parallel_t)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 typedef unsigned char(*dms_ckpt_session)(void *db_handle);
 typedef void (*dms_check_if_build_complete)(void *db_handle, unsigned int *build_complete);
@@ -881,7 +884,6 @@ typedef void (*dms_get_buf_info)(char* resid, stat_buf_info_t *buf_info);
 typedef int (*dms_end_xa)(void *db_handle, void *knl_xa_xid, unsigned long long flags, unsigned long long scn,
     unsigned char is_commit);
 typedef unsigned char (*dms_xa_inuse)(void *db_handle, void *knl_xa_xid);
-typedef int (*dms_get_part_changed)(void *db_handle, char* resid);
 typedef int (*dms_ddl_2phase_rcy)(void *db_handle, unsigned long long inst_remove_bitmap);
 typedef int (*dms_reform_is_need_ddl_2phase_rcy)(void *db_handle);
 typedef void (*dms_buf_ctrl_recycle)(void *db_handle);
@@ -889,6 +891,9 @@ typedef void *(*dms_malloc_prot_proc)(size_t size);
 typedef void (*dms_free_prot_proc)(void *ptr);
 typedef int (*dms_get_kernel_error_code)();
 typedef int (*dms_lsn_validate)(void *db_handle, char *pageid, unsigned long long lsn, unsigned char in_recovery);
+typedef int (*dms_invld_tlock_ownership)(void *db_handle, char *resid, unsigned char req_mode, unsigned char is_try);
+typedef int (*dms_get_tlock_mode)(void *db_handle, char *resid);
+
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -918,7 +923,9 @@ typedef struct st_dms_callback {
     dms_recovery_in_progress recovery_in_progress;
     dms_drc_buf_res_rebuild dms_reform_rebuild_buf_res;
     dms_drc_buf_res_rebuild_parallel dms_reform_rebuild_parallel;
+    dms_drc_tlock_rebuild_parallel dms_reform_rebuild_tlock_parallel;
     dms_drc_validate_page validate_page;
+    dms_drc_validate_tlock validate_table_lock;
     dms_ctl_rcy_clean_parallel_t dms_ctl_rcy_clean_parallel;
     dms_check_if_build_complete check_if_build_complete;
     dms_check_if_restore_recover check_if_restore_recover;
@@ -1040,7 +1047,6 @@ typedef struct st_dms_callback {
     dms_get_buf_info get_buf_info;
     dms_end_xa end_xa;
     dms_xa_inuse xa_inuse;
-    dms_get_part_changed get_part_changed;
 
     dms_ddl_2phase_rcy ddl_2phase_rcy;
     dms_reform_is_need_ddl_2phase_rcy reform_is_need_ddl_2phase_rcy;
@@ -1049,6 +1055,8 @@ typedef struct st_dms_callback {
     dms_free_prot_proc dms_free_prot;
     dms_get_kernel_error_code db_get_kernel_error_code;
     dms_lsn_validate lsn_validate;
+    dms_invld_tlock_ownership invld_tlock_ownership;
+    dms_get_tlock_mode get_tlock_mode;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1138,13 +1146,11 @@ typedef struct st_drc_local_lock_res_result {
     char               lock_id[DMS_MAX_NAME_LEN];
     unsigned char      is_owner;
     unsigned char      is_locked;
-    unsigned short     count;
     unsigned char      releasing;
+    unsigned char      unused;
     unsigned short     shared_count;
     unsigned short     stat;
     unsigned short     sid;
-    unsigned short     rmid;
-    unsigned short     rmid_sum;
     unsigned char      lock_mode;
     unsigned char      is_valid;
 } drc_local_lock_res_result_t;
@@ -1153,6 +1159,9 @@ typedef enum en_reform_callback_stat {
     REFORM_CALLBACK_STAT_CKPT_LATCH = 0,
     REFORM_CALLBACK_STAT_BUCKET_LOCK,
     REFORM_CALLBACK_STAT_SS_READ_LOCK,
+    REFORM_CALLBACK_STAT_ENTRY_TLOCK,
+    REFORM_CALLBACK_STAT_PART_ENTRY_TLOCK,
+    REFORM_CALLBACK_STAT_REBUILD_TLOCK_REMOTE,
     REFORM_CALLBACK_STAT_GET_DISK_LSN,
     REFORM_CALLBACK_STAT_DRC_EXIST,
     REFORM_CALLBACK_STAT_CLEAN_EDP,
@@ -1169,6 +1178,9 @@ typedef enum en_reform_callback_stat {
     REFORM_CALLBACK_STAT_VALIDATE_DRC_PAGE_BUCKET_LOCK,
     REFORM_CALLBACK_STAT_VALIDATE_DRC_PAGE_SS_READ_LOCK,
     REFORM_CALLBACK_STAT_VALIDATE_DRC_PAGE_REMOTE,
+    REFORM_CALLBACK_STAT_VALIDATE_DRC_ENTRY_TLOCK,
+    REFORM_CALLBACK_STAT_VALIDATE_DRC_PART_ENTRY_TLOCK,
+    REFORM_CALLBACK_STAT_VALIDATE_DRC_TLOCK_REMOTE,
     REFORM_MES_TASK_STAT_VALIDATE_LSN_GET_CTRL,
     REFORM_MES_TASK_STAT_VALIDATE_LSN_GET_CTRL_TIMEOUT,
     REFORM_MES_TASK_STAT_VALIDATE_LSN_GET_DISK_LSN,
@@ -1176,6 +1188,12 @@ typedef enum en_reform_callback_stat {
 
     REFORM_CALLBACK_STAT_COUNT
 } reform_callback_stat_e;
+
+typedef struct st_dms_tlock_info {
+    dms_drid_t resid;
+    unsigned char lock_mode;
+    unsigned char unused[3];
+} dms_tlock_info_t;
 
 #ifdef __cplusplus
 }

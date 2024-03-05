@@ -113,52 +113,49 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
     return DMS_SUCCESS;
 }
 
-static void dms_reform_validate_lock_cvt(drc_buf_res_t *drc, drc_local_latch_t *latch, uint8 inst_id)
+static void dms_reform_validate_lock_cvt(drc_buf_res_t *drc, uint8 lock_mode, uint8 inst_id)
 {
     drc_request_info_t *cvt = &drc->converting.req_info;
-    if (latch->lock_mode == DMS_LOCK_EXCLUSIVE) {
+    if (lock_mode == DMS_LOCK_EXCLUSIVE) {
         cm_panic_log(
             (drc->lock_mode == DMS_LOCK_EXCLUSIVE && drc->claimed_owner == inst_id) ||
             (cvt->req_mode == DMS_LOCK_EXCLUSIVE && cvt->inst_id == inst_id),
             "[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
-            cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner, drc->lock_mode, latch->lock_mode);
+            cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner, drc->lock_mode, lock_mode);
     } else {
         cm_panic_log(
             (drc->lock_mode == DMS_LOCK_SHARE && drc->claimed_owner == inst_id) ||
             (drc->lock_mode == DMS_LOCK_SHARE && bitmap64_exist(&drc->copy_insts, inst_id)) ||
             (cvt->req_mode == DMS_LOCK_SHARE && cvt->inst_id == inst_id),
             "[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
-            cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner, drc->lock_mode, latch->lock_mode);
+            cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner, drc->lock_mode, lock_mode);
     }
 }
 
-int dms_reform_proc_lock_validate(drc_local_lock_res_t *lock_res, uint8 inst_id)
+int dms_reform_proc_lock_validate(dms_drid_t *lockid, uint8 lock_mode, uint8 inst_id)
 {
-    drc_local_latch_t *latch = &lock_res->latch_stat;
-    dms_drid_t *lockid = &lock_res->resid;
-
-    if (SECUREC_UNLIKELY(lock_res->latch_stat.lock_mode >= DMS_LOCK_MODE_MAX)) {
-        LOG_DEBUG_ERR("[DRC validate] invalid lock_mode: %u", lock_res->latch_stat.lock_mode);
+    if (SECUREC_UNLIKELY(lock_mode >= DMS_LOCK_MODE_MAX)) {
+        LOG_DEBUG_ERR("[DRC validate] invalid lock_mode: %u", lock_mode);
         DMS_THROW_ERROR(ERRNO_DMS_DRC_LOCK_STATUS_FAIL);
         return ERRNO_DMS_DRC_LOCK_STATUS_FAIL;
     }
 
-    if (lock_res->latch_stat.lock_mode == DMS_LOCK_NULL) {
-        LOG_DEBUG_INF("[DRC validate](%s) lock skip, is_owner(%d), lock_mode: %d, src_inst: %d",
-            cm_display_lockid(lockid), lock_res->is_owner, lock_res->latch_stat.lock_mode, inst_id);
+    if (lock_mode == DMS_LOCK_NULL) {
+        LOG_DEBUG_INF("[DRC validate](%s) lock skip, lock_mode: %d, src_inst: %d",
+            cm_display_lockid(lockid), lock_mode, inst_id);
         return DMS_SUCCESS;
     }
 
-    LOG_DEBUG_INF("[DRC][lock validate](%s), is_owner(%d), lock_mode: %d, src_inst: %d",
-        cm_display_lockid(&lock_res->resid), lock_res->is_owner, lock_res->latch_stat.lock_mode, inst_id);
+    LOG_DEBUG_INF("[DRC][lock validate](%s), lock_mode: %d, src_inst: %d",
+        cm_display_lockid(lockid), lock_mode, inst_id);
 
     drc_buf_res_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_FALSE);
-    int ret = drc_enter_buf_res((char *)&lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, options, &drc);
+    int ret = drc_enter_buf_res((char *)lockid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, options, &drc);
     cm_panic_log(ret == DMS_SUCCESS, "[DRC validate][%s][%d]fail to enter drc", cm_display_lockid(lockid), inst_id);
     cm_panic_log(drc != NULL, "[DRC validate][%s][%d]drc is NULL", cm_display_lockid(lockid), inst_id);
-    dms_reform_validate_sx(drc, latch->lock_mode, inst_id);
-    dms_reform_validate_lock_cvt(drc, latch, inst_id);
+    dms_reform_validate_sx(drc, lock_mode, inst_id);
+    dms_reform_validate_lock_cvt(drc, lock_mode, inst_id);
     drc_leave_buf_res(drc);
     return DMS_SUCCESS;
 }
@@ -204,17 +201,19 @@ static int dms_reform_validate_page(void *handle, uint8 thread_index, uint8 thre
 static int dms_reform_validate_lock_inner(drc_local_lock_res_t *lock_res, uint8 master, uint8 thread_index)
 {
     int ret = DMS_SUCCESS;
+    uint32 append_size = (uint32)sizeof(drc_local_lock_res_t);
     if (master == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_LOCK_LOCAL);
-        ret = dms_reform_proc_lock_validate(lock_res, master);
+        ret = dms_reform_proc_lock_validate(&lock_res->resid, lock_res->latch_stat.lock_mode, master);
         dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
         dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock(MSG_REQ_LOCK_VALIDATE, lock_res, master);
+        ret = dms_reform_req_rebuild_lock(MSG_REQ_LOCK_VALIDATE, lock_res, append_size, master);
         dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
     } else {
         dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_LOCK_VALIDATE, lock_res, master, thread_index);
+        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_LOCK_VALIDATE, lock_res, append_size, master,
+            thread_index);
         dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK_REMOTE);
     }
     return ret;
@@ -273,6 +272,46 @@ static int dms_reform_validate_lock(uint32 sess_id, uint8 thread_index, uint8 th
     return ret;
 }
 
+int dms_reform_validate_tlock(void *handle, uint8 thread_index, uint8 thread_num)
+{
+    return g_dms.callback.validate_table_lock(handle, thread_index, thread_num);
+}
+
+static int dms_validate_tlock_parallel(dms_tlock_info_t *lock_info, dms_drid_t *lockid, uint8 master,
+    uint8 thread_index)
+{
+    int ret = DMS_SUCCESS;
+    uint32 append_size = (uint32)sizeof(dms_tlock_info_t);
+    if (master == g_dms.inst_id) {
+        dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_TLOCK_LOCAL);
+        ret = dms_reform_proc_lock_validate(lockid, lock_info->lock_mode, master);
+        dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK_LOCAL);
+    } else if (thread_index == CM_INVALID_ID8) {
+        dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
+        ret = dms_reform_req_rebuild_lock(MSG_REQ_TLOCK_VALIDATE, lock_info, append_size, master);
+        dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
+    } else {
+        dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
+        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_TLOCK_VALIDATE, lock_info, append_size, 
+            master, thread_index);
+        dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
+    }
+    return ret;
+}
+
+int dms_reform_validate_tlock_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info, uint8 thread_index)
+{
+    dms_reset_error();
+    uint8 master;
+    dms_drid_t *lock_id = (dms_drid_t *)&dms_ctx->resid;
+    int ret = drc_get_lock_master_id(lock_id, &master);
+    DMS_RETURN_IF_ERROR(ret);
+
+    LOG_DEBUG_INF("[DRC][%s]dms_reform_validate_tlock_parallel, master(%d)", cm_display_lockid(lock_id), master);
+
+    return dms_validate_tlock_parallel(lock_info, lock_id, master, thread_index);
+}
+
 int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num)
 {
     int ret = DMS_SUCCESS;
@@ -290,6 +329,15 @@ int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thre
     dms_reform_rebuild_buffer_free(handle, thread_index);
     dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK);
     DMS_RETURN_IF_ERROR(ret);
+
+#ifndef OPENGAUSS
+    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_TLOCK);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_validate_tlock(handle, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK);
+    DMS_RETURN_IF_ERROR(ret);
+#endif
 
     return DMS_SUCCESS;
 }

@@ -48,7 +48,7 @@ void dms_init_latch2(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned int oid
     DLS_INIT_DR_RES(&dlatch->drid, type, oid, uid, idx, parent_part, part);
 }
 
-static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
+static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, dms_drid_t *resid,
     dms_lock_mode_t curr_mode, dms_lock_mode_t mode, bool8 timeout, uint32 timeout_ticks)
 {
     uint32 spin_times = 0;
@@ -59,7 +59,7 @@ static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *loc
             return CM_FALSE;
         }
 
-        if (dls_request_lock(dms_ctx, lock_res, curr_mode, mode) == DMS_SUCCESS) {
+        if (dls_request_lock(dms_ctx, lock_res, resid, curr_mode, mode) == DMS_SUCCESS) {
             return CM_TRUE;
         }
 
@@ -75,7 +75,7 @@ static inline bool8 dls_request_latch_s(dms_context_t *dms_ctx, drc_local_lock_r
     dms_lock_mode_t curr_mode, bool8 timeout, uint32 timeout_ticks)
 {
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_LATCH_S_REMOTE, CM_TRUE);
-    bool8 ret = dls_request_latch(dms_ctx, lock_res, curr_mode, DMS_LOCK_SHARE, timeout, timeout_ticks);
+    bool8 ret = dls_request_latch(dms_ctx, lock_res, &lock_res->resid, curr_mode, DMS_LOCK_SHARE, timeout, timeout_ticks);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S_REMOTE);
     return ret;
 }
@@ -84,7 +84,7 @@ static inline bool8 dls_request_latch_x(dms_context_t *dms_ctx, drc_local_lock_r
     dms_lock_mode_t curr_mode, bool8 timeout, uint32 timeout_ticks)
 {
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_LATCH_X_REMOTE, CM_TRUE);
-    bool8 ret = dls_request_latch(dms_ctx, lock_res, curr_mode, DMS_LOCK_EXCLUSIVE, timeout, timeout_ticks);
+    bool8 ret = dls_request_latch(dms_ctx, lock_res, &lock_res->resid, curr_mode, DMS_LOCK_EXCLUSIVE, timeout, timeout_ticks);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X_REMOTE);
     return ret;
 }
@@ -108,8 +108,6 @@ static bool8 dms_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *lock
     latch_stat->stat = LATCH_STATUS_S;
     latch_stat->shared_count = 1;
     latch_stat->sid = dms_ctx->sess_id;
-    latch_stat->rmid = dms_ctx->rmid;
-    latch_stat->rmid_sum = dms_ctx->rmid;
     lock_res->is_locked = CM_TRUE;
 
     return CM_TRUE;
@@ -170,7 +168,6 @@ void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is
             CM_ASSERT(lock_res->is_owner && lock_res->is_locked && latch_stat->shared_count > 0);
 
             latch_stat->shared_count++;
-            latch_stat->rmid_sum += dms_ctx->rmid;
             drc_unlock_local_resx(lock_res);
             LOG_DEBUG_INF("[DLS] add latch_s finished");
             return;
@@ -201,8 +198,6 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
     latch_stat->stat = LATCH_STATUS_S;
     latch_stat->shared_count = 1;
     latch_stat->sid = dms_ctx->sess_id;
-    latch_stat->rmid = dms_ctx->rmid;
-    latch_stat->rmid_sum = dms_ctx->rmid;
     lock_res->is_locked = CM_TRUE;
 
     return CM_TRUE;
@@ -277,7 +272,6 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
             CM_ASSERT(lock_res->is_owner && lock_res->is_locked && latch_stat->shared_count > 0);
 
             latch_stat->shared_count++;
-            latch_stat->rmid_sum += dms_ctx->rmid;
 
             drc_unlock_local_resx(lock_res);
             LOG_DEBUG_INF("[DLS] add latch_s finished");
@@ -301,9 +295,6 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
 {
     uint32 count = 0;
     while (latch_stat->shared_count > 0) {
-        if (drc_owner_table_lock_shared(dms_ctx, latch_stat, type)) {
-            break;
-        }
         count++;
         if (count >= GS_SPIN_COUNT) {
             cm_spin_sleep();
@@ -312,12 +303,10 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
     }
 
     drc_lock_local_resx(lock_res);
-    if (latch_stat->shared_count == 0 || drc_owner_table_lock_shared(dms_ctx, latch_stat, type)) {
+    if (latch_stat->shared_count == 0) {
         /* No need to request again */
         if (latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE) {
             latch_stat->sid = dms_ctx->sess_id;
-            latch_stat->rmid = dms_ctx->rmid;
-            latch_stat->rmid_sum = dms_ctx->rmid;
             latch_stat->stat = LATCH_STATUS_X;
             lock_res->is_locked = CM_TRUE;
             latch_stat->shared_count = 0;
@@ -327,8 +316,6 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
 
         if (dls_request_latch_x(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, 1)) {
             latch_stat->sid = dms_ctx->sess_id;
-            latch_stat->rmid = dms_ctx->rmid;
-            latch_stat->rmid_sum = dms_ctx->rmid;
             latch_stat->stat = LATCH_STATUS_X;
             latch_stat->lock_mode = DMS_LOCK_EXCLUSIVE;
             lock_res->is_locked = CM_TRUE;
@@ -348,12 +335,8 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
 {
     uint32 count = 0;
     uint32 ticks = 0;
-    dms_dr_type_t type = dlatch->drid.type;
 
     while (latch_stat->shared_count > 0) {
-        if (drc_owner_table_lock_shared(dms_ctx, latch_stat, type)) {
-            break;
-        }
         if (ticks >= wait_ticks) {
             return CM_FALSE;
         }
@@ -366,12 +349,10 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
     }
 
     drc_lock_local_resx(lock_res);
-    if (latch_stat->shared_count == 0 || drc_owner_table_lock_shared(dms_ctx, latch_stat, type)) {
+    if (latch_stat->shared_count == 0) {
         /* No need to request again */
         if (latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE) {
             latch_stat->sid = dms_ctx->sess_id;
-            latch_stat->rmid = dms_ctx->rmid;
-            latch_stat->rmid_sum = dms_ctx->rmid;
             latch_stat->stat = LATCH_STATUS_X;
             lock_res->is_locked = CM_TRUE;
             latch_stat->shared_count = 0;
@@ -381,8 +362,6 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
         bool8 ret = dls_request_latch_x(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, wait_ticks - ticks);
         if (ret) {
             latch_stat->sid = dms_ctx->sess_id;
-            latch_stat->rmid = dms_ctx->rmid;
-            latch_stat->rmid_sum = dms_ctx->rmid;
             latch_stat->stat = LATCH_STATUS_X;
             latch_stat->lock_mode = DMS_LOCK_EXCLUSIVE;
             lock_res->is_owner = CM_TRUE;
@@ -414,8 +393,6 @@ static bool8 dms_latch_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock
 
     CM_ASSERT(latch_stat->shared_count == 0);
     latch_stat->sid = dms_ctx->sess_id;
-    latch_stat->rmid = dms_ctx->rmid;
-    latch_stat->rmid_sum = dms_ctx->rmid;
     latch_stat->stat = LATCH_STATUS_X;
     lock_res->is_locked = CM_TRUE;
     lock_res->is_owner = CM_TRUE;
@@ -492,8 +469,6 @@ static bool8 dms_latch_timed_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t
 
     CM_ASSERT(latch_stat->shared_count == 0);
     latch_stat->sid = dms_ctx->sess_id;
-    latch_stat->rmid = dms_ctx->rmid;
-    latch_stat->rmid_sum = dms_ctx->rmid;
     latch_stat->stat = LATCH_STATUS_X;
     lock_res->is_locked = CM_TRUE;
     lock_res->is_owner = CM_TRUE;
@@ -607,12 +582,10 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 
     if (latch_stat->shared_count > 0) {
         latch_stat->shared_count--;
-        latch_stat->rmid_sum -= dms_ctx->rmid;
     }
 
     if (latch_stat->shared_count == 0) {
         lock_res->is_locked = CM_FALSE;
-        latch_stat->rmid_sum = 0;
         if (latch_stat->stat == LATCH_STATUS_S || latch_stat->stat == LATCH_STATUS_X) {
             latch_stat->stat = LATCH_STATUS_IDLE;
         }
@@ -620,20 +593,6 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 
     LOG_DEBUG_INF("[DLS] release latch(%s), shared_count=%u, is_locked:%u, ",
         cm_display_lockid(&dlatch->drid), (uint32)latch_stat->shared_count, (uint32)lock_res->is_locked);
-    drc_unlock_local_resx(lock_res);
-}
-
-void dms_latch_degrade(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
-{
-    drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
-    CM_ASSERT(lock_res != NULL);
-
-    drc_lock_local_resx(lock_res);
-    CM_ASSERT(lock_res->latch_stat.stat == LATCH_STATUS_X);
-
-    lock_res->latch_stat.stat = LATCH_STATUS_S;
-    lock_res->latch_stat.shared_count = 1;
-
     drc_unlock_local_resx(lock_res);
 }
 
@@ -645,7 +604,7 @@ static int32 dms_try_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
         CM_ASSERT(!lock_res->is_owner);
 
-        int32 ret = dls_try_request_lock(dms_ctx, lock_res, DMS_LOCK_NULL, DMS_LOCK_SHARE);
+        int32 ret = dls_try_request_lock(dms_ctx, lock_res, &lock_res->resid, DMS_LOCK_NULL, DMS_LOCK_SHARE);
         if (ret != DMS_SUCCESS) {
             return ret;
         }
@@ -656,8 +615,6 @@ static int32 dms_try_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *
     latch_stat->stat = LATCH_STATUS_S;
     latch_stat->shared_count = 1;
     latch_stat->sid = dms_ctx->sess_id;
-    latch_stat->rmid = dms_ctx->rmid;
-    latch_stat->rmid_sum = dms_ctx->rmid;
     lock_res->is_locked = CM_TRUE;
     return DMS_SUCCESS;
 }
@@ -694,7 +651,6 @@ static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     if (latch_stat->stat == LATCH_STATUS_S) {
         CM_ASSERT(lock_res->is_owner && lock_res->is_locked && latch_stat->shared_count > 0);
         latch_stat->shared_count++;
-        latch_stat->rmid_sum += dms_ctx->rmid;
         drc_unlock_local_resx(lock_res);
         LOG_DEBUG_INF("[DLS] try add latch_s finished, result:success");
         return DMS_SUCCESS;
@@ -766,4 +722,98 @@ int dms_get_latch_owner_id(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsign
     } else {
         return dms_ask_res_owner_id_r(dms_ctx, master_id, owner_id);
     }
+}
+
+unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] try add tlatch_s(%s) failed, because table latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    uint32 spin_times = 0;
+
+    for (;;) {
+        int32 ret = dls_try_request_lock(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_SHARE);
+        if (ret == DMS_SUCCESS) {
+            return CM_TRUE;
+        }
+
+        if (ret != ERRNO_DMS_DCS_MSG_EAGAIN) {
+            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+            return CM_FALSE;
+        }
+
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
+    }
+}
+
+unsigned char dms_tlatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] add tlatch_timed_s(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
+
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_SHARE, CM_TRUE,
+        wait_ticks)) {
+        dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
+        LOG_DEBUG_INF("[DLS] add tlatch_timed_s(%s) failed", cm_display_lockid(&dlatch->drid));
+        return CM_FALSE;
+    }
+    LOG_DEBUG_INF("[DLS] add tlatch_timed_s(%s) successfully", cm_display_lockid(&dlatch->drid));
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
+
+    return CM_TRUE;
+}
+
+unsigned char dms_tlatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] add tlatch_timed_x(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
+
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE, CM_TRUE,
+        wait_ticks)) {
+        dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
+        LOG_DEBUG_INF("[DLS] add tlatch_timed_x(%s) failed", cm_display_lockid(&dlatch->drid));
+        return CM_FALSE;
+    }
+    LOG_DEBUG_INF("[DLS] add tlatch_timed_x(%s) successfully", cm_display_lockid(&dlatch->drid));
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
+
+    return CM_TRUE;
+}
+
+unsigned char dms_tlatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] add tlatch_x(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
+
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE, CM_FALSE,
+        CM_INFINITE_TIMEOUT)) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
+        LOG_DEBUG_INF("[DLS] add tlatch_x(%s) failed", cm_display_lockid(&dlatch->drid));
+        return CM_FALSE;
+    }
+    LOG_DEBUG_INF("[DLS] add tlatch_x(%s) successfully", cm_display_lockid(&dlatch->drid));
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
+
+    return CM_TRUE;
+}
+
+int dms_get_reform_locking(void)
+{
+    return g_dms.reform_ctx.reform_info.is_locking;
 }

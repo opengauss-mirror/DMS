@@ -617,7 +617,7 @@ void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res)
 void drc_add_lock_res_in_part_list(drc_buf_res_t *lock_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    lock_res->part_id = (uint16)drc_resource_id_hash((uint8 *)lock_res->data, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
+    lock_res->part_id = (uint16)drc_get_lock_partid((uint8 *)lock_res->data, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
     drc_part_list_t *part = &ctx->global_lock_res.res_parts[lock_res->part_id];
     cm_spin_lock(&part->lock, NULL);
     cm_bilist_add_head(&lock_res->part_node, &part->list);
@@ -777,13 +777,10 @@ static inline void fill_dv_drc_local_lock_result(drc_local_lock_res_result_t *dr
 
     drc_local_lock_res_result->is_owner = drc_local_lock_res->is_owner;
     drc_local_lock_res_result->is_locked = drc_local_lock_res->is_locked;
-    drc_local_lock_res_result->count = drc_local_lock_res->count;
     drc_local_lock_res_result->releasing = drc_local_lock_res->releasing;
     drc_local_lock_res_result->shared_count = drc_local_lock_res->latch_stat.shared_count;
     drc_local_lock_res_result->stat = drc_local_lock_res->latch_stat.stat;
     drc_local_lock_res_result->sid = drc_local_lock_res->latch_stat.sid;
-    drc_local_lock_res_result->rmid = drc_local_lock_res->latch_stat.rmid;
-    drc_local_lock_res_result->rmid_sum = drc_local_lock_res->latch_stat.rmid_sum;
     drc_local_lock_res_result->lock_mode = drc_local_lock_res->latch_stat.lock_mode;
     cm_spin_unlock(&drc_local_lock_res->lock);
     drc_local_lock_res_result->is_valid = CM_TRUE;

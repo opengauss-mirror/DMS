@@ -1393,7 +1393,7 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *re
         ret = g_dms.callback.confirm_converting(proc_ctx->db_handle,
             req.resid, CM_TRUE, &lock_mode, &ack.edp_map, &ack.lsn);
     } else {
-        ret = drc_confirm_converting(req.resid, CM_TRUE, &lock_mode);
+        ret = drc_confirm_converting(proc_ctx->db_handle, req.resid, &lock_mode);
     }
     if (ret != DMS_SUCCESS) {
         ack.result = CONFIRM_NONE;

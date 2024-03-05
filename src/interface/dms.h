@@ -338,12 +338,38 @@ DMS_DECLARE void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 DMS_DECLARE unsigned char dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
 
 /*
-* @brief distributed latch degrade method.
+* @brief distributed table shared latch acquire method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
-* @return
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE void dms_latch_degrade(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+
+/*
+* @brief distributed table shared latch acquire timeout method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @param wait_ticks - timeout ticks.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_tlatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+
+/*
+* @brief distributed table exclusive latch acquire timeout method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @param wait_ticks - timeout ticks.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_tlatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+
+/*
+* @brief distributed table exclusive latch acquire method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_tlatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 
 /*
 * @brief distributed latch release method.
@@ -696,6 +722,26 @@ DMS_DECLARE int dms_reform_validate_page_parallel(dms_context_t *dms_ctx, dms_ct
     unsigned char thread_index);
 
 /*
+ * @brief rebuild table lock when node abort.
+ * @[in]param dms_ctx -  Obtains the context information required by the page.
+ * @[in]param lock_info -  table lock information.
+ * @[in]param thread_index - thread index
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info,
+    unsigned char thread_index);
+
+/*
+ * @brief validate table lock during reform.
+ * @[in]param dms_ctx -  Obtains the context information required by the page.
+ * @[in]param lock_info -  table lock information.
+ * @[in]param thread_index - thread index
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_reform_validate_tlock_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info,
+    unsigned char thread_index);
+
+/*
  * @brief check if session is recovery session or not.
  * @[in]param sid - session id.
  * @return 1 - if session is recovery session;otherwise: 0
@@ -914,6 +960,8 @@ DMS_DECLARE void dms_reform_proc_callback_stat_end(reform_callback_stat_e callba
 DMS_DECLARE void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat);
 
 DMS_DECLARE int dms_reform_rebuild_send_rest(unsigned int sess_id, unsigned char thread_index);
+
+DMS_DECLARE int dms_get_reform_locking(void);
 
 #ifdef __cplusplus
 }
