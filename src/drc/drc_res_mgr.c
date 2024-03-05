@@ -291,6 +291,10 @@ static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 
     buf_res->count = 0;
     buf_res->recycling = CM_FALSE;
     buf_res->is_using = CM_TRUE;
+    buf_res->group_lsn = 0;
+    buf_res->s_exists = CM_FALSE;
+    buf_res->x_exists = CM_FALSE;
+    buf_res->x_owner = CM_INVALID_ID8;
     cm_bilist_init(&buf_res->convert_q);
     init_drc_cvt_item(&buf_res->converting);
     errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
