@@ -394,8 +394,8 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
             cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(req.head.cmd),
             (uint32)req.head.src_inst, (uint32)req.head.src_sid, (uint32)req.head.dst_inst,
             (uint32)req.head.dst_sid, (uint32)req_mode);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_MSG_EAGAIN);
-        return ERRNO_DMS_DCS_MSG_EAGAIN;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
 
     LOG_DEBUG_INF("[DMS]%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
@@ -412,8 +412,8 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
             (uint32)req.head.src_sid, (uint32)req.head.dst_inst, (uint32)req.head.dst_sid,
             (uint32)req_mode, ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_MSG_EAGAIN);
-        return ERRNO_DMS_DCS_MSG_EAGAIN;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
 
     ret = dms_handle_ask_owner_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, &msg);
@@ -435,8 +435,8 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
         LOG_DEBUG_ERR("[DMS][%s][dms_handle_ask_master_ack]:wait master ack timeout timeout=%d ms, ruid=%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), DMS_WAIT_MAX_TIME, dms_ctx->ctx_ruid);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_MSG_EAGAIN);
-        return ERRNO_DMS_DCS_MSG_EAGAIN;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
 
     dms_message_head_t *ack_dms_head = get_dms_head(&msg);
@@ -639,8 +639,8 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     }
 
     LOG_DEBUG_ERR("failed to send ask master request. Try again later");
-    DMS_THROW_ERROR(ERRNO_DMS_DCS_MSG_EAGAIN);
-    return ERRNO_DMS_DCS_MSG_EAGAIN;
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+    return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
 }
 
 static int32 dms_ask_master4res_r(dms_context_t *dms_ctx, void *res, uint8 master_id, dms_lock_mode_t curr_mode,

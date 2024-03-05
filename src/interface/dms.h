@@ -108,6 +108,11 @@ DMS_DECLARE void dms_uninit(void);
 DMS_DECLARE int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode);
 
 /*
+ * @brief sleep if dms_request_page return error
+ */
+DMS_DECLARE void dms_request_page_wait(void);
+
+/*
 * @brief forward to specified node to construct heap CR page.
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[in&out]param dms_cr -  Properties required to construct a consistent page.
