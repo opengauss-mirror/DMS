@@ -739,7 +739,7 @@ unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
             return CM_TRUE;
         }
 
-        if (ret != ERRNO_DMS_DCS_MSG_EAGAIN) {
+        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
             dls_cancel_request_lock(dms_ctx, &dlatch->drid);
             return CM_FALSE;
         }
