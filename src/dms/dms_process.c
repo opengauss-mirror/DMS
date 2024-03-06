@@ -405,6 +405,10 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         return;
     }
 
+    if (SECUREC_UNLIKELY(ctx->db_handle == NULL)) {
+        ctx->db_handle = g_dms.callback.get_db_handle(&ctx->sess_id, DMS_SESSION_TYPE_WORKER);
+    }
+    
     /* ruid should have been brought in dms msghead */
     CM_ASSERT(ruid == 0 || head->ruid == ruid);
 
@@ -528,8 +532,9 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
     }
 
     for (uint32 loop = 0; loop < total_ctx_cnt; loop++) {
-        proc_ctx[loop].inst_id = (uint8)dms_profile->inst_id;
-        proc_ctx[loop].db_handle = g_dms.callback.get_db_handle(&proc_ctx[loop].sess_id, DMS_SESSION_TYPE_WORKER);
+        proc_ctx[loop].inst_id   = (uint8)dms_profile->inst_id;
+        proc_ctx[loop].sess_id   = CM_INVALID_ID32;
+        proc_ctx[loop].db_handle = NULL;
     }
 
     g_dms.proc_ctx_cnt = total_ctx_cnt;
@@ -1222,6 +1227,10 @@ int dms_init(dms_profile_t *dms_profile)
 {
     int ret;
 
+#ifndef OPENGAUSS
+    dms_init_log(dms_profile);
+#endif
+
     LOG_RUN_INF("[DMS] dms_init start");
     ret = cm_start_timer(g_timer());
     if (ret != DMS_SUCCESS) {
@@ -1232,9 +1241,7 @@ int dms_init(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
         return ERRNO_DMS_PARAM_NULL;
     }
-#ifndef OPENGAUSS
-    dms_init_log(dms_profile);
-#endif
+
     ret = memset_s(&g_dms, sizeof(dms_instance_t), 0, sizeof(dms_instance_t));
     DMS_SECUREC_CHECK(ret);
 
