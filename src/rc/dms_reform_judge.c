@@ -356,7 +356,9 @@ static int dms_reform_check_remote(void)
         share_info->full_clean = CM_TRUE;
     }
 
+#ifndef OPENGAUSS
     reform_info->has_ddl_2phase = (bool8)g_dms.callback.reform_is_need_ddl_2phase_rcy(g_dms.reform_ctx.handle_proc);
+#endif
 
     for (uint8 i = 0; i < list_online->inst_id_count; i++) {
         dst_id = list_online->inst_id_list[i];

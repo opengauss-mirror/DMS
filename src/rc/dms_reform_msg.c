@@ -61,6 +61,11 @@ int dms_reform_send_data(dms_message_head_t *msg_head, uint32 sess_id)
     int ret = DMS_SUCCESS;
 
     while (CM_TRUE) {
+        if (dms_reform_failed()) {
+            DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
+            return ERRNO_DMS_REFORM_FAIL;
+        }
+
         msg_head->cluster_ver = DMS_GLOBAL_CLUSTER_VER;
         ret = mfc_send_data(msg_head);
         if (ret != DMS_SUCCESS) {
@@ -409,7 +414,9 @@ static void dms_reform_ack_req_prepare(dms_process_context_t *process_ctx, dms_m
         process_ctx->sess_id);
     ack_common.result = in_reform;
     ack_common.last_fail = reform_info->last_fail;
+#ifndef OPENGAUSS
     ack_common.has_ddl_2phase = (bool8)g_dms.callback.reform_is_need_ddl_2phase_rcy(process_ctx->db_handle);
+#endif
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;

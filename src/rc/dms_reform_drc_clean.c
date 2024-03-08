@@ -294,6 +294,8 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
         ret = dms_reform_confirm_converting(buf_res, sess_id);
         dms_reform_clean_proc_stat_end(buf_res->type, DRPS_DRC_CLEAN_CONFIRM_CVT);
     }
+    // (!owner_fault && !cvt_fault) this situation no need handle now
+    // even if cvt claim msg lost or declined by reform. smon thread will handle later
 
     if (buf_res->claimed_owner != CM_INVALID_ID8 &&
         buf_res->lock_mode == DMS_LOCK_EXCLUSIVE) {
