@@ -751,7 +751,7 @@ unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 unsigned char dms_tlatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
 {
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] add tlatch_timed_s(%s) failed, because latch not initialized",
+        cm_panic_log(0, "[DLS] add tlatch_timed_s(%s) failed, because table latch not initialized",
             cm_display_lockid(&dlatch->drid));
     }
     dms_reset_error();
@@ -773,7 +773,7 @@ unsigned char dms_tlatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, 
 unsigned char dms_tlatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
 {
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] add tlatch_timed_x(%s) failed, because latch not initialized",
+        cm_panic_log(0, "[DLS] add tlatch_timed_x(%s) failed, because table latch not initialized",
             cm_display_lockid(&dlatch->drid));
     }
     dms_reset_error();
@@ -795,7 +795,7 @@ unsigned char dms_tlatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, 
 unsigned char dms_tlatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 {
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] add tlatch_x(%s) failed, because latch not initialized",
+        cm_panic_log(0, "[DLS] add tlatch_x(%s) failed, because table latch not initialized",
             cm_display_lockid(&dlatch->drid));
     }
     dms_reset_error();

@@ -713,6 +713,16 @@ DMS_DECLARE int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsign
     unsigned short rmid, dms_smon_req_rm_type_t type, char *tlock, unsigned int tlock_len);
 
 /*
+ * @brief rebuild table lock when node abort.
+ * @[in]param dms_ctx -  Obtains the context information required by the page.
+ * @[in]param lock_info -  table lock information.
+ * @[in]param thread_index - thread index
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info,
+    unsigned char thread_index);
+
+/*
  * @brief rebuild drc when node abort.
  * @[in]param dms_ctx -  Obtains the context information required by the page.
  * @[in]param ctrl -  DMS buffer ctrl of the page.
@@ -724,16 +734,6 @@ DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctr
     unsigned char thread_index);
 
 DMS_DECLARE int dms_reform_validate_page_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
-    unsigned char thread_index);
-
-/*
- * @brief rebuild table lock when node abort.
- * @[in]param dms_ctx -  Obtains the context information required by the page.
- * @[in]param lock_info -  table lock information.
- * @[in]param thread_index - thread index
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info,
     unsigned char thread_index);
 
 /*

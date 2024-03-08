@@ -257,7 +257,7 @@ int dms_reform_proc_lock_rebuild(dms_drid_t *resid, uint8 lock_mode, uint8 src_i
     }
 
     cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == lock_mode,
-        "lock mode not matched, drc: %d, local_res: %d", buf_res->lock_mode, lock_mode);
+        "lock mode not matched, drc: %d, local lock mode: %d", buf_res->lock_mode, lock_mode);
 
     if (lock_mode == DMS_LOCK_EXCLUSIVE) {
         cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_EXCLUSIVE,
@@ -399,7 +399,7 @@ int dms_reform_rebuild_tlock(void *handle, uint8 thread_index, uint8 thread_num)
 
 static int dms_tlock_rebuild_drc(dms_drid_t *resid, dms_tlock_info_t *lock_info, uint8 new_master, uint8 thread_index)
 {
-    int ret = DMS_SUCCESS;
+    int ret;
     uint32 append_size = (uint32)sizeof(dms_tlock_info_t);
     if (new_master == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_TLOCK_LOCAL);
@@ -410,7 +410,7 @@ static int dms_tlock_rebuild_drc(dms_drid_t *resid, dms_tlock_info_t *lock_info,
         ret = dms_reform_req_rebuild_lock(MSG_REQ_TLOCK_REBUILD, (void *)lock_info, append_size, new_master);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TLOCK_REMOTE);
     } else {
-        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_REMOTE);
+        dms_reform_proc_stat_start(DRPS_DRC_REBUILD_TLOCK_REMOTE);
         ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_TLOCK_REBUILD, (void *)lock_info, append_size, new_master,
             thread_index);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TLOCK_REMOTE);
@@ -418,7 +418,7 @@ static int dms_tlock_rebuild_drc(dms_drid_t *resid, dms_tlock_info_t *lock_info,
     return ret;
 }
 
-int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info, uint8 thread_index)
+int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info, unsigned char thread_index)
 {
     dms_reset_error();
     uint8 remaster_id;
@@ -495,7 +495,7 @@ int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, u
 #ifndef OPENGAUSS
     dms_reform_proc_stat_start(DRPS_DRC_REBUILD_TABLE_LOCK);
     dms_reform_rebuild_buffer_init(thread_index);
-    ret = dms_reform_rebuild_tlock(sess_id, thread_index, thread_num);
+    ret = dms_reform_rebuild_tlock(handle, thread_index, thread_num);
     dms_reform_rebuild_buffer_free(handle, thread_index);
     dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TABLE_LOCK);
     DMS_RETURN_IF_ERROR(ret);
