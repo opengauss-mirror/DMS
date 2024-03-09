@@ -75,7 +75,7 @@ extern "C" {
 
 #define DMS_MAINTAIN_ENV                "DMS_MAINTAIN"
 
-#define DMS_MAX_FAIL_TIME               30
+#define MAX_ALIVE_TIME_FOR_ABNORMAL_STATUS               g_dms.max_alive_time_for_abnormal_status
 
 #define DMS_RELEASE_DB_HANDLE(handle)                                               \
     do {                                                                            \

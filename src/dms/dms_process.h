@@ -69,6 +69,7 @@ typedef struct st_dms_instance {
     void* mes_ptr;
     uint32 max_wait_time;
     atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
+    uint32 max_alive_time_for_abnormal_status;
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
