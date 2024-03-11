@@ -30,6 +30,7 @@
 #include "dms_msg.h"
 #include "dms_msg_command.h"
 #include "dms_reform.h"
+#include "fault_injection.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,6 +71,7 @@ typedef struct st_dms_instance {
     uint32 max_wait_time;
     atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
     uint32 max_alive_time_for_abnormal_status;
+    dms_fi_context_t fi_ctx;
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)

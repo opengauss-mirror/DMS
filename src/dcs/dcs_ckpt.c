@@ -62,21 +62,25 @@ static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint32 cmd, dms
 
 static int32 dcs_send_edp_to_master_ckpt(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_MASTER_CKPT_EDP, MSG_REQ_MASTER_CKPT_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_MASTER_CKPT_EDP, pages, count);
 }
 
 static int32 dcs_send_edp_to_owner_ckpt(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_OWNER_CKPT_EDP, MSG_REQ_OWNER_CKPT_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_OWNER_CKPT_EDP, pages, count);
 }
 
 static int32 dcs_send_edp_to_master_clean(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_MASTER_CLEAN_EDP, MSG_REQ_MASTER_CLEAN_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_MASTER_CLEAN_EDP, pages, count);
 }
 
 static int32 dcs_send_edp_to_owner_clean(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_OWNER_CLEAN_EDP, MSG_REQ_OWNER_CLEAN_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_OWNER_CLEAN_EDP, pages, count);
 }
 

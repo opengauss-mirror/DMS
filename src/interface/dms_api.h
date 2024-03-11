@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2022 Huawei Technologies Co.,Ltd.
  *
  * DMS is licensed under Mulan PSL v2.
@@ -25,6 +25,7 @@
 #define __DMS_API_H__
 
 #include <stdlib.h>
+#include <stdarg.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           136
+#define DMS_LOCAL_VERSION           137
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -58,6 +59,11 @@ extern "C" {
 // The values of the following two macros must be same with (GS_MAX_XA_BASE16_GTRID_LEN GS_MAX_XA_BASE16_BQUAL_LEN)
 #define DMS_MAX_XA_BASE16_GTRID_LEN    (128)
 #define DMS_MAX_XA_BASE16_BQUAL_LEN    (128)
+
+#define DB_FI_ENTRY_BEGIN        10000
+#define DB_FI_ENTRY_COUNT        1024
+#define FI_ENTRY_END (DB_FI_ENTRY_BEGIN + DB_FI_ENTRY_COUNT)
+#define MAX_FI_ENTRY_COUNT       2000
 
 typedef enum en_dms_online_status {
     DMS_ONLINE_STATUS_OUT = 0,
@@ -724,6 +730,8 @@ typedef struct st_dms_reform_start_context {
     unsigned long long bitmap_reconnect;
 } dms_reform_start_context_t;
 
+typedef struct dms_fi_entry dms_fi_entry;
+typedef int(*dms_fi_callback_func)(const dms_fi_entry *entry, va_list args);
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
@@ -1072,6 +1080,12 @@ typedef struct st_dms_instance_net_addr {
     unsigned char reserved[1];
 } dms_instance_net_addr_t;
 
+typedef struct dms_fi_config {
+    unsigned int entries[MAX_FI_ENTRY_COUNT];
+    unsigned int count;
+    unsigned int fault_value;
+} dms_fi_config_t;
+
 typedef struct st_dms_profile {
     unsigned int inst_id;
     unsigned long long inst_map;
@@ -1193,6 +1207,23 @@ typedef enum en_reform_callback_stat {
 
     REFORM_CALLBACK_STAT_COUNT
 } reform_callback_stat_e;
+
+typedef enum e_dms_fi_type {
+    DMS_FI_TYPE_BEGIN = 0,
+    DMS_FI_TYPE_PACKET_LOSS = DMS_FI_TYPE_BEGIN,
+    DMS_FI_TYPE_NET_LATENCY,
+    DMS_FI_TYPE_CPU_LATENCY,
+    DMS_FI_TYPE_PROCESS_FAULT,
+    DMS_FI_TYPE_CUSTOM_FAULT,
+    DMS_FI_TYPE_END,
+} dms_fi_type_e;
+
+struct dms_fi_entry {
+    int pointId;
+    int faultFlags;
+    int calledCount;
+    dms_fi_callback_func func;
+};
 
 typedef struct st_dms_tlock_info {
     dms_drid_t resid;

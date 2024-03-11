@@ -28,6 +28,7 @@
 #include "dms_stat.h"
 #include "dms_msg_protocol.h"
 #include "mes_interface.h"
+#include "fault_injection.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -106,6 +107,7 @@ static inline unsigned int mfc_get_mes_flag(dms_message_head_t *msg)
 
 int32 mfc_forward_request(dms_message_head_t *msg)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = mes_forward_request_x(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid,
@@ -152,6 +154,7 @@ static inline int32 mfc_send_data_ack(dms_message_head_t *msg, bool8 is_sync)
 
 int32 mfc_send_data_async(dms_message_head_t *msg)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
@@ -172,6 +175,7 @@ int32 mfc_send_data_async(dms_message_head_t *msg)
 /* 1-BODY SYNC MESSAGE */
 int32 mfc_send_data(dms_message_head_t *msg)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
@@ -195,6 +199,7 @@ int32 mfc_send_data(dms_message_head_t *msg)
 
 int32 mfc_send_response(dms_message_head_t *msg)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
@@ -235,6 +240,7 @@ static inline int32 mfc_send_data3_ack(dms_message_head_t *head, uint32 head_siz
 /* 2-BODY SYNC MESSAGE, with 1st body as user-customized head. */
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
@@ -294,6 +300,7 @@ static inline int32 mfc_send_data4_ack(dms_message_head_t *head, uint32 head_siz
 int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
@@ -322,6 +329,7 @@ int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *bod
 int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
         uint64 start_stat_time = dms_cm_get_time_usec();
@@ -404,6 +412,7 @@ static void mfc_add_tickets_and_release_msg(mes_msg_list_t *recv_msg)
 
 void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return);
     *success_inst = inst_bits; /* cannot tell success insts until get response */
     if (inst_bits == 0) {
         return;
@@ -422,6 +431,7 @@ void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
 /* 2-BODY SYNC BROADCAST */
 void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body, uint64 *success_inst)
 {
+    FAULT_INJECTION_ACTION_TRIGGER(return);
     *success_inst = inst_bits; /* cannot tell success insts until get response */
     if (inst_bits == 0) {
         *success_inst = 0;

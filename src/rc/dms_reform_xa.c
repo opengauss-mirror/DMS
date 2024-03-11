@@ -98,6 +98,7 @@ int dms_reform_merge_xa_owners(void)
     dms_reform_set_judge_time(&req.head);
     req.bitmap_has_xa = reform_info->bitmap_has_xa;
     req.head.size = sizeof(dms_reform_req_sync_xa_owners_t);
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_MERGE_XA_OWNERS, MSG_REQ_MERGE_XA_OWNERS);
     int ret = dms_reform_send_data(&req.head, reform_ctx->sess_proc);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
@@ -152,6 +153,7 @@ static int dms_reform_req_xa_owners(void)
         dms_reform_set_judge_time(&req);
         req.size = sizeof(dms_message_head_t);
         req.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
+        DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_XA_OWNERS, MSG_REQ_XA_OWNERS);
         int ret = mfc_send_data(&req);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_req_xa_owners send error: %d, dst_id: %d", ret, share_info->promote_id);
@@ -480,6 +482,7 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
         req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
     
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_XA_REBUILD, MSG_REQ_XA_REBUILD);
     return dms_reform_rebuild_append_xid(req_rebuild, xid, master_id, undo_set_id);
 }
 
