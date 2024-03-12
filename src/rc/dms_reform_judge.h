@@ -42,12 +42,10 @@ void dms_reform_bitmap_to_list(instance_list_t *list, uint64 bitmap);
 
 typedef bool32(*dms_reform_judgement_check_proc)(instance_list_t *list);
 typedef void(*dms_reform_judgement_proc)(instance_list_t *list);
-typedef void(*dms_reform_judgement_print_proc)(instance_list_t *list);
 
 typedef struct st_dms_reform_judgement_proc {
     dms_reform_judgement_check_proc     check_proc;
     dms_reform_judgement_proc           judgement_proc;
-    dms_reform_judgement_print_proc     print_proc;
 } dms_reform_judgement_proc_t;
 
 #ifdef __cplusplus

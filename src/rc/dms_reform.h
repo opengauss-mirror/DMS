@@ -143,8 +143,8 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_DONE_CHECK,
     DMS_REFORM_STEP_SET_PHASE,                      // for Gauss100
     DMS_REFORM_STEP_WAIT_DB,                        // for Gauss100
-    DMS_REFORM_STEP_BCAST_ENABLE,                   // for Gauss100
-    DMS_REFORM_STEP_BCAST_UNABLE,                   // for Gauss100
+    DMS_REFORM_STEP_FILE_UNBLOCKED,                   // for Gauss100
+    DMS_REFORM_STEP_FILE_BLOCKED,                   // for Gauss100
     DMS_REFORM_STEP_UPDATE_SCN,
     DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
     DMS_REFORM_STEP_DRC_VALIDATE,
@@ -161,6 +161,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_VALIDATE_LOCK_MODE,
     DMS_REFORM_STEP_VALIDATE_LSN,
     DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS,
+    DMS_REFORM_STEP_SET_CURRENT_POINT,
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;

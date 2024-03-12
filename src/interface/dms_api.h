@@ -33,7 +33,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           134
+#define DMS_LOCAL_VERSION           135
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -637,6 +637,8 @@ typedef enum en_dms_reform_type {
     DMS_REFORM_TYPE_FOR_MAINTAIN,   // for start database without CM, every instance is supported
     // New type need to be added start from here
     DMS_REFORM_TYPE_FOR_RST_RECOVER,
+    DMS_REFORM_TYPE_FOR_NEW_JOIN,
+
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
 
@@ -893,6 +895,7 @@ typedef int (*dms_get_kernel_error_code)();
 typedef int (*dms_lsn_validate)(void *db_handle, char *pageid, unsigned long long lsn, unsigned char in_recovery);
 typedef int (*dms_invld_tlock_ownership)(void *db_handle, char *resid, unsigned char req_mode, unsigned char is_try);
 typedef int (*dms_get_tlock_mode)(void *db_handle, char *resid);
+typedef void (*dms_set_current_point)(void *db_handle);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1057,6 +1060,7 @@ typedef struct st_dms_callback {
     dms_lsn_validate lsn_validate;
     dms_invld_tlock_ownership invld_tlock_ownership;
     dms_get_tlock_mode get_tlock_mode;
+    dms_set_current_point set_current_point;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
