@@ -24,7 +24,7 @@ function print_help()
     echo "Usage: $0 [OPTION]
     -h|--help              show help information.
     -3rd|--binarylib_dir   the directory of third party binarylibs.
-    -m|--version_mode      this values of paramenter is Debug, Release, DMSTest. The default value is Release.
+    -m|--version_mode      this values of paramenter is Debug, Release, Memcheck, DMSTest. The default value is Release.
                            DMSTest usage: set environment variable CM_CONFIG_PATH with BITMAP_ONLINE and REFORMER_ID.
                            e.g., BITMAP_ONLINE = 3 REFORMER_ID = 0.
     -t|--build_tool          this values of parameter is cmake, make, the default value is cmake.
@@ -79,7 +79,7 @@ fi
 if [ -z "${build_tool}" ] || [ "$build_tool"x == ""x ]; then
     build_tool=cmake
 fi
-if [ ! "$version_mode"x == "Debug"x ] && [ ! "$version_mode"x == "Release"x ] && [ ! "$version_mode"x == "DMSTest"x ]; then
+if [ ! "$version_mode"x == "Debug"x ] && [ ! "$version_mode"x == "Release"x ] && [ ! "$version_mode"x == "DMSTest"x ] && [ ! "$version_mode"x == "Memcheck"x ]; then
     echo "ERROR: version_mode param is error"
     exit 1
 fi
@@ -134,6 +134,9 @@ cd $PACKAGE
 if [ "$build_tool"x == "cmake"x ];then
     if [ "$version_mode"x == "DMSTest"x ];then
         cmake -DCMAKE_BUILD_TYPE=Debug -D DMS_TEST=ON -DOPENGAUSS=yes \
+        -DENABLE_EXPORT_API=${export_api} CMakeLists.txt
+    elif [ "$version_mode"x == "MemcheckDMSTest"x ];then
+        cmake -DCMAKE_BUILD_TYPE=Memcheck -D DMS_TEST=ON -DOPENGAUSS=yes \
         -DENABLE_EXPORT_API=${export_api} CMakeLists.txt
     else
         cmake -DCMAKE_BUILD_TYPE=${version_mode} -DOPENGAUSS=yes \
