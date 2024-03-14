@@ -149,6 +149,7 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
     }
     part = &ctx->global_xa_res.res_parts[migrate_task->part_id];
     drc_release_xa_by_part(part);
+
     return DMS_SUCCESS;
 }
 
@@ -161,14 +162,24 @@ int dms_reform_migrate(void)
 
     LOG_RUN_FUNC_ENTER;
     dms_reform_migrate_collect_local_task(&local_migrate_info);
+    if (local_migrate_info.migrate_task_num == 0) {
+        dms_reform_next_step();
+        LOG_RUN_FUNC_SKIP;
+        return DMS_SUCCESS;
+    }
+
+    drc_enter_buf_res_set_blocked();
     for (uint8 i = 0; i < local_migrate_info.migrate_task_num; i++) {
         migrate_task = &local_migrate_info.migrate_task[i];
         ret = dms_reform_migrate_inner(migrate_task, reform_ctx->handle_proc, reform_ctx->sess_proc);
-        if (ret != DMS_SUCCESS) {
-            LOG_RUN_FUNC_FAIL;
-            return ret;
-        }
+        DMS_BREAK_IF_ERROR(ret);
     }
+    drc_enter_buf_res_set_unblocked();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;

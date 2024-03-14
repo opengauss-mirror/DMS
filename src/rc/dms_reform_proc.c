@@ -865,7 +865,7 @@ static int dms_reform_wait_db(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_bcast_enable(void)
+static int dms_reform_file_unblocked(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -878,7 +878,7 @@ static int dms_reform_bcast_enable(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_bcast_unable(void)
+static int dms_reform_file_blocked(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
@@ -1427,17 +1427,26 @@ static int dms_reform_ddl_2phase_rcy(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_set_current_point(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    g_dms.callback.set_current_point(g_dms.reform_ctx.handle_proc);
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DONE] = { "DONE", dms_reform_done, NULL, CM_FALSE },
     [DMS_REFORM_STEP_PREPARE] = { "PREPARE", dms_reform_prepare, NULL, CM_FALSE },
     [DMS_REFORM_STEP_START] = { "START", dms_reform_start, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DISCONNECT] = { "DISCONN", dms_reform_disconnect, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, dms_reform_reconnect_parallel, CM_FALSE },
-    [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, dms_reform_drc_clean_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, dms_reform_drc_clean_parallel, CM_TRUE },
     [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL, CM_TRUE },
-    [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel, CM_TRUE },
     [DMS_REFORM_STEP_RECOVERY_ANALYSE] = { "RECOVERY_ANALYSE", dms_reform_recovery_analyse, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL, CM_FALSE },
@@ -1462,12 +1471,12 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS] = { "S_PROMOTE", dms_reform_switchover_promote_opengauss, NULL, CM_FALSE },
     [DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS] = { "F_PROMOTE", dms_reform_failover_promote_opengauss, NULL, CM_FALSE },
     [DMS_REFORM_STEP_STARTUP_OPENGAUSS] = { "STARTUP", dms_reform_startup_opengauss, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_FLUSH_COPY] = { "FLUSH_COPY", dms_reform_flush_copy, dms_reform_flush_copy_parallel, CM_FALSE },
+    [DMS_REFORM_STEP_FLUSH_COPY] = { "FLUSH_COPY", dms_reform_flush_copy, dms_reform_flush_copy_parallel, CM_TRUE },
     [DMS_REFORM_STEP_DONE_CHECK] = { "DONE_CHECK", dms_reform_done_check, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SET_PHASE] = { "SET_PHASE", dms_reform_set_phase, NULL, CM_FALSE },
     [DMS_REFORM_STEP_WAIT_DB] = { "WAIT_DB", dms_reform_wait_db, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_BCAST_ENABLE] = { "BCAST_ENABLE", dms_reform_bcast_enable, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_BCAST_UNABLE] = { "BCAST_UNABLE", dms_reform_bcast_unable, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_FILE_UNBLOCKED] = { "FILE_UNBLOCKED", dms_reform_file_unblocked, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_FILE_BLOCKED] = { "FILE_BLOCKED", dms_reform_file_blocked, NULL, CM_FALSE },
     [DMS_REFORM_STEP_UPDATE_SCN] = { "UPDATE_SCN", dms_reform_update_scn, NULL, CM_FALSE },
     [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL, CM_FALSE },
@@ -1483,6 +1492,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS] = { "DRC_LOCK_ACCESS", dms_reform_drc_lock_all_access, NULL, CM_FALSE },
     [DMS_REFORM_STEP_VALIDATE_LOCK_MODE] = { "VALIDATE_LOCK", dms_reform_validate_lock_mode, dms_reform_validate_lock_mode_parallel, CM_FALSE },
     [DMS_REFORM_STEP_VALIDATE_LSN] = { "VALIDATE_LSN", dms_reform_validate_lsn, dms_reform_validate_lsn_parallel, CM_TRUE },
+    [DMS_REFORM_STEP_SET_CURRENT_POINT] = { "SET_CURR_POINT", dms_reform_set_current_point, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)

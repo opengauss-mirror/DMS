@@ -458,7 +458,18 @@ int dms_reform_drc_clean_parallel(void)
 
 int dms_reform_migrate_parallel(void)
 {
-    return dms_reform_parallel(DMS_REFORM_PARALLEL_MIGRATE);
+    migrate_info_t local_migrate_info = { 0 };
+    dms_reform_migrate_collect_local_task(&local_migrate_info);
+    if (local_migrate_info.migrate_task_num == 0) {
+        dms_reform_next_step();
+        LOG_RUN_FUNC_SKIP;
+        return DMS_SUCCESS;
+    }
+
+    drc_enter_buf_res_set_blocked();
+    int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_MIGRATE);
+    drc_enter_buf_res_set_unblocked();
+    return ret;
 }
 
 int dms_reform_repair_parallel(void)
