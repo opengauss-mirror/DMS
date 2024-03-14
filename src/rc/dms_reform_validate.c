@@ -289,7 +289,7 @@ int dms_reform_validate_tlock(void *handle, uint8 thread_index, uint8 thread_num
 static int dms_validate_tlock_parallel(dms_tlock_info_t *lock_info, dms_drid_t *lockid, uint8 master,
     uint8 thread_index)
 {
-    int ret = DMS_SUCCESS;
+    int ret;
     uint32 append_size = (uint32)sizeof(dms_tlock_info_t);
     if (master == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_TLOCK_LOCAL);
@@ -301,14 +301,14 @@ static int dms_validate_tlock_parallel(dms_tlock_info_t *lock_info, dms_drid_t *
         dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
     } else {
         dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
-        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_TLOCK_VALIDATE, lock_info, append_size, 
-            master, thread_index);
+        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_TLOCK_VALIDATE, lock_info, append_size, master,
+            thread_index);
         dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK_REMOTE);
     }
     return ret;
 }
 
-int dms_reform_validate_tlock_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info, uint8 thread_index)
+int dms_reform_validate_tlock_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info, unsigned char thread_index)
 {
     dms_reset_error();
     uint8 master;

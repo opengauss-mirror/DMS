@@ -33,7 +33,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           135
+#define DMS_LOCAL_VERSION           136
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -894,7 +894,7 @@ typedef void (*dms_free_prot_proc)(void *ptr);
 typedef int (*dms_get_kernel_error_code)();
 typedef int (*dms_lsn_validate)(void *db_handle, char *pageid, unsigned long long lsn, unsigned char in_recovery);
 typedef int (*dms_invld_tlock_ownership)(void *db_handle, char *resid, unsigned char req_mode, unsigned char is_try);
-typedef int (*dms_get_tlock_mode)(void *db_handle, char *resid);
+typedef unsigned short (*dms_get_tlock_mode)(void *db_handle, char *resid);
 typedef void (*dms_set_current_point)(void *db_handle);
 
 typedef struct st_dms_callback {
