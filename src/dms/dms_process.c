@@ -47,6 +47,7 @@
 #include "scrlock_adapter.h"
 #include "cm_log.h"
 #include "dms_reform_xa.h"
+#include "fault_injection.h"
 #include "dms_reform_proc_stat.h"
 
 dms_instance_t g_dms = { 0 };

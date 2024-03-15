@@ -964,9 +964,43 @@ DMS_DECLARE void dms_reform_proc_callback_stat_start(reform_callback_stat_e call
 DMS_DECLARE void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat);
 DMS_DECLARE void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat);
 
+/*
+ * @brief set dms fi entries from db params
+ * @[in]param type - fault type
+ * @[in]param entries - fault entries array
+ * @[in]param count - the hwm of array
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_fi_set_entries(unsigned int type, unsigned int *entries, unsigned int count);
+
+/*
+ * @brief set dms fi value from db params
+ * @[in]param type - fault type
+ * @[in]param value - fault value
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_fi_set_entry_value(unsigned int type, unsigned int value);
 DMS_DECLARE int dms_reform_rebuild_send_rest(unsigned int sess_id, unsigned char thread_index);
 
+/*
+ * @brief get thread local storage var
+ * @return var
+ */
+DMS_DECLARE int dms_fi_get_tls_trigger_custom();
+
+/*
+ * @brief set thread local storage var
+ * @[in]param val - value
+ */
+DMS_DECLARE void dms_fi_set_tls_trigger_custom(int val);
+
 DMS_DECLARE int dms_get_reform_locking(void);
+
+/*
+ * @brief call fault injection
+ * @[in]param point - fault index
+ */
+DMS_DECLARE void fault_injection_call(unsigned int point, ...);
 
 #ifdef __cplusplus
 }

@@ -286,7 +286,7 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, dms_message_t *re
         (uint16)process_ctx->sess_id, req_head->src_sid, req_head->msg_proto_ver);
     ack_head.size = (uint16)(sizeof(dms_txn_info_t) + sizeof(dms_message_head_t));
     ack_head.ruid = req_head->ruid;
-
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_TXN_INFO, MSG_ACK_TXN_INFO);
     if (mfc_send_data3(&ack_head, sizeof(dms_message_head_t), &txn_info) != CM_SUCCESS) {
         LOG_DEBUG_ERR("[TXN] send txn info ack message failed, src_inst = %u, dst_inst = %u", 
             (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
@@ -310,7 +310,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_TXN_REQ_INFO, CM_TRUE);
 
-    
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_TXN_INFO, MSG_REQ_TXN_INFO);
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
@@ -407,6 +407,7 @@ void dcs_proc_txn_snapshot_req(dms_process_context_t *process_ctx, dms_message_t
             (uint16)process_ctx->sess_id, (uint16)receive_msg->head->src_sid, req->head.msg_proto_ver);
         ack.ruid = receive_msg->head->ruid;
         ack.size = (uint16)(sizeof(dms_message_head_t) + sizeof(dms_txn_snapshot_t));
+        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_TXN_SNAPSHOT, MSG_ACK_TXN_SNAPSHOT);
         (void)mfc_send_data3(&ack, sizeof(dms_message_head_t), &txn_snapshot);
     } else {
         cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_ERROR, ret);
@@ -522,7 +523,7 @@ int dms_request_txn_snapshot(dms_context_t *dms_ctx, dms_txn_snapshot_t *dms_txn
     req.xmap = xmap_ctx->xmap;
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_TXN_REQ_SNAPSHOT, CM_TRUE);
-
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_TXN_SNAPSHOT, MSG_REQ_TXN_SNAPSHOT);
     
     int32 ret = mfc_send_data(&req.head);
     if (ret != CM_SUCCESS) {
@@ -597,6 +598,7 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, dms_message_t *re
     txn_wait_ack.status = ret;
     txn_wait_ack.scn = scn;
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_AWAKE_TXN, MSG_ACK_AWAKE_TXN);
     if (mfc_send_data(&txn_wait_ack.head) != CM_SUCCESS) {
         LOG_DEBUG_ERR("[TXN] send txn info ack message failed, src_inst = %u, dst_inst = %u",
             (uint32)txn_wait_ack.head.src_inst, (uint32)txn_wait_ack.head.dst_inst);
@@ -631,6 +633,7 @@ static int32 dms_send_awake_txn_msg(dms_context_t *dms_ctx, uint32 dest_id)
     txn_awake_req.scn = xid_ctx->scn;
     head->size = (uint16)sizeof(msg_txn_awake_request_t);
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_AWAKE_TXN, MSG_REQ_AWAKE_TXN);
     int32 ret = mfc_send_data_async(head);
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)",
@@ -690,7 +693,7 @@ int dms_request_txn_cond_status(dms_context_t *dms_ctx, int *status)
     txn_wait_req.xid = xid_ctx->xid;
     head->size = (uint16)sizeof(txn_wait_req);
 
-    
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_WAIT_TXN, MSG_REQ_WAIT_TXN);
     int32 ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[TXN] send message to instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)",
@@ -939,6 +942,7 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
 
     LOG_DEBUG_INF("[DMS][%s][dms_request_create_xa_res]: src_id = %u, dst_id = %u",
         cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, (uint32)master_id);
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_CREATE_GLOBAL_XA_RES, MSG_REQ_CREATE_GLOBAL_XA_RES);
     int32 ret_code = mfc_send_data(&req.head);
     if (ret_code != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_request_create_xa_res]: failed to send create xa res request",
@@ -997,6 +1001,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
         proc_ctx->sess_id);
     ack.return_code = ret;
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_CREATE_GLOBAL_XA_RES, MSG_ACK_CREATE_GLOBAL_XA_RES);
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_create_xa_res]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %d",
@@ -1024,6 +1029,7 @@ int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 
 
     LOG_DEBUG_INF("[DMS][%s][dms_request_delete_xa_res]: src_id = %u, dst_id = %u",
         cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, (uint32)master_id);
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_DELETE_GLOBAL_XA_RES, MSG_REQ_DELETE_GLOBAL_XA_RES);
     int32 ret_code = mfc_send_data(&req.head);
     if (ret_code != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_request_delete_xa_res]: failed to send delete xa res request",
@@ -1081,6 +1087,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
         proc_ctx->sess_id);
     ack.return_code = ret;
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_DELETE_GLOBAL_XA_RES, MSG_ACK_DELETE_GLOBAL_XA_RES);
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_delete_xa_res]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %d",
@@ -1128,6 +1135,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_owner]: src_id = %u, src_sid = %u",
         cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ASK_XA_OWNER_ID, MSG_ACK_ASK_XA_OWNER_ID);
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_ask_xa_owner]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %d",
@@ -1181,6 +1189,7 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
         return err;
     }
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_XA_OWNER_ID, MSG_REQ_ASK_XA_OWNER_ID);
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
@@ -1262,6 +1271,7 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
 
     LOG_DEBUG_INF("[TXN][%s] end the xa remote, src_id = %u, dst_id = %u", cm_display_resid((char *)xid,
         DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, owner_id);
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_END_XA, MSG_REQ_END_XA);
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
@@ -1313,6 +1323,7 @@ void dms_proc_end_xa(dms_process_context_t *proc_ctx, dms_message_t *receive_msg
     LOG_DEBUG_INF("[DMS][%s][dms_proc_end_xa]: src_id = %u, src_sid = %u", 
         cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
     
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_END_XA, MSG_ACK_END_XA);
     ret = mfc_send_data(&ack.head);
     if (ret == DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_end_xa]: finished, dst_id = %u, dst_sid = %u", cm_display_resid((char *)xid,
@@ -1342,6 +1353,7 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
 
     LOG_DEBUG_INF("[TXN][%s][dms_ask_xa_inuse_remote]: src_id = %u, dst_id = %u", cm_display_resid((char *)global_xid,
         DRC_RES_GLOBAL_XA_TYPE), dms_ctx->inst_id, owner_id);
+    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_XA_IN_USE, MSG_REQ_ASK_XA_IN_USE);
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
@@ -1407,6 +1419,7 @@ void dms_proc_ask_xa_inuse(dms_process_context_t *proc_ctx, dms_message_t *recei
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: src_id = %u, src_sid = %u",
         cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)req.head.src_inst, (uint16)req.head.src_sid);
 
+    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_XA_IN_USE, MSG_ACK_XA_IN_USE);
     int32 ret = mfc_send_data(&ack.head);
     if (ret == DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: finished, dst_id = %u, dst_sid = %u", cm_display_resid((char *)xid,
