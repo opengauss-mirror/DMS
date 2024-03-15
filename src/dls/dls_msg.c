@@ -53,7 +53,7 @@ static inline drc_local_lock_res_t* dls_try_get_lock_res_4_release(dms_drid_t *l
 {
     drc_local_lock_res_t *lock_res = drc_get_local_resx(lockid);
     CM_ASSERT(lock_res != NULL);
-    drc_lock_local_resx(lock_res);
+    drc_lock_local_resx(lock_res, NULL, NULL);
     if (!g_lock_matrix[lock_mode][lock_res->latch_stat.stat]) {
         drc_unlock_local_resx(lock_res);
         LOG_DEBUG_INF("[DLS] try release lock(%s) failed", cm_display_lockid(lockid));
@@ -75,7 +75,7 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(void *sess, dms_drid_t *
     date_t begin = g_timer()->now;
 
     lock_res->releasing = CM_TRUE;
-    drc_lock_local_resx(lock_res);
+    drc_lock_local_resx(lock_res, NULL, NULL);
 
     do {
         if (g_lock_matrix[lock_mode][lock_res->latch_stat.stat]) {
@@ -90,7 +90,7 @@ static drc_local_lock_res_t* dls_get_lock_res_4_release(void *sess, dms_drid_t *
         }
         drc_unlock_local_resx(lock_res);
         dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
-        drc_lock_local_resx(lock_res);
+        drc_lock_local_resx(lock_res, NULL, NULL);
     } while (CM_TRUE);
 }
 

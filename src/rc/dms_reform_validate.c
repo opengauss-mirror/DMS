@@ -242,7 +242,7 @@ static int dms_reform_validate_lock_by_bucket(drc_res_bucket_t *bucket, uint8 th
         lock_res = (drc_local_lock_res_t *)DRC_RES_NODE_OF(drc_local_lock_res_t, node, node);
         drc_get_lock_master_id(&lock_res->resid, &master);
         dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_LOCK_LOCAL_RES_LOCK);
-        drc_lock_local_resx(lock_res);
+        drc_lock_local_resx(lock_res, NULL, NULL);
         dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_LOCK_LOCAL_RES_LOCK);
         ret = dms_reform_validate_lock_inner(lock_res, master, thread_index);
         drc_unlock_local_resx(lock_res);
