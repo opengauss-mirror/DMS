@@ -406,8 +406,7 @@ static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
 
 static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_type)
 {
-    switch (res_type)
-    {
+    switch (res_type) {
         case DRC_RES_PAGE_TYPE:
             return &g_drc_res_ctx.global_buf_res;
         case DRC_RES_LOCK_TYPE:

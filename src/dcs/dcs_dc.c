@@ -121,7 +121,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
         ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, all_inst, &succ_inst);
     } else {
         mes_msg_list_t recv_msg = { 0 };
-        int32 ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, succ_inst, &recv_msg);
+        ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, succ_inst, &recv_msg);
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
             ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);

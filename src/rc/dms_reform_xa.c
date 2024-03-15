@@ -36,7 +36,7 @@
 #include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 
-static void inline dms_reform_collect_xa_owner_by_bucket(drc_res_bucket_t *bucket, uint64 *bitmap_has_xa)
+static inline void dms_reform_collect_xa_owner_by_bucket(drc_res_bucket_t *bucket, uint64 *bitmap_has_xa)
 {
     drc_global_xa_res_t *xa_res = NULL;
     bilist_node_t *iter_node = cm_bilist_head(&bucket->bucket_list);

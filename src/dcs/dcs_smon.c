@@ -219,7 +219,7 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *re
     char *xid = (char *)(receive_msg->buffer + sizeof(dms_message_head_t));
     char *ilock = (char *)(send_msg + sizeof(dms_message_head_t));
     if (g_dms.callback.get_itl_lock_by_xid(ctx->db_handle, xid, ilock, DMS_SMON_ILOCK_MSG_MAX_LEN) != DMS_SUCCESS) {
-        LOG_DEBUG_ERROR("[SMON][get_itl_lock_by_xid] failed");
+        LOG_DEBUG_ERR("[SMON][get_itl_lock_by_xid] failed");
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DCS_GET_TXN_INFO_FAILED, "get itl lock failed");
         g_dms.callback.mem_free(ctx->db_handle, send_msg);
         return;

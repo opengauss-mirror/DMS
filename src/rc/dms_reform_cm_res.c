@@ -85,7 +85,7 @@ static void dms_reform_cm_simulation_thread(thread_t *thread)
 
     while (!thread->closed) {
         cm_spin_lock(&g_cm_simulation.lock, NULL);
-        int status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_realpath, &g_cm_simulation.config, CM_FALSE);
+        status = cm_load_config(g_cm_params, CM_PARAM_COUNT, cm_config_realpath, &g_cm_simulation.config, CM_FALSE);
         if (status != CM_SUCCESS) {
             cm_spin_unlock(&g_cm_simulation.lock);
             LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to load cm simulation");

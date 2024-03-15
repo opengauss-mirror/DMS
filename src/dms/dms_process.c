@@ -1105,12 +1105,10 @@ void dms_refresh_logger(char *log_field, unsigned long long *value)
 
     if (strcmp(log_field, "LOG_LEVEL") == 0) {
         cm_log_param_instance()->log_level = (uint32)(*value);
-    }
-    else if (strcmp(log_field, "LOG_MAX_FILE_SIZE") == 0) {
+    } else if (strcmp(log_field, "LOG_MAX_FILE_SIZE") == 0) {
         cm_log_param_instance()->max_log_file_size = (uint64)(*value);
         cm_log_param_instance()->max_audit_file_size = (uint64)(*value);
-    }
-    else if (strcmp(log_field, "LOG_BACKUP_FILE_COUNT") == 0) {
+    } else if (strcmp(log_field, "LOG_BACKUP_FILE_COUNT") == 0) {
         cm_log_param_instance()->log_backup_file_count = (uint32)(*value);
         cm_log_param_instance()->audit_backup_file_count = (uint32)(*value);
     }
