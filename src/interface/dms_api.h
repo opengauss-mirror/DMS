@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           137
+#define DMS_LOCAL_VERSION           138
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -395,6 +395,7 @@ typedef struct st_dms_txn_info {
     unsigned char is_owscn;
     unsigned char status;
     unsigned char unused[2];
+    unsigned long long xid;
 } dms_txn_info_t;
 
 typedef struct st_dms_txn_snapshot {
