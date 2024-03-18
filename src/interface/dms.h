@@ -408,6 +408,20 @@ DMS_DECLARE int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned i
 */
 DMS_DECLARE int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data, unsigned int len,
     unsigned char handle_recv_msg, unsigned int timeout, dms_broadcast_scope_e scope);
+
+/*
+* @brief broadcast message to other instances.
+* @param dms_ctx - dms_context_t structure.
+* @param data - message data.
+* @param len - message length.
+* @param timeout - wait response msg in timeout
+* @param output - output
+* @param output_len - output length
+* @return DMS_SUCCESS - success;otherwise: failed
+*/
+DMS_DECLARE int dms_smon_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned int timeout,
+    char *output, unsigned int *output_len);
+
 /*
 * @brief broadcast ddl sync message to other instances.
 * @param dms_ctx - dms_context_t structure.
@@ -671,34 +685,6 @@ DMS_DECLARE int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned c
     char *ilock, unsigned int ilock_len);
 
 /*
- * @brief the smon thread check tlock status
- * @[in]param dms_ctx - dms_context_t structure.
- * @[in]param dst_inst - Target Instance
- * @[in]param sid - sid
- * @[in]param table_id - table_id
- * @[in]param type - dms_smon_check_tlock_type_t
- * @[out]param in_use - in_use
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_smon_check_tlock_status(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short sid,
-    unsigned long long table_id, dms_smon_check_tlock_type_t type, unsigned int *in_use);
-
-/*
- * @brief the smon thread get table lock msg by table_id
- * @[in]param dms_ctx - dms_context_t structure.
- * @[in]param dst_inst - Target Instance
- * @[in]param table_id - table_id
- * @[in]param type - dms_smon_check_tlock_type_t
- * @[out]param rsp - rsp
- * @[in]param rsp_len - rsp length
- * @[out]param tlock_cnt - tlock_cnt
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsigned char dst_inst,
-    unsigned long long table_id, dms_smon_req_tlock_type_t type, char *rsp, unsigned int rsp_len,
-    unsigned int *tlock_cnt);
-
-/*
  * @brief the smon thread get table lock msg by rm
  * @[in]param dms_ctx - dms_context_t structure.
  * @[in]param dst_inst - Target Instance
@@ -709,7 +695,7 @@ DMS_DECLARE int dms_smon_request_table_lock_by_tid(dms_context_t *dms_ctx, unsig
  * @[in]param tlock_len - tlock length
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short sid,
+DMS_DECLARE int dms_smon_req_tlock_by_rm(dms_context_t *dms_ctx, unsigned char dst_inst, unsigned short sid,
     unsigned short rmid, dms_smon_req_rm_type_t type, char *tlock, unsigned int tlock_len);
 
 /*
@@ -721,6 +707,21 @@ DMS_DECLARE int dms_smon_request_table_lock_by_rm(dms_context_t *dms_ctx, unsign
  */
 DMS_DECLARE int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info,
     unsigned char thread_index);
+
+/*
+
+ * @brief the smon thread get tlock by table id
+ * @[in]param dms_ctx - dms_context_t structure.
+ * @[in]param data - tlock
+ * @[in]param len - length
+ * @[in]param inst_id - instance id
+ * @[out]param stack - stack
+ * @[in]param w_marks - w_marks
+ * @[out]param valid_cnt - valid_cnt
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int len, unsigned int inst_id,
+    char *stack, char *w_marks, unsigned int *valid_cnt);
 
 /*
  * @brief rebuild drc when node abort.

@@ -31,25 +31,22 @@
 extern "C" {
 #endif
 
-typedef struct st_dcs_req_tlock {
+typedef struct st_dcs_req_tlock_by_rm {
     uint32 type;
     uint16 sid;
     uint16 rmid;
-} dcs_req_tlock_t;
+} dcs_req_tlock_by_rm_t;
 
-typedef struct st_dcs_check_tlock_status {
-    uint32 type;
-    uint64 table_id;
-    uint16 sid;
-    char resv[2];
-} dcs_check_tlock_status_t;
+typedef struct st_dcs_req_tlock_by_tid {
+    char tlock[DMS_SMON_TLOCK_MSG_MAX_LEN];
+} dcs_req_tlock_by_tid_t;
 
 void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_check_tlock_status(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_table_lock_by_tid(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_table_lock_by_rm(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_tlock_by_rm(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_tlock_by_tid(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

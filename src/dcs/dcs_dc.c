@@ -60,7 +60,8 @@ void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *r
     LOG_DEBUG_INF("Succeed to send ack to inst %u", receive_msg->head->src_inst);
 }
 
-static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv_msg)
+static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv_msg, char *output,
+    unsigned int *output_len)
 {
     uint32 i;
     uint32 len;
@@ -76,7 +77,8 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
         } else {
             data = recv_msg->messages[i].buffer + sizeof(dms_message_head_t);
             len = (uint32)(head->size - sizeof(dms_message_head_t));
-            dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = NULL, .output_msg_len = NULL};
+            dms_broadcast_context_t broad_ctx = {.data = data, .len = len, .output_msg = output,
+                .output_msg_len = output_len};
             ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
         }
         if (ret != DMS_SUCCESS) {
@@ -94,14 +96,14 @@ static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 time
 
     ret = mfc_get_broadcast_res_with_msg(ruid, timeout, expect_inst, &recv_msg);
     if (ret == DMS_SUCCESS) {
-        ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
+        ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg, NULL, NULL);
         mfc_release_broadcast_response(&recv_msg);
     }
     return ret;
 }
 
 static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32 len, uint32 timeout, bool8 handle_msg,
-    msg_command_t cmd, dms_broadcast_scope_e scope)
+    msg_command_t cmd, dms_broadcast_scope_e scope, char *output, unsigned int *output_len)
 {
     uint64 succ_inst = 0;
     dms_message_head_t head;
@@ -126,7 +128,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
         int32 ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, succ_inst, &recv_msg);
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
-            ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg);
+            ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg, output, output_len);
             mfc_release_broadcast_response(&recv_msg);
         }
     }
@@ -138,17 +140,19 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
 }
 
 int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
-    unsigned int timeout, msg_command_t cmd, dms_broadcast_scope_e scope, unsigned char check_session_kill)
+    unsigned int timeout, msg_command_t cmd, dms_broadcast_scope_e scope, unsigned char check_session_kill,
+    char *output, unsigned int *output_len)
 {
     int ret = DMS_SUCCESS;
 
     if (timeout != CM_INFINITE_TIMEOUT) {
-        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd, scope);
+        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd, scope, output, output_len);
         return ret;
     }
 
     while (CM_TRUE) {
-        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd, scope) == DMS_SUCCESS) {
+        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd, scope, output,
+            output_len) == DMS_SUCCESS) {
             return DMS_SUCCESS;
         }
 #ifndef OPENGAUSS
@@ -166,7 +170,7 @@ int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data, unsigned in
 {
     dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST, scope,
-        CM_TRUE);
+        CM_TRUE, NULL, NULL);
 }
 
 int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
@@ -174,7 +178,15 @@ int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
 {
     dms_reset_error();
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST,
-        DMS_BROADCAST_ONLINE_LIST, CM_TRUE);
+        DMS_BROADCAST_ONLINE_LIST, CM_TRUE, NULL, NULL);
+}
+
+int dms_smon_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned int timeout,
+    char *output, unsigned int *output_len)
+{
+    dms_reset_error();
+    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, CM_TRUE, timeout, MSG_REQ_SMON_BROADCAST,
+        DMS_BROADCAST_ONLINE_LIST, CM_TRUE, output, output_len);
 }
 
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -333,7 +345,7 @@ int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int 
     dms_reset_error();
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_DDL_SYNC, MSG_REQ_DDL_SYNC);
     return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC, scope,
-        check_session_kill);
+        check_session_kill, NULL, NULL);
 }
 
 #ifdef __cplusplus
