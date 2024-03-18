@@ -1234,11 +1234,11 @@ int dms_init(dms_profile_t *dms_profile)
     dms_init_log(dms_profile);
 #endif
 
-    LOG_RUN_INF("[DMS] dms_init start");
     ret = cm_start_timer(g_timer());
     if (ret != DMS_SUCCESS) {
         return ret;
     }
+    LOG_RUN_INF("[DMS] dms_init start");
 
     if (dms_profile == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
