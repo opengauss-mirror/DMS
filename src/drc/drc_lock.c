@@ -76,9 +76,9 @@ drc_local_lock_res_t *drc_get_local_resx(dms_drid_t *lock_id)
     return lock_res;
 }
 
-void drc_lock_local_resx(drc_local_lock_res_t *lock_res)
+void drc_lock_local_resx(drc_local_lock_res_t *lock_res, spin_statis_t *stat, spin_statis_instance_t *stat_instance)
 {
-    cm_spin_lock(&lock_res->lock, NULL);
+    cm_spin_lock_with_stat(&lock_res->lock, stat, stat_instance);
 }
 
 void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
@@ -116,10 +116,9 @@ int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
     }
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
-    drc_lock_local_resx(lock_res);
+    drc_lock_local_resx(lock_res, NULL, NULL);
     *lock_mode = lock_res->latch_stat.lock_mode;
     drc_unlock_local_resx(lock_res);
-    
     return DMS_SUCCESS;
 }
 
@@ -133,9 +132,8 @@ int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
     }
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
-    drc_lock_local_resx(lock_res);
+    drc_lock_local_resx(lock_res, NULL, NULL);
     *lock_mode = lock_res->latch_stat.lock_mode;
     drc_unlock_local_resx(lock_res);
-
     return DMS_SUCCESS;
 }

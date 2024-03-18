@@ -334,6 +334,9 @@ typedef struct st_dms_context {
         unsigned char edp_inst;
         drc_global_xid_t global_xid;
     };
+    void *stat;
+    void *stat_instance;
+    unsigned long long wait_usecs;
     unsigned char intercept_type;
     unsigned char curr_mode;    // used for table lock
 } dms_context_t;
