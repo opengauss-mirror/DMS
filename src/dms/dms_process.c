@@ -141,6 +141,9 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_RECYCLE,                drc_proc_buf_ctrl_recycle,       CM_TRUE, CM_TRUE,  "req buf ctrl recycle" },
     { MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, dms_proc_opengauss_immediate_ckpt,
         CM_TRUE, CM_FALSE, "dms notify primary node do ckpt immediately" },
+    { MSG_REQ_AZ_SWITCHOVER_DEMOTE, dms_reform_proc_req_az_switchover, CM_TRUE, CM_FALSE,  "dms az switchover demote" },
+    { MSG_REQ_AZ_SWITCHOVER_PROMOTE, dms_reform_proc_req_az_switchover, CM_TRUE, CM_FALSE,  "dms az switchover promote" },
+    { MSG_REQ_AZ_FAILOVER, dms_reform_proc_req_az_failover, CM_TRUE, CM_FALSE,  "dms az failover" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {

@@ -201,7 +201,7 @@ int dms_reform_collect_xa_owner(void)
 
     LOG_RUN_FUNC_ENTER;
     reform_info->bitmap_has_xa = 0;
-    if (DMS_CATALOG_IS_CENTRALIZED && share_info->promote_id != g_dms.inst_id) {
+    if (share_info->catalog_centralized && share_info->promote_id != g_dms.inst_id) {
         dms_reform_next_step();
         LOG_RUN_FUNC_SUCCESS;
         return DMS_SUCCESS;
@@ -229,7 +229,7 @@ static void dms_reform_refresh_xa_owner()
     drc_res_map_t *res_map = &global_res_map->res_map;
 
     LOG_RUN_FUNC_ENTER;
-    if (DMS_CATALOG_IS_CENTRALIZED) {
+    if (share_info->catalog_centralized) {
         LOG_RUN_FUNC_SUCCESS;
         return;
     }

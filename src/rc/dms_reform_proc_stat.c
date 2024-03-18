@@ -312,6 +312,13 @@ drps_desc_t g_drps_desc_t[] = {
     {DMS_REFORM_STEP_WAIT_DB,                                   DRPS_LEVEL_TOP,     "WAIT_DB"},
     {DMS_REFORM_STEP_DRC_VALIDATE,                              DRPS_LEVEL_TOP,     "DRC_VALIDATE"},
     {DRPS_DRC_BLOCK,                                            DRPS_LEVEL_TOP,     "DRC_BLOCK"},
+    {DMS_REFORM_STEP_START_LRPL,                               DRPS_LEVEL_TOP,     "START_LRPL"},
+    {DMS_REFORM_STEP_STOP_LRPL,                                DRPS_LEVEL_TOP,     "STOP_LRPL"},
+    {DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1,                  DRPS_LEVEL_TOP,     "AZ_SWITCH_DEMOTE_PHASE1"},
+    {DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE,                 DRPS_LEVEL_TOP,     "AZ_SWITCH_DEMOTE_APPROVE"},
+    {DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2,                  DRPS_LEVEL_TOP,     "AZ_SWITCH_DEMOTE_PHASE2"},
+    {DMS_REFORM_STEP_AZ_SWITCH_PROMOTE,                        DRPS_LEVEL_TOP,     "AZ_SWITCH_PROMOTE"},
+    {DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE,                      DRPS_LEVEL_TOP,     "AZ_FAILOVER_PROMOTE"},
 };
 
 drps_level_format_t g_drps_level_format[DRPS_LEVEL_COUNT] = {

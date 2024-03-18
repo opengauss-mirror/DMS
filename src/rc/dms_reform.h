@@ -54,7 +54,7 @@ extern "C" {
 #define DMS_HEALTH_INFO                 (&g_dms.reform_ctx.health_info)
 #define DMS_PARALLEL_INFO               (&g_dms.reform_ctx.parallel_info)
 #define DRC_PART_REMASTER_ID(part_id)   (g_dms.reform_ctx.share_info.remaster_info.part_map[(part_id)].inst_id)
-#define DMS_CATALOG_IS_CENTRALIZED      (g_dms.reform_ctx.catalog_centralized)
+#define DMS_AZ_SWITCHOVER_INFO          (&g_dms.reform_ctx.az_switchover_info)
 
 #define LOG_DEBUG_FUNC_SUCCESS          LOG_DEBUG_INF("[DMS REFORM]%s success", __FUNCTION__)
 #define LOG_DEBUG_FUNC_FAIL             LOG_DEBUG_ERR("[DMS REFORM]%s fail, error: %d", __FUNCTION__, ret)
@@ -162,6 +162,13 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_VALIDATE_LSN,
     DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS,
     DMS_REFORM_STEP_SET_CURRENT_POINT,
+    DMS_REFORM_STEP_START_LRPL,
+    DMS_REFORM_STEP_STOP_LRPL,
+    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1,
+    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE,
+    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2,
+    DMS_REFORM_STEP_AZ_SWITCH_PROMOTE,
+    DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE,
 
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
@@ -236,7 +243,7 @@ typedef struct st_share_info {
     uint8               promote_id;             // instance promote to primary
     uint8               demote_id;              // instance demote to standy;
     uint8               last_reformer;          // last reformer
-    uint8               unused;
+    bool8               catalog_centralized;
     uint64              version_num;
     dw_recovery_info_t  dw_recovery_info;
     uint64              start_times[DMS_MAX_INSTANCES];
@@ -325,6 +332,23 @@ typedef struct st_switchover_info {
     version_info_t      reformer_version;       // for origin standby record, if version changed, stop request session
     bool8               switch_start;           // if current node request switchover
 } switchover_info_t;
+
+typedef enum st_az_dms_switch_type {
+    AZ_IDLE = 0,
+    AZ_SWITCHOVER = 1,
+    AZ_FAILOVER = 2,
+} az_dms_switch_type_t;
+
+typedef struct st_az_switchover_info {
+    uint64                start_time;
+    spinlock_t            lock;
+    bool8                 switch_req;
+    uint8                  inst_id;
+    uint16                sess_id;
+    version_info_t        reformer_version;
+    bool8                 switch_start;
+    az_dms_switch_type_t  switch_type;
+} az_switchover_info_t;
 
 typedef struct st_reform_scrlock_context {
     unsigned char log_path[DMS_OCK_LOG_PATH_LEN];
@@ -429,10 +453,14 @@ typedef struct st_reform_context {
     bool8               mes_has_init;
     bool8               unused;
     reform_scrlock_context_t scrlock_reinit_ctx;
+    az_switchover_info_t  az_switchover_info;
 } reform_context_t;
 
 #define REFORM_TYPE_IS_SWITCHOVER(type) (type == DMS_REFORM_TYPE_FOR_SWITCHOVER || \
     type == DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS)
+
+#define REFORM_TYPE_IS_AZ_SWITCHOVER(type) (type == DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE || \
+    type == DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE || type == DMS_REFORM_TYPE_FOR_AZ_FAILOVER)
 
 typedef int(*dms_reform_proc)();
 typedef struct st_dms_reform_proc {
@@ -451,6 +479,7 @@ bool8 dms_dst_id_is_self(uint8 dst_id);
 bool8 dms_reform_list_exist(instance_list_t *list, uint8 inst_id);
 bool8 dms_reform_type_is(dms_reform_type_t type);
 char *dms_reform_phase_desc(uint8 reform_phase);
+void dms_reform_add_step(reform_step_t step);
 
 #ifdef __cplusplus
 }

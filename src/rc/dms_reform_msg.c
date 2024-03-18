@@ -1853,3 +1853,180 @@ void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t 
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
     cm_panic_log(ret != ERRNO_DMS_REFORM_LSN_VLDT_PANIC, "[DRC]dms_reform_proc_req_lsn_validate error");
 }
+
+void dms_reform_init_req_az_switchover_demote(dms_reform_req_az_switchover_t *req,
+    uint8 reformer_id, uint16 sess_id)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_AZ_SWITCHOVER_DEMOTE, 0,
+        g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
+    req->head.size = (uint16)sizeof(dms_reform_req_az_switchover_t);
+    req->start_time = reform_info->start_time;
+}
+
+static void dms_reform_ack_az_switchover(dms_process_context_t *process_ctx,
+    dms_message_t *receive_msg, int result)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    dms_reform_ack_common_t ack_common;
+    int ret = DMS_SUCCESS;
+
+    dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+        process_ctx->sess_id);
+    ack_common.result = result;
+    ack_common.start_time = reform_info->start_time;
+    ret = mfc_send_data(&ack_common.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_FUNC_FAIL;
+    }
+}
+
+void dms_reform_proc_req_az_switchover(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_az_switchover_t), CM_TRUE);
+    dms_reform_req_az_switchover_t *req = (dms_reform_req_az_switchover_t *)receive_msg->head;
+
+    if (!DMS_IS_REFORMER) {
+        dms_reform_ack_az_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
+        return;
+    }
+
+    // if switchover request come from self, return error
+    if (dms_dst_id_is_self(req->head.src_inst)) {
+        dms_reform_ack_az_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
+        return;
+    }
+
+    az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+    cm_spin_lock(&switchover_info->lock, NULL);
+    if (!switchover_info->switch_req) {
+        switchover_info->switch_req = CM_TRUE;
+        switchover_info->inst_id = req->head.src_inst;
+        switchover_info->sess_id = req->head.src_sid;
+        switchover_info->start_time = req->start_time;
+        switchover_info->switch_type = AZ_SWITCHOVER;
+        cm_spin_unlock(&switchover_info->lock);
+        dms_reform_ack_az_switchover(process_ctx, receive_msg, DMS_SUCCESS);
+        return;
+    }
+
+    if(switchover_info->inst_id == req->head.src_inst &&
+        switchover_info->sess_id == req->head.src_sid &&
+        switchover_info->start_time == req->start_time) {
+        cm_spin_unlock(&switchover_info->lock);
+        dms_reform_ack_az_switchover(process_ctx, receive_msg, DMS_SUCCESS);
+        return;
+    }
+
+    cm_spin_unlock(&switchover_info->lock);
+    dms_reform_ack_az_switchover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
+}
+
+int dms_reform_req_az_switchover_wait(uint64 ruid, uint64 *start_time)
+{
+    dms_message_t res;
+    int result = DMS_SUCCESS;
+    int ret = DMS_SUCCESS;
+
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_FUNC_FAIL;
+        return ret;
+    }
+
+    dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
+    result = ack_common->result;
+    *start_time = ack_common->start_time;
+    mfc_release_response(&res);
+    return result;
+}
+
+void dms_reform_init_req_az_failover(dms_reform_req_az_failover_t *req,
+    uint8 reformer_id, uint16 sess_id)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_AZ_FAILOVER, 0,
+        g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
+    req->head.size = (uint16)sizeof(dms_reform_req_az_failover_t);
+    req->start_time = reform_info->start_time;
+}
+
+static void dms_reform_ack_az_failover(dms_process_context_t *process_ctx,
+    dms_message_t *receive_msg, int result)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    dms_reform_ack_common_t ack_common;
+    int ret = DMS_SUCCESS;
+
+    dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
+        process_ctx->sess_id);
+    ack_common.result = result;
+    ack_common.start_time = reform_info->start_time;
+    ret = mfc_send_data(&ack_common.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_FUNC_FAIL;
+    }
+}
+
+void dms_reform_proc_req_az_failover(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_az_failover_t), CM_TRUE);
+    dms_reform_req_az_failover_t *req = (dms_reform_req_az_failover_t *)receive_msg->head;
+
+    if (!DMS_IS_REFORMER) {
+        dms_reform_ack_az_failover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_REFORMER);
+        return;
+    }
+
+    // if switchover request come from self, return error
+    if (dms_dst_id_is_self(req->head.src_inst)) {
+        dms_reform_ack_az_failover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
+        return;
+    }
+
+    az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+    cm_spin_lock(&switchover_info->lock, NULL);
+    if (!switchover_info->switch_req) {
+        switchover_info->switch_req = CM_TRUE;
+        switchover_info->inst_id = req->head.src_inst;
+        switchover_info->sess_id = req->head.src_sid;
+        switchover_info->start_time = req->start_time;
+        switchover_info->switch_type = AZ_FAILOVER;
+        cm_spin_unlock(&switchover_info->lock);
+        dms_reform_ack_az_failover(process_ctx, receive_msg, DMS_SUCCESS);
+        return;
+    }
+
+    if(switchover_info->inst_id == req->head.src_inst &&
+        switchover_info->sess_id == req->head.src_sid &&
+        switchover_info->start_time == req->start_time) {
+        cm_spin_unlock(&switchover_info->lock);
+        dms_reform_ack_az_failover(process_ctx, receive_msg, DMS_SUCCESS);
+        return;
+    }
+
+    cm_spin_unlock(&switchover_info->lock);
+    dms_reform_ack_az_failover(process_ctx, receive_msg, ERRNO_DMS_REFORM_SWITCHOVER_NOT_FINISHED);
+    return;
+}
+
+int dms_reform_req_az_failover_wait(uint64 ruid, uint64 *start_time)
+{
+    dms_message_t res;
+    int result = DMS_SUCCESS;
+    int ret = DMS_SUCCESS;
+
+    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_FUNC_FAIL;
+        return ret;
+    }
+
+    dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
+    result = ack_common->result;
+    *start_time = ack_common->start_time;
+    mfc_release_response(&res);
+    return result;
+}

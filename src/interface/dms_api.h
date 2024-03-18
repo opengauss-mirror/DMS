@@ -101,7 +101,8 @@ typedef enum en_dms_dr_type {
     DMS_DR_TYPE_SEQVAL = 25,
     DMS_DR_TYPE_SHARED_INNODE = 26,
     DMS_DR_TYPE_PROC_ENTRY = 27,
-    DMS_DR_TYPE_PART_TABLE,
+    DMS_DR_TYPE_PART_TABLE = 28,
+    DMS_DR_TYPE_SS_LINK = 29,
     DMS_DR_TYPE_MAX,
 } dms_dr_type_t;
 
@@ -638,6 +639,11 @@ typedef enum en_dms_reform_type {
     // New type need to be added start from here
     DMS_REFORM_TYPE_FOR_RST_RECOVER,
     DMS_REFORM_TYPE_FOR_NEW_JOIN,
+    DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN,
+    DMS_REFORM_TYPE_FOR_NORMAL_STANDBY,
+    DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE,
+    DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE,
+    DMS_REFORM_TYPE_FOR_AZ_FAILOVER,
 
     DMS_REFORM_TYPE_COUNT
 } dms_reform_type_t;
@@ -724,6 +730,12 @@ typedef struct st_dms_reform_start_context {
     unsigned long long bitmap_reconnect;
 } dms_reform_start_context_t;
 
+typedef enum en_dms_db_role {
+    DMS_DB_ROLE_PRIMARY = 0,
+    DMS_DB_ROLE_PHYSICAL_STANDBY = 1,
+    DMS_DB_ROLE_CASCADED_PHYSICAL_STANDBY = 2,
+} dms_db_role_t;
+
 typedef struct dms_fi_entry dms_fi_entry;
 typedef int(*dms_fi_callback_func)(const dms_fi_entry *entry, va_list args);
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
@@ -764,6 +776,7 @@ typedef int(*dms_set_buf_load_status)(dms_buf_ctrl_t *buf_ctrl, dms_buf_load_sta
 typedef int(*dms_remove_buf_load_status)(dms_buf_ctrl_t *buf_ctrl, dms_buf_load_status_t dms_buf_load_status);
 typedef void(*dms_update_global_lsn)(void *db_handle, unsigned long long lamport_lsn);
 typedef void(*dms_update_global_scn)(void *db_handle, unsigned long long lamport_scn);
+typedef void(*dms_update_node_lfn)(void *db_handle, unsigned long long lfn, char node_id);
 typedef void(*dms_update_page_lfn)(dms_buf_ctrl_t *buf_ctrl, unsigned long long lastest_lfn);
 typedef unsigned long long (*dms_get_page_lfn)(dms_buf_ctrl_t *buf_ctrl);
 typedef unsigned long long(*dms_get_global_lfn)(void *db_handle);
@@ -896,6 +909,18 @@ typedef int (*dms_lsn_validate)(void *db_handle, char *pageid, unsigned long lon
 typedef int (*dms_invld_tlock_ownership)(void *db_handle, char *resid, unsigned char req_mode, unsigned char is_try);
 typedef unsigned short (*dms_get_tlock_mode)(void *db_handle, char *resid);
 typedef void (*dms_set_current_point)(void *db_handle);
+
+typedef void (*dms_get_db_role)(void *db_handle, unsigned int *role);
+typedef void (*dms_check_lrpl_takeover)(void *db_handle, unsigned int *need_takeover);
+typedef void (*dms_reset_link)(void *db_handle);
+typedef void (*dms_set_online_list)(void *db_handle, unsigned long long online_list);
+typedef int (*dms_start_lrpl)(void *db_handle, int is_reformer);
+typedef int (*dms_stop_lrpl)(void *db_handle, int is_reformer);
+typedef int (*dms_az_switchover_demote_phase1)(void *db_handle);
+typedef int (*dms_az_switchover_demote_approve)(void *db_handle);
+typedef int (*dms_az_switchover_demote_phase2)(void *db_handle);
+typedef int (*dms_az_switchover_promote_core)(void *db_handle);
+typedef int (*dms_az_failover_promote)(void *db_handle);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1061,6 +1086,21 @@ typedef struct st_dms_callback {
     dms_invld_tlock_ownership invld_tlock_ownership;
     dms_get_tlock_mode get_tlock_mode;
     dms_set_current_point set_current_point;
+    dms_update_node_lfn update_node_lfn;
+
+    dms_get_db_role get_db_role;
+    dms_check_lrpl_takeover check_lrpl_takeover;
+    dms_reset_link reset_link;
+    dms_set_online_list set_online_list;
+    dms_start_lrpl start_lrpl;
+    dms_stop_lrpl stop_lrpl;
+
+    // for az switchover and az failover
+    dms_az_switchover_demote_phase1 az_switchover_demote_phase1;
+    dms_az_switchover_demote_approve az_switchover_demote_approve;
+    dms_az_switchover_demote_phase2 az_switchover_demote_phase2;
+    dms_az_switchover_promote_core az_switchover_promote;
+    dms_az_failover_promote az_failover_promote;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {

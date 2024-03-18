@@ -938,6 +938,10 @@ DMS_DECLARE void dms_get_cmd_stat(int cmd, wait_cmd_stat_result_t *cmd_stat_resu
 
 DMS_DECLARE void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
 
+DMS_DECLARE int dms_az_switchover_demote(unsigned int sess_id);
+DMS_DECLARE int dms_az_switchover_promote(unsigned int sess_id);
+DMS_DECLARE int dms_az_failover(unsigned int sess_id);
+
 DMS_DECLARE void dms_reform_judgement_stat_fetch_prepare(unsigned int *curr_pos, unsigned int *curr_index);
 
 DMS_DECLARE void dms_reform_judgement_stat_fetch(unsigned int curr_pos, unsigned int curr_index, unsigned int *eof,

@@ -293,6 +293,9 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     if (ack->scn != 0) {
         g_dms.callback.update_global_scn(dms_ctx->db_handle, ack->scn);
     }
+    if (ack->node_lfn != 0) {
+        g_dms.callback.update_node_lfn(dms_ctx->db_handle, ack->node_lfn, ack->head.src_inst);
+    }
 #endif
 
     ctrl->lock_mode = mode;
@@ -506,6 +509,9 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
 #endif
     }
 
+#ifndef OPENGAUSS
+    page_ack.node_lfn = g_dms.callback.get_global_flushed_lfn(ctx->db_handle);
+#endif
     if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
         if (g_dms.callback.page_is_dirty(ctrl)) {
             page_ack.edp_map = (ctrl->edp_map) | (1ULL << g_dms.inst_id);

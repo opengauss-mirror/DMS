@@ -65,12 +65,13 @@ static int dms_reform_db_prepare(void)
 #ifdef OPENGAUSS
     return DMS_SUCCESS;
 #else
+    share_info_t *share_info = DMS_SHARE_INFO;
+    g_dms.callback.set_online_list(g_dms.reform_ctx.handle_normal, share_info->bitmap_online);
     int ret = g_dms.callback.db_prepare(g_dms.reform_ctx.handle_proc);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
 
-    share_info_t *share_info = DMS_SHARE_INFO;
     if (share_info->inst_bitmap[INST_LIST_NEW_JOIN] != 0) {
         uint64 bitmap_saved = share_info->bitmap_stable;
         bitmap64_union(&bitmap_saved, share_info->inst_bitmap[INST_LIST_NEW_JOIN]);
@@ -425,6 +426,92 @@ static int dms_reform_failover_promote_opengauss(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_az_switchover_promote(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_switchover_promote(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    g_dms.callback.reset_link(g_dms.reform_ctx.handle_normal);
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_switch_demote_phase1(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_switchover_demote_phase1(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_switch_demote_approve(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_switchover_demote_approve(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_switch_demote_phase2(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_switchover_demote_phase2(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_failover_promote(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_failover_promote(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_recovery_inner_opengauss(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -606,6 +693,12 @@ int dms_reform_tx_rollback_start(instance_list_t *list)
 static int dms_reform_convert_to_readwrite(void)
 {
 #ifndef OPENGAUSS
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE)) {
+        return DMS_SUCCESS;
+    }
     return g_dms.callback.convert_to_readwrite(g_dms.reform_ctx.handle_normal);
 #else
     return DMS_SUCCESS;
@@ -738,6 +831,55 @@ static void dms_reform_set_switchover_result(void)
     }
 }
 
+#ifndef OPENGAUSS
+static void dms_reform_set_az_switchover_result(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    // if current reform is SWITCHOVER,should set switchover result for the new primary
+    // clean switchover request in the original primary
+    // if current reform is OTHERS, should set switchover result for the session which has request switchover
+    if (REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
+        LOG_RUN_INF("[DMS REFORM]dms_reform_set_az_switchover_result, reform_type: %u, promote_id: %d, current_id: %u",
+            share_info->reform_type, share_info->promote_id, g_dms.inst_id);
+        if (dms_dst_id_is_self(share_info->promote_id)) {
+            cm_spin_lock(&switchover_info->lock, NULL);
+            switchover_info->switch_start = CM_FALSE;
+            switchover_info->inst_id = CM_INVALID_ID8;
+            switchover_info->sess_id = CM_INVALID_ID16;
+            switchover_info->switch_req = CM_FALSE;
+            switchover_info->switch_type = AZ_IDLE;
+            cm_spin_unlock(&switchover_info->lock);
+            g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, reform_info->err_code);
+        }
+
+        if (dms_dst_id_is_self(share_info->demote_id)) {
+            // only clean switchover request in the original primary,
+            // because the new primary may have receive new switchover request
+            cm_spin_lock(&switchover_info->lock, NULL);
+            switchover_info->switch_start = CM_FALSE;
+            switchover_info->inst_id = CM_INVALID_ID8;
+            switchover_info->sess_id = CM_INVALID_ID16;
+            switchover_info->switch_req = CM_FALSE;
+            switchover_info->switch_type = AZ_IDLE;
+            cm_spin_unlock(&switchover_info->lock);
+        }
+    } else {
+        cm_spin_lock(&switchover_info->lock, NULL);
+        if (switchover_info->switch_start) {
+            if (!dms_reform_version_same(&switchover_info->reformer_version, &reform_info->reformer_version)) {
+                switchover_info->switch_start = CM_FALSE;
+                switchover_info->switch_type = AZ_IDLE;
+                g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, ERRNO_DMS_REFORM_FAIL);
+            }
+        }
+        cm_spin_unlock(&switchover_info->lock);
+    }
+}
+#endif
+
 static void dms_reform_end(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
@@ -745,6 +887,9 @@ static void dms_reform_end(void)
     share_info_t share_info;
 
     dms_reform_set_switchover_result();
+#ifndef OPENGAUSS
+    dms_reform_set_az_switchover_result();
+#endif
     // health check should pause before clear share info
     dms_reform_health_set_pause();
     dms_reform_proc_set_pause();
@@ -769,6 +914,20 @@ static void dms_reform_set_idle_behavior(void)
     g_dms.callback.set_inst_behavior(g_dms.reform_ctx.handle_proc, DMS_INST_BEHAVIOR_IN_IDLE);
 }
 #endif
+
+static int dms_reform_start_lrpl()
+{
+    g_dms.callback.start_lrpl(g_dms.reform_ctx.handle_normal, DMS_IS_SHARE_REFORMER);
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_stop_lrpl()
+{
+    g_dms.callback.stop_lrpl(g_dms.reform_ctx.handle_normal, DMS_IS_SHARE_REFORMER);
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
 
 static int dms_reform_done(void)
 {
@@ -1493,6 +1652,13 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_VALIDATE_LOCK_MODE] = { "VALIDATE_LOCK", dms_reform_validate_lock_mode, dms_reform_validate_lock_mode_parallel, CM_FALSE },
     [DMS_REFORM_STEP_VALIDATE_LSN] = { "VALIDATE_LSN", dms_reform_validate_lsn, dms_reform_validate_lsn_parallel, CM_TRUE },
     [DMS_REFORM_STEP_SET_CURRENT_POINT] = { "SET_CURR_POINT", dms_reform_set_current_point, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_START_LRPL] = { "START_LRPL", dms_reform_start_lrpl, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE] = { "AZ_SWITCH_DEMOTE_APPROVE", dms_reform_az_switch_demote_approve, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2] = { "AZ_SWITCH_DEMOTE_PHASE2", dms_reform_az_switch_demote_phase2, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE] = { "AZ_SWITCH_PROMOTE", dms_reform_az_switchover_promote, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE] = { "AZ_FAILOVER_PROMOTE", dms_reform_az_failover_promote, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)
