@@ -1200,6 +1200,9 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.gdb_in_progress = CM_FALSE;
     g_dms.max_wait_time = dms_check_max_wait_time(dms_profile->max_wait_time);
     g_dms.max_alive_time_for_abnormal_status = dms_check_max_wait_time(dms_profile->max_alive_time_for_abnormal_status);
+    if (dms_profile->max_alive_time_for_abnormal_status == 0) {
+        dms_profile->max_alive_time_for_abnormal_status = DEFAULT_TIME_FOR_ABNORMAL_STATUS;
+    }
     dms_init_cluster_proto_version();
     if (g_dms.callback.dms_malloc_prot != NULL) {
         regist_cm_malloc_proc(g_dms.callback.dms_malloc_prot, g_dms.callback.dms_free_prot);

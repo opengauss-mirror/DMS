@@ -144,6 +144,7 @@ typedef struct st_dms_instance {
 #define DMS_PRIO_2_MSG_NUM_FLOOR 0
 #define DMS_DEFAULT_MSG_NUM_CEILING 5
 #define DMS_DEFAULT_MSG_NUM_FLOOR 0
+#define DEFAULT_TIME_FOR_ABNORMAL_STATUS 10
 
 extern dms_instance_t g_dms;
 
