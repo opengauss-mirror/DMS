@@ -58,7 +58,7 @@ const char *g_dms_errno_dcs_desc[] = {
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_TXN_STATUS_FAILED)] = "dms get txn status fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_XID_CSN_FAILED)] = "dms get xid csn fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_LOCK_BUFFER_FAILED)] = "dms lock buffer fail",
-    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms get page in buffer fail, ret: %d",
+    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_PAGE_IN_BUFFER_FAILED)] = "dms get page in buffer fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms page checksum fail",
 };
 
@@ -80,7 +80,7 @@ const char *g_dms_errno_drc_desc[] = {
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_MASTER_NOT_FOUND)] = "the master of global xid not found, xid is %s",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_POOL_CAPACITY_NOT_ENOUGH)] = "global xa pool has not enough capacity",
     [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS)] = "global xa res %s already exists",
-    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_RES_NOT_EXISTS)] = "global xa res %s does not exiets",
+    [ERRNO_DMS_DRC_INDEX(ERRNO_DMS_DRC_XA_RES_NOT_EXISTS)] = "global xa res %s does not exists",
 };
 
 const char *g_dms_errno_dls_desc[] = {

@@ -969,7 +969,7 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    LOG_DEBUG_INF("[DMS][%s]: src_id = %u, src_sid = %u, dst_id = %u, dts_sid = %u, flag = %u, ruid = %llu",
+    LOG_DEBUG_INF("[DMS][%s]: src_id = %u, src_sid = %u, dst_id = %u, dst_sid = %u, flag = %u, ruid = %llu",
         cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), (uint32)recv_msg.head->src_inst,
         (uint32)recv_msg.head->src_sid, (uint32)recv_msg.head->dst_inst,
         (uint32)recv_msg.head->dst_sid, (uint32)recv_msg.head->flags, recv_msg.head->ruid);
@@ -989,7 +989,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_req_t req = *(dms_xa_res_req_t *)receive_msg->buffer;
 
     drc_global_xid_t *xid = &req.xa_xid;
-    if (dms_proc_check_xid_valid(xid)) {
+    if (!dms_proc_check_xid_valid(xid)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa creation");
         return;
     }
@@ -1051,12 +1051,12 @@ int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 
 
     if (recv_msg.head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg_and_throw_error(recv_msg.buffer);
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_DELETE_XA_RES);
         mfc_release_response(&recv_msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    LOG_DEBUG_INF("[DMS][%s]: src_id = %u, src_sid = %u, dst_id = %u, dts_sid = %u, flag = %u, ruid = %llu",
+    LOG_DEBUG_INF("[DMS][%s]: src_id = %u, src_sid = %u, dst_id = %u, dst_sid = %u, flag = %u, ruid = %llu",
         cm_display_resid((char *)&dms_ctx->global_xid, DRC_RES_GLOBAL_XA_TYPE), (uint32)recv_msg.head->src_inst,
         (uint32)recv_msg.head->src_sid, (uint32)recv_msg.head->dst_inst,
         (uint32)recv_msg.head->dst_sid, (uint32)recv_msg.head->flags, recv_msg.head->ruid);
@@ -1076,7 +1076,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_req_t req = *(dms_xa_res_req_t *)receive_msg->buffer;
 
     drc_global_xid_t *xid = &req.xa_xid;
-    if (dms_proc_check_xid_valid(xid)) {
+    if (!dms_proc_check_xid_valid(xid)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa deletion");
         return;
     }
@@ -1104,7 +1104,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
     dms_ask_xa_owner_req_t req = *(dms_ask_xa_owner_req_t *)receive_msg->buffer;
 
     drc_global_xid_t *xid = &req.xa_xid;
-    if (dms_proc_check_xid_valid(xid)) {
+    if (!dms_proc_check_xid_valid(xid)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for req xa owner");
         return;
     }
@@ -1128,7 +1128,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
     drc_leave_xa_res(xa_res_map, bucket);
 
     dms_ask_xa_owner_ack_t ack = { 0 };
-    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_XA_OWNER_ID, sizeof(dms_xa_res_ack_t),
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_XA_OWNER_ID, sizeof(dms_ask_xa_owner_ack_t),
         proc_ctx->sess_id);
     ack.owner_id = owner_id;
 
@@ -1159,7 +1159,7 @@ static int32 dms_ask_xa_owner_local(dms_context_t *dms_ctx, uint8 *owner_id)
         return ret;
     }
 
-    if (xa_res == NULL) {
+    if (xa_res == NULL || xa_res->owner_id == CM_INVALID_ID8) {
         LOG_DEBUG_ERR("[DMS][%s][dms_ask_xa_owner_local]: xa res not exists", cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
         drc_leave_xa_res(res_map, bucket);
         DMS_THROW_ERROR(ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
@@ -1222,6 +1222,7 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
         LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_owner_remote]: xa res not exists", cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_OWNER_ID);
         mfc_release_response(&msg);
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE));
         return ERRNO_DMS_DRC_XA_RES_NOT_EXISTS;
     }
 
@@ -1291,7 +1292,7 @@ int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, u
     
     if (msg.head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg_and_throw_error(msg.buffer);
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_END_XA);
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -1373,7 +1374,7 @@ static int32 dms_ask_xa_inuse_remote(dms_context_t *dms_ctx, uint8 owner_id, boo
 
     if (msg.head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg_and_throw_error(msg.buffer);
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_XA_IN_USE);
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -1425,7 +1426,7 @@ void dms_proc_ask_xa_inuse(dms_process_context_t *proc_ctx, dms_message_t *recei
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: finished, dst_id = %u, dst_sid = %u", cm_display_resid((char *)xid,
             DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
     } else {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_inuse]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %u",
+        LOG_DEBUG_ERR("[DMS][%s][dms_proc_ask_xa_inuse]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %u",
             cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), (uint8)ack.head.dst_inst,
             (uint16)ack.head.dst_sid, ret);
     }

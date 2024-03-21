@@ -125,7 +125,7 @@ static void dcs_init_pcr_assist(dms_cr_assist_t *pcr, void *handle, uint64 query
     ret = memcpy_s(pcr->curr_xid, DMS_XID_SIZE, xid, DMS_XID_SIZE);
     DMS_SECUREC_CHECK(ret);
     if (pageid != NULL) {
-        ret = memcpy_s(pcr->pageid, DMS_PAGEID_SIZE, pageid, DMS_PAGEID_SIZE);
+        ret = memcpy_s(pcr->page_id, DMS_PAGEID_SIZE, pageid, DMS_PAGEID_SIZE);
         DMS_SECUREC_CHECK(ret);
     }
     if (rowid != NULL) {
@@ -181,7 +181,7 @@ static int dcs_heap_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reques
         fb_mark = (bool8 *)((char *)request + sizeof(msg_pcr_request_t) + g_dms.page_size);
     }
 
-    dcs_init_pcr_assist(&pcr, ctx->db_handle, request->query_scn, request->sscn, cr_page,
+    dcs_init_pcr_assist(&pcr, ctx->db_handle, request->query_scn, request->ssn, cr_page,
         request->xid, request->pageid, NULL);
     pcr.fb_mark = (char *)fb_mark;
     if (g_dms.callback.heap_construct_cr_page(&pcr) != DMS_SUCCESS) {
@@ -239,11 +239,15 @@ static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *ms
             break;
         case CR_TYPE_BTREE:
             ret = dcs_btree_construct_cr_page(ctx, request);
-            err_msg = "failed to constrcut btree CR page";
+            err_msg = "failed to construct btree CR page";
             break;
         default:
             cm_send_error_msg(msg->head, ERRNO_DMS_CAPABILITY_NOT_SUPPORT, "capability not support");
             break;
+    }
+
+    if(ret != DMS_SUCCESS) {
+        cm_send_error_msg(msg->head, ret, (char *)err_msg);
     }
 }
 #endif
@@ -768,7 +772,7 @@ static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
     switch (pcr.status) {
         case DMS_CR_STATUS_ALL_VISIBLE:
         case DMS_CR_STATUS_INVISIBLE_TXN:
-            ret = dcs_send_check_visible_ack(ctx, check, pcr.check_found);
+            ret = dcs_send_check_visible_ack(ctx, check, (bool)(*pcr.check_found));
             break;
         case DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN:
             ret = dcs_send_check_visible(ctx, check, pcr.relay_inst);

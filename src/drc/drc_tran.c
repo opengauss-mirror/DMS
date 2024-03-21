@@ -177,7 +177,7 @@ static uint16 drc_get_global_xid_partid(drc_global_xid_t *global_xid)
     errno_t ret = memcpy_sp(bytes + sizeof(uint64), DMS_MAX_XA_BASE16_GTRID_LEN, global_xid->gtrid,
         global_xid->gtrid_len);
     DMS_SECUREC_CHECK(ret);
-    if (global_xid->bqual) {
+    if (global_xid->bqual_len > 0) {
         ret = memcpy_sp(bytes + sizeof(uint64) + global_xid->gtrid_len, DMS_MAX_XA_BASE16_BQUAL_LEN, global_xid->bqual,
             global_xid->bqual_len);
         DMS_SECUREC_CHECK(ret);
@@ -354,7 +354,7 @@ int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *gl
 
     dms_context_t dms_ctx;
     ret = memset_sp(&dms_ctx, sizeof(dms_context_t), 0, sizeof(dms_context_t));
-    if (ret != DMS_SUCCESS) {
+    if (ret != EOK) {
         drc_leave_xa_res(xa_res_map, bucket);
         DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
         return ret;
@@ -385,6 +385,7 @@ int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *gl
             DRC_RES_GLOBAL_XA_TYPE));
         DMS_THROW_ERROR(ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS, cm_display_resid((char *)global_xid,
             DRC_RES_GLOBAL_XA_TYPE));
+            drc_leave_xa_res(xa_res_map, bucket);
         return ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS;
     }
 

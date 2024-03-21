@@ -769,7 +769,7 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
         page_req.curr_mode, page_req.req_mode, CM_TRUE, page_req.sess_type, page_req.req_time, page_req.srsn,
         page_req.intercept_type, page_req.head.msg_proto_ver);
 
-    LOG_DEBUG_INF("[DMS[%s][dcs_proc_try_ask_master_for_page]: src_id=%d, src_sid=%d, req_mode=%u, curr_mode=%u",
+    LOG_DEBUG_INF("[DMS][%s][dcs_proc_try_ask_master_for_page]: src_id=%d, src_sid=%d, req_mode=%u, curr_mode=%u",
         cm_display_resid(page_req.resid, page_req.res_type), page_req.head.src_inst, page_req.head.src_sid,
         page_req.req_mode, page_req.curr_mode);
 

@@ -396,7 +396,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
 
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS]%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
+        LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(req.head.cmd),
             (uint32)req.head.src_inst, (uint32)req.head.src_sid, (uint32)req.head.dst_inst,
             (uint32)req.head.dst_sid, (uint32)req_mode);
@@ -404,7 +404,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
         return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
 
-    LOG_DEBUG_INF("[DMS]%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
+    LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(req.head.cmd),
         (uint32)req.head.src_inst, (uint32)req.head.src_sid, (uint32)req.head.dst_inst,
         (uint32)req.head.dst_sid, (uint32)req_mode);
@@ -1504,7 +1504,7 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *proc_ctx,
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(claim_info.resid, claim_info.res_type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
+        ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
             cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_FALSE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
@@ -1546,7 +1546,7 @@ static void dms_smon_handle_cancel_ack(dms_process_context_t *proc_ctx, res_id_t
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(buf_res->data, buf_res->type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
+        ret = dms_invalidate_share_copy(proc_ctx, cvt_info.resid, cvt_info.len,
             cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_FALSE);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(proc_ctx->inst_id, proc_ctx->sess_id,
@@ -1835,7 +1835,7 @@ void dms_proc_ask_node_buf_info(dms_process_context_t * proc_ctx, dms_message_t 
 void dms_check_message_cmd(unsigned int cmd, bool8 is_req)
 {
     bool8 is_req_actual;
-    if (cmd >= MSG_REQ_BEGIN && cmd < MSG_REQ_END) {
+    if (cmd < MSG_REQ_END) {
         is_req_actual = CM_TRUE;
     } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
         is_req_actual = CM_FALSE;
