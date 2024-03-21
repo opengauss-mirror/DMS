@@ -1514,7 +1514,7 @@ uint64 dms_calc_res_map_mem(uint32 item_num, uint32 item_size, uint32 max_extend
     // bucket size
     uint64 total_mem = (uint64)(bucket_num * sizeof(drc_res_bucket_t));
     // pool size
-    total_mem += item_size * item_num * max_extend_num;
+    total_mem += (uint64)item_size * item_num * max_extend_num;
     return total_mem;
 }
 
