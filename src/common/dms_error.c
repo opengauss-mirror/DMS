@@ -117,6 +117,8 @@ const char *g_dms_errno_reform_desc[] = {
     [ERRNO_DMS_REFORM_INDEX(ERRNO_DMS_REFORM_FAIL)] = "reform fail, reason: %s",
     [ERRNO_DMS_REFORM_INDEX(ERRNO_DMS_REFORM_IN_PROCESS)] = "reform in process",
     [ERRNO_DMS_REFORM_INDEX(ERRNO_DMS_REFORM_GET_LOCK_FAILED)] = "get lock from CM fail",
+    [ERRNO_DMS_REFORM_INDEX(ERRNO_DMS_REFORM_LMODE_VLDT_PANIC)] = "DRC resource lock mode validate failed",
+    [ERRNO_DMS_REFORM_INDEX(ERRNO_DMS_REFORM_LSN_VLDT_PANIC)] = "DRC resource LSN validate failed",
 };
 
 const char *dms_get_error_desc(int code)

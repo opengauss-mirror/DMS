@@ -921,6 +921,8 @@ void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t
         }
     }
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
+        "[DRC Validate][%s]remote requested page lockmode validate failed", cm_display_pageid(pageid));
 }
 
 int dms_reform_req_rebuild_lock(msg_command_t cmd, void *local_lock, uint32 append_size, uint8 master_id)
@@ -1052,6 +1054,8 @@ void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t
         }
     }
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
+        "[DRC Validate]remote requested lock lockmode validate failed, myid:%u", g_dms.inst_id);
 }
 
 void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
@@ -1103,11 +1107,12 @@ void dms_reform_proc_req_tlock_validate(dms_process_context_t *ctx, dms_message_
         offset += (uint32)sizeof(dms_tlock_info_t);
         ret = dms_reform_proc_lock_validate(&lock_info->resid, lock_info->lock_mode, inst_id);
         if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DRC]dms_reform_proc_req_tlock_validate, myid:%u", g_dms.inst_id);
             break;
         }
     }
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
+        "[DRC Validate]remote requested tlock lock mode validate failed, myid:%u", g_dms.inst_id);
 }
 
 void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
@@ -1842,9 +1847,9 @@ void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t 
         ret = g_dms.callback.lsn_validate(ctx->db_handle, item->pageid, item->lsn, item->in_recovery);
         dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_VALIDATE_LSN);
         if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DRC]dms_reform_proc_req_lsn_validate error");
             break;
         }
     }
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LSN_VLDT_PANIC, "[DRC]dms_reform_proc_req_lsn_validate error");
 }
