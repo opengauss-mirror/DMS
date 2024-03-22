@@ -285,7 +285,11 @@ static int dms_reform_validate_lock_mode_parallel_proc(resource_id_t *res_id, pa
     uint8 thread_index = (uint8)parallel->index;
     uint8 thread_num = (uint8)parallel_info->parallel_num;
 
-    return dms_reform_validate_lock_mode_inner(parallel->handle, parallel->sess_id, thread_index, thread_num);
+    int ret = dms_reform_validate_lock_mode_inner(parallel->handle, parallel->sess_id, thread_index, thread_num);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
+        "[Lock Mode Validate]dms_reform_validate_lock_mode_parallel failed."
+        " This is resource owner; check above-logged resource master for panic errmsg");
+    return ret;
 }
 
 static int dms_reform_validate_lsn_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)

@@ -28,18 +28,18 @@
 #include "dms_reform_proc_stat.h"
 
 // Check the uniqueness of the X lock and consider message reentrant.
-static void dms_reform_validate_sx(drc_buf_res_t *buf_res, uint8 lock_mode, uint8 inst_id)
+static int dms_reform_validate_sx(drc_buf_res_t *buf_res, uint8 lock_mode, uint8 inst_id)
 {
     if (buf_res->x_exists && buf_res->x_owner != inst_id) {
-        cm_panic_log(CM_FALSE, "[DRC validate][%s]lock mode conflict: node%d is X, but node%d is %d",
+        LOG_DEBUG_ERR("[DRC validate][%s]lock mode conflict: node%d is X, but node%d is %d",
             cm_display_resid(buf_res->data, buf_res->type), buf_res->x_owner, inst_id, lock_mode);
-        return;
+        return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
     }
 
     if (buf_res->s_exists && lock_mode != DMS_LOCK_SHARE) {
-        cm_panic_log(CM_FALSE, "[DRC validate][%s]lock mode conflict: S exists, but node%d is X",
+        LOG_DEBUG_ERR("[DRC validate][%s]lock mode conflict: S exists, but node%d is X",
             cm_display_resid(buf_res->data, buf_res->type), inst_id);
-        return;
+        return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
     }
 
     if (lock_mode == DMS_LOCK_SHARE) {
@@ -48,40 +48,52 @@ static void dms_reform_validate_sx(drc_buf_res_t *buf_res, uint8 lock_mode, uint
         buf_res->x_exists = CM_TRUE;
         buf_res->x_owner = inst_id;
     }
+    return DMS_SUCCESS;
 }
 
-static void dms_reform_validate_page_cvt(drc_buf_res_t *drc, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
+static int dms_reform_validate_page_cvt(drc_buf_res_t *drc, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
     dms_buf_ctrl_t *ctrl = &ctrl_info->ctrl;
     drc_request_info_t *cvt = &drc->converting.req_info;
+    bool8 assert_cond;
 
     if (ctrl->lock_mode == DMS_LOCK_EXCLUSIVE) {
-        cm_panic_log(
-            (drc->lock_mode == DMS_LOCK_EXCLUSIVE && drc->claimed_owner == inst_id) ||
+        assert_cond = (drc->lock_mode == DMS_LOCK_EXCLUSIVE && drc->claimed_owner == inst_id) ||
             (drc->lock_mode == DMS_LOCK_NULL && cvt->inst_id == inst_id) ||
-            (drc->lock_mode != DMS_LOCK_NULL && cvt->inst_id == inst_id && cvt->req_mode == DMS_LOCK_EXCLUSIVE),
-            "[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
-            cm_display_pageid(drc->data), inst_id, drc->claimed_owner, drc->lock_mode, ctrl->lock_mode);
+            (drc->lock_mode != DMS_LOCK_NULL && cvt->inst_id == inst_id && cvt->req_mode == DMS_LOCK_EXCLUSIVE);
+        if (!assert_cond) {
+            LOG_DEBUG_ERR("[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
+                cm_display_pageid(drc->data), inst_id, drc->claimed_owner, drc->lock_mode, ctrl->lock_mode);
+            return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+        }
     } else {
-        cm_panic_log(
-            (drc->lock_mode == DMS_LOCK_SHARE && drc->claimed_owner == inst_id) ||
+        assert_cond = (drc->lock_mode == DMS_LOCK_SHARE && drc->claimed_owner == inst_id) ||
             (drc->lock_mode == DMS_LOCK_SHARE && bitmap64_exist(&drc->copy_insts, inst_id)) ||
-            (cvt->req_mode == DMS_LOCK_SHARE && cvt->inst_id == inst_id),
-            "[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
-            cm_display_pageid(drc->data), inst_id, drc->claimed_owner, drc->lock_mode, ctrl->lock_mode);
+            (cvt->req_mode == DMS_LOCK_SHARE && cvt->inst_id == inst_id);
+        if (!assert_cond) {
+            LOG_DEBUG_ERR("[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
+                cm_display_pageid(drc->data), inst_id, drc->claimed_owner, drc->lock_mode, ctrl->lock_mode);
+            return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+        }
     }
+    return DMS_SUCCESS;
 }
 
-static void dms_reform_validate_page_lsn(drc_buf_res_t *drc, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
+static int dms_reform_validate_page_lsn(drc_buf_res_t *drc, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
     if (drc->group_lsn == 0 || drc->claimed_owner != inst_id || drc->in_recovery) {
-        return;
+        return DMS_SUCCESS;
     }
-    cm_panic_log(ctrl_info->lsn >= drc->group_lsn, "[DRC validate][%s][%d]validate lsn, page:%llu, group:%llu",
-        cm_display_pageid(drc->data), inst_id, ctrl_info->lsn, drc->group_lsn);
+    if (ctrl_info->lsn < drc->group_lsn) {
+        LOG_DEBUG_ERR("[DRC validate][%s][%d]validate lsn, page:%llu, group:%llu",
+            cm_display_pageid(drc->data), inst_id, ctrl_info->lsn, drc->group_lsn);
+        return ERRNO_DMS_REFORM_LSN_VLDT_PANIC;
+    }
+    
     if (ctrl_info->is_dirty) {
         drc->group_lsn = 0;
     }
+    return DMS_SUCCESS;
 }
 
 int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
@@ -104,32 +116,47 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
     drc_buf_res_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_FALSE);
     int ret = drc_enter_buf_res(resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &drc);
-    cm_panic_log(ret == DMS_SUCCESS, "[DRC validate][%s][%d]fail to enter drc", cm_display_pageid(resid), inst_id);
-    cm_panic_log(drc != NULL, "[DRC validate][%s][%d]drc is NULL", cm_display_pageid(resid), inst_id);
-    dms_reform_validate_sx(drc, ctrl->lock_mode, inst_id);
-    dms_reform_validate_page_cvt(drc, ctrl_info, inst_id);
-    dms_reform_validate_page_lsn(drc, ctrl_info, inst_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRC validate][%s][%d]fail to enter drc, errno:%d",
+            cm_display_pageid(resid), inst_id, ret);
+        return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+    }
+    if (drc == NULL) {
+        LOG_DEBUG_ERR("[DRC validate][%s][%d]drc is NULL", cm_display_pageid(resid), inst_id);
+        return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+    }
+    CM_RETURN_IFERR(dms_reform_validate_sx(drc, ctrl->lock_mode, inst_id));
+    CM_RETURN_IFERR(dms_reform_validate_page_cvt(drc, ctrl_info, inst_id));
+    CM_RETURN_IFERR(dms_reform_validate_page_lsn(drc, ctrl_info, inst_id));
     drc_leave_buf_res(drc);
     return DMS_SUCCESS;
 }
 
-static void dms_reform_validate_lock_cvt(drc_buf_res_t *drc, uint8 lock_mode, uint8 inst_id)
+static int dms_reform_validate_lock_cvt(drc_buf_res_t *drc, uint8 lock_mode, uint8 inst_id)
 {
     drc_request_info_t *cvt = &drc->converting.req_info;
+    bool8 assert_cond;
     if (lock_mode == DMS_LOCK_EXCLUSIVE) {
-        cm_panic_log(
-            (drc->lock_mode == DMS_LOCK_EXCLUSIVE && drc->claimed_owner == inst_id) ||
-            (cvt->req_mode == DMS_LOCK_EXCLUSIVE && cvt->inst_id == inst_id),
-            "[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
-            cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner, drc->lock_mode, lock_mode);
+        assert_cond = (drc->lock_mode == DMS_LOCK_EXCLUSIVE && drc->claimed_owner == inst_id) ||
+            (cvt->req_mode == DMS_LOCK_EXCLUSIVE && cvt->inst_id == inst_id);
+        if (!assert_cond) {
+            LOG_DEBUG_ERR("[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
+                cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner,
+                drc->lock_mode, lock_mode);
+            return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+        }
     } else {
-        cm_panic_log(
-            (drc->lock_mode == DMS_LOCK_SHARE && drc->claimed_owner == inst_id) ||
+        assert_cond = (drc->lock_mode == DMS_LOCK_SHARE && drc->claimed_owner == inst_id) ||
             (drc->lock_mode == DMS_LOCK_SHARE && bitmap64_exist(&drc->copy_insts, inst_id)) ||
-            (cvt->req_mode == DMS_LOCK_SHARE && cvt->inst_id == inst_id),
-            "[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
-            cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner, drc->lock_mode, lock_mode);
+            (cvt->req_mode == DMS_LOCK_SHARE && cvt->inst_id == inst_id);
+        if (!assert_cond) {
+            LOG_DEBUG_ERR("[DRC validate][%s][%d]owner:%d drc_lock:%d ctrl_lock:%d",
+                cm_display_lockid((dms_drid_t *)drc->data), inst_id, drc->claimed_owner,
+                drc->lock_mode, lock_mode);
+            return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+        }
     }
+    return DMS_SUCCESS;
 }
 
 int dms_reform_proc_lock_validate(dms_drid_t *lockid, uint8 lock_mode, uint8 inst_id)
@@ -152,10 +179,17 @@ int dms_reform_proc_lock_validate(dms_drid_t *lockid, uint8 lock_mode, uint8 ins
     drc_buf_res_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_FALSE);
     int ret = drc_enter_buf_res((char *)lockid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, options, &drc);
-    cm_panic_log(ret == DMS_SUCCESS, "[DRC validate][%s][%d]fail to enter drc", cm_display_lockid(lockid), inst_id);
-    cm_panic_log(drc != NULL, "[DRC validate][%s][%d]drc is NULL", cm_display_lockid(lockid), inst_id);
-    dms_reform_validate_sx(drc, lock_mode, inst_id);
-    dms_reform_validate_lock_cvt(drc, lock_mode, inst_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRC validate][%s][%d]fail to enter drc, errno:%d",
+            cm_display_lockid(lockid), inst_id, ret);
+        return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+    }
+    if (drc == NULL) {
+        LOG_DEBUG_ERR("[DRC validate][%s][%d]drc is NULL", cm_display_lockid(lockid), inst_id);
+        return ERRNO_DMS_REFORM_LMODE_VLDT_PANIC;
+    }
+    CM_RETURN_IFERR(dms_reform_validate_sx(drc, lock_mode, inst_id));
+    CM_RETURN_IFERR(dms_reform_validate_lock_cvt(drc, lock_mode, inst_id));
     drc_leave_buf_res(drc);
     return DMS_SUCCESS;
 }
@@ -359,10 +393,9 @@ int dms_reform_validate_lock_mode(void)
     LOG_RUN_FUNC_ENTER;
     ret = dms_reform_validate_lock_mode_inner(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8,
         CM_INVALID_ID8);
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_FUNC_FAIL;
-        return ret;
-    }
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
+        "[Lock Mode Validate]dms_reform_validate_lock_mode failed."
+        " This is resource owner; check above-logged resource master for panic errmsg");
 
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
@@ -384,7 +417,10 @@ int dms_reform_lsn_validate_buf_res(drc_buf_res_t *buf_res, uint8 thread_index)
     MEMS_RETURN_IFERR(memcpy_s(item.pageid, DMS_PAGEID_SIZE, buf_res->data, DMS_PAGEID_SIZE));
     item.lsn = buf_res->group_lsn;
     item.in_recovery = buf_res->in_recovery;
-    return dms_reform_req_group(MSG_REQ_LSN_VALIDATE, dst, thread_index, (void *)&item, len);
+    int ret = dms_reform_req_group(MSG_REQ_LSN_VALIDATE, dst, thread_index, (void *)&item, len);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LSN_VLDT_PANIC, "[LSN validate][%s]check owner:%d for validate errmsg",
+        cm_display_pageid(buf_res->data), dst); /* must panic in-place, since flush copy calls it too */
+    return ret;
 }
 
 static int dms_reform_lsn_validate_by_part_inner(uint16 part_id, uint8 thread_index)
@@ -418,6 +454,9 @@ int dms_reform_lsn_validate_by_partid(uint16 part_id, uint8 thread_index)
         ret = dms_reform_req_group_send_rest(thread_index);
     }
     dms_reform_req_group_free(thread_index);
+    cm_panic_log(ret != ERRNO_DMS_REFORM_LSN_VLDT_PANIC,
+        "[LSN validate]dms_reform_req_group_send_rest failed."
+        " This is resource master, check above-logged resource owner for validate errmsg");
     return ret;
 }
 
@@ -444,6 +483,9 @@ int dms_reform_validate_lsn(void)
     ret = dms_reform_lsn_validate_inner();
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
+        cm_panic_log(ret != ERRNO_DMS_REFORM_LSN_VLDT_PANIC,
+            "[LSN validate]dms_reform_validate_lsn failed."
+            " This is resource master, check above-logged resource owner for validate errmsg");
         return ret;
     }
 
