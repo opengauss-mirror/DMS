@@ -861,3 +861,15 @@ int dms_get_reform_locking(void)
 {
     return g_dms.reform_ctx.reform_info.is_locking;
 }
+
+void dms_lock_res_ctrl_shared_mode(uint32 sid)
+{
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    cm_latch_s(&reform_ctx->res_ctrl_latch, sid, CM_FALSE, NULL);
+}
+
+void dms_unlock_res_ctrl()
+{
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
+}

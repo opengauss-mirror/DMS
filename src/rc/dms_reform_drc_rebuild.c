@@ -517,11 +517,14 @@ int dms_reform_rebuild(void)
     int ret = DMS_SUCCESS;
 
     LOG_RUN_FUNC_ENTER;
+    cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
     ret = dms_reform_rebuild_inner(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     if (ret != DMS_SUCCESS) {
+        cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
+    cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
 
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;

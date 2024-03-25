@@ -454,6 +454,7 @@ typedef struct st_reform_context {
     bool8               unused;
     reform_scrlock_context_t scrlock_reinit_ctx;
     az_switchover_info_t  az_switchover_info;
+    latch_t             res_ctrl_latch; // lock control for reform dependent db resources
 } reform_context_t;
 
 #define REFORM_TYPE_IS_SWITCHOVER(type) (type == DMS_REFORM_TYPE_FOR_SWITCHOVER || \

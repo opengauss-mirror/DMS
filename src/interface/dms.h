@@ -1007,6 +1007,10 @@ DMS_DECLARE int dms_get_reform_locking(void);
  */
 DMS_DECLARE void fault_injection_call(unsigned int point, ...);
 
+DMS_DECLARE void dms_lock_res_ctrl_shared_mode(unsigned int sid);
+
+DMS_DECLARE void dms_unlock_res_ctrl();
+
 #ifdef __cplusplus
 }
 #endif
