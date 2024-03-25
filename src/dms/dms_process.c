@@ -408,6 +408,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 
     if (SECUREC_UNLIKELY(ctx->db_handle == NULL)) {
         ctx->db_handle = g_dms.callback.get_db_handle(&ctx->sess_id, DMS_SESSION_TYPE_WORKER);
+        cm_panic_log(ctx->db_handle != NULL, "alloc db handle failed");
     }
     
     /* ruid should have been brought in dms msghead */
@@ -987,19 +988,6 @@ static int32 init_drc_smon_ctx(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    ctx->smon_handle = g_dms.callback.get_db_handle(&ctx->smon_sid, DMS_SESSION_TYPE_NONE);
-    if (ctx->smon_handle == NULL) {
-        LOG_RUN_ERR("[DRC]fail to get db session");
-        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
-        return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
-    }
-
-    ctx->smon_recycle_handle = g_dms.callback.get_db_handle(&ctx->smon_recycle_sid, DMS_SESSION_TYPE_NONE);
-    if (ctx->smon_recycle_handle == NULL) {
-        LOG_RUN_ERR("[DRC]fail to get db session");
-        DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_GET_DB_HANDLE);
-        return ERRNO_DMS_CALLBACK_GET_DB_HANDLE;
-    }
     return DMS_SUCCESS;
 }
 
