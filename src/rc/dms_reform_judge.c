@@ -1094,11 +1094,13 @@ static void dms_reform_judgement_drc_validate(bool set_inaccess)
 #endif
 }
 
-/* SYNC_WAIT before and after pushing GCV to ensure consistency */
+/* sync between lock-push, to prevent internode gcv diff followed by upper level endless loop */
 static void dms_reform_judgement_lock_instance(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_LOCK_INSTANCE);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_PUSH_GCV_AND_UNLOCK);
 }
 
 static void dms_reform_judgement_set_remove_point(instance_list_t *inst_lists)

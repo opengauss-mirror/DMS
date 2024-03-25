@@ -42,7 +42,7 @@ extern "C" {
 #define DMS_REFORM_LONG_TIMEOUT         5000
 #define DMS_REFORM_SHORT_TIMEOUT        500
 #define DMS_REFORM_CONFIRM_TIMEOUT      5000000 // 5s
-#define DMS_REFORM_LOCK_INST_TIMEOUT    (g_dms.max_wait_time * MICROSECS_PER_SECOND)
+#define DMS_REFORM_LOCK_INST_TIMEOUT    (g_dms.max_wait_time * MICROSECS_PER_MILLISEC)
 #define DMS_REFORM_CONTEXT              (&g_dms.reform_ctx)
 #define DMS_REFORMER_CTRL               (&g_dms.reform_ctx.reformer_ctrl)
 #define DMS_REFORM_INFO                 (&g_dms.reform_ctx.reform_info)
@@ -149,6 +149,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
     DMS_REFORM_STEP_DRC_VALIDATE,
     DMS_REFORM_STEP_LOCK_INSTANCE,                  // get X mode instance lock for reform
+    DMS_REFORM_STEP_PUSH_GCV_AND_UNLOCK,            // push GCV in X instance lock, then unlock X
     DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
     DMS_REFORM_STEP_RESET_USER,
     DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
