@@ -28,6 +28,7 @@
 #include "dms_msg_protocol.h"
 #include "cm_timer.h"
 #include "dms_reform_judge_stat.h"
+#include "dms_reform_judge_switch.h"
 
 extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
 
@@ -216,7 +217,7 @@ static void dms_reform_modify_list(void)
     instance_list_t *list_offline = &share_info->list_offline;
     uint64 bitmap_stable = share_info->bitmap_stable;
 
-    if (DMS_CATALOG_IS_CENTRALIZED) {
+    if (g_dms.reform_ctx.catalog_centralized) {
         int index = 0;
         while (index < list_offline->inst_id_count) {
             uint8 inst_id = list_offline->inst_id_list[index];
@@ -457,38 +458,6 @@ int dms_reform_sync_cluster_version(bool8 pushing)
     return DMS_SUCCESS;
 }
 
-static bool8 dms_no_need_wait_sync(reform_step_t step)
-{
-    if (step != DMS_REFORM_STEP_SYNC_WAIT) {
-        return CM_FALSE;
-    }
-    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_BUILD) ||
-        dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN) ||
-        dms_reform_type_is(DMS_REFORM_TYPE_FOR_RST_RECOVER)) {
-        return CM_TRUE;
-    }
-    return CM_FALSE;
-}
-
-static void dms_reform_add_step(reform_step_t step)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    // BUILD and MAINTAIN no need to SYNC_WAIT, there is only one instance
-    if (dms_no_need_wait_sync(step)) {
-        return;
-    }
-
-    // ignore consecutive SYNC_WAIT
-    if (step == DMS_REFORM_STEP_SYNC_WAIT && share_info->reform_step_count > 0 &&
-        share_info->reform_step[share_info->reform_step_count - 1] == DMS_REFORM_STEP_SYNC_WAIT) {
-        return;
-    }
-
-    share_info->reform_step[share_info->reform_step_count++] = step;
-    CM_ASSERT(share_info->reform_step_count < DMS_REFORM_STEP_TOTAL_COUNT);
-}
-
 static void dms_reform_judgement_prepare(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -634,7 +603,8 @@ static void dms_reform_part_recalc_for_centralized(instance_list_t *inst_lists)
 
 static void dms_reform_part_recalc(instance_list_t *inst_lists)
 {
-    if (DMS_CATALOG_IS_CENTRALIZED) {
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (share_info->catalog_centralized) {
         dms_reform_part_recalc_for_centralized(inst_lists);
     } else {
         dms_reform_part_recalc_for_distribute(inst_lists);
@@ -901,7 +871,11 @@ static void dms_reform_judgement_recovery(instance_list_t *inst_lists)
     dms_reform_list_init(&share_info->list_recovery);
     dms_reform_list_add_all(&share_info->list_recovery);
     // if instance is IN, ignore redo log, because all dirty pages in data_buffer
-    dms_reform_list_minus(&share_info->list_recovery, &inst_lists[INST_LIST_OLD_IN]);
+    unsigned int db_role;
+    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
+    if (db_role == (unsigned int)DMS_DB_ROLE_PRIMARY) {
+        dms_reform_list_minus(&share_info->list_recovery, &inst_lists[INST_LIST_OLD_IN]);
+    }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_RECOVERY);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
@@ -963,7 +937,22 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    
+    unsigned int db_role;
+
+    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
+    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE ||
+        db_role != (unsigned int)DMS_DB_ROLE_PRIMARY) {
+        dms_reform_list_init(&share_info->list_rollback);
+        for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            remaster_info->deposit_map[inst_id] = share_info->reformer_id;
+            dms_reform_list_add(&share_info->list_rollback, inst_id);
+        }
+
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK_PREPARE);
+        return;
+    }
+
     for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
         remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
     }
@@ -1026,15 +1015,20 @@ static void dms_reform_judgement_txn_deposit(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
+    unsigned int db_role;
+
+    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
 
     // instance is online should withdraw txn
     dms_reform_list_init(&share_info->list_withdraw);
-    for (uint8 i = 0; i < share_info->list_online.inst_id_count; i++) {
-        uint8 inst_id = share_info->list_online.inst_id_list[i];
-        uint8 deposit_id = drc_get_deposit_id(inst_id);
-        if (deposit_id != inst_id) {
-            dms_reform_list_add(&share_info->list_withdraw, inst_id);
-            remaster_info->deposit_map[inst_id] = inst_id;
+    if (db_role == (unsigned int)DMS_DB_ROLE_PRIMARY) {
+        for (uint8 i = 0; i < share_info->list_online.inst_id_count; i++) {
+            uint8 inst_id = share_info->list_online.inst_id_list[i];
+            uint8 deposit_id = drc_get_deposit_id(inst_id);
+            if (deposit_id != inst_id) {
+                dms_reform_list_add(&share_info->list_withdraw, inst_id);
+                remaster_info->deposit_map[inst_id] = inst_id;
+            }
         }
     }
 
@@ -1168,6 +1162,18 @@ char *dms_reform_get_type_desc(uint32 reform_type)
         case DMS_REFORM_TYPE_FOR_NEW_JOIN:
             return "NEW JOIN";
 
+        case DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN:
+            return "FOR STANDBY MAINTAIN";
+
+        case DMS_REFORM_TYPE_FOR_NORMAL_STANDBY:
+            return "STANDBY NORMAL";
+
+        case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
+            return "AZ SWITCHOVER DEMOTE";
+
+        case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
+            return "AZ FAILOVER";
+
         case DMS_REFORM_TYPE_COUNT:
         default:
             return "UNKNOWN TYPE";
@@ -1193,7 +1199,7 @@ void dms_reform_judgement_step_log(void)
     }
 
     char *role = DMS_IS_REFORMER ? "reformer" : "partner";
-    char *catalog = DMS_CATALOG_IS_CENTRALIZED ? "centralized" : "distributed";
+    char *catalog = share_info->catalog_centralized ? "centralized" : "distributed";
     char *reform_type = dms_reform_get_type_desc((uint32)share_info->reform_type);
 
     LOG_RUN_INF("[DMS REFORM]inst_id:%u, role:%s, catalog:%s, reform_type:%s, full_clean:%d, dms_reform_step:%s",
@@ -1343,6 +1349,16 @@ static void dms_reform_judgement_validate_lock_mode(instance_list_t *inst_lists)
     dms_reform_add_step(DMS_REFORM_STEP_VALIDATE_LOCK_MODE);
 }
 
+static void dms_reform_judgement_start_lrpl(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_START_LRPL);
+}
+
+static void dms_reform_judgement_stop_lrpl(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_STOP_LRPL);
+}
+
 static void dms_reform_judgement_normal(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
@@ -1407,6 +1423,45 @@ static void dms_reform_judgement_new_join(instance_list_t *inst_lists)
     dms_reform_judgement_file_unblocked();
     dms_reform_judgement_success();
     dms_reform_judgement_set_phase(DMS_PHASE_END);
+    dms_reform_judgement_done();
+}
+
+static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
+{
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_disconnect(inst_lists);
+    dms_reform_judgement_reconnect(inst_lists);
+    dms_reform_judgement_start();
+    dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
+    dms_reform_judgement_drc_clean(inst_lists);
+    dms_reform_judgement_rebuild(inst_lists);
+    dms_reform_judgement_remaster(inst_lists);
+    dms_reform_judgement_migrate(inst_lists);
+    dms_reform_judgement_repair(inst_lists);
+    dms_reform_judgement_flush_copy();
+    dms_reform_judgement_dw_recovery(inst_lists);
+    dms_reform_judgement_reset_user();
+    dms_reform_judgement_validate_lock_mode(inst_lists);
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
+    dms_reform_judgement_recovery(inst_lists);
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_stop_lrpl();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
+    dms_reform_judgement_file_blocked(inst_lists);
+    dms_reform_judgement_update_scn();
+    // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_space_reload();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
+    dms_reform_judgement_file_unblocked();
+    dms_reform_judgement_success();
+    dms_reform_judgement_set_phase(DMS_PHASE_END);
+    dms_reform_judgement_rollback_start(inst_lists);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_start_lrpl();
     dms_reform_judgement_done();
 }
 
@@ -1578,42 +1633,106 @@ static void dms_reform_judgement_rst_recover(instance_list_t *inst_lists)
     dms_reform_judgement_done();
 }
 
-static bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists)
+static void dms_reform_judgement_standby_maintain(instance_list_t *inst_lists)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-    switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_start();
+    dms_reform_judgement_dw_recovery(inst_lists);
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
+    dms_reform_judgement_recovery(inst_lists);
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_rollback_start(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_xa_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
+    dms_reform_judgement_file_unblocked();
+    dms_reform_judgement_success();
+    dms_reform_judgement_set_phase(DMS_PHASE_END);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_start_lrpl();
+    dms_reform_judgement_done();
+}
 
-    // if there are restart/remove/new add instances, ignore switchover request at current judgement
-    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 ||
-        inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0 ||
-        inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
-        return CM_FALSE;
-    }
+static void dms_reform_judgement_az_switchover_demote(instance_list_t *inst_lists)
+{
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_start();
+    dms_reform_judgement_az_demote_phase1(inst_lists);
+    dms_reform_judgement_az_demote_approve(inst_lists);
+    dms_reform_judgement_az_demote_phase2(inst_lists);
+    dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
+    dms_reform_judgement_remaster(inst_lists);
+    dms_reform_judgement_migrate(inst_lists);
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_recovery(inst_lists);
+    dms_reform_judgement_file_blocked(inst_lists);
+    dms_reform_judgement_update_scn();
+    // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_file_unblocked();
+    dms_reform_judgement_success();
+    dms_reform_judgement_rollback_start(inst_lists);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_start_lrpl();
+    dms_reform_judgement_done();
+}
 
-    cm_spin_lock(&switchover_info->lock, NULL);
-    if (!switchover_info->switch_req) {
-        cm_spin_unlock(&switchover_info->lock);
-        return CM_FALSE;
-    }
+static void dms_reform_judgement_az_switchover_to_promote(instance_list_t *inst_lists)
+{
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_start();
+    dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_remaster(inst_lists);
+    dms_reform_judgement_migrate(inst_lists);
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_az_promote();
+    dms_reform_judgement_file_blocked(inst_lists);
+    dms_reform_judgement_update_scn();
+    // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_ddl_2phase_rcy();
+    dms_reform_judgement_space_reload();
+    dms_reform_judgement_xa_access();
+    dms_reform_judgement_file_unblocked();
+    dms_reform_judgement_success();
+    dms_reform_judgement_rollback_start(inst_lists);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_set_remove_point(inst_lists);
+    dms_reform_judgement_done();
+}
 
-    // if the standby node(which has request switchover) is not exist in bitmap_online. clear this request
-    // if the standby node restart, also clear
-    if (!bitmap64_exist(&share_info->bitmap_online, switchover_info->inst_id) ||
-        (health_info->online_times[switchover_info->inst_id] != switchover_info->start_time)) {
-        switchover_info->switch_req = CM_FALSE;
-        switchover_info->inst_id = CM_INVALID_ID8;
-        switchover_info->sess_id = CM_INVALID_ID16;
-        cm_spin_unlock(&switchover_info->lock);
-        return CM_FALSE;
-    }
-
-    share_info->reform_type = DMS_REFORM_TYPE_FOR_SWITCHOVER;
-    share_info->promote_id = switchover_info->inst_id;
-    share_info->switch_version.inst_id = switchover_info->inst_id;
-    share_info->switch_version.start_time = switchover_info->start_time;
-    cm_spin_unlock(&switchover_info->lock);
-    return CM_TRUE;
+static void dms_reform_judgement_az_failover(instance_list_t *inst_lists)
+{
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_start();
+    dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_remaster(inst_lists);
+    dms_reform_judgement_repair(inst_lists);
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_az_failover_promote();
+    dms_reform_judgement_file_blocked(inst_lists);
+    dms_reform_judgement_update_scn();
+    // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_ddl_2phase_rcy();
+    dms_reform_judgement_space_reload();
+    dms_reform_judgement_xa_access();
+    dms_reform_judgement_file_unblocked();
+    dms_reform_judgement_success();
+    dms_reform_judgement_rollback_start(inst_lists);
+    dms_reform_judgement_wait_ckpt();
+    dms_reform_judgement_set_remove_point(inst_lists);
+    dms_reform_judgement_done();
 }
 
 static bool32 dms_reform_judgement_normal_check(instance_list_t *inst_lists)
@@ -1627,6 +1746,12 @@ static bool32 dms_reform_judgement_normal_check(instance_list_t *inst_lists)
             inst_lists[INST_LIST_NEW_OUT].inst_id_count, inst_lists[INST_LIST_NEW_REFORM].inst_id_count);
         return CM_FALSE;
     }
+
+#ifndef OPENGAUSS
+    if (dms_reform_judgement_az_switchover_check(inst_lists)) {
+        return CM_TRUE;
+    }
+#endif
 
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_OLD_REMOVE].inst_id_count == 0 &&
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
@@ -1656,60 +1781,6 @@ static bool32 dms_reform_judgement_new_join_check(instance_list_t *inst_lists)
         return CM_FALSE;
     }
 
-    return CM_TRUE;
-}
-
-static bool32 dms_reform_judgement_switchover_opengauss_check(instance_list_t *inst_lists)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-    switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
-
-    // if there are restart/remove/new add instances, ignore switchover request at current judgement
-    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 ||
-        inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0 ||
-        inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
-        return CM_FALSE;
-    }
-
-    cm_spin_lock(&switchover_info->lock, NULL);
-    if (!switchover_info->switch_req) {
-        cm_spin_unlock(&switchover_info->lock);
-        return CM_FALSE;
-    }
-
-    // if the standby node(which has request switchover) is not exist in bitmap_online. clear this request
-    // if the standby node restart, also clear
-    if (!bitmap64_exist(&share_info->bitmap_online, switchover_info->inst_id) ||
-        (health_info->online_times[switchover_info->inst_id] != switchover_info->start_time)) {
-        switchover_info->switch_req = CM_FALSE;
-        switchover_info->inst_id = CM_INVALID_ID8;
-        switchover_info->sess_id = CM_INVALID_ID16;
-        cm_spin_unlock(&switchover_info->lock);
-        return CM_FALSE;
-    }
-
-    share_info->reform_type = DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS;
-    share_info->promote_id = switchover_info->inst_id;
-    share_info->switch_version.inst_id = switchover_info->inst_id;
-    share_info->switch_version.start_time = switchover_info->start_time;
-    cm_spin_unlock(&switchover_info->lock);
-    return CM_TRUE;
-}
-
-static bool32 dms_reform_judgement_failover_opengauss_check(instance_list_t *inst_lists)
-{
-    // there are instances which status is out or reform, no need reform.
-    if (inst_lists[INST_LIST_OLD_OUT].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REFORM].inst_id_count != 0 ||
-        inst_lists[INST_LIST_NEW_OUT].inst_id_count != 0 || inst_lists[INST_LIST_NEW_REFORM].inst_id_count != 0) {
-        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, "
-                      "old_out: %d, old_reform: %d, new_out: %d, new_reform: %d",
-                      inst_lists[INST_LIST_OLD_OUT].inst_id_count, inst_lists[INST_LIST_OLD_REFORM].inst_id_count,
-                      inst_lists[INST_LIST_NEW_OUT].inst_id_count, inst_lists[INST_LIST_NEW_REFORM].inst_id_count);
-        return CM_FALSE;
-    }
-    share_info_t *share_info = DMS_SHARE_INFO;
-    share_info->promote_id = (uint8)g_dms.inst_id;
     return CM_TRUE;
 }
 
@@ -1780,6 +1851,24 @@ static bool32 dms_reform_judgement_rst_recover_check(instance_list_t *inst_lists
         dms_reform_judgement_stat_cancel();
         return CM_FALSE;
     }
+    return CM_TRUE;
+}
+
+static bool32 dms_reform_judgement_standby_maintain_check(instance_list_t *inst_lists)
+{
+    if (DMS_FIRST_REFORM_FINISH) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, first reform has finished");
+        return CM_FALSE;
+    }
+
+    // if instance status is not join, finish current judgement
+    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, new_join: 0");
+        return CM_FALSE;
+    }
+
+    share_info_t *share_info = DMS_SHARE_INFO;
+    share_info->promote_id = (uint8)g_dms.inst_id;
     return CM_TRUE;
 }
 
@@ -1854,10 +1943,26 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
         share_info->reform_type = DMS_REFORM_TYPE_FOR_BUILD;
         return;
     }
+    unsigned int db_role;
+    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
 
     // database started for maintain
     if (reform_info->maintain) {
+        if (db_role != (unsigned int)DMS_DB_ROLE_PRIMARY) {
+            share_info->reform_type = DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN;
+            return;
+        }
         share_info->reform_type = DMS_REFORM_TYPE_FOR_MAINTAIN;
+        return;
+    }
+
+    if (db_role != (unsigned int)DMS_DB_ROLE_PRIMARY) {
+        az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+        if (switchover_info->switch_type == AZ_FAILOVER) {
+            share_info->reform_type = DMS_REFORM_TYPE_FOR_AZ_FAILOVER;
+            return;
+        }
+        share_info->reform_type = DMS_REFORM_TYPE_FOR_NORMAL_STANDBY;
         return;
     }
 
@@ -1872,7 +1977,6 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
 
     // switchover & fail over are not allowed at multi_write
     share_info->reform_type = DMS_REFORM_TYPE_FOR_NORMAL;
-    return;
 }
 #endif
 
@@ -1916,6 +2020,26 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc[DMS_REFORM_TYPE_COUNT
     [DMS_REFORM_TYPE_FOR_NEW_JOIN] = {
     dms_reform_judgement_new_join_check,
     dms_reform_judgement_new_join },
+
+    [DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN] = {
+    dms_reform_judgement_standby_maintain_check,
+    dms_reform_judgement_standby_maintain },
+
+    [DMS_REFORM_TYPE_FOR_NORMAL_STANDBY] = {
+    dms_reform_judgement_normal_check,
+    dms_reform_judgement_normal_standby },
+
+    [DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE] = {
+    dms_reform_judgement_az_switchover_check,
+    dms_reform_judgement_az_switchover_demote },
+
+    [DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE] = {
+    dms_reform_judgement_az_switchover_check,
+    dms_reform_judgement_az_switchover_to_promote },
+
+    [DMS_REFORM_TYPE_FOR_AZ_FAILOVER] = {
+    dms_reform_judgement_az_failover_check,
+    dms_reform_judgement_az_failover },
 };
 
 static int dms_reform_sync_share_info_r(uint8 dst_id)
@@ -2023,6 +2147,23 @@ static void dms_reform_judgement_record_start_times(void)
     }
 }
 
+static void dms_reform_judgement_set_catalog(void)
+{
+    reform_context_t * reform_context = DMS_REFORM_CONTEXT;
+    share_info_t *share_info = DMS_SHARE_INFO;
+#ifndef OPENGAUSS
+    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN ||
+        share_info->reform_type == DMS_REFORM_TYPE_FOR_NORMAL_STANDBY ||
+        share_info->reform_type == DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE) {
+        share_info->catalog_centralized = CM_TRUE;
+    } else {
+        share_info->catalog_centralized = reform_context->catalog_centralized;
+    }
+#else
+    share_info->catalog_centralized = reform_context->catalog_centralized;
+#endif
+}
+
 static bool32 dms_reform_judgement(uint8 *online_status)
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
@@ -2064,6 +2205,8 @@ static bool32 dms_reform_judgement(uint8 *online_status)
         dms_reform_judgement_stat_desc("fail to check");
         return CM_FALSE;
     }
+
+    dms_reform_judgement_set_catalog();
 
     /* this check must be first in judgement reform */
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_SYNC_GCV);

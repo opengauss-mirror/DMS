@@ -85,6 +85,9 @@ typedef struct st_dms_ask_res_ack {
     bool8 enable_cks; // enable checksum
     uint8 unused;
     uint16 checksum;
+#ifndef OPENGAUSS
+    uint64 node_lfn;
+#endif
 } dms_ask_res_ack_t;
 
 typedef struct st_dms_claim_owner_req {

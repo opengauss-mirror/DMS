@@ -135,6 +135,14 @@ void dms_reform_set_start(void)
     dms_reform_proc_stat_clear_current();
     dms_reform_health_set_running();
     dms_reform_proc_set_running();
+#ifndef OPENGAUSS
+    if (share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_FAILOVER &&
+        share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE &&
+        share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE &&) {
+        g_dms.callback.reset_link(g_dms.reform_ctx.handle_normal);
+    }
+#endif
+
     LOG_DEBUG_FUNC_SUCCESS;
 }
 
@@ -529,6 +537,176 @@ int dms_switchover(unsigned int sess_id)
     return DMS_SUCCESS;
 }
 
+int dms_az_failover(unsigned int sess_id)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    az_switchover_info_t *failover_info = DMS_AZ_SWITCHOVER_INFO;
+    dms_reform_req_az_failover_t req = { 0 };
+    uint8 reformer_id = reform_info->reformer_id;
+    uint64 start_time = 0;
+    int ret = DMS_SUCCESS;
+
+    while (CM_TRUE) {
+        if (DMS_IS_REFORMER) {
+            cm_spin_lock(&failover_info->lock, NULL);
+            if (failover_info->switch_req) {
+                cm_spin_unlock(&failover_info->lock);
+                LOG_DEBUG_ERR("[DMS REFORM] dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+                return DMS_ERROR;
+            }
+            failover_info->switch_req = CM_TRUE;
+            cm_spin_unlock(&failover_info->lock);
+            break;
+        }
+
+        dms_reform_init_req_az_failover(&req, reformer_id, (uint16)sess_id);
+        ret = mfc_send_data(&req.head);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_ERR("[DMS REFORM] dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            return ret;
+        }
+
+        ret = dms_reform_req_az_failover_wait(req.head.ruid, &start_time);
+        if (ret == ERR_MES_WAIT_OVERTIME) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_az_failover WAIT overtime, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_az_failover protocol version not match, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else {
+            break;
+        }
+    }
+    DMS_RETURN_IF_ERROR(ret);
+
+    cm_spin_lock(&failover_info->lock, NULL);
+    // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    failover_info->reformer_version.inst_id = reformer_id;
+    failover_info->reformer_version.start_time = reform_info->start_time;
+    failover_info->switch_start = CM_TRUE;
+    failover_info->switch_type = AZ_FAILOVER;
+    failover_info->inst_id = reformer_id;
+    failover_info->sess_id = sess_id;
+    cm_spin_unlock(&failover_info->lock);
+
+    return DMS_SUCCESS;
+}
+
+int dms_az_switchover_demote(unsigned int sess_id)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+    dms_reform_req_az_switchover_t req = { 0 };
+    uint8 reformer_id = reform_info->reformer_id;
+    uint64 start_time = 0;
+    int ret = DMS_SUCCESS;
+
+    while (CM_TRUE) {
+        if (DMS_IS_REFORMER) {
+            cm_spin_lock(&switchover_info->lock, NULL);
+            if (switchover_info->switch_req) {
+                cm_spin_unlock(&switchover_info->lock);
+                LOG_DEBUG_ERR("[DMS REFORM] dms_az_switchover_demote SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+                return DMS_ERROR;
+            }
+            switchover_info->switch_req = CM_TRUE;
+            cm_spin_unlock(&switchover_info->lock);
+            break;
+        }
+
+        dms_reform_init_req_az_switchover_demote(&req, reformer_id, (uint16)sess_id);
+
+        ret = mfc_send_data(&req.head);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_ERR("[DMS REFORM] dms_az_switchover_demote SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            return ret;
+        }
+
+        ret = dms_reform_req_az_switchover_wait(req.head.ruid, &start_time);
+        if (ret == ERR_MES_WAIT_OVERTIME) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_az_switchover_demote WAIT overtime, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_az_switchover_demote protocol version not match, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else {
+            break;
+        }
+    }
+    DMS_RETURN_IF_ERROR(ret);
+
+    cm_spin_lock(&switchover_info->lock, NULL);
+    // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    switchover_info->reformer_version.inst_id = reformer_id;
+    switchover_info->reformer_version.start_time = start_time;
+    switchover_info->switch_start = CM_TRUE;
+    switchover_info->switch_type = AZ_SWITCHOVER;
+    switchover_info->inst_id = reformer_id;
+    switchover_info->sess_id = sess_id;
+    cm_spin_unlock(&switchover_info->lock);
+
+    return DMS_SUCCESS;
+}
+
+int dms_az_switchover_promote(unsigned int sess_id)
+{
+    dms_reset_error();
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+    dms_reform_req_az_switchover_t req = { 0 };
+    uint8 reformer_id = reform_info->reformer_id;
+    uint64 start_time = 0;
+    int ret = DMS_SUCCESS;
+
+    while (CM_TRUE) {
+        if (DMS_IS_REFORMER) {
+            cm_spin_lock(&switchover_info->lock, NULL);
+            if (switchover_info->switch_req) {
+                cm_spin_unlock(&switchover_info->lock);
+                LOG_DEBUG_ERR("[DMS REFORM] dms_az_switchover_promote SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+                return DMS_ERROR;
+            }
+            switchover_info->switch_req = CM_TRUE;
+            cm_spin_unlock(&switchover_info->lock);
+            break;
+        }
+
+        dms_reform_init_req_az_switchover_demote(&req, reformer_id, (uint16)sess_id);
+
+        ret = mfc_send_data(&req.head);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_ERR("[DMS REFORM] dms_az_switchover_promote SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            return ret;
+        }
+
+        ret = dms_reform_req_az_switchover_wait(req.head.ruid, &start_time);
+        if (ret == ERR_MES_WAIT_OVERTIME) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_az_switchover_promote WAIT overtime, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else if (ret == ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH) {
+            LOG_DEBUG_WAR("[DMS REFORM]dms_az_switchover_promote protocol version not match, dst_id: %d", req.head.dst_inst);
+            continue;
+        } else {
+            break;
+        }
+    }
+    DMS_RETURN_IF_ERROR(ret);
+
+    cm_spin_lock(&switchover_info->lock, NULL);
+    // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    switchover_info->reformer_version.inst_id = reformer_id;
+    switchover_info->reformer_version.start_time = reform_info->start_time;
+    switchover_info->switch_start = CM_TRUE;
+    switchover_info->switch_type = AZ_SWITCHOVER;
+    switchover_info->inst_id = reformer_id;
+    switchover_info->sess_id = sess_id;
+    cm_spin_unlock(&switchover_info->lock);
+
+    return DMS_SUCCESS;
+}
+
 int dms_get_version(void)
 {
     return DMS_LOCAL_MAJOR_VERSION * DMS_LOCAL_MAJOR_VER_WEIGHT +
@@ -581,4 +759,37 @@ void dms_file_leave(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     cm_unlatch(&reform_info->file_latch, NULL);
+}
+
+static bool8 dms_no_need_wait_sync(reform_step_t step)
+{
+    if (step != DMS_REFORM_STEP_SYNC_WAIT) {
+        return CM_FALSE;
+    }
+
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_BUILD) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_RST_RECOVER)) {
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
+
+void dms_reform_add_step(reform_step_t step)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    // BUILD and MAINTAIN no need to SYNV_WAIT, there is only one instance
+    if (dms_no_need_wait_sync(step)) {
+        return;
+    }
+
+    // ignore consecutive SYNC_WAIT
+    if (step == DMS_REFORM_STEP_SYNC_WAIT && share_info->reform_step_count > 0 &&
+        share_info->reform_step[share_info->reform_step_count - 1] == DMS_REFORM_STEP_SYNC_WAIT) {
+        return;
+    }
+
+    share_info->reform_step[share_info->reform_step_count++] = step;
+    CM_ASSERT(share_info->reform_step_count < DMS_REFORM_STEP_TOTAL_COUNT);
 }

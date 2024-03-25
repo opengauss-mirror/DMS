@@ -210,6 +210,24 @@ typedef struct st_lsn_validate_item {
 } lsn_validate_item_t;
 void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
+typedef struct st_dms_reform_req_az_switchover {
+    dms_message_head_t head;
+    uint64 start_time;
+} dms_reform_req_az_switchover_t;
+void dms_reform_init_req_az_switchover_demote(dms_reform_req_az_switchover_t *req,
+    uint8 reformer_id, uint16 sess_id);
+int dms_reform_req_az_switchover_wait(uint64 ruid, uint64 *start_time);
+void dms_reform_proc_req_az_switchover(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+
+typedef struct st_dms_reform_req_az_failover {
+    dms_message_head_t head;
+    uint64 start_time;
+} dms_reform_req_az_failover_t;
+void dms_reform_init_req_az_failover(dms_reform_req_az_failover_t *req,
+    uint8 reformer_id, uint16 sess_id);
+int dms_reform_req_az_failover_wait(uint64 ruid, uint64 *start_time);
+void dms_reform_proc_req_az_failover(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+
 #ifdef __cplusplus
 }
 #endif
