@@ -102,33 +102,40 @@ static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 time
     return ret;
 }
 
-static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32 len, uint32 timeout, bool8 handle_msg,
-    msg_command_t cmd, dms_broadcast_scope_e scope, char *output, unsigned int *output_len)
+static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info_t *dms_broad_info, msg_command_t cmd)
 {
     uint64 succ_inst = 0;
-    dms_message_head_t head;
     int ret = DMS_SUCCESS;
+    dms_message_head_t head;
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    cm_panic_log(scope < DMS_BROADCAST_TYPE_COUNT, "Invalid scope: %d, when dms broadcast msg internal", scope);
+    cm_panic_log(dms_broad_info->scope < DMS_BROADCAST_TYPE_COUNT,
+        "Invalid scope: %d, when dms broadcast msg internal", dms_broad_info->scope);
 
     DMS_INIT_MESSAGE_HEAD(&head, cmd, 0, dms_ctx->inst_id, 0, dms_ctx->sess_id, CM_INVALID_ID16);
-    head.size = (uint16)(sizeof(dms_message_head_t) + len);
+    head.size = (uint16)(sizeof(dms_message_head_t) + dms_broad_info->len);
 
-    uint64 all_inst = (scope == DMS_BROADCAST_ONLINE_LIST) ? reform_info->bitmap_connect : reform_info->bitmap_in;
+    uint64 all_inst;
+    if (dms_broad_info->scope == DMS_BROADCAST_SPECIFY_LIST) {
+        all_inst = dms_broad_info->inst_map;
+    } else {
+        all_inst = (dms_broad_info->scope == DMS_BROADCAST_ONLINE_LIST) ?
+            reform_info->bitmap_connect : reform_info->bitmap_in;
 #ifdef OPENGAUSS
-    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
+        all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
 #endif
-    all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
-    mfc_broadcast2(all_inst, &head, (const void *)data, &succ_inst);
+        all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
+    }
+    
+    mfc_broadcast2(all_inst, &head, (const void *)dms_broad_info->data, &succ_inst);
     LOG_DEBUG_INF("Send broadcast cmd: %d, all inst: %llu, expect succ inst: %llu", cmd, all_inst, succ_inst);
-    if (!handle_msg) {
-        ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, timeout, all_inst, &succ_inst);
+    if (!dms_broad_info->handle_recv_msg) {
+        ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, dms_broad_info->timeout, all_inst, &succ_inst);
     } else {
         mes_msg_list_t recv_msg = { 0 };
-        ret = mfc_get_broadcast_res_with_msg(head.ruid, timeout, succ_inst, &recv_msg);
+        ret = mfc_get_broadcast_res_with_msg(head.ruid, dms_broad_info->timeout, succ_inst, &recv_msg);
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
-            ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg, output, output_len);
+            ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg, dms_broad_info->output, dms_broad_info->output_len);
             mfc_release_broadcast_response(&recv_msg);
         }
     }
@@ -139,24 +146,22 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, char *data, uint32
     return ret;
 }
 
-int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned char handle_recv_msg,
-    unsigned int timeout, msg_command_t cmd, dms_broadcast_scope_e scope, unsigned char check_session_kill,
-    char *output, unsigned int *output_len)
+int dms_broadcast_msg_core(dms_context_t *dms_ctx, dms_broadcast_info_t *dms_broad_info, msg_command_t cmd)
 {
     int ret = DMS_SUCCESS;
 
-    if (timeout != CM_INFINITE_TIMEOUT) {
-        ret = dms_broadcast_msg_internal(dms_ctx, data, len, timeout, handle_recv_msg, cmd, scope, output, output_len);
+    if (dms_broad_info->timeout != CM_INFINITE_TIMEOUT) {
+        ret = dms_broadcast_msg_internal(dms_ctx, dms_broad_info, cmd);
         return ret;
     }
 
+    dms_broad_info->timeout = (uint32)DMS_WAIT_MAX_TIME;
     while (CM_TRUE) {
-        if (dms_broadcast_msg_internal(dms_ctx, data, len, DMS_WAIT_MAX_TIME, handle_recv_msg, cmd, scope, output,
-            output_len) == DMS_SUCCESS) {
+        if (dms_broadcast_msg_internal(dms_ctx, dms_broad_info, cmd) == DMS_SUCCESS) {
             return DMS_SUCCESS;
         }
 #ifndef OPENGAUSS
-        if (check_session_kill && g_dms.callback.check_session_invalid(dms_ctx->sess_id)) {
+        if (dms_broad_info->check_session_kill && g_dms.callback.check_session_invalid(dms_ctx->sess_id)) {
             LOG_RUN_INF("[DCS] session %u is killed or canneled during the broadcast process.", dms_ctx->sess_id);
             return DMS_ERROR;
         }
@@ -165,28 +170,20 @@ int dms_broadcast_msg_with_cmd(dms_context_t *dms_ctx, char *data, unsigned int 
     }
 }
 
-int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data, unsigned int len,
-    unsigned char handle_recv_msg, unsigned int timeout, dms_broadcast_scope_e scope)
+int dms_broadcast_msg(dms_context_t *dms_ctx, dms_broadcast_info_t *dms_broad_info)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST, scope,
-        CM_TRUE, NULL, NULL);
-}
-
-int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
-    unsigned char handle_recv_msg, unsigned int timeout)
-{
-    dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_BROADCAST,
-        DMS_BROADCAST_ONLINE_LIST, CM_TRUE, NULL, NULL);
+    return dms_broadcast_msg_core(dms_ctx, dms_broad_info, MSG_REQ_BROADCAST);
 }
 
 int dms_smon_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned int timeout,
     char *output, unsigned int *output_len)
 {
     dms_reset_error();
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, CM_TRUE, timeout, MSG_REQ_SMON_BROADCAST,
-        DMS_BROADCAST_ONLINE_LIST, CM_TRUE, output, output_len);
+    dms_broadcast_info_t dms_broad_info = {.scope = DMS_BROADCAST_ONLINE_LIST, .inst_map = 0,
+        .handle_recv_msg = CM_TRUE, .timeout = timeout, .check_session_kill = CM_TRUE,
+        .data = data, .len = len, .output = output, .output_len = output_len};
+    return dms_broadcast_msg_core(dms_ctx, &dms_broad_info, MSG_REQ_SMON_BROADCAST);
 }
 
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -344,8 +341,10 @@ int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int 
 {
     dms_reset_error();
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_DDL_SYNC, MSG_REQ_DDL_SYNC);
-    return dms_broadcast_msg_with_cmd(dms_ctx, data, len, handle_recv_msg, timeout, MSG_REQ_DDL_SYNC, scope,
-        check_session_kill, NULL, NULL);
+    dms_broadcast_info_t dms_broad_info = {.scope = scope, .inst_map = 0, .handle_recv_msg = handle_recv_msg,
+        .timeout = timeout, .check_session_kill = check_session_kill, .data = data, .len = len,
+        .output = NULL, .output_len = NULL};
+    return dms_broadcast_msg_core(dms_ctx, &dms_broad_info, MSG_REQ_DDL_SYNC);
 }
 
 #ifdef __cplusplus
