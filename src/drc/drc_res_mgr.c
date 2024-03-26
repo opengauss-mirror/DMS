@@ -947,6 +947,9 @@ void drc_recycle_buf_res_thread(thread_t *thread)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     bool8 has_recycled = CM_FALSE;
 
+    ctx->smon_recycle_handle = g_dms.callback.get_db_handle(&ctx->smon_recycle_sid, DMS_SESSION_TYPE_NONE);
+    cm_panic_log(ctx->smon_recycle_handle != NULL, "alloc db handle failed");
+
     LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread start");
     while (!thread->closed) {
         if (drc_recycle_buf_res_check(has_recycled)) {
