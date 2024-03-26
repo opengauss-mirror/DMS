@@ -302,6 +302,7 @@ static bool32 dms_msg_skip_gcv_check(unsigned int cmd)
         case MSG_REQ_ASK_OWNER_FOR_CR_PAGE:
         case MSG_REQ_ASK_MASTER_FOR_CR_PAGE:
         case MSG_REQ_BROADCAST:
+        case MSG_REQ_OPENGAUSS_DDLLOCK:
             return CM_TRUE;
         default:
             break;
