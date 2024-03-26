@@ -1363,6 +1363,15 @@ static int dms_reform_lock_instance(void)
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
     dms_reform_mark_locking(CM_FALSE);
 
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_push_gcv_and_unlock(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     /* push reform version here; if wrapped, reset to zero */
     if (DMS_GLOBAL_CLUSTER_VER == CM_INVALID_ID32) {
         g_dms.cluster_ver = 0;
@@ -1472,6 +1481,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_WAIT_CKPT] = { "WAIT_CKPT", dms_reform_wait_ckpt, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DRC_VALIDATE] = { "DRC_VALIDATE", dms_reform_drc_validate, NULL, CM_FALSE },
     [DMS_REFORM_STEP_LOCK_INSTANCE] = { "LOCK_INSTANCE", dms_reform_lock_instance, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_PUSH_GCV_AND_UNLOCK] = { "PUSH_GCV_AND_UNLOCK", dms_reform_push_gcv_and_unlock, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SET_REMOVE_POINT] = { "SET_REMOVE_POINT", dms_reform_set_remove_point, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RESET_USER] = { "RESET_USER", dms_reform_reset_user, NULL, CM_FALSE },
     [DMS_REFORM_STEP_COLLECT_XA_OWNER] = { "COLLECT_XA_OWNER", dms_reform_collect_xa_owner, NULL, CM_FALSE },
