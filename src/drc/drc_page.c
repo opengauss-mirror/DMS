@@ -633,6 +633,45 @@ bool8 drc_chk_4_recycle(char *resid, uint16 len)
     return CM_TRUE;
 }
 
+bool8 drc_can_release(drc_buf_res_t *buf_res, uint8 inst_id)
+{
+    if (buf_res->recycling) { // recycling > release
+        return CM_TRUE;
+    }
+
+    // Not related to inst_id.
+    if (buf_res->claimed_owner != inst_id && !bitmap64_exist(&buf_res->copy_insts, inst_id) &&
+        buf_res->converting.req_info.inst_id != inst_id) {
+        return CM_TRUE;
+    }
+
+    // here, owner is inst_id || copy instances || converting is inst_id
+
+    // converting == (inst_id, X), claim maybe msg lost, real owner is inst_id and modify page.
+    // In other words, although it seems to be not related to inst_id, it may actually be related.
+    drc_cvt_item_t *converting = &buf_res->converting;
+    if (converting->req_info.inst_id == inst_id && converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
+        return CM_FALSE;
+    }
+
+    // here, owner is inst_id || copy instances || converting == (inst_id, S)
+
+    if (buf_res->claimed_owner != inst_id) {
+        // here, copy instances || converting == (inst_id, S)
+        return CM_TRUE;
+    }
+
+    // here, owner is inst_id
+    if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
+        buf_res->edp_map != 0 ||
+        buf_res->recovery_skip ||
+        buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
+        return CM_FALSE;
+    }
+
+    return CM_TRUE;
+}
+
 bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
 {
     drc_buf_res_t *buf_res = NULL;
@@ -647,30 +686,12 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
         return CM_TRUE;
     }
 
-    // converting(node maybe also on copy_insts) get X and make dirty, claim msg lost
-    // claim_owner current page is old than converting
-    // if allow converting release now, next request will get page from claim_owner, which is not newest version
-
-    // copy instance or DRC is being recycled
-    if ((bitmap64_exist(&buf_res->copy_insts, inst_id) &&
-        (buf_res->converting.req_info.inst_id != inst_id ||
-        buf_res->converting.req_info.req_mode != DMS_LOCK_EXCLUSIVE)) ||
-        buf_res->recycling) {
-        drc_leave_buf_res(buf_res);
-        return CM_TRUE;
+    bool8 release = drc_can_release(buf_res, inst_id);
+    if (buf_res->claimed_owner == inst_id && release) {
+        drc_buf_res_shift_to_tail(buf_res);
     }
-
-    if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
-        buf_res->edp_map != 0 ||
-        buf_res->recovery_skip ||
-        buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
-        drc_leave_buf_res(buf_res);
-        return CM_FALSE;
-    }
-
-    drc_buf_res_shift_to_tail(buf_res);
     drc_leave_buf_res(buf_res);
-    return CM_TRUE;
+    return release;
 }
 
 bool8 drc_recycle_buf_res(dms_process_context_t *ctx, drc_buf_res_t *buf_res)
