@@ -50,7 +50,7 @@ static int dms_reform_req_common_wait(uint64 ruid)
     dms_reform_ack_common_t *ack_common = (dms_reform_ack_common_t *)res.buffer;
     if (ack_common->result != DMS_SUCCESS) {
         mfc_release_response(&res);
-        return DMS_ERROR;
+        return ack_common->result;
     }
     mfc_release_response(&res);
     return DMS_SUCCESS;
