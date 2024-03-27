@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2022 Huawei Technologies Co.,Ltd.
  *
  * DMS is licensed under Mulan PSL v2.
@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           138
+#define DMS_LOCAL_VERSION           139
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -439,6 +439,7 @@ typedef struct st_dms_buf_ctrl {
     unsigned long long  pblk_lsn;
     unsigned char seg_fileno;
     unsigned int seg_blockno;
+    void *ctrl_lock;
 #endif
 } dms_buf_ctrl_t;
 
