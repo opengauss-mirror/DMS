@@ -852,7 +852,6 @@ static void dms_reform_set_az_switchover_result(void)
             switchover_info->switch_type = AZ_IDLE;
             cm_spin_unlock(&switchover_info->lock);
             g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, reform_info->err_code);
-        }
     } else {
         cm_spin_lock(&switchover_info->lock, NULL);
         if (switchover_info->switch_start) {
