@@ -939,11 +939,18 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     unsigned int db_role;
 
+    for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
+        remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
+    }
+    dms_reform_list_init(&share_info->list_rollback);
     g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
+
     if (share_info->reform_type == DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE ||
         db_role != (unsigned int)DMS_DB_ROLE_PRIMARY) {
-        dms_reform_list_init(&share_info->list_rollback);
         for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            if (remaster_info->deposit_map[inst_id] == share_info->reformer_id) {
+                continue;
+            }
             remaster_info->deposit_map[inst_id] = share_info->reformer_id;
             dms_reform_list_add(&share_info->list_rollback, inst_id);
         }
@@ -951,10 +958,6 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK_PREPARE);
         return;
-    }
-
-    for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
-        remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
     }
 
     // just init deposit_map, no need to do txn deposit
@@ -966,7 +969,6 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
     // not only removed instances rollback by reformer, but also other has been removed instances should rollback again
     // rollback thread run after db_status=WAIT_CLEAN, and we have save stable list before
     // if rollback has not run and crash, instance restart and txn info in removed instances is lost
-    dms_reform_list_init(&share_info->list_rollback);
     for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
         // if instance is online, skip
         if (dms_reform_list_exist(&share_info->list_online, inst_id)) {
