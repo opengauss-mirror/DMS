@@ -498,7 +498,11 @@ int dms_reform_flush_copy_parallel(void)
 
 int dms_reform_rebuild_parallel(void)
 {
-    return dms_reform_parallel(DMS_REFORM_PARALLEL_REBUILD);
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_REBUILD);
+    cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
+    return ret;
 }
 
 int dms_reform_ctl_rcy_clean_parallel(void)
@@ -513,7 +517,11 @@ int drc_recycle_buf_res_parallel(void)
 
 int dms_reform_validate_lock_mode_parallel(void)
 {
-    return dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE_LOCK_MODE);
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE_LOCK_MODE);
+    cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
+    return ret;
 }
 
 int dms_reform_validate_lsn_parallel(void)
