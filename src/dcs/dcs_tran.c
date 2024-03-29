@@ -1409,7 +1409,7 @@ void dms_proc_ask_xa_inuse(dms_process_context_t *proc_ctx, dms_message_t *recei
 
     drc_global_xid_t *xid = &req.xa_xid;
     if (!dms_proc_check_xid_valid(xid)) {
-        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa inuse");
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa ask inuse");
         return;
     }
 
