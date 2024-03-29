@@ -426,8 +426,8 @@ typedef struct st_dms_buf_ctrl {
     volatile unsigned char need_flush;      // for recovery, owner is abort, copy instance should flush before release
     volatile unsigned char been_loaded;     // first alloc ctrl:FALSE, after successfully loaded: TRUE
     volatile unsigned char in_rcy;          // if drc lost, we can rebuild in_recovery flag according buf_ctrl
-    volatile unsigned char release_conflict : 1;
-    volatile unsigned char unused : 7;
+    unsigned char release_conflict : 1;
+    unsigned char unused : 7;
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
