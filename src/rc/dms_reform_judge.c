@@ -1175,6 +1175,9 @@ char *dms_reform_get_type_desc(uint32 reform_type)
         case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
             return "AZ SWITCHOVER DEMOTE";
 
+	case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
+	     return "AZ SWITCHOVER PROMOTE";
+
         case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
             return "AZ FAILOVER";
 
