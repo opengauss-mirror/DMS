@@ -1847,6 +1847,7 @@ void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t 
         ret = g_dms.callback.lsn_validate(ctx->db_handle, item->pageid, item->lsn, item->in_recovery);
         dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_VALIDATE_LSN);
         if (ret != DMS_SUCCESS) {
+            ret = ERRNO_DMS_REFORM_LSN_VLDT_PANIC;
             break;
         }
     }
