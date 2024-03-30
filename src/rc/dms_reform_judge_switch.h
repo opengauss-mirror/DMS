@@ -37,9 +37,9 @@ void dms_reform_judgement_az_demote_approve(instance_list_t *inst_lists);
 void dms_reform_judgement_az_demote_phase2(instance_list_t *inst_lists);
 void dms_reform_judgement_az_promote(void);
 void dms_reform_judgement_az_failover_promote(void);
-bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_az_switchover_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_az_failover_check(instance_list_t *inst_lists);
+bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_switchover_opengauss_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_failover_opengauss_check(instance_list_t *inst_lists);
 

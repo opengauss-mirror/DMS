@@ -695,6 +695,7 @@ static int dms_reform_convert_to_readwrite(void)
 #ifndef OPENGAUSS
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN) ||
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY) ||
+        /* if primary in maintain starts with readonly, we should not convert to readwrite */
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN) ||
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE)) {
         return DMS_SUCCESS;
@@ -901,14 +902,14 @@ static void dms_reform_set_idle_behavior(void)
 }
 #endif
 
-static int dms_reform_start_lrpl()
+static int dms_reform_start_lrpl(void)
 {
     g_dms.callback.start_lrpl(g_dms.reform_ctx.handle_normal, DMS_IS_SHARE_REFORMER);
     dms_reform_next_step();
     return DMS_SUCCESS;
 }
 
-static int dms_reform_stop_lrpl()
+static int dms_reform_stop_lrpl(void)
 {
     g_dms.callback.stop_lrpl(g_dms.reform_ctx.handle_normal, DMS_IS_SHARE_REFORMER);
     dms_reform_next_step();
@@ -1650,9 +1651,12 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_SET_CURRENT_POINT] = { "SET_CURR_POINT", dms_reform_set_current_point, NULL, CM_FALSE },
     [DMS_REFORM_STEP_START_LRPL] = { "START_LRPL", dms_reform_start_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE] = { "AZ_SWITCH_DEMOTE_APPROVE", dms_reform_az_switch_demote_approve, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2] = { "AZ_SWITCH_DEMOTE_PHASE2", dms_reform_az_switch_demote_phase2, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE] = { "AZ_SWITCH_DEMOTE_APPROVE", dms_reform_az_switch_demote_approve,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2] = { "AZ_SWITCH_DEMOTE_PHASE2", dms_reform_az_switch_demote_phase2,
+        NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE] = { "AZ_SWITCH_PROMOTE", dms_reform_az_switchover_promote, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE] = { "AZ_FAILOVER_PROMOTE", dms_reform_az_failover_promote, NULL, CM_FALSE },
 };
