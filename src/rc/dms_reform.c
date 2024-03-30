@@ -138,7 +138,7 @@ void dms_reform_set_start(void)
 #ifndef OPENGAUSS
     if (share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_FAILOVER &&
         share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE &&
-        share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE &&) {
+        share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE) {
         g_dms.callback.reset_link(g_dms.reform_ctx.handle_normal);
     }
 #endif
@@ -697,7 +697,7 @@ int dms_az_switchover_promote(unsigned int sess_id)
     cm_spin_lock(&switchover_info->lock, NULL);
     // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
     switchover_info->reformer_version.inst_id = reformer_id;
-    switchover_info->reformer_version.start_time = reform_info->start_time;
+    switchover_info->reformer_version.start_time = start_time;
     switchover_info->switch_start = CM_TRUE;
     switchover_info->switch_type = AZ_SWITCHOVER;
     switchover_info->inst_id = reformer_id;
