@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           139
+#define DMS_LOCAL_VERSION           140
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -124,8 +124,7 @@ typedef enum en_dms_persistent_id {
 
 // for smon deadlock check
 #define DMS_SMON_DLOCK_MSG_MAX_LEN  24
-#define DMS_SMON_TLOCK_MSG_MAX_LEN  32
-#define DMS_SMON_ILOCK_MSG_MAX_LEN  60
+#define DMS_SMON_TLOCK_MSG_MAX_LEN  56
 #define DMS_SMON_MAX_SQL_LEN    10240  // The maximum size of a message to be transferred in the MES is 32 KB.
 #define MAX_TABLE_LOCK_NUM 512
 #define DMS_MAX_W_MARKS_NUM (16320 * 64)

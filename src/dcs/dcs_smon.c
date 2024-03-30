@@ -204,7 +204,7 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *re
     dms_message_head_t *head = NULL;
 
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)(sizeof(dms_message_head_t) + DMS_XID_SIZE), CM_TRUE);
-    uint32 mes_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_ILOCK_MSG_MAX_LEN);
+    uint32 mes_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN);
 
     send_msg = (uint8 *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
     if (send_msg == NULL) {
@@ -220,7 +220,7 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *re
 
     char *xid = (char *)(receive_msg->buffer + sizeof(dms_message_head_t));
     char *ilock = (char *)(send_msg + sizeof(dms_message_head_t));
-    if (g_dms.callback.get_itl_lock_by_xid(ctx->db_handle, xid, ilock, DMS_SMON_ILOCK_MSG_MAX_LEN) != DMS_SUCCESS) {
+    if (g_dms.callback.get_itl_lock_by_xid(ctx->db_handle, xid, ilock, DMS_SMON_TLOCK_MSG_MAX_LEN) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[SMON][get_itl_lock_by_xid] failed");
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DCS_GET_TXN_INFO_FAILED, "get itl lock failed");
         g_dms.callback.mem_free(ctx->db_handle, send_msg);
@@ -479,11 +479,11 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
 
-    CM_ASSERT(ilock_len >= DMS_SMON_ILOCK_MSG_MAX_LEN);
+    CM_ASSERT(ilock_len >= DMS_SMON_TLOCK_MSG_MAX_LEN);
     CM_CHK_RESPONSE_SIZE(&recv_msg,
-        (uint32)(sizeof(dms_message_head_t) + DMS_SMON_ILOCK_MSG_MAX_LEN), CM_FALSE);
+        (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN), CM_FALSE);
     errno_t err = memcpy_s((char *)ilock, ilock_len, recv_msg.buffer + sizeof(dms_message_head_t),
-        DMS_SMON_ILOCK_MSG_MAX_LEN);
+        DMS_SMON_TLOCK_MSG_MAX_LEN);
     if (err != EOK) {
         mfc_release_response(&recv_msg);
         LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
