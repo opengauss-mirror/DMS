@@ -39,9 +39,11 @@
 static void dms_reform_set_next_step(uint8 step)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    health_info_t *health_info = DMS_HEALTH_INFO;
     dms_reform_proc_stat_end(reform_info->current_step);
     dms_reform_proc_stat_start(step);
     reform_info->current_step = step;
+    health_info->dyn_log_time = cm_clock_monotonic_now(); // record time for trigger dyn log
 }
 
 void dms_reform_next_step(void)

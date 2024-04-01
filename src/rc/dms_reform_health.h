@@ -38,6 +38,8 @@ void dms_reform_health_set_pause(void);
 void dms_reform_handle_fail_in_special_scenario(void);
 #endif
 
+#define DMS_REFORM_HEALTH_TRIGGER_DYN       60
+
 #ifdef __cplusplus
 }
 #endif

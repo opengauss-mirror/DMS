@@ -373,6 +373,7 @@ typedef struct st_health_info {
     uint8               online_status[DMS_MAX_INSTANCES];
     uint64              online_times[DMS_MAX_INSTANCES];
     dms_thread_status_t thread_status;
+    date_t              dyn_log_time;
 } health_info_t;
 
 #define DMS_PARALLEL_MAX_THREAD         64
