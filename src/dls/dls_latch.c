@@ -772,17 +772,17 @@ int dms_get_latch_owner_id(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsign
     }
 }
 
-unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
+unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode)
 {
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] try add tlatch_s(%s) failed, because table latch not initialized",
-            cm_display_lockid(&dlatch->drid));
+        cm_panic_log(0, "[DLS] try add table latch(%s) lock_mode = %u failed, because table latch not initialized",
+            cm_display_lockid(&dlatch->drid), lock_mode);
     }
     dms_reset_error();
     uint32 spin_times = 0;
 
     for (;;) {
-        int32 ret = dls_try_request_lock(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_SHARE);
+        int32 ret = dls_try_request_lock(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, lock_mode);
         if (ret == DMS_SUCCESS) {
             return CM_TRUE;
         }
@@ -794,64 +794,46 @@ unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     }
 }
 
-unsigned char dms_tlatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
+unsigned char dms_latch_table_timed(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode,
+    unsigned int wait_ticks)
 {
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] add tlatch_timed_s(%s) failed, because table latch not initialized",
-            cm_display_lockid(&dlatch->drid));
+        cm_panic_log(0, "[DLS] add latch table timed(%s) lock_mode = %u failed, because table latch not initialized",
+            cm_display_lockid(&dlatch->drid), lock_mode);
     }
     dms_reset_error();
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
 
-    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_SHARE, CM_TRUE, wait_ticks)) {
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, lock_mode, CM_TRUE, wait_ticks)) {
         dls_cancel_request_lock(dms_ctx, &dlatch->drid);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
-        LOG_DEBUG_ERR("[DLS] add tlatch_timed_s(%s) failed", cm_display_lockid(&dlatch->drid));
+        LOG_DEBUG_ERR("[DLS] add latch table timed(%s) lock_mode = %u failed", cm_display_lockid(&dlatch->drid),
+            lock_mode);
         return CM_FALSE;
     }
-    LOG_DEBUG_INF("[DLS] add tlatch_timed_s(%s) successfully", cm_display_lockid(&dlatch->drid));
+    LOG_DEBUG_INF("[DLS] add latch table timed(%s) lock_mode = %u successfully", cm_display_lockid(&dlatch->drid),
+        lock_mode);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
 
     return CM_TRUE;
 }
 
-unsigned char dms_tlatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
+unsigned char dms_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode)
 {
     if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] add tlatch_timed_x(%s) failed, because table latch not initialized",
-            cm_display_lockid(&dlatch->drid));
+        cm_panic_log(0, "[DLS] add latch table(%s) lock_mode = %u failed, because table latch not initialized",
+            cm_display_lockid(&dlatch->drid), lock_mode);
     }
     dms_reset_error();
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
 
-    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE, CM_TRUE, wait_ticks)) {
-        dls_cancel_request_lock(dms_ctx, &dlatch->drid);
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
-        LOG_DEBUG_ERR("[DLS] add tlatch_timed_x(%s) failed", cm_display_lockid(&dlatch->drid));
-        return CM_FALSE;
-    }
-    LOG_DEBUG_INF("[DLS] add tlatch_timed_x(%s) successfully", cm_display_lockid(&dlatch->drid));
-    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
-
-    return CM_TRUE;
-}
-
-unsigned char dms_tlatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
-{
-    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
-        cm_panic_log(0, "[DLS] add tlatch_x(%s) failed, because table latch not initialized",
-            cm_display_lockid(&dlatch->drid));
-    }
-    dms_reset_error();
-    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
-
-    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE, CM_FALSE,
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, lock_mode, CM_FALSE,
         CM_INFINITE_TIMEOUT)) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
-        LOG_DEBUG_ERR("[DLS] add tlatch_x(%s) failed", cm_display_lockid(&dlatch->drid));
+        LOG_DEBUG_ERR("[DLS] add latch table(%s) lock_mode = %u failed", cm_display_lockid(&dlatch->drid), lock_mode);
         return CM_FALSE;
     }
-    LOG_DEBUG_INF("[DLS] add tlatch_x(%s) successfully", cm_display_lockid(&dlatch->drid));
+    LOG_DEBUG_INF("[DLS] add latch table(%s) lock_mode = %u successfully", cm_display_lockid(&dlatch->drid), lock_mode);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
 
     return CM_TRUE;
