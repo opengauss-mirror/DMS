@@ -522,7 +522,7 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
     LOG_RUN_INF("[DMS] dms_init_proc_ctx start");
     uint32 total_ctx_cnt = DMS_WORK_THREAD_COUNT + dms_profile->channel_cnt;
     if (total_ctx_cnt == 0) {
-        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, total_ctx_cnt);
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "total_ctx_cnt");
         return ERRNO_DMS_PARAM_INVALID;
     }
 
@@ -773,7 +773,7 @@ static status_t dms_set_mes_task_threadpool_attr(dms_profile_t *dms_profile, mes
         - tpool_attr->group_attr[MES_PRIORITY_FIVE].max_cnt;
     
     if (left_max_cnt < DMS_WORK_THREAD_MAJOR_MIN_CNT) {
-        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, dms_profile->mes_task_worker_max_cnt);
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "dms_profile's mes_task_worker_max_cnt");
         return ERRNO_DMS_PARAM_INVALID;
     }
     
@@ -797,7 +797,7 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
     } else if (dms_profile->pipe_type == DMS_CONN_MODE_RDMA) {
         mes_profile->pipe_type = DMS_CS_TYPE_RDMA;
     } else {
-        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, dms_profile->pipe_type);
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "dms_profile's pipe_type");
         return ERRNO_DMS_PARAM_INVALID;
     }
 
@@ -890,6 +890,27 @@ static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
         LOG_RUN_ERR("[DRC]global page resource pool init fail,return error:%d", ret);
     }
     return ret;
+}
+
+int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_size, unsigned long long old_data_buffer_size)
+{
+    dms_reset_error();
+    if (new_data_buffer_size <= old_data_buffer_size) {
+        LOG_RUN_ERR("Can not reduce DATA_BUFFER_SIZE online. old_data_buffer_size:%llu, new_data_buffer_size:%llu",
+            old_data_buffer_size, new_data_buffer_size);
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "new data_buffer_size");
+        return DMS_ERROR;
+    }
+
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    float change_pool_num_rate = (float)new_data_buffer_size / old_data_buffer_size;
+    drc_res_pool_t *pool = &ctx->global_buf_res.res_map.res_pool;
+    uint32 old_max_extend_num = pool->max_extend_num;
+    cm_spin_lock(&pool->lock, NULL);
+    pool->max_extend_num = MIN(DRC_RES_EXTEND_MAX_NUM, MAX(old_max_extend_num,
+        ceil(change_pool_num_rate * old_max_extend_num)));
+    cm_spin_unlock(&pool->lock);
+    return DMS_SUCCESS;
 }
 
 static int32 init_lock_res_ctx(dms_profile_t *dms_profile)

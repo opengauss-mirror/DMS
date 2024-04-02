@@ -1019,6 +1019,12 @@ DMS_DECLARE void dms_lock_res_ctrl_shared_mode(unsigned int sid);
 
 DMS_DECLARE void dms_unlock_res_ctrl();
 
+/*
+ * @brief change pool num in global_buf_res
+ */
+DMS_DECLARE int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_size,
+    unsigned long long old_data_buffer_size);
+
 #ifdef __cplusplus
 }
 #endif

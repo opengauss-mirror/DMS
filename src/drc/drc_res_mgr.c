@@ -889,13 +889,16 @@ static bool32 drc_recycle_buf_res_check(bool8 has_recycled)
         }
     }
 
+    cm_spin_lock(&pool->lock, NULL);
     if (pool->extend_num == pool->max_extend_num && pool->used_num > pool->item_num * DRC_RECYCLE_THRESHOLD) {
         if (!has_recycled) {
             LOG_DEBUG_INF("[DRC recycle]start, extend: %u, total: %u, used: %u",
                 pool->extend_num, pool->item_num, pool->used_num);
         }
+        cm_spin_unlock(&pool->lock);
         return CM_TRUE;
     }
+    cm_spin_unlock(&pool->lock);
 
     if (has_recycled) {
         pool->res_depleted = CM_FALSE;
