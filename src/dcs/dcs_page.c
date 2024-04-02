@@ -1018,9 +1018,9 @@ static inline int dcs_release_owner_l(dms_context_t *dms_ctx, unsigned char *rel
     return DMS_SUCCESS;
 }
 
-int dcs_release_owner(dms_context_t *dms_ctx, unsigned char *released)
+int dms_can_release_owner(dms_context_t *dms_ctx, unsigned char *released)
 {
-    LOG_DEBUG_INF("[DCS][%s][dcs_release_owner] entry", cm_display_pageid(dms_ctx->resid));
+    LOG_DEBUG_INF("[DCS][%s][dms_can_release_owner] entry", cm_display_pageid(dms_ctx->resid));
 
     unsigned char master_id;
     int ret = DMS_SUCCESS;
@@ -1079,7 +1079,7 @@ void dcs_proc_release_owner_req(dms_process_context_t *ctx, dms_message_t *recei
 int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned char *released)
 {
     dms_reset_error();
-    int ret = dcs_release_owner(dms_ctx, released);
+    int ret = dms_can_release_owner(dms_ctx, released);
     if (ret != DMS_SUCCESS) {
         return ret;
     }

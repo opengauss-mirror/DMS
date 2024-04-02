@@ -586,6 +586,14 @@ DMS_DECLARE void dms_get_buf_res(unsigned long long *index, dv_drc_buf_info *res
 DMS_DECLARE int dms_release_owner(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned char *released);
 
 /*
+ * @brief release owner
+ * @[in]param dms_ctx -  Obtains the context information.
+ * @[out]param released - CM_TRUE or CM_FALSE
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_can_release_owner(dms_context_t *dms_ctx, unsigned char *released);
+
+/*
 * @brief wait reform done
 * @return - if reform done, then return
 */
