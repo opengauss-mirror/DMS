@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           140
+#define DMS_LOCAL_VERSION           141
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -922,6 +922,7 @@ typedef int (*dms_az_switchover_demote_approve)(void *db_handle);
 typedef int (*dms_az_switchover_demote_phase2)(void *db_handle);
 typedef int (*dms_az_switchover_promote_core)(void *db_handle);
 typedef int (*dms_az_failover_promote)(void *db_handle);
+typedef void (*dms_dyn_log)(void *db_handle, long long dyn_log_time);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1102,6 +1103,8 @@ typedef struct st_dms_callback {
     dms_az_switchover_demote_phase2 az_switchover_demote_phase2;
     dms_az_switchover_promote_core az_switchover_promote;
     dms_az_failover_promote az_failover_promote;
+
+    dms_dyn_log dyn_log;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
