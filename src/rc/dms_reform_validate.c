@@ -26,6 +26,7 @@
 #include "dms_reform_msg.h"
 #include "dms_reform_proc.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_reform_alock.h"
 
 // Check the uniqueness of the X lock and consider message reentrant.
 static int dms_reform_validate_sx(drc_buf_res_t *buf_res, uint8 lock_mode, uint8 inst_id)
@@ -390,6 +391,13 @@ int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thre
     ret = dms_reform_validate_tlock(handle, thread_index, thread_num);
     dms_reform_rebuild_buffer_free(handle, thread_index);
     dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_TLOCK);
+    DMS_RETURN_IF_ERROR(ret);
+
+    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_ALOCK);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_validate_alock(handle, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_ALOCK);
     DMS_RETURN_IF_ERROR(ret);
 #endif
 

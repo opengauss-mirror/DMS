@@ -49,6 +49,7 @@
 #include "dms_reform_xa.h"
 #include "fault_injection.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_reform_alock.h"
 
 dms_instance_t g_dms = { 0 };
 
@@ -89,12 +90,15 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_SMON_BROADCAST,         dcs_proc_smon_broadcast_req,      CM_TRUE, CM_FALSE,  "smon broadcast msg" },
     { MSG_REQ_SMON_TLOCK_BY_TID,      dcs_proc_smon_tlock_by_tid,       CM_TRUE, CM_FALSE,  "smon req tlock by tid" },
     { MSG_REQ_SMON_TLOCK_BY_RM,       dcs_proc_smon_tlock_by_rm,        CM_TRUE, CM_FALSE,  "smon req tlock by rm" },
+    { MSG_REQ_SMON_ALOCK_BY_DRID,     dcs_proc_smon_alock_by_drid,      CM_TRUE, CM_FALSE,  "smon req alock msg" },
     { MSG_REQ_PAGE_REBUILD,           dms_reform_proc_req_page_rebuild, CM_TRUE, CM_TRUE,  "page rebuild" },
     { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE, "page validate" },
     { MSG_REQ_LOCK_REBUILD,           dms_reform_proc_req_lock_rebuild, CM_TRUE, CM_TRUE,  "lock rebuild" },
     { MSG_REQ_TLOCK_REBUILD,          dms_reform_proc_req_tlock_rebuild, CM_TRUE, CM_TRUE, "table lock rebuild" },
     { MSG_REQ_LOCK_VALIDATE,          dms_reform_proc_req_lock_validate, CM_TRUE, CM_TRUE, "lock validate" },
     { MSG_REQ_TLOCK_VALIDATE,         dms_reform_proc_req_tlock_validate, CM_TRUE, CM_TRUE, "table lock validate" },
+    { MSG_REQ_ALOCK_REBUILD,          dms_reform_proc_req_alock_rebuild, CM_TRUE, CM_TRUE,  "alock rebuild" },
+    { MSG_REQ_ALOCK_VALIDATE,         dms_reform_proc_req_alock_validate, CM_TRUE, CM_TRUE, "alock validate" },
     { MSG_REQ_LSN_VALIDATE,           dms_reform_proc_req_lsn_validate, CM_TRUE, CM_TRUE, "lsn validate" },
     { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,   CM_TRUE, CM_FALSE, "req opengauss txn status" },
     { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, dcs_proc_opengauss_txn_snapshot_req,
@@ -202,6 +206,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_END_XA,                       dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack end xa transactions" },
     { MSG_ACK_XA_IN_USE,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack ask xa in use or not" },
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack immediate ckpt request" },
+    { MSG_ACK_SMON_ALOCK_BY_DRID,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack smon deadlock alock drid" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -209,11 +214,14 @@ static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
     drc_buf_res_t *buf_res = (drc_buf_res_t *)res_id;
     dms_drid_t *lockid1 = (dms_drid_t*)buf_res->data;
     dms_drid_t *lockid2 = (dms_drid_t *)res;
-
-    if (lockid1->key1 == lockid2->key1 && lockid1->key2 == lockid2->key2 && lockid1->key3 == lockid2->key3) {
-        return CM_TRUE;
+    if (lockid1->type != lockid2->type) {
+        return CM_FALSE;
     }
-    return CM_FALSE;
+
+    if (DMS_DR_IS_ALOCK_TYPE(lockid1->type)) {
+        return memcmp(lockid1, lockid2, sizeof(dms_drid_t)) == 0;
+    }
+    return lockid1->key1 == lockid2->key1 && lockid1->key2 == lockid2->key2 && lockid1->key3 == lockid2->key3;
 }
 
 static bool32 dms_same_local_lock(char *res_id, const char *res, uint32 len)

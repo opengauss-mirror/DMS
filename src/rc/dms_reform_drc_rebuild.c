@@ -35,6 +35,7 @@
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_xa.h"
 #include "dms_reform_fault_inject.h"
+#include "dms_reform_alock.h"
 
 static void drc_rebuild_set_owner(drc_buf_res_t *buf_res, uint8 owner_id, bool8 is_edp)
 {
@@ -498,6 +499,13 @@ int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, u
     ret = dms_reform_rebuild_tlock(handle, thread_index, thread_num);
     dms_reform_rebuild_buffer_free(handle, thread_index);
     dms_reform_proc_stat_end(DRPS_DRC_REBUILD_TABLE_LOCK);
+    DMS_RETURN_IF_ERROR(ret);
+
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_ALOCK);
+    dms_reform_rebuild_buffer_init(thread_index);
+    ret = dms_reform_rebuild_alock(handle, thread_index, thread_num);
+    dms_reform_rebuild_buffer_free(handle, thread_index);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_ALOCK);
     DMS_RETURN_IF_ERROR(ret);
 
     dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA);

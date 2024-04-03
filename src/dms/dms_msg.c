@@ -140,9 +140,9 @@ static uint64 dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, u
 }
 
 static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 invld_insts,
-    uint64 ruid, uint64 *succ_insts)
+    uint64 ruid, uint32 timeout_ms, uint64 *succ_insts)
 {
-    int32 ret = mfc_get_broadcast_res_with_succ_insts(ruid, (uint32)DMS_WAIT_MAX_TIME, invld_insts, succ_insts);
+    int32 ret = mfc_get_broadcast_res_with_succ_insts(ruid, timeout_ms, invld_insts, succ_insts);
     dms_end_stat(ctx->sess_id);
     return ret;
 }
@@ -221,8 +221,8 @@ static inline int32 dms_invalidate_res_l(dms_process_context_t *ctx, char *resid
     return ret;
 }
 
-int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 len,
-    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct)
+int32 dms_invalidate_share_copy_with_timeout(dms_process_context_t *ctx, char *resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint32 timeout_ms)
 {
     uint64 succ_insts = 0;
     bool32 invld_local = CM_FALSE;
@@ -248,7 +248,7 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
 
     if (invld_insts > 0) {
         uint64 tmp_result = 0;
-        ret = dms_handle_invalidate_ack(ctx, invld_insts, ruid, &tmp_result);
+        ret = dms_handle_invalidate_ack(ctx, invld_insts, ruid, timeout_ms, &tmp_result);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         if (tmp_result > 0) {
             bitmap64_union(&succ_insts, tmp_result);
@@ -266,6 +266,13 @@ int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
     return DMS_SUCCESS;
+}
+
+int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct)
+{
+    return dms_invalidate_share_copy_with_timeout(
+        ctx, resid, len, type, copy_insts, sess_type, is_try, can_direct, DMS_WAIT_MAX_TIME);
 }
 
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
@@ -410,7 +417,8 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
         (uint32)req.head.dst_sid, (uint32)req_mode);
 
     dms_message_t msg = {0};
-    ret = mfc_get_response(req.head.ruid, &msg, DMS_WAIT_MAX_TIME);
+    int32 max_wait_rsp_time_ms = dms_ctx->max_wait_rsp_time == 0 ? DMS_WAIT_MAX_TIME : dms_ctx->max_wait_rsp_time;
+    ret = mfc_get_response(req.head.ruid, &msg, max_wait_rsp_time_ms);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: wait ack timeout, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u, "
             "ret=%d",
@@ -436,10 +444,11 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
     }
 
     dms_message_t msg = {0};
-    int32 ret = mfc_get_response(dms_ctx->ctx_ruid, &msg, DMS_WAIT_MAX_TIME);
+    int32 max_wait_rsp_time_ms = dms_ctx->max_wait_rsp_time == 0 ? DMS_WAIT_MAX_TIME : dms_ctx->max_wait_rsp_time;
+    int32 ret = mfc_get_response(dms_ctx->ctx_ruid, &msg, max_wait_rsp_time_ms);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_handle_ask_master_ack]:wait master ack timeout timeout=%d ms, ruid=%llu",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type), DMS_WAIT_MAX_TIME, dms_ctx->ctx_ruid);
+            cm_display_resid(dms_ctx->resid, dms_ctx->type), max_wait_rsp_time_ms, dms_ctx->ctx_ruid);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
         return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
@@ -591,9 +600,9 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     if (result.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
-
-        ret = dms_invalidate_share_copy(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
-            dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE);
+        int32 max_wait_rsp_time_ms = dms_ctx->max_wait_rsp_time == 0 ? DMS_WAIT_MAX_TIME : dms_ctx->max_wait_rsp_time;
+        ret = dms_invalidate_share_copy_with_timeout(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
+            dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE, max_wait_rsp_time_ms);
         if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
             (void)mfc_get_response(dms_ctx->ctx_ruid, NULL, 0);
             dms_end_stat(dms_ctx->sess_id);

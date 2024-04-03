@@ -1027,6 +1027,66 @@ DMS_DECLARE void dms_get_dms_thread(thread_set_t *thread_set);
 DMS_DECLARE int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_size,
     unsigned long long old_data_buffer_size);
 
+/*
+* @brief distributed advisory shared latch acquire timeout method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @param wait_ticks - timeout ticks.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_alatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+/*
+* @brief distributed advisory exclusive latch acquire timeout method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @param wait_ticks - timeout ticks.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_alatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+/*
+* @brief distributed advisory shared latch try acquire method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_try_alatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+/*
+* @brief distributed advisory exclusive latch try acquire method.
+* @param dms_ctx - dms_context_t structure.
+* @param dlatch - distributed resource lock identifier.
+* @return CM_TRUE acquire success; CM_FALSE acquire failed.
+*/
+DMS_DECLARE unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+/*
+ * @brief rebuild advisory lock during reform.
+ * @[in]param dms_ctx -  Obtains the context information.
+ * @[in]param lock_info -  advisory lock information.
+ * @[in]param thread_index - thread index
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_alock_rebuild_drc_parallel(
+    dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index);
+/*
+ * @brief validate advisory lock during reform.
+ * @[in]param dms_ctx -  Obtains the context information.
+ * @[in]param lock_info -  advisory lock information.
+ * @[in]param thread_index - thread index
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_reform_validate_alock_parallel(
+    dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index);
+/*
+ * @brief Obtain wait information of the alatch in sepecified instance when db is detecting deadlock
+ * @[in]param dms_ctx - Obtains the context information.
+ * @[in]param dst_inst - instance asked
+ * @[in]param alatch - distributed latch id
+ * @[out]param res_buf - buffer that dms writes wait information into
+ * @[in]param buf_len - maxiumn length of res_buf
+ * @[out]param res_len - size that dms writes into res_buf.
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned char dst_inst,
+    dms_drlatch_t *alatch, char *res_buf, unsigned int buf_len, unsigned int *res_len);
 #ifdef __cplusplus
 }
 #endif

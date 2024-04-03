@@ -873,3 +873,84 @@ void dms_unlock_res_ctrl()
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
 }
+
+// alatch
+unsigned char dms_alatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] add alatch_timed_s(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_S, CM_TRUE);
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_SHARE, CM_TRUE, wait_ticks)) {
+        dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_S);
+        LOG_DEBUG_ERR("[DLS] add alatch_timed_s(%s) failed", cm_display_lockid(&dlatch->drid));
+        return CM_FALSE;
+    }
+    LOG_DEBUG_INF("[DLS] add alatch_timed_s(%s) successfully", cm_display_lockid(&dlatch->drid));
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_S);
+    return CM_TRUE;
+}
+
+unsigned char dms_alatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] add alatch_timed_x(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_X, CM_TRUE);
+    if (!dls_request_latch(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE, CM_TRUE, wait_ticks)) {
+        dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_X);
+        LOG_DEBUG_ERR("[DLS] add alatch_timed_x(%s) failed", cm_display_lockid(&dlatch->drid));
+        return CM_FALSE;
+    }
+    LOG_DEBUG_INF("[DLS] add alatch_timed_x(%s) successfully", cm_display_lockid(&dlatch->drid));
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_X);
+    return CM_TRUE;
+}
+
+unsigned char dms_try_alatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] try add alatch_s(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    uint32 spin_times = 0;
+    for (;;) {
+        int32 ret = dls_try_request_lock(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_SHARE);
+        if (ret == DMS_SUCCESS) {
+            return CM_TRUE;
+        }
+        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+            return CM_FALSE;
+        }
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
+    }
+}
+
+unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
+{
+    if (SECUREC_UNLIKELY(dlatch->drid.type == DMS_DR_TYPE_INVALID || dlatch->drid.type >= DMS_DR_TYPE_MAX)) {
+        cm_panic_log(0, "[DLS] try add alatch_x(%s) failed, because latch not initialized",
+            cm_display_lockid(&dlatch->drid));
+    }
+    dms_reset_error();
+    uint32 spin_times = 0;
+    for (;;) {
+        int32 ret = dls_try_request_lock(dms_ctx, NULL, &dlatch->drid, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE);
+        if (ret == DMS_SUCCESS) {
+            return CM_TRUE;
+        }
+        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+            dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+            return CM_FALSE;
+        }
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
+    }
+}

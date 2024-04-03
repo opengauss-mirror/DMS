@@ -749,3 +749,198 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
     return CM_SUCCESS;
 }
+
+typedef struct dms_send_req_and_handle_ack_ctx {
+    uint8 req_msg_type;
+    uint8 rsp_msg_type;
+    uint16 msg_size;
+    void *cookie;
+    int (*build_req_msg_body)(void *cookie, void *req_msg);
+    int (*check_and_handle_rsp_msg)(void *cookie, dms_message_t *rsp_msg);
+    char *(*cookie_desp_or_null)(void *cookie);
+} dms_send_req_and_handle_ack_ctx_t;
+
+int dms_send_req_msg_and_recv_ack(dms_context_t *dms_ctx, unsigned char dst_inst,
+    dms_send_req_and_handle_ack_ctx_t *ctx)
+{
+    dms_reset_error();
+    int ret;
+    dms_message_t recv_msg = { 0 };
+    uint16 msg_size = ctx->msg_size;
+    msg_command_t req_msg_type = ctx->req_msg_type;
+    msg_command_t rsp_msg_type = ctx->rsp_msg_type;
+
+    void *send_msg = (void *)g_dms.callback.mem_alloc(dms_ctx->db_handle, msg_size);
+    if (send_msg == NULL) {
+        DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
+        return ERRNO_DMS_ALLOC_FAILED;
+    }
+
+    // build req msg head
+    dms_message_head_t *head = (dms_message_head_t *)send_msg;
+    DMS_INIT_MESSAGE_HEAD(head, req_msg_type, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id, CM_INVALID_ID16);
+    head->size = msg_size;
+    // build req msg body
+    (void)ctx->build_req_msg_body(ctx->cookie, (void *)send_msg);
+
+    // send msg
+    ret = mfc_send_data(head);
+    if (ret != CM_SUCCESS) {
+        g_dms.callback.mem_free(dms_ctx->db_handle, send_msg);
+        LOG_DEBUG_ERR("[DMS] send request message to instance(%u), cookie(%s) errcode(%d) failed", (uint32)dst_inst,
+            (ctx->cookie_desp_or_null == NULL ? "null" : ctx->cookie_desp_or_null(ctx->cookie)), ret);
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, req_msg_type, dst_inst);
+        return ERRNO_DMS_SEND_MSG_FAILED;
+    }
+
+    g_dms.callback.mem_free(dms_ctx->db_handle, send_msg);
+
+    ret = mfc_get_response(head->ruid, &recv_msg, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS] receive response message from instance(%u), cookie(%s) errcode(%d) failed",
+            (uint32)dst_inst, (ctx->cookie_desp_or_null == NULL ? "null" : ctx->cookie_desp_or_null(ctx->cookie)), ret);
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, rsp_msg_type, dst_inst);
+        return ERRNO_DMS_RECV_MSG_FAILED;
+    }
+
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
+    if (ack_dms_head->cmd == MSG_ACK_ERROR) {
+        cm_print_error_msg_and_throw_error(recv_msg.buffer);
+        mfc_release_response(&recv_msg);
+        return ERRNO_DMS_COMMON_MSG_ACK;
+    }
+    ret = ctx->check_and_handle_rsp_msg(ctx->cookie, &recv_msg);
+    mfc_release_response(&recv_msg);
+    return ret;
+}
+
+#pragma pack(4)
+typedef struct st_dms_smon_deadlock_alock_req {
+    dms_message_head_t head;
+    dms_drid_t key;
+} dms_smon_deadlock_alock_req_t;
+
+typedef struct st_dms_smon_deadlock_alock_rsp {
+    dms_message_head_t head;
+    uint32 ret_code;
+    uint32 data_size;
+    char data[0];
+} dms_smon_deadlock_alock_rsp_t;
+#pragma pack()
+
+typedef struct st_dms_smon_alock_req_assist {
+    dms_drlatch_t *alatch;
+
+    char *result_buf;
+    uint32 buf_len;
+    uint32 *result_len;
+} dms_smon_alock_req_assist_t;
+
+char *dms_smon_alock_cookie_desp(void *cookie)
+{
+    dms_smon_alock_req_assist_t *user_data = cookie;
+    return cm_display_lockid(&user_data->alatch->drid);
+}
+
+int dms_build_smon_alock_req_msg_body(void *cookie, void *req_msg)
+{
+    dms_smon_alock_req_assist_t *user_data = cookie;
+    dms_smon_deadlock_alock_req_t *req = (dms_smon_deadlock_alock_req_t *)req_msg;
+    errno_t err = memcpy_s(&req->key, sizeof(dms_drid_t), &user_data->alatch->drid, sizeof(dms_drid_t));
+    DMS_SECUREC_CHECK(err);
+    return DMS_SUCCESS;
+}
+
+int dms_check_and_handle_alock_rsp_msg(void *cookie, dms_message_t *recv_msg)
+{
+    dms_smon_alock_req_assist_t *user_data = cookie;
+    CM_CHK_RESPONSE_SIZE2(recv_msg, sizeof(dms_smon_deadlock_alock_rsp_t), CM_FALSE);
+    dms_smon_deadlock_alock_rsp_t *rsp = (dms_smon_deadlock_alock_rsp_t *)recv_msg->buffer;
+    *user_data->result_len = rsp->data_size;
+    if (rsp->data_size != 0) {
+        uint32 len = rsp->data_size + sizeof(dms_smon_deadlock_alock_rsp_t);
+        CM_CHK_RESPONSE_SIZE2(recv_msg, len, CM_FALSE);
+        CM_ASSERT(user_data->buf_len >= rsp->data_size);
+        errno_t err = memcpy_s(user_data->result_buf, user_data->buf_len, rsp->data, rsp->data_size);
+        if (err != EOK) {
+            LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
+            DMS_THROW_ERROR(ERRNO_DMS_SECUREC_CHECK_FAIL);
+            return ERRNO_DMS_SECUREC_CHECK_FAIL;
+        }
+    }
+    return DMS_SUCCESS;
+}
+
+int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned char dst_inst,
+    dms_drlatch_t *alatch, char *res_buf, unsigned int buf_len, unsigned int *res_len)
+{
+    dms_smon_alock_req_assist_t user_data = {
+        .alatch = alatch,
+        .result_buf = res_buf,
+        .buf_len = buf_len,
+        .result_len = res_len
+    };
+
+    dms_send_req_and_handle_ack_ctx_t msg_proc_ctx = {
+        .req_msg_type = MSG_REQ_SMON_ALOCK_BY_DRID,
+        .rsp_msg_type = MSG_ACK_SMON_ALOCK_BY_DRID,
+        .msg_size = sizeof(dms_smon_deadlock_alock_req_t),
+        .cookie = (void *)&user_data,
+        .build_req_msg_body = dms_build_smon_alock_req_msg_body,
+        .check_and_handle_rsp_msg = dms_check_and_handle_alock_rsp_msg,
+        .cookie_desp_or_null = dms_smon_alock_cookie_desp,
+    };
+    return dms_send_req_msg_and_recv_ack(dms_ctx, dst_inst, &msg_proc_ctx);
+}
+
+#define DMS_MAX_DEADLOCK_ALOCK_MES_SIZE SIZE_K(32)
+
+void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+#ifdef OPENGAUSS
+    /* pass */
+#else
+    int ret;
+    dms_smon_deadlock_alock_rsp_t *rsp_msg = NULL;
+    dms_message_head_t *head = NULL;
+
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_smon_deadlock_alock_req_t), CM_TRUE);
+    dms_smon_deadlock_alock_req_t *req = (dms_smon_deadlock_alock_req_t *)receive_msg->buffer;
+    uint32 mes_size = DMS_MAX_DEADLOCK_ALOCK_MES_SIZE;
+
+    rsp_msg = (dms_smon_deadlock_alock_rsp_t *)g_dms.callback.mem_alloc(ctx->db_handle, mes_size);
+    if (rsp_msg == NULL) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
+        return;
+    }
+
+    head = &rsp_msg->head;
+    dms_init_ack_head2(head, MSG_ACK_SMON_ALOCK_BY_DRID, 0, receive_msg->head->dst_inst,
+        receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
+        receive_msg->head->msg_proto_ver);
+    head->size = (uint16)mes_size;
+    head->ruid = receive_msg->head->ruid;
+    uint32 buf_len = mes_size - sizeof(dms_smon_deadlock_alock_rsp_t);
+    uint32 info_len = 0;
+    ret = g_dms.callback.get_alock_wait_info(ctx->db_handle, (char *)&req->key, rsp_msg->data, buf_len, &info_len);
+    rsp_msg->ret_code = ret;
+    rsp_msg->data_size = info_len;
+    head->size = sizeof(dms_smon_deadlock_alock_rsp_t) + rsp_msg->data_size;
+
+    ret = mfc_send_data(head);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[SMON] process get alock wait info message from instance(%u) sid(%u) lockid(%s) ret(%d) failed",
+            (uint32)head->dst_inst, (uint32)req->head.src_inst, cm_display_lockid(&req->key), ret);
+        g_dms.callback.mem_free(ctx->db_handle, rsp_msg);
+        return;
+    }
+
+    LOG_DEBUG_INF("[SMON] process get alock wait info message from instance(%u) sid(%u) lockid(%s) ret(%d)",
+        (uint32)head->dst_inst, (uint32)req->head.src_inst, cm_display_lockid(&req->key), ret);
+    g_dms.callback.mem_free(ctx->db_handle, rsp_msg);
+
+#endif
+    return;
+}
+

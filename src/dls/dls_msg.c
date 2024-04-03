@@ -108,6 +108,14 @@ int32 dls_invld_lock_ownership(void *db_handle, char *resid, uint8 req_mode, boo
         LOG_DEBUG_INF("[DLS] dls_invld_lock_ownership(%s) succeeded", cm_display_lockid(lockid));
         return DMS_SUCCESS;
     }
+    if (DMS_DR_IS_ALOCK_TYPE(lockid->type)) {
+        if (g_dms.callback.invld_alock_ownership(db_handle, (char *)lockid, req_mode, is_try) != CM_SUCCESS) {
+            return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
+        }
+
+        LOG_DEBUG_INF("[DLS] dls_invld_lock_ownership(%s) succeeded", cm_display_lockid(lockid));
+        return DMS_SUCCESS;
+    }
 #endif
 
     uint8 lock_mode = (req_mode == DMS_LOCK_SHARE) ? LATCH_STATUS_S : LATCH_STATUS_X;

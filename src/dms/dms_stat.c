@@ -250,6 +250,9 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_AZ_SWITCHOVER_DEMOTE, "req az switchover demote", "", "dms" },
     { MSG_REQ_AZ_SWITCHOVER_PROMOTE, "req az switchover promote", "", "dms" },
     { MSG_REQ_AZ_FAILOVER, "req az failover", "", "dms" },
+    { MSG_REQ_ALOCK_REBUILD, "req advisory lock rebuild", "", "dms" },
+    { MSG_REQ_ALOCK_VALIDATE, "req advisory lock validate", "", "dms" },
+    { MSG_REQ_SMON_ALOCK_BY_DRID, "req smon deadlock advisory lock", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },
@@ -303,6 +306,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_ACK_ASK_XA_OWNER_ID, "ack ask xa owner id", "", "dms" },
     { MSG_ACK_END_XA, "ack end xa", "", "dms" },
     { MSG_ACK_XA_IN_USE, "ack xa in use", "", "dms" },
+    { MSG_ACK_SMON_ALOCK_BY_DRID, "ack smon deadlock alock by drid", "", "dms" },
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT, "ack immediate ckpt request", "", "dms" },
 };
 
