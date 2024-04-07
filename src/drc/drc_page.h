@@ -56,6 +56,7 @@ bool8 drc_chk_4_recycle(char *resid, uint16 len);
 bool8 drc_recycle_buf_res(dms_process_context_t *ctx, drc_buf_res_t *buf_res);
 void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type);
 bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_mode);
+int drc_get_no_owner_id(void *db_handle, drc_buf_res_t *buf_res, uint8 *owner_id);
 #ifdef __cplusplus
 }
 #endif

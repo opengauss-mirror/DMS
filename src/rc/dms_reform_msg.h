@@ -73,11 +73,6 @@ typedef struct st_dms_reform_req_sync_share_info {
     share_info_t        share_info;
 } dms_reform_req_sync_share_info_t;
 
-typedef struct st_dms_reform_req_sync_xa_owners {
-    dms_message_head_t head;
-    uint64 bitmap_has_xa;
-} dms_reform_req_sync_xa_owners_t;
-
 int dms_reform_init_req_sync_share_info(dms_reform_req_sync_share_info_t *req, uint8 dst_id);
 int dms_reform_req_sync_share_info_wait(uint64 ruid);
 void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
@@ -136,27 +131,18 @@ int dms_reform_req_rebuild_lock(msg_command_t cmd, void *lock_res, uint32 append
 int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, void *lock_res, uint32 append_size, 
     uint8 master_id, uint8 thread_index);
 void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dms_reform_proc_req_tlock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 typedef int (*dms_reform_proc_lock_info_rebuild)(void *lock_info, uint8 src_inst);
-typedef int (*dms_reform_proc_lock_info_validate)(void *lock_info, uint8 src_inst);
 void dms_reform_proc_req_lock_rebuild_base(dms_process_context_t *ctx, dms_message_t *receive_msg, 
     uint32 entry_size, dms_reform_proc_lock_info_rebuild proc);
-void dms_reform_proc_req_lock_validate_base(dms_process_context_t *ctx, dms_message_t *receive_msg, 
-    uint32 entry_size, dms_reform_proc_lock_info_validate proc); 
 
-enum dms_reform_req_page_action {
+typedef enum dms_reform_req_page_action {
     DMS_REQ_CONFIRM_OWNER,
     DMS_REQ_CONFIRM_CONVERTING,
-    DMS_REQ_EDP_LSN,
     DMS_REQ_FLUSH_COPY,
-    DMS_REQ_NEED_FLUSH,
-    DMS_REQ_SET_EDP_TO_OWNER,
-};
+} page_action_t;
 
 typedef struct st_dms_reform_req_res {
     dms_message_head_t head;
@@ -213,13 +199,6 @@ void dms_reform_req_group_free(uint8 thread_index);
 int dms_reform_req_group(msg_command_t cmd, uint8 dst_id, uint8 thread_index, void *data, uint32 data_len);
 int dms_reform_req_group_send_rest(uint8 thread_index);
 
-typedef struct st_lsn_validate_item {
-    char    pageid[DMS_PAGEID_SIZE];
-    uint64  lsn;
-    bool8   in_recovery;
-} lsn_validate_item_t;
-void dms_reform_proc_req_lsn_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
-
 typedef struct st_dms_reform_req_az_switchover {
     dms_message_head_t head;
     uint64 start_time;
@@ -237,6 +216,8 @@ void dms_reform_init_req_az_failover(dms_reform_req_az_failover_t *req,
     uint8 reformer_id, uint16 sess_id);
 int dms_reform_req_az_failover_wait(uint64 ruid, uint64 *start_time);
 void dms_reform_proc_req_az_failover(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+
+void dms_reform_proc_repair(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

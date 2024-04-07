@@ -720,19 +720,6 @@ DMS_DECLARE int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, un
 DMS_DECLARE int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
     unsigned char thread_index);
 
-DMS_DECLARE int dms_reform_validate_page_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ctrl_info,
-    unsigned char thread_index);
-
-/*
- * @brief validate table lock during reform.
- * @[in]param dms_ctx -  Obtains the context information required by the page.
- * @[in]param lock_info -  table lock information.
- * @[in]param thread_index - thread index
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_reform_validate_tlock_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *lock_info,
-    unsigned char thread_index);
-
 /*
  * @brief check if session is recovery session or not.
  * @[in]param sid - session id.
@@ -778,16 +765,15 @@ DMS_DECLARE int dms_get_ssl_param(const char *param_name, char *param_value, uns
  * @[out]skip--need skip or not
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc,
-    unsigned long long group_lsn);
+DMS_DECLARE int dms_recovery_page_need_skip(char *pageid, unsigned long long redo_lsn, unsigned char *skip);
 
 /*
- * @brief unregister lsn when analyse redo
+ * @brief recovery analyse page and register lsn in drc
  * @[in] pageid
- * @[in] group_lsn
+ * @[in] redo_lsn
  * @* @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_recovery_unregister_group_lsn(char pageid[DMS_PAGEID_SIZE], unsigned long long group_lsn);
+DMS_DECLARE int dms_recovery_analyse_page(char *pageid, unsigned long long redo_lsn);
 
 /*
  * @brief check reform if failed
@@ -1044,15 +1030,7 @@ DMS_DECLARE unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, dms_drlatch_t
  */
 DMS_DECLARE int dms_alock_rebuild_drc_parallel(
     dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index);
-/*
- * @brief validate advisory lock during reform.
- * @[in]param dms_ctx -  Obtains the context information.
- * @[in]param lock_info -  advisory lock information.
- * @[in]param thread_index - thread index
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_reform_validate_alock_parallel(
-    dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index);
+
 /*
  * @brief Obtain wait information of the alatch in sepecified instance when db is detecting deadlock
  * @[in]param dms_ctx - Obtains the context information.

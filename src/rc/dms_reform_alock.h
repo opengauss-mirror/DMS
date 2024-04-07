@@ -34,10 +34,6 @@ extern "C" {
 int dms_reform_rebuild_alock(void *handle, uint8 thread_index, uint8 thread_num);
 void dms_reform_proc_req_alock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
-// validate
-int dms_reform_validate_alock(void *handle, uint8 thread_index, uint8 thread_num);
-void dms_reform_proc_req_alock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
-
 #ifdef __cplusplus
 }
 #endif

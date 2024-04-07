@@ -25,7 +25,6 @@
 #include "dms_reform_msg.h"
 #include "dms_reform_proc.h"
 #include "dms_reform_proc_stat.h"
-#include "dms_reform_msg.h"
 
 // rebuild
 int dms_reform_rebuild_alock(void *handle, uint8 thread_index, uint8 thread_num)
@@ -83,62 +82,4 @@ void dms_reform_proc_req_alock_rebuild(dms_process_context_t *ctx, dms_message_t
 {
     dms_reform_proc_req_lock_rebuild_base(ctx, receive_msg, sizeof(dms_alock_info_t),
         dms_reform_proc_alock_info_rebuild);
-}
-
-// validate
-int dms_reform_validate_alock(void *handle, uint8 thread_index, uint8 thread_num)
-{
-    return g_dms.callback.validate_alock_parallel(handle, thread_index, thread_num);
-}
-
-int dms_reform_send_req_alock_validate(dms_alock_info_t *lock_info, uint8 master, unsigned char thread_index)
-{
-    uint32 append_size = (uint32)sizeof(dms_alock_info_t);
-    int ret;
-    if (thread_index == CM_INVALID_ID8) {
-        ret = dms_reform_req_rebuild_lock(MSG_REQ_ALOCK_VALIDATE, lock_info, append_size, master);
-    } else {
-        ret = dms_reform_req_rebuild_lock_parallel(MSG_REQ_ALOCK_VALIDATE, lock_info, append_size, master,
-            thread_index);
-    }
-    return ret;
-}
-
-int dms_reform_validate_alock_parallel(dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index)
-{
-    uint8 master_id;
-    dms_drid_t *lock_id = (dms_drid_t *)&lock_info->resid;
-    int ret = drc_get_lock_master_id(lock_id, &master_id);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DRC][%s]dms_reform_validate_alock_parallel, get master id failed", cm_display_lockid(lock_id));
-        return ret;
-    }
-    LOG_DEBUG_INF("[DRC][%s]dms_reform_validate_alock_parallel, master(%d)", cm_display_lockid(lock_id), master_id);
-
-    if (master_id == g_dms.inst_id) {
-        dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_ALOCK_LOCAL);
-        ret = dms_reform_proc_lock_validate(lock_id, lock_info->lock_mode, master_id);
-        dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_ALOCK_LOCAL);
-    } else {
-        dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_ALOCK_REMOTE);
-        ret = dms_reform_send_req_alock_validate(lock_info, master_id, thread_index);
-        dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_ALOCK_REMOTE);
-    }
-    return ret;
-}
-
-int dms_reform_proc_alock_info_validate(void *lock_info, uint8 src_inst)
-{
-    dms_alock_info_t *alock_info = (dms_alock_info_t *)lock_info;
-    int ret = dms_reform_proc_lock_validate(&alock_info->resid, alock_info->lock_mode, src_inst);
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_ERR("[DRC]dms_reform_proc_alock_info_validate, myid:%u", g_dms.inst_id);
-    }
-    return ret;
-}
-
-void dms_reform_proc_req_alock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
-{
-    dms_reform_proc_req_lock_validate_base(ctx, receive_msg, sizeof(dms_alock_info_t),
-        dms_reform_proc_alock_info_validate);
 }

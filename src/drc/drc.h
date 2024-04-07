@@ -152,6 +152,7 @@ typedef enum en_dms_copy_promote {
  */
 typedef struct st_drc_buf_res {
     bilist_node_t   node;               /* used for link drc_buf_res_t in free list or bucket list, must be first */
+    bilist_node_t   rebuild_node;
     uint64          copy_insts;          /* bitmap for owners, for S mode, more than one owner may exist */
     spinlock_t      lock;
     atomic32_t      count;              /* for lock */
@@ -159,23 +160,21 @@ typedef struct st_drc_buf_res {
     uint8           lock_mode;          /* current DRC lock mode */
     uint8           last_edp;           /* the newest edp instance id */
     uint8           type;               /* page or lock */
-    bool8           in_recovery;        /* in recovery or not */
+    bool8           need_recover;       /* in recovery or not */
     uint8           copy_promote;       /* copy promote to owner, can not release, may need flush */
     uint16          part_id;            /* which partition id that current page belongs to */
     bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
     uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
     uint64          lsn;                /* the newest edp LSN of current page in the cluster */
     uint16          len;                /* the length of data below */
-    bool8           recovery_skip;      /* DRC is accessed in recovery and skip because drc has owner */
+    bool8           need_flush;         /* DRC is accessed in recovery and skip because drc has owner */
     bool8           recycling;
     drc_cvt_item_t  converting;         /* the next requester to grant current page to */
     bilist_t        convert_q;          /* current page's requester queue */
     char            data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
+    uint64          owner_lsn;
     bool8           is_using;
-    bool8           s_exists;
-    bool8           x_exists;
-    uint8           x_owner;
-    uint64          group_lsn;
+    uint8           rebuild_type;
 } drc_buf_res_t;
 
 typedef struct st_drc_buf_res_msg {
@@ -293,9 +292,6 @@ typedef enum en_drc_req_owner_result_type {
     DRC_REQ_OWNER_ALREADY_OWNER = 1,
     DRC_REQ_OWNER_CONVERTING    = 2,
     DRC_REQ_OWNER_WAITING       = 3,
-    DRC_REQ_OWNER_TRANSFERRED   = 4,
-    DRC_REQ_EDP_LOCAL           = 5,    // early dirty page local
-    DRC_REQ_EDP_REMOTE          = 6,    // early dirty page remote
 } drc_req_owner_result_type_t;
 
 typedef struct st_drc_req_owner_result {
@@ -557,14 +553,13 @@ void drc_release_xa_by_part(drc_part_list_t *part);
 
 // [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
 // [x_owner-x_exists-s_exists-group_lsn]
-#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, "              \
-    "EDP:%d-%llu-%llu, FLAG:%d-%d-%d, VALIDATE:%d-%d-%d-%llu", desc, cm_display_resid((drc)->data, (drc)->type),    \
-    (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts,                                                      \
+#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu-%d, CVT:%d-%d-%d-%d-%d-%llu-%d, "           \
+    "EDP:%d-%llu-%llu, FLAG:%d-%d-%d", desc, cm_display_resid((drc)->data, (drc)->type),                            \
+    (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts, (drc)->rebuild_type,                                 \
     (drc)->converting.req_info.inst_id, (drc)->converting.req_info.curr_mode, (drc)->converting.req_info.req_mode,  \
     (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.ruid,       \
     (drc)->converting.req_info.sess_id, (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                \
-    (drc)->in_recovery, (drc)->copy_promote, (drc)->recovery_skip,                                                  \
-    (drc)->x_owner, (drc)->x_exists, (drc)->s_exists, (drc)->group_lsn)
+    (drc)->need_recover, (drc)->copy_promote, (drc)->need_flush)
 
 #ifdef __cplusplus
 }

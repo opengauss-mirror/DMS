@@ -78,7 +78,7 @@ int dms_drc_accessible(unsigned char res_type)
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     if (res_type == DRC_RES_PAGE_TYPE) {
         return (int)res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_ACCESS;
-    } else if (res_type == DRC_RES_LOCAL_LOCK_TYPE) {
+    } else if (res_type == DRC_RES_LOCK_TYPE) {
         return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
     } else {
         return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
@@ -130,6 +130,7 @@ void dms_reform_set_start(void)
     dms_reform_proc_stat_clear_current();
     dms_reform_health_set_running();
     dms_reform_proc_set_running();
+    dms_rebuild_assist_list_init();
 #ifndef OPENGAUSS
     if (share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_FAILOVER &&
         share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE &&

@@ -95,21 +95,15 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_SMON_TLOCK_BY_RM,       dcs_proc_smon_tlock_by_rm,        CM_TRUE, CM_FALSE,  "smon req tlock by rm" },
     { MSG_REQ_SMON_ALOCK_BY_DRID,     dcs_proc_smon_alock_by_drid,      CM_TRUE, CM_FALSE,  "smon req alock msg" },
     { MSG_REQ_PAGE_REBUILD,           dms_reform_proc_req_page_rebuild, CM_TRUE, CM_TRUE,  "page rebuild" },
-    { MSG_REQ_PAGE_VALIDATE,          dms_reform_proc_req_page_validate, CM_TRUE, CM_TRUE, "page validate" },
     { MSG_REQ_LOCK_REBUILD,           dms_reform_proc_req_lock_rebuild, CM_TRUE, CM_TRUE,  "lock rebuild" },
     { MSG_REQ_TLOCK_REBUILD,          dms_reform_proc_req_tlock_rebuild, CM_TRUE, CM_TRUE, "table lock rebuild" },
-    { MSG_REQ_LOCK_VALIDATE,          dms_reform_proc_req_lock_validate, CM_TRUE, CM_TRUE, "lock validate" },
-    { MSG_REQ_TLOCK_VALIDATE,         dms_reform_proc_req_tlock_validate, CM_TRUE, CM_TRUE, "table lock validate" },
     { MSG_REQ_ALOCK_REBUILD,          dms_reform_proc_req_alock_rebuild, CM_TRUE, CM_TRUE,  "alock rebuild" },
-    { MSG_REQ_ALOCK_VALIDATE,         dms_reform_proc_req_alock_validate, CM_TRUE, CM_TRUE, "alock validate" },
-    { MSG_REQ_LSN_VALIDATE,           dms_reform_proc_req_lsn_validate, CM_TRUE, CM_TRUE, "lsn validate" },
     { MSG_REQ_OPENGAUSS_TXN_STATUS,   dcs_proc_opengauss_txn_status_req,   CM_TRUE, CM_FALSE, "req opengauss txn status" },
     { MSG_REQ_OPENGAUSS_TXN_SNAPSHOT, dcs_proc_opengauss_txn_snapshot_req,
         CM_TRUE, CM_FALSE,  "req opengauss txn snapshot" },
     { MSG_REQ_OPENGAUSS_TXN_UPDATE_XID, dcs_proc_opengauss_update_xid_req,
         CM_TRUE, CM_FALSE,  "req opengauss update xid" },
     { MSG_REQ_OPENGAUSS_XID_CSN,      dcs_proc_opengauss_xid_csn_req,  CM_TRUE, CM_FALSE, "req opengauss txn csn" },
-    { MSG_REQ_ASK_EDP_REMOTE,         dcs_proc_ask_remote_for_edp,     CM_TRUE, CM_TRUE,  "ask remote for edp" },
     { MSG_REQ_SYNC_STEP,              dms_reform_proc_sync_step,       CM_TRUE, CM_TRUE,  "dms reform sync step" },
     { MSG_REQ_SYNC_SHARE_INFO,        dms_reform_proc_sync_share_info, CM_TRUE, CM_TRUE,  "dms reform sync share info" },
     { MSG_REQ_DMS_STATUS,             dms_reform_proc_req_dms_status,  CM_TRUE, CM_TRUE,  "dms reform get instance status" },
@@ -142,9 +136,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_ASK_XA_OWNER_ID,        dms_proc_ask_xa_owner,           CM_TRUE, CM_TRUE,  "ask xa res owner id" },
     { MSG_REQ_END_XA,                 dms_proc_end_xa,                 CM_TRUE, CM_TRUE,  "request to end the xa" },
     { MSG_REQ_ASK_XA_IN_USE,          dms_proc_ask_xa_inuse,           CM_TRUE, CM_TRUE,  "ask xa in use or not" },
-    { MSG_REQ_MERGE_XA_OWNERS,        dms_reform_proc_xa_merge,        CM_TRUE, CM_TRUE,  "dms reform merge xa owners" },
     { MSG_REQ_XA_REBUILD,             dms_reform_proc_xa_rebuild,      CM_TRUE, CM_TRUE,  "xa res rebuild" },
-    { MSG_REQ_XA_OWNERS,              dms_reform_proc_req_xaowners,    CM_TRUE, CM_TRUE,  "ask xa owners" },
     { MSG_REQ_RECYCLE,                drc_proc_buf_ctrl_recycle,       CM_TRUE, CM_TRUE,  "req buf ctrl recycle" },
     { MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, dms_proc_opengauss_immediate_ckpt,
         CM_TRUE, CM_FALSE, "dms notify primary node do ckpt immediately" },
@@ -152,6 +144,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_AZ_SWITCHOVER_PROMOTE, dms_reform_proc_req_az_switchover, CM_TRUE, CM_FALSE,  "dms az switchover promote" },
     { MSG_REQ_AZ_FAILOVER, dms_reform_proc_req_az_failover, CM_TRUE, CM_FALSE,  "dms az failover" },
     { MSG_REQ_CHECK_OWNERSHIP, dms_proc_check_page_ownership, CM_TRUE, CM_FALSE,  "check page ownership" },
+    { MSG_REQ_REPAIR_NEW, dms_reform_proc_repair, CM_TRUE, CM_TRUE, "repair new" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -190,8 +183,6 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_TXN_UPDATE_XID,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss update xid" },
     { MSG_ACK_OPENGAUSS_XID_CSN,            dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss xid csn" },
     { MSG_ACK_OPENGAUSS_LOCK_BUFFER,        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack opengauss lock buffer" },
-    { MSG_ACK_EDP_LOCAL,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp local" },
-    { MSG_ACK_EDP_READY,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack edp remote ready" },
     { MSG_ACK_REFORM_COMMON,                dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack for reform requests only" },
     { MSG_ACK_MAP_INFO,                     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for map info" },
     { MSG_ACK_REFORM_GCV_SYNC,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack instance for gcv sync" },
@@ -1376,6 +1367,7 @@ void dms_uninit(void)
 #else
     dms_reform_cm_res_unlock();
 #endif
+    cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     drc_smon_ctx_deinit();
     mfc_uninit();
     drc_destroy();

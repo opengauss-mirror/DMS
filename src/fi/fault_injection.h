@@ -109,6 +109,7 @@ typedef enum en_dms_fi_point_name {
     DMS_FI_ACK_ASK_XA_OWNER_ID = 63,
     DMS_FI_ACK_END_XA = 64,
     DMS_FI_ACK_XA_IN_USE = 65,
+    DMS_FI_ROLLBACK_PREPARE = 66,
     DMS_FI_ENTRY_END
 } dms_fi_point_name_e;
 

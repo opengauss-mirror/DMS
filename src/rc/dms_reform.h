@@ -119,7 +119,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_REPAIR,
     DMS_REFORM_STEP_SWITCH_LOCK,
     DMS_REFORM_STEP_SWITCHOVER_DEMOTE,
-    DMS_REFORM_STEP_SWITCHOVER_PROMOTE,
     DMS_REFORM_STEP_RECOVERY,
     DMS_REFORM_STEP_RECOVERY_OPENGAUSS,
     DMS_REFORM_STEP_DRC_RCY_CLEAN,
@@ -140,7 +139,6 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
     DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS,
     DMS_REFORM_STEP_STARTUP_OPENGAUSS,              // for opengauss
-    DMS_REFORM_STEP_FLUSH_COPY,
     DMS_REFORM_STEP_DONE_CHECK,
     DMS_REFORM_STEP_SET_PHASE,                      // for Gauss100
     DMS_REFORM_STEP_WAIT_DB,                        // for Gauss100
@@ -154,14 +152,9 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
     DMS_REFORM_STEP_RESET_USER,
     DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
-    DMS_REFORM_STEP_COLLECT_XA_OWNER,               // for Gauss100, collect xa owner
-    DMS_REFORM_STEP_MERGE_XA_OWNERS,                // for Gauss100, merge xa owners from all nodes
-    DMS_REFORM_STEP_RECOVERY_XA,                    // for Gauss100, recovery xa
     DMS_REFORM_STEP_XA_DRC_ACCESS,                  // for Gauss100, set xa drc access
     DMS_REFORM_STEP_DDL_2PHASE_DRC_ACCESS,
     DMS_REFORM_STEP_DDL_2PHASE_RCY,
-    DMS_REFORM_STEP_VALIDATE_LOCK_MODE,
-    DMS_REFORM_STEP_VALIDATE_LSN,
     DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS,
     DMS_REFORM_STEP_SET_CURRENT_POINT,
     DMS_REFORM_STEP_STANDBY_UPDATE_REMOVE_NODE_CTRL,
@@ -283,6 +276,67 @@ typedef struct st_log_point {
     uint64              lfn : 46;
 } log_point_t;
 
+/* REBUILD
+
+            +--[NULL]--[EDP]---------------------->[must be EDP]   --> [do nothing]
+            |
+            |                     +--[dirty or flushed_lsn==page_lsn]--->[must be OWNER] --> [REFORM_ASSIST_LIST_OWNER]
+            |       +--[not EDP]--|
+ [REBUILD]--+--[S]--|             +--[else]-->[can be OWNER]  --> [REFORM_ASSIST_LIST_NORMAL_COPY]
+            |       |
+            |       +--[EDP]---------------------->[can be OWNER]  --> [REFORM_ASSIST_LIST_EDP_COPY]
+            |
+            |       +--[dirty or flushed_lsn==page_lsn]----------------->[must be OWNER] --> [REFORM_ASSIST_LIST_OWNER]
+            +--[X]--|
+                    +--[else]---------------->[can be OWNER]  --> [REFORM_ASSIST_LIST_NORMAL_COPY]
+
+tips:
+ 1. According to the priority of the list, DRC are moved between different lists during REBUILD.
+ 2. If page is dirty or flushed_lsn == page_lsn, we treat the page as DIRTY.
+ 3. To reduce conflicts in list operations between parallel threads, the list is divided into 128 parts.
+ */
+
+/* RECOVERY_ANALYSE
+
+ [REFORM_ASSIST_LIST_OWNER]       -->[in_recovery=false,validate lsn]
+ [REFORM_ASSIST_LIST_NORMAL_COPY] -->[in_recovery=false,validate lsn] --> [REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO]
+ [REFORM_ASSIST_LIST_EDP_COPY]    -->[in_recovery=false,validate lsn]
+ [REFORM_ASSIST_LIST_EDP]         -->[in_recovery_true]
+ [DRC not exists]                 -->[in_recovery=true] --> [LIST_NONE]
+
+ tips:
+ 1. If DRC is in REFORM_ASSIST_LIST_NORMAL_COPY, promote to REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO.
+ 2. If DRC is created for recovery analyze, add to REFORM_ASSIST_LIST_NEW_DRC.
+ 3. If DRC skip recover, lsn is validated in RECOVERY_ANALYSE.
+ 4. If DRC does not skip recover, need not to validate lsn again.
+*/
+
+/* REPAIR_NEW
+
+ [REFORM_ASSIST_LIST_NONE]                  --> [do RECOVER] drc_get_page_no_owner should deal with last_edp
+ [REFORM_ASSIST_LIST_NORMAL_COPY]           --> [do nothing]
+ [REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO] --> [FLUSH_COPY]
+ [REFORM_ASSIST_LIST_EDP_COPY]              --> [do nothing] ss_ckpt_remote_edp should deal edp as owner
+ [REFORM_ASSIST_LIST_OWNER]                 --> [do nothing]
+
+ tips:
+ 1. If DRC is in REFORM_ASSIST_LIST_NONE, its page will be recover later.
+ 2. If DRC is in REFORM_ASSIST_LIST_NORMAL_COPY, it is not mentioned in redo, and need not to do recover or flush.
+ 3. If DRC is in REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO, it is mentioned in redo, need to do force flush to disk.
+ 4. If DRC is in REFORM_ASSIST_LIST_EDP_COPY, need not to do recover, build should flush to disk.
+ 5. If DRC is in REFORM_ASSIST_LIST_OWNER, the page will be flushed or has been flushed.
+*/
+
+typedef enum en_reform_assist_list_type {
+    REFORM_ASSIST_LIST_NONE = 0,
+    REFORM_ASSIST_LIST_NORMAL_COPY = 1,
+    REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO = 2,
+    REFORM_ASSIST_LIST_EDP_COPY = 3,
+    REFORM_ASSIST_LIST_OWNER = 4,
+
+    REFORM_ASSIST_LIST_COUNT
+} reform_assist_list_type_e;
+
 typedef struct st_reform_info {
     latch_t             file_latch;
     uint64              max_scn;
@@ -329,6 +383,7 @@ typedef struct st_reform_info {
     uint64              bitmap_in;
     bool8               is_locking;
     bool8               has_ddl_2phase;
+    drc_part_list_t     normal_copy_lists[DRC_MAX_PART_NUM];
 } reform_info_t;
 
 typedef struct st_switchover_info {
