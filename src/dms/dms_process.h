@@ -185,6 +185,19 @@ void dms_free(void *ptr);
         }                          \
     } while (0)
 
+static inline void dms_get_one_thread(thread_set_t *thread_set, thread_t *thread,
+    char *thread_name_format, char *thread_name)
+{
+    if (thread_set->thread_count >= MAX_DMS_THREAD_NUM) {
+        return;
+    }
+    errno_t err = sprintf_s(thread_set->threads[thread_set->thread_count].thread_name,
+        DMS_MAX_NAME_LEN, thread_name_format, thread_name);
+    DMS_SECUREC_CHECK_SS(err);
+    thread_set->threads[thread_set->thread_count].thread_info = (void *)thread;
+    thread_set->thread_count++;
+}
+
 #ifdef __cplusplus
 }
 #endif

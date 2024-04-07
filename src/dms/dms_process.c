@@ -1561,3 +1561,54 @@ int dms_calc_mem_usage(dms_profile_t *dms_profile, uint64 *total_mem)
 
     return DMS_SUCCESS;
 }
+
+static inline void dms_get_reform_thread(thread_set_t *thread_set, char *dms_thread_name_format)
+{
+    dms_get_one_thread(thread_set, &DMS_REFORM_CONTEXT->thread_judgement, dms_thread_name_format, "judgement");
+    dms_get_one_thread(thread_set, &DMS_REFORM_CONTEXT->thread_reformer, dms_thread_name_format, "reformer");
+    dms_get_one_thread(thread_set, &DMS_REFORM_CONTEXT->thread_reform, dms_thread_name_format, "reform");
+    dms_get_one_thread(thread_set, &DMS_REFORM_CONTEXT->thread_health, dms_thread_name_format, "health");
+}
+
+static inline void dms_get_smon_thread(thread_set_t *thread_set, char *dms_thread_name_format)
+{
+    dms_get_one_thread(thread_set, &DRC_RES_CTX->smon_thread, dms_thread_name_format, "smon");
+    dms_get_one_thread(thread_set, &DRC_RES_CTX->smon_recycle_thread, dms_thread_name_format, "smon recycle");
+}
+
+static void dms_get_reform_parallel_thread(thread_set_t *thread_set, char *dms_thread_name_format)
+{
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    parallel_thread_t *parallel = NULL;
+    for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
+        parallel = &parallel_info->parallel[i];
+        if (parallel->handle == NULL) {
+            return;
+        }
+        dms_get_one_thread(thread_set, &parallel->thread, dms_thread_name_format, "reform parallel");
+    }
+}
+
+void dms_get_dms_thread(thread_set_t *thread_set)
+{
+    mes_thread_set_t mes_thread_set;
+    errno_t err = memset_s(&mes_thread_set, sizeof(mes_thread_set_t), 0, sizeof(mes_thread_set_t));
+    DMS_SECUREC_CHECK_SS(err);
+    mes_get_all_threads(&mes_thread_set);
+
+    for (uint32 i = 0; i < mes_thread_set.thread_count; i++) {
+        if (thread_set->thread_count >= MAX_DMS_THREAD_NUM) {
+            return;
+        }
+        err = sprintf_s(thread_set->threads[thread_set->thread_count].thread_name,
+            DMS_MAX_NAME_LEN, mes_thread_set.threads[i].thread_name);
+        DMS_SECUREC_CHECK_SS(err);
+        thread_set->threads[thread_set->thread_count].thread_info = mes_thread_set.threads[i].thread_info;
+        thread_set->thread_count++;
+    }
+
+    char dms_thread_name_format[] = "dms %s";
+    dms_get_reform_thread(thread_set, dms_thread_name_format);
+    dms_get_smon_thread(thread_set, dms_thread_name_format);
+    dms_get_reform_parallel_thread(thread_set, dms_thread_name_format);
+}
