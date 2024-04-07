@@ -33,7 +33,7 @@ const char *g_dms_errno_common_desc[] = {
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_PARAM_NULL)] = "dms param is null",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_CMD_INVALID)] = "dms cmd is invalid, cmd is %d",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_ALLOC_FAILED)] = "dms alloc failed",
-    [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_PARAM_INVALID)] = "dms param is invalid, param = %d",
+    [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_PARAM_INVALID)] = "dms param is invalid, param = %s",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_CAPABILITY_NOT_SUPPORT)] = "dms not support this capability, type = %d",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL)] = "copy pageid fail, pageid is %s",
     [ERRNO_DMS_COMMON_INDEX(ERRNO_DMS_SEND_MSG_FAILED)] = "send msg failed,errcode:%d, cmd:%u, dst_inst:%u",
