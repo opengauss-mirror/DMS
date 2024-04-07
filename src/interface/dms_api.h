@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           142
+#define DMS_LOCAL_VERSION           143
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -64,6 +64,8 @@ extern "C" {
 #define DB_FI_ENTRY_COUNT        1024
 #define FI_ENTRY_END (DB_FI_ENTRY_BEGIN + DB_FI_ENTRY_COUNT)
 #define MAX_FI_ENTRY_COUNT       2000
+
+#define MAX_DMS_THREAD_NUM       512
 
 typedef enum en_dms_online_status {
     DMS_ONLINE_STATUS_OUT = 0,
@@ -1263,9 +1265,18 @@ typedef struct st_dms_tlock_info {
     unsigned char unused[3];
 } dms_tlock_info_t;
 
+typedef struct thread_info {
+    char thread_name[DMS_MAX_NAME_LEN];
+    void *thread_info;
+} thread_info_t;
+
+typedef struct thread_set {
+    thread_info_t threads[MAX_DMS_THREAD_NUM];
+    int thread_count;
+} thread_set_t;
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __DMS_H__ */
-

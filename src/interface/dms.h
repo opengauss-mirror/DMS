@@ -1019,6 +1019,8 @@ DMS_DECLARE void dms_lock_res_ctrl_shared_mode(unsigned int sid);
 
 DMS_DECLARE void dms_unlock_res_ctrl();
 
+DMS_DECLARE void dms_get_dms_thread(thread_set_t *thread_set);
+
 /*
  * @brief change pool num in global_buf_res
  */
