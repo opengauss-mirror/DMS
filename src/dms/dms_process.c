@@ -918,6 +918,7 @@ int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_size, unsigned
     pool->max_extend_num = MIN(DRC_RES_EXTEND_MAX_NUM, MAX(old_max_extend_num,
         ceil(change_pool_num_rate * old_max_extend_num)));
     cm_spin_unlock(&pool->lock);
+    LOG_RUN_INF("buf drc pool's max_extend_num changes, ori:%u, now:%u", old_max_extend_num, pool->max_extend_num);
     return DMS_SUCCESS;
 }
 
