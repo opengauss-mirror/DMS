@@ -49,7 +49,7 @@ int dms_reform_send_req_alock_rebuild(dms_alock_info_t *lock_info, uint8 new_mas
 int dms_alock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index)
 {
     uint8 remaster_id;
-    dms_drid_t *lock_id = (dms_drid_t *)&dms_ctx->resid;
+    dms_drid_t *lock_id = (dms_drid_t *)&lock_info->resid;
     int ret = drc_get_lock_remaster_id(lock_id, &remaster_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DRC][%s]dms_alock_rebuild_drc_parallel, fail to get remaster id", cm_display_lockid(lock_id));
@@ -107,7 +107,7 @@ int dms_reform_send_req_alock_validate(dms_alock_info_t *lock_info, uint8 master
 int dms_reform_validate_alock_parallel(dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index)
 {
     uint8 master_id;
-    dms_drid_t *lock_id = (dms_drid_t *)&dms_ctx->resid;
+    dms_drid_t *lock_id = (dms_drid_t *)&lock_info->resid;
     int ret = drc_get_lock_master_id(lock_id, &master_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DRC][%s]dms_reform_validate_alock_parallel, get master id failed", cm_display_lockid(lock_id));
