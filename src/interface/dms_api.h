@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           144
+#define DMS_LOCAL_VERSION           145
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -710,6 +710,7 @@ typedef struct st_stat_buf_info {
 typedef enum en_broadcast_scope {
     DMS_BROADCAST_OLDIN_LIST = 0,    // default value
     DMS_BROADCAST_ONLINE_LIST = 1,
+    DMS_BROADCAST_SPECIFY_LIST = 2,
     DMS_BROADCAST_TYPE_COUNT,
 } dms_broadcast_scope_e;
 
@@ -752,6 +753,18 @@ typedef enum en_dms_db_role {
     DMS_DB_ROLE_PHYSICAL_STANDBY = 1,
     DMS_DB_ROLE_CASCADED_PHYSICAL_STANDBY = 2,
 } dms_db_role_t;
+
+typedef struct st_dms_broadcast_info {
+    char *data;
+    unsigned int len;
+    char *output;
+    unsigned int *output_len;
+    dms_broadcast_scope_e scope;
+    unsigned long long inst_map; /* when scope is DMS_BROADCAST_SPECIFY_LIST, inst_map is used */
+    unsigned int timeout;
+    unsigned char handle_recv_msg;
+    unsigned char check_session_kill; 
+} dms_broadcast_info_t;
 
 typedef struct dms_fi_entry dms_fi_entry;
 typedef int(*dms_fi_callback_func)(const dms_fi_entry *entry, va_list args);

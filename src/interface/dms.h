@@ -387,27 +387,10 @@ DMS_DECLARE void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 /*
 * @brief broadcast message to other instances.
 * @param dms_ctx - dms_context_t structure.
-* @param data - message data.
-* @param len - message length.
-* @param handle_recv_msg - handle_recv_msg.
-* @param timeout - wait response msg in timeout
+* @param dms_broad_info - dms_broadcast_info_t structure.
 * @return DMS_SUCCESS - success;otherwise: failed
 */
-DMS_DECLARE int dms_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
-    unsigned char handle_recv_msg, unsigned int timeout);
-
-/*
-* @brief broadcast message to other instances.
-* @param dms_ctx - dms_context_t structure.
-* @param data - message data.
-* @param len - message length.
-* @param handle_recv_msg - handle_recv_msg.
-* @param timeout - wait response msg in timeout
-* @param sope - broadcast scope
-* @return DMS_SUCCESS - success;otherwise: failed
-*/
-DMS_DECLARE int dms_broadcast_msg_with_scope(dms_context_t *dms_ctx, char *data, unsigned int len,
-    unsigned char handle_recv_msg, unsigned int timeout, dms_broadcast_scope_e scope);
+DMS_DECLARE int dms_broadcast_msg(dms_context_t *dms_ctx, dms_broadcast_info_t *dms_broad_info);
 
 /*
 * @brief broadcast message to other instances.
