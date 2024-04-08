@@ -47,6 +47,7 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *recei
 void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_smon_tlock_by_rm(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_smon_tlock_by_tid(dms_process_context_t *ctx, dms_message_t *receive_msg);
+void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

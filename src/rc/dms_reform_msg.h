@@ -139,6 +139,13 @@ void dms_reform_proc_req_page_validate(dms_process_context_t *ctx, dms_message_t
 void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dms_reform_proc_req_tlock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
+typedef int (*dms_reform_proc_lock_info_rebuild)(void *lock_info, uint8 src_inst);
+typedef int (*dms_reform_proc_lock_info_validate)(void *lock_info, uint8 src_inst);
+void dms_reform_proc_req_lock_rebuild_base(dms_process_context_t *ctx, dms_message_t *receive_msg, 
+    uint32 entry_size, dms_reform_proc_lock_info_rebuild proc);
+void dms_reform_proc_req_lock_validate_base(dms_process_context_t *ctx, dms_message_t *receive_msg, 
+    uint32 entry_size, dms_reform_proc_lock_info_validate proc); 
+
 enum dms_reform_req_page_action {
     DMS_REQ_CONFIRM_OWNER,
     DMS_REQ_CONFIRM_CONVERTING,

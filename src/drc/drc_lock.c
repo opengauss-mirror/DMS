@@ -114,6 +114,10 @@ int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
         *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
         return DMS_SUCCESS;
     }
+    if (DMS_DR_IS_ALOCK_TYPE(drid->type)) {
+        *lock_mode = g_dms.callback.get_alock_mode(db_handle, resid);
+        return DMS_SUCCESS;
+    }
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
     drc_lock_local_resx(lock_res, NULL, NULL);
@@ -128,6 +132,10 @@ int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
 #ifndef OPENGAUSS
     if (DMS_DR_IS_TABLE_TYPE(drid->type)) {
         *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
+        return DMS_SUCCESS;
+    }
+    if (DMS_DR_IS_ALOCK_TYPE(drid->type)) {
+        *lock_mode = g_dms.callback.get_alock_mode(db_handle, resid);
         return DMS_SUCCESS;
     }
 #endif

@@ -270,12 +270,12 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
     }
 }
 
-#define CM_CHK_RESPONSE_SIZE(msg, len, has_ack)                                                 \
+#define CM_CHK_RESPONSE_SIZE_(msg, len, has_ack, release_msg)                                   \
     do {                                                                                        \
         if ((msg)->head->cmd == MSG_ACK_ERROR) {                                                \
             cm_print_error_msg((msg)->buffer);                                                  \
             DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (msg)->buffer + sizeof(msg_error_t));     \
-            mfc_release_response(msg);                                                          \
+            (release_msg) ? mfc_release_response(msg) : (void)0;                                \
             return ERRNO_DMS_COMMON_MSG_ACK;                                                    \
         }                                                                                       \
         if ((msg)->head->size < (len)) {                                                        \
@@ -284,10 +284,13 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
             if (has_ack) {                                                                      \
                 cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
             }                                                                                   \
-            mfc_release_response(msg);                                                          \
+            (release_msg) ? mfc_release_response(msg) : (void)0;                                \
             return ERRNO_DMS_MES_INVALID_MSG;                                                   \
         }                                                                                       \
     } while (0)
+
+#define CM_CHK_RESPONSE_SIZE(msg, len, has_ack) CM_CHK_RESPONSE_SIZE_((msg), (len), (has_ack), (CM_TRUE))
+#define CM_CHK_RESPONSE_SIZE2(msg, len, has_ack) CM_CHK_RESPONSE_SIZE_((msg), (len), (has_ack), (CM_FALSE))
 
 #define CM_CHK_PROC_MSG_SIZE(msg, len, has_ack)                                                 \
     do {                                                                                        \

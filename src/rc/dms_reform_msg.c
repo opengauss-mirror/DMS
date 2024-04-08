@@ -998,7 +998,8 @@ int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, void *local_lock, ui
     return DMS_SUCCESS;
 }
 
-void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
+void dms_reform_proc_req_lock_rebuild_base(dms_process_context_t *ctx, dms_message_t *receive_msg,
+    uint32 entry_size, dms_reform_proc_lock_info_rebuild proc)
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
@@ -1012,13 +1013,13 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t 
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    drc_local_lock_res_t *lock_res;
+    uint8 *lock_info;
     int ret;
 
-    while (offset + sizeof(drc_local_lock_res_t) <= req_rebuild->offset) {
-        lock_res = (drc_local_lock_res_t *)((uint8 *)req_rebuild + offset);
-        offset += (uint32)sizeof(drc_local_lock_res_t);
-        ret = dms_reform_proc_lock_rebuild(&lock_res->resid, lock_res->latch_stat.lock_mode, inst_id);
+    while (offset + entry_size <= req_rebuild->offset) {
+        lock_info = (uint8 *)req_rebuild + offset;
+        offset += entry_size;
+        ret = proc(lock_info, inst_id);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DRC]dms_reform_proc_req_rebuild_lock, myid:%u", g_dms.inst_id);
             break;
@@ -1027,7 +1028,8 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t 
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
 }
 
-void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
+void dms_reform_proc_req_lock_validate_base(dms_process_context_t *ctx, dms_message_t *receive_msg, 
+    uint32 entry_size, dms_reform_proc_lock_info_validate proc)
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
@@ -1041,13 +1043,13 @@ void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    drc_local_lock_res_t *lock_res;
+    uint8 *lock_info;
     int ret;
 
-    while (offset + sizeof(drc_local_lock_res_t) <= req_rebuild->offset) {
-        lock_res = (drc_local_lock_res_t *)((uint8 *)req_rebuild + offset);
-        offset += (uint32)sizeof(drc_local_lock_res_t);
-        ret = dms_reform_proc_lock_validate(&lock_res->resid, lock_res->latch_stat.lock_mode, inst_id);
+    while (offset + entry_size <= req_rebuild->offset) {
+        lock_info = (uint8 *)req_rebuild + offset;
+        offset += entry_size;
+        ret = proc(lock_info, inst_id);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DRC]dms_reform_proc_lock_validate, myid:%u", g_dms.inst_id);
             break;
@@ -1058,61 +1060,68 @@ void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t
         "[DRC Validate]remote requested lock lockmode validate failed, myid:%u", g_dms.inst_id);
 }
 
+int dms_reform_proc_local_lock_res_rebuild(void *lock_info, uint8 src_inst)
+{
+    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t *)lock_info;
+    int ret = dms_reform_proc_lock_rebuild(&lock_res->resid, lock_res->latch_stat.lock_mode, src_inst);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]dms_reform_proc_local_lock_res_rebuild, myid:%u", g_dms.inst_id);
+    }
+    return ret;
+}
+
+void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    dms_reform_proc_req_lock_rebuild_base(ctx, receive_msg, sizeof(drc_local_lock_res_t),
+        dms_reform_proc_local_lock_res_rebuild);
+}
+
+int dms_reform_proc_local_lock_res_validate(void *lock_info, uint8 src_inst)
+{
+    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t *)lock_info;
+    int ret = dms_reform_proc_lock_validate(&lock_res->resid, lock_res->latch_stat.lock_mode, src_inst);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]dms_reform_proc_local_lock_res_validate, myid:%u", g_dms.inst_id);
+    }
+    return ret;
+}
+
+void dms_reform_proc_req_lock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    dms_reform_proc_req_lock_validate_base(ctx, receive_msg, sizeof(drc_local_lock_res_t),
+        dms_reform_proc_local_lock_res_validate);
+}
+
+int dms_reform_proc_tlock_rebuild(void *lock_info, uint8 src_inst)
+{
+    dms_tlock_info_t *tlock = (dms_tlock_info_t *)lock_info;
+    int ret = dms_reform_proc_lock_rebuild(&tlock->resid, tlock->lock_mode, src_inst);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]dms_reform_proc_tlock_rebuild, myid:%u", g_dms.inst_id);
+    }
+    return ret;
+}
+
 void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
-    dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
+    dms_reform_proc_req_lock_rebuild_base(ctx, receive_msg, sizeof(drc_local_lock_res_t),
+        dms_reform_proc_tlock_rebuild);
+}
 
-    if (!dms_reform_check_judge_time(&req_rebuild->head)) {
-        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        return;
+int dms_reform_proc_tlock_validate(void *lock_info, uint8 src_inst)
+{
+    dms_tlock_info_t *tlock = (dms_tlock_info_t *)lock_info;
+    int ret = dms_reform_proc_lock_validate(&tlock->resid, tlock->lock_mode, src_inst);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]dms_reform_proc_tlock_validate, myid:%u", g_dms.inst_id);
     }
-
-    uint8 inst_id = req_rebuild->head.src_inst;
-    uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    dms_tlock_info_t *lock_info;
-    int ret;
-
-    while (offset + sizeof(dms_tlock_info_t) <= req_rebuild->offset) {
-        lock_info = (dms_tlock_info_t *)((uint8 *)req_rebuild + offset);
-        offset += (uint32)sizeof(dms_tlock_info_t);
-        ret = dms_reform_proc_lock_rebuild(&lock_info->resid, lock_info->lock_mode, inst_id);
-        if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DRC]dms_reform_proc_req_tlock_rebuild, myid:%u", g_dms.inst_id);
-            break;
-        }
-    }
-    dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+    return ret;
 }
 
 void dms_reform_proc_req_tlock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_rebuild_t), CM_TRUE);
-    dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)receive_msg->buffer;
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, req_rebuild->offset, CM_TRUE);
-
-    if (!dms_reform_check_judge_time(&req_rebuild->head)) {
-        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        return;
-    }
-
-    uint8 inst_id = req_rebuild->head.src_inst;
-    uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    dms_tlock_info_t *lock_info;
-    int ret;
-
-    while (offset + sizeof(dms_tlock_info_t) <= req_rebuild->offset) {
-        lock_info = (dms_tlock_info_t *)((uint8 *)req_rebuild + offset);
-        offset += (uint32)sizeof(dms_tlock_info_t);
-        ret = dms_reform_proc_lock_validate(&lock_info->resid, lock_info->lock_mode, inst_id);
-        if (ret != DMS_SUCCESS) {
-            break;
-        }
-    }
-    dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
-    cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
-        "[DRC Validate]remote requested tlock lock mode validate failed, myid:%u", g_dms.inst_id);
+    dms_reform_proc_req_lock_validate_base(ctx, receive_msg, sizeof(drc_local_lock_res_t),
+        dms_reform_proc_tlock_validate);
 }
 
 void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,

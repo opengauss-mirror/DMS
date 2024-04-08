@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           143
+#define DMS_LOCAL_VERSION           144
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -51,6 +51,7 @@ extern "C" {
 #define DMS_MAX_IP_LEN          64
 #define DMS_MAX_INSTANCES       64
 #define DMS_MAX_NAME_LEN        64
+#define DMS_MAX_RESOURCE_NAME_LEN 136
 
 #define DMS_VERSION_MAX_LEN     256
 #define DMS_OCK_LOG_PATH_LEN    256
@@ -105,11 +106,13 @@ typedef enum en_dms_dr_type {
     DMS_DR_TYPE_PROC_ENTRY = 27,
     DMS_DR_TYPE_PART_TABLE = 28,
     DMS_DR_TYPE_SS_LINK = 29,
+    DMS_DR_TYPE_TX_ALCK = 30,
+    DMS_DR_TYPE_SE_ALCK = 31,
     DMS_DR_TYPE_MAX,
 } dms_dr_type_t;
 
 #define DMS_DR_IS_TABLE_TYPE(type) ((type) == DMS_DR_TYPE_TABLE || (type) == DMS_DR_TYPE_PART_TABLE)
-
+#define DMS_DR_IS_ALOCK_TYPE(type) ((type) == DMS_DR_TYPE_TX_ALCK || (type) == DMS_DR_TYPE_SE_ALCK)
 // persistent distributed resource id
 typedef enum en_dms_persistent_id {
     DMS_ID_DATABASE_CTRL = 0,
@@ -143,6 +146,7 @@ typedef enum en_dms_smon_req_rm_type {
 }dms_smon_req_rm_type_t;
 
 /* distributed resource id definition */
+#define DMS_DRID_CTX_SIZE 128
 #pragma pack(4)
 typedef struct st_dms_drid {
     union {
@@ -153,7 +157,10 @@ typedef struct st_dms_drid {
         };
         struct {
             unsigned short  type;  // lock type
-            unsigned short  uid;   // user id, for table lock resource
+            union {
+                unsigned short  uid;   // user id, for table lock resource
+                unsigned short  len;
+            };
             union {
                 struct {
                     unsigned int    oid;   // lock id
@@ -164,6 +171,9 @@ typedef struct st_dms_drid {
                 struct {
                     unsigned long long oid_64;
                     unsigned long long unused;
+                };
+                struct {
+                    unsigned char resid[DMS_DRID_CTX_SIZE];
                 };
             };
         };
@@ -252,7 +262,7 @@ typedef struct st_dms_cr_assist_t {
     dms_cr_status_t status;                 /* OUT parameter */
 } dms_cr_assist_t;
 
-#define DMS_RESID_SIZE  32
+#define DMS_RESID_SIZE  132
 #define DMS_DRID_SIZE   sizeof(dms_drid_t)
 
 typedef struct st_dms_drlock {
@@ -331,6 +341,7 @@ typedef struct st_dms_context {
     unsigned long long wait_usecs;
     unsigned char intercept_type;
     unsigned char curr_mode;    // used for table lock
+    unsigned long long max_wait_rsp_time; // unit ms. under some circumstances, dms need get rsp quickly for timeout.
 } dms_context_t;
 
 typedef struct st_dms_cr {
@@ -571,10 +582,13 @@ typedef enum en_dms_wait_event {
     DMS_EVT_DLS_REQ_TABLE,
     DMS_EVT_DLS_REQ_PART_X,
     DMS_EVT_DLS_REQ_PART_S,
+    DMS_EVT_DLS_REQ_ALOCK_X,
+    DMS_EVT_DLS_REQ_ALOCK_S,
     DMS_EVT_DLS_WAIT_TXN,
     DMS_EVT_DEAD_LOCK_TXN,
     DMS_EVT_DEAD_LOCK_TABLE,
     DMS_EVT_DEAD_LOCK_ITL,
+    DMS_EVT_DEAD_LOCK_ALCK,
     DMS_EVT_BROADCAST_BTREE_SPLIT,
     DMS_EVT_BROADCAST_ROOT_PAGE,
     DMS_EVT_QUERY_OWNER_ID,
@@ -705,7 +719,7 @@ typedef enum en_broadcast_scope {
 typedef struct st_dv_drc_buf_info {
     stat_buf_info_t         buf_info[DMS_MAX_INSTANCES];           /* save buffer related information */
     dms_context_t           dms_ctx;
-    char                    data[DMS_MAX_NAME_LEN];            /* user defined resource(page) identifier */
+    char                    data[DMS_MAX_RESOURCE_NAME_LEN];            /* user defined resource(page) identifier */
     unsigned char           master_id;
     unsigned long long      copy_insts;         /* bitmap for owners, for S mode, more than one owner may exist */
     unsigned char           claimed_owner;      /* owner */
@@ -857,6 +871,8 @@ typedef void (*dms_reset_user)(void *db_handle, unsigned long long list_in);
 typedef int (*dms_drc_xa_res_rebuild)(void *db_handle, unsigned char thread_index, unsigned char parall_num);
 typedef void (*dms_reform_shrink_xa_rms)(void *db_handle, unsigned char undo_seg_id);
 typedef void (*dms_ckpt_unblock_rcy_local)(void *db_handle, unsigned long long list_in);
+typedef int (*dms_drc_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
+typedef int (*dms_drc_validate_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
 
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
@@ -926,6 +942,11 @@ typedef int (*dms_az_switchover_promote_core)(void *db_handle);
 typedef int (*dms_az_failover_promote)(void *db_handle);
 typedef void (*dms_dyn_log)(void *db_handle, long long dyn_log_time);
 
+typedef int (*dms_invld_alock_ownership)(void *db_handle, char *resid, unsigned char req_mode, unsigned char is_try);
+typedef unsigned short (*dms_get_alock_mode)(void *db_handle, char *resid);
+typedef int (*dms_get_alock_wait_info)(void *db_handle, char *resid, char *info_buf, unsigned int buf_len,
+                                       unsigned int *info_len);
+
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -966,6 +987,8 @@ typedef struct st_dms_callback {
     dms_reform_shrink_xa_rms dms_shrink_xa_rms;
     dms_ckpt_unblock_rcy_local ckpt_unblock_rcy_local;
 
+    dms_drc_rebuild_parallel rebuild_alock_parallel;
+    dms_drc_validate_parallel validate_alock_parallel;
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
     dms_thread_deinit_t dms_thread_deinit;
@@ -1088,6 +1111,8 @@ typedef struct st_dms_callback {
     dms_get_kernel_error_code db_get_kernel_error_code;
     dms_lsn_validate lsn_validate;
     dms_invld_tlock_ownership invld_tlock_ownership;
+    dms_invld_alock_ownership invld_alock_ownership;
+    dms_get_alock_mode get_alock_mode;
     dms_get_tlock_mode get_tlock_mode;
     dms_set_current_point set_current_point;
     dms_update_node_lfn update_node_lfn;
@@ -1107,6 +1132,7 @@ typedef struct st_dms_callback {
     dms_az_failover_promote az_failover_promote;
 
     dms_dyn_log dyn_log;
+    dms_get_alock_wait_info get_alock_wait_info;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1238,7 +1264,10 @@ typedef enum en_reform_callback_stat {
     REFORM_MES_TASK_STAT_VALIDATE_LSN_GET_CTRL_TIMEOUT,
     REFORM_MES_TASK_STAT_VALIDATE_LSN_GET_DISK_LSN,
     REFORM_MES_TASK_STAT_VALIDATE_LSN_BUF_UNLATCH,
-
+    REFORM_CALLBACK_STAT_REBUILD_ALOCK_LOCAL,
+    REFORM_CALLBACK_STAT_REBUILD_DRC_ALOCK_REMOTE,
+    REFORM_CALLBACK_STAT_VALIDATE_ALOCK_LOCAL,
+    REFORM_CALLBACK_STAT_VALIDATE_DRC_ALOCK_REMOTE,
     REFORM_CALLBACK_STAT_COUNT
 } reform_callback_stat_e;
 
@@ -1264,6 +1293,8 @@ typedef struct st_dms_tlock_info {
     unsigned char lock_mode;
     unsigned char unused[3];
 } dms_tlock_info_t;
+
+typedef dms_tlock_info_t dms_alock_info_t;
 
 typedef struct thread_info {
     char thread_name[DMS_MAX_NAME_LEN];

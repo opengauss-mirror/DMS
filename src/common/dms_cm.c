@@ -49,8 +49,21 @@ char *cm_display_pageid(char pageid[DMS_PAGEID_SIZE])
     return g_dms.callback.display_pageid(g_display_buf, DMS_DISPLAY_SIZE, pageid);
 }
 
+static inline char *cm_display_alockid(dms_drid_t *lockid)
+{
+    text_t name;
+    cm_str2text_safe((char *)lockid->resid, lockid->len, &name);
+    if (sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%u/%s", lockid->type, T2S(&name)) < 0) {
+        g_display_buf[0] = '\0';
+    }
+    return g_display_buf;
+}
+
 char *cm_display_lockid(dms_drid_t *lockid)
 {
+    if (DMS_DR_IS_ALOCK_TYPE(lockid->type)) {
+        return cm_display_alockid(lockid);
+    }
     int ret = sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%u/%u/%u/%u/%u",
         (uint32)lockid->type, (uint32)lockid->uid, lockid->oid, lockid->index, lockid->part);
     if (ret < 0) {

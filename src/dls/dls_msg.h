@@ -43,6 +43,7 @@ extern "C" {
  */
 #define DLS_INIT_DR_RES(drid, _type, _oid, _uid, _idx, _parent_part, _part) \
     do {                                                      \
+        dms_reset_drid(drid);                                 \
         (drid)->type = _type;                                 \
         (drid)->oid = _oid;                                   \
         (drid)->uid = _uid;                                   \
@@ -53,6 +54,7 @@ extern "C" {
 
 #define DLS_INIT_DR_RES_EX(drid, _type, _uid, _oid, _unused)  \
     do {                                                      \
+        dms_reset_drid(drid);                                 \
         (drid)->type = _type;                                 \
         (drid)->uid = _uid;                                   \
         (drid)->oid_64 = _oid;                                \
@@ -102,6 +104,12 @@ static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks, uint32 spin
             (*wait_ticks)++;    
         }
     }
+}
+
+static inline void dms_reset_drid(dms_drid_t *drid)
+{
+    errno_t err = memset_s(drid, sizeof(dms_drid_t), 0, sizeof(dms_drid_t));
+    DMS_SECUREC_CHECK(err);
 }
 
 #ifdef __cplusplus

@@ -807,7 +807,7 @@ void fill_dv_drc_buf_info(drc_buf_res_t *buf_res, dv_drc_buf_info *res_buf_info)
     res_buf_info->last_edp = buf_res->last_edp;
     res_buf_info->type = buf_res->type;
     char *buf_res_data = cm_display_resid(buf_res->data, buf_res->type);
-    int ret = strcpy_s(res_buf_info->data, DMS_MAX_NAME_LEN, buf_res_data);
+    int ret = strcpy_s(res_buf_info->data, DMS_MAX_RESOURCE_NAME_LEN, buf_res_data);
     if (ret != EOK) {
         LOG_DEBUG_ERR("[DRC][fill_dv_drc_buf_info]:strcpy_s err: %d", ret);
         res_buf_info->is_valid = CM_FALSE;
