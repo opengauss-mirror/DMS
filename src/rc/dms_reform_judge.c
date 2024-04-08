@@ -458,8 +458,17 @@ int dms_reform_sync_cluster_version(bool8 pushing)
     return DMS_SUCCESS;
 }
 
+static void dms_reform_judgement_modify_parameter(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NEW_JOIN)) {
+        reform_info->has_ddl_2phase = CM_FALSE;
+    }
+}
+
 static void dms_reform_judgement_prepare(void)
 {
+    dms_reform_judgement_modify_parameter();
     share_info_t *share_info = DMS_SHARE_INFO;
     share_info->reform_step_count = 0;
     share_info->reform_phase_count = 0;
@@ -1190,6 +1199,7 @@ char *dms_reform_get_type_desc(uint32 reform_type)
 void dms_reform_judgement_step_log(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 step = (uint8)share_info->reform_step[0];
     char desc[DMS_INFO_DESC_LEN] = { 0 };
     errno_t err;
@@ -1209,8 +1219,8 @@ void dms_reform_judgement_step_log(void)
     char *catalog = share_info->catalog_centralized ? "centralized" : "distributed";
     char *reform_type = dms_reform_get_type_desc((uint32)share_info->reform_type);
 
-    LOG_RUN_INF("[DMS REFORM]inst_id:%u, role:%s, catalog:%s, reform_type:%s, full_clean:%d, dms_reform_step:%s",
-        g_dms.inst_id, role, catalog, reform_type, share_info->full_clean, desc);
+    LOG_RUN_INF("[DMS REFORM]inst_id:%u, role:%s, catalog:%s, reform_type:%s, full_clean:%d, ddl_2phase:%d, step:%s",
+        g_dms.inst_id, role, catalog, reform_type, share_info->full_clean, reform_info->has_ddl_2phase, desc);
 }
 
 static void dms_reform_instance_list_log(instance_list_t *inst_list, const char *list_name, char *desc)
