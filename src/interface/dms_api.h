@@ -1296,7 +1296,7 @@ typedef enum e_dms_fi_type {
 
 struct dms_fi_entry {
     int pointId;
-    int faultFlags;
+    unsigned int faultFlags;
     int calledCount;
     dms_fi_callback_func func;
 };
