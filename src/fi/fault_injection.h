@@ -126,7 +126,7 @@ typedef enum en_dms_fi_point_name {
 
 typedef struct st_fi_type_map {
     int fi_type;
-    int fi_flag;
+    unsigned int fi_flag;
     dms_fi_config_t *config;
 } dms_fi_type_mapping_t;
 

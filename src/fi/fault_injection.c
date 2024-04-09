@@ -58,7 +58,7 @@ dms_fi_type_mapping_t g_fi_type_map[FI_TYPE_NUM_MAX] = {
 
 static inline bool32 dms_fi_entry_type_active(const dms_fi_entry *entry, int type)
 {
-    int flag = g_fi_type_map[type].fi_flag;
+    unsigned int flag = g_fi_type_map[type].fi_flag;
     return entry->faultFlags & flag;
 }
 
@@ -184,13 +184,13 @@ static int dms_fi_set_type_entries(unsigned int type, unsigned int *entries, uns
 {
     unsigned int *elist = g_fi_type_map[type].config->entries;
     unsigned int *elist_count = &(g_fi_type_map[type].config->count);
-    int flag = g_fi_type_map[type].fi_flag;
+    unsigned int flag = g_fi_type_map[type].fi_flag;
     for (unsigned int i = 0; i < count; i++) {
         if (!is_valid_entry_point(entries[i])) {
             LOG_DEBUG_ERR("[DMS_FI] entry idx %u invalid:%u", i, entries[i]);
             return DMS_ERROR;
         }
-        LOG_DEBUG_INF("[DMS_FI] entry %u activated, flag %d", entries[i], flag);
+        LOG_DEBUG_INF("[DMS_FI] entry %u activated, flag %u", entries[i], flag);
         FAULT_INJECTION_ACTIVATE(entries[i], flag);
         elist[i] = entries[i];
     }
