@@ -880,9 +880,9 @@ static void dms_reform_judgement_recovery(instance_list_t *inst_lists)
     dms_reform_list_init(&share_info->list_recovery);
     dms_reform_list_add_all(&share_info->list_recovery);
     // if instance is IN, ignore redo log, because all dirty pages in data_buffer
-    unsigned int db_role;
-    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
-    if (db_role == (unsigned int)DMS_DB_ROLE_PRIMARY) {
+    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE) &&
+        !dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN) &&
+        !dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY)) {
         dms_reform_list_minus(&share_info->list_recovery, &inst_lists[INST_LIST_OLD_IN]);
     }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
@@ -941,21 +941,15 @@ static void dms_reform_judgement_recovery_opengauss(instance_list_t *inst_lists)
     }
 }
 
-static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
+static void dms_reform_judgement_rollback_for_az_standby(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    unsigned int db_role;
 
-    for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
-        remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
-    }
-    dms_reform_list_init(&share_info->list_rollback);
-    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
-
-    if (share_info->reform_type == DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE ||
-        db_role != (unsigned int)DMS_DB_ROLE_PRIMARY) {
+    // in standby az, reformer is other instance's deposit instance.
+    // reformer is old IN, reformer should deposit other instance which not by deposited by reformer including itself.
+    // reformer is not old IN, reformer should rollback other instance except itself.
+    if (dms_reform_list_exist(&inst_lists[INST_LIST_OLD_IN], share_info->reformer_id)) {
         for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
             if (remaster_info->deposit_map[inst_id] == share_info->reformer_id) {
                 continue;
@@ -963,6 +957,31 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
             remaster_info->deposit_map[inst_id] = share_info->reformer_id;
             dms_reform_list_add(&share_info->list_rollback, inst_id);
         }
+    } else {
+        for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            remaster_info->deposit_map[inst_id] = share_info->reformer_id;
+            if (inst_id != g_dms.inst_id) {
+                dms_reform_list_add(&share_info->list_rollback, inst_id);
+            }
+        }
+    }
+}
+
+static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    remaster_info_t *remaster_info = DMS_REMASTER_INFO;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+
+    for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
+        remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
+    }
+    dms_reform_list_init(&share_info->list_rollback);
+
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY)) {
+        dms_reform_judgement_rollback_for_az_standby(inst_lists);
 
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK_PREPARE);
@@ -970,7 +989,9 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
     }
 
     // just init deposit_map, no need to do txn deposit
-    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NEW_JOIN)) {
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NEW_JOIN) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE) ||
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_FAILOVER)) {
         return;
     }
 
@@ -1001,6 +1022,12 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
     }
 }
 
+static void dms_reform_judgement_reload_txn(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_RELOAD_TXN);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+}
+
 static void dms_reform_judgement_rollback_start(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -1009,7 +1036,6 @@ static void dms_reform_judgement_rollback_start(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK_START);
     }
 }
-
 
 
 static void dms_reform_judgement_ddl_2phase_rcy()
@@ -1026,13 +1052,12 @@ static void dms_reform_judgement_txn_deposit(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
-    unsigned int db_role;
 
-    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
-
-    // instance is online should withdraw txn
     dms_reform_list_init(&share_info->list_withdraw);
-    if (db_role == (unsigned int)DMS_DB_ROLE_PRIMARY) {
+    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE) &&
+        !dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN) &&
+        !dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY)) {
+        // instance is online should withdraw txn
         for (uint8 i = 0; i < share_info->list_online.inst_id_count; i++) {
             uint8 inst_id = share_info->list_online.inst_id_list[i];
             uint8 deposit_id = drc_get_deposit_id(inst_id);
@@ -1712,15 +1737,13 @@ static void dms_reform_judgement_az_switchover_to_promote(instance_list_t *inst_
     dms_reform_judgement_az_promote();
     dms_reform_judgement_file_blocked(inst_lists);
     dms_reform_judgement_update_scn();
-    // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
-    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_reload_txn();
     dms_reform_judgement_txn_deposit(inst_lists);
     dms_reform_judgement_ddl_2phase_rcy();
     dms_reform_judgement_space_reload();
     dms_reform_judgement_xa_access();
     dms_reform_judgement_file_unblocked();
     dms_reform_judgement_success();
-    dms_reform_judgement_rollback_start(inst_lists);
     dms_reform_judgement_wait_ckpt();
     dms_reform_judgement_set_remove_point(inst_lists);
     dms_reform_judgement_done();
@@ -1740,15 +1763,13 @@ static void dms_reform_judgement_az_failover(instance_list_t *inst_lists)
     dms_reform_judgement_az_failover_promote_phase2();
     dms_reform_judgement_file_blocked(inst_lists);
     dms_reform_judgement_update_scn();
-    // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
-    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_reload_txn();
     dms_reform_judgement_txn_deposit(inst_lists);
     dms_reform_judgement_ddl_2phase_rcy();
     dms_reform_judgement_space_reload();
     dms_reform_judgement_xa_access();
     dms_reform_judgement_file_unblocked();
     dms_reform_judgement_success();
-    dms_reform_judgement_rollback_start(inst_lists);
     dms_reform_judgement_wait_ckpt();
     dms_reform_judgement_set_remove_point(inst_lists);
     dms_reform_judgement_done();
