@@ -346,35 +346,30 @@ DMS_DECLARE unsigned char dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_
 * @brief distributed table shared latch acquire method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
+* @param lock_mode - request lock mode.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_try_tlatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode);
 
 /*
 * @brief distributed table shared latch acquire timeout method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
+* @param lock_mode - request lock mode.
 * @param wait_ticks - timeout ticks.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_tlatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
-
-/*
-* @brief distributed table exclusive latch acquire timeout method.
-* @param dms_ctx - dms_context_t structure.
-* @param dlatch - distributed resource lock identifier.
-* @param wait_ticks - timeout ticks.
-* @return CM_TRUE acquire success; CM_FALSE acquire failed.
-*/
-DMS_DECLARE unsigned char dms_tlatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+DMS_DECLARE unsigned char dms_latch_table_timed(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode,
+    unsigned int wait_ticks);
 
 /*
 * @brief distributed table exclusive latch acquire method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
+* @param lock_mode - request lock mode.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_tlatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE unsigned char dms_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode);
 
 /*
 * @brief distributed latch release method.
