@@ -276,7 +276,13 @@ static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *bu
         if (buf_res->claimed_owner == req_info->inst_id) {
             result->type = DRC_REQ_OWNER_ALREADY_OWNER;
         } else {
-            result->type = DRC_REQ_OWNER_CONVERTING;
+            if (buf_res->type == DRC_RES_LOCK_TYPE && req_info->req_mode == DMS_LOCK_SHARE &&
+                buf_res->lock_mode == DMS_LOCK_SHARE) {
+                // asker can get lock_s directly if owner hold lock_s, this scenario applies only to distributed locks.
+                result->type = DRC_REQ_OWNER_GRANTED;
+            } else {
+                result->type = DRC_REQ_OWNER_CONVERTING;
+            }
         }
 
         if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
@@ -424,6 +430,12 @@ void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info)
     }
 
     if (buf_res->claimed_owner != req_info->inst_id) {
+        if (buf_res->type == DRC_RES_LOCK_TYPE && req_info->req_mode == DMS_LOCK_SHARE &&
+            buf_res->lock_mode == DMS_LOCK_SHARE) {
+            // asker can get lock_s directly if owner hold lock_s, this scenario applies only to distributed locks.
+            cvt_info->type = DRC_REQ_OWNER_GRANTED;
+            return;
+        }
         cvt_info->type = DRC_REQ_OWNER_CONVERTING;
         return;
     }
