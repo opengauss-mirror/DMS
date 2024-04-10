@@ -37,6 +37,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+static inline bool8 dcs_is_reform_visit(dms_buf_ctrl_t *ctrl)
+{
+    return (bool8)ctrl->is_reform_visit;
+}
 
 static inline void dcs_set_ctrl_in_rcy(dms_context_t* dms_ctx, dms_buf_ctrl_t* ctrl)
 {
@@ -74,8 +78,8 @@ static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_
     return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 }
 
-int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
-    dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
+int32 dcs_handle_prepare_edp_remote(dms_context_t *dms_ctx, dms_message_t *msg, dms_buf_ctrl_t *ctrl,
+    dms_lock_mode_t mode, uint64 *page_lsn_id)
 {
     CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
@@ -119,6 +123,25 @@ int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
         dms_get_mescmd_msg(ack->head.cmd), ctrl->lock_mode, ctrl->is_edp, msg->head->src_inst, msg->head->src_sid,
         msg->head->dst_inst, msg->head->dst_sid, DCS_ACK_PAGE_IS_DIRTY(msg), DCS_ACK_PAGE_IS_REMOTE_DIRTY(msg),
         ack->lsn, ack->scn, page_lsn);
+    *page_lsn_id = page_lsn;
+    return DMS_SUCCESS;
+}
+
+int32 dcs_handle_ack_edp_remote(dms_context_t *dms_ctx,
+    dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
+{
+    cm_spin_lock(&ctrl->lock_ss_read, NULL);
+    if (dcs_is_reform_visit(ctrl)) {
+        cm_spin_unlock(&ctrl->lock_ss_read);
+        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+    }
+
+    uint64 page_lsn = 0;
+    int32 ret = dcs_handle_prepare_edp_remote(dms_ctx, msg, ctrl, mode, &page_lsn);
+    cm_spin_unlock(&ctrl->lock_ss_read);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
     dms_claim_ownership(dms_ctx, (uint8)master_id, mode, CM_FALSE, page_lsn);
     return DMS_SUCCESS;
 }
@@ -199,8 +222,8 @@ static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_NEED_LOAD);
 }
 
-int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
-    dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
+int32 dcs_handle_prepare_need_load(dms_context_t *dms_ctx, dms_message_t *msg, dms_buf_ctrl_t *ctrl,
+    dms_lock_mode_t *granted_mode)
 {
     dms_ask_res_ack_ld_t *ack = NULL;
     if (msg != NULL) {
@@ -213,16 +236,33 @@ int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
 #endif
     }
 
-    dms_lock_mode_t granted_mode = mode;
     /*
      * if no existing owner, master grants to requestor locally/remotely, grant X;
      * if owner acks and grants owner, meaning sharer exists potentially, grant S.
      */
     if (ack == NULL || ack->master_grant == CM_TRUE) {
-        granted_mode = DMS_LOCK_EXCLUSIVE;
+        *granted_mode = DMS_LOCK_EXCLUSIVE;
     }
 
-    dcs_set_ctrl4granted(dms_ctx, ctrl, granted_mode);
+    dcs_set_ctrl4granted(dms_ctx, ctrl, *granted_mode);
+    return DMS_SUCCESS;
+}
+
+int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
+    dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
+{
+    cm_spin_lock(&ctrl->lock_ss_read, NULL);
+    if (dcs_is_reform_visit(ctrl)) {
+        cm_spin_unlock(&ctrl->lock_ss_read);
+        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+    }
+    dms_lock_mode_t granted_mode = mode;
+
+    int32 ret = dcs_handle_prepare_need_load(dms_ctx, msg, ctrl, &granted_mode);
+    cm_spin_unlock(&ctrl->lock_ss_read);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
     dms_claim_ownership(dms_ctx, master_id, granted_mode, CM_FALSE, CM_INVALID_ID64);
     return DMS_SUCCESS;
 }
@@ -241,7 +281,13 @@ int32 dcs_handle_ack_already_owner_for_try(dms_context_t *dms_ctx, dms_buf_ctrl_
 int32 dcs_handle_ack_already_owner(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
+    cm_spin_lock(&ctrl->lock_ss_read, NULL);
+    if (dcs_is_reform_visit(ctrl)) {
+        cm_spin_unlock(&ctrl->lock_ss_read);
+        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+    }
     int ret = dcs_set_ctrl4already_owner(dms_ctx, ctrl, mode);
+    cm_spin_unlock(&ctrl->lock_ss_read);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         return ret;
     }
@@ -339,7 +385,14 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
 int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint32 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
+    cm_spin_lock(&ctrl->lock_ss_read, NULL);
+    if (dcs_is_reform_visit(ctrl)) {
+        cm_spin_unlock(&ctrl->lock_ss_read);
+        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+    }
+
     int32 ret = dcs_handle_page_from_owner(dms_ctx, ctrl, msg, mode);
+    cm_spin_unlock(&ctrl->lock_ss_read);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -352,7 +405,14 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
 int32 dcs_handle_ack_edp_local(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
+    cm_spin_lock(&ctrl->lock_ss_read, NULL);
+    if (dcs_is_reform_visit(ctrl)) {
+        cm_spin_unlock(&ctrl->lock_ss_read);
+        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+    }
+
     int32 ret = dcs_set_ctrl4edp_local(dms_ctx, ctrl, mode);
+    cm_spin_unlock(&ctrl->lock_ss_read);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
