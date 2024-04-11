@@ -812,6 +812,50 @@ static int dms_reform_rollback_start(void)
     return ret;
 }
 
+static int dms_reform_reload_txn(void)
+{
+    remaster_info_t *remaster_info = DMS_REMASTER_INFO;
+
+    LOG_RUN_FUNC_ENTER;
+    if (DMS_IS_SHARE_REFORMER || remaster_info->deposit_map[g_dms.inst_id] != g_dms.inst_id) {
+        dms_reform_next_step();
+        LOG_RUN_FUNC_SKIP;
+        return DMS_SUCCESS;
+    }
+
+    instance_list_t list;
+    list.inst_id_count = 0;
+    list.inst_id_list[list.inst_id_count++] = g_dms.inst_id;
+
+    int ret = dms_reform_undo_init(&list);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    ret = dms_reform_tx_area_init(&list);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    ret = dms_reform_tx_area_load(&list);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    ret = dms_reform_convert_to_readwrite();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 // set sync wait before done
 static int dms_reform_success(void)
 {
@@ -1697,6 +1741,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1] = { "AZ_FAILOVER_PROMOTE_PHASE1", dms_reform_az_failover_promote_phase1, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG] = { "AZ_FAILOVER_PROMOTE_RESETLOG", dms_reform_az_failover_promote_resetlog, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2] = { "AZ_FAILOVER_PROMOTE_PHASE2", dms_reform_az_failover_promote_phase2, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RELOAD_TXN] = { "RELOAD_TXN", dms_reform_reload_txn, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)
