@@ -66,7 +66,7 @@ void dms_reform_judgement_az_promote(void)
     share_info->promote_id = (uint8)g_dms.inst_id;
 }
 
-void dms_reform_judgement_az_failover_promote(void)
+void dms_reform_judgement_az_failover_promote_phase1(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
 
@@ -74,10 +74,33 @@ void dms_reform_judgement_az_failover_promote(void)
         return;
     }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1);
     share_info->promote_id = (uint8)g_dms.inst_id;
 }
 
+void dms_reform_judgement_az_failover_promote_resetlog(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
+        return;
+    }
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG);
+    share_info->promote_id = (uint8)g_dms.inst_id;
+}
+
+void dms_reform_judgement_az_failover_promote_phase2(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
+        return;
+    }
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2);
+    share_info->promote_id = (uint8)g_dms.inst_id;
+}
 bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
