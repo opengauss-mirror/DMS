@@ -60,6 +60,7 @@ const char *g_dms_errno_dcs_desc[] = {
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_LOCK_BUFFER_FAILED)] = "dms lock buffer fail",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_PAGE_IN_BUFFER_FAILED)] = "dms get page in buffer fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms page checksum fail",
+    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_REFORM_VISIT_PAGE)] = "dms page is visited by reform",
 };
 
 const char *g_dms_errno_drc_desc[] = {

@@ -443,6 +443,9 @@ typedef struct st_dms_buf_ctrl {
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
+    volatile unsigned char is_reform_visit;
+    unsigned unused_array[3];
+    volatile unsigned int lock_ss_read; // concurrency control for rebuild/confirm
 #ifdef OPENGAUSS
     int buf_id;
     unsigned int state;
