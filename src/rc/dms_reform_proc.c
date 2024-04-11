@@ -497,13 +497,47 @@ static int dms_reform_az_switch_demote_phase2(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_az_failover_promote(void)
+static int dms_reform_az_failover_promote_phase1(void)
 {
     int ret = DMS_SUCCESS;
 
     LOG_RUN_FUNC_ENTER;
 
-    ret = g_dms.callback.az_failover_promote(g_dms.reform_ctx.handle_normal);
+    ret = g_dms.callback.az_failover_promote_phase1(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_failover_promote_resetlog(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_failover_promote_resetlog(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_failover_promote_phase2(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+
+    ret = g_dms.callback.az_failover_promote_phase2(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -1660,7 +1694,9 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2] = { "AZ_SWITCH_DEMOTE_PHASE2", dms_reform_az_switch_demote_phase2,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE] = { "AZ_SWITCH_PROMOTE", dms_reform_az_switchover_promote, NULL, CM_FALSE },
-    [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE] = { "AZ_FAILOVER_PROMOTE", dms_reform_az_failover_promote, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1] = { "AZ_FAILOVER_PROMOTE_PHASE1", dms_reform_az_failover_promote_phase1, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG] = { "AZ_FAILOVER_PROMOTE_RESETLOG", dms_reform_az_failover_promote_resetlog, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2] = { "AZ_FAILOVER_PROMOTE_PHASE2", dms_reform_az_failover_promote_phase2, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)

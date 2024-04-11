@@ -1735,7 +1735,9 @@ static void dms_reform_judgement_az_failover(instance_list_t *inst_lists)
     dms_reform_judgement_repair(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
-    dms_reform_judgement_az_failover_promote();
+    dms_reform_judgement_az_failover_promote_phase1();
+    dms_reform_judgement_az_failover_promote_resetlog();
+    dms_reform_judgement_az_failover_promote_phase2();
     dms_reform_judgement_file_blocked(inst_lists);
     dms_reform_judgement_update_scn();
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
