@@ -379,6 +379,11 @@ static int32 dms_handle_ask_owner_ack(dms_context_t *dms_ctx, void *res,
     return ERRNO_DMS_MES_INVALID_MSG;
 }
 
+static inline int32 get_dms_msg_max_wait_time_ms(dms_context_t *dms_ctx)
+{
+    return (dms_ctx != NULL && dms_ctx->max_wait_rsp_time != 0) ? (int32)dms_ctx->max_wait_rsp_time : DMS_WAIT_MAX_TIME;
+}
+
 static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, drc_req_owner_result_t *result)
 {
@@ -417,8 +422,8 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
         (uint32)req.head.dst_sid, (uint32)req_mode);
 
     dms_message_t msg = {0};
-    int32 max_wait_rsp_time_ms = dms_ctx->max_wait_rsp_time == 0 ? DMS_WAIT_MAX_TIME : dms_ctx->max_wait_rsp_time;
-    ret = mfc_get_response(req.head.ruid, &msg, max_wait_rsp_time_ms);
+    int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
+    ret = mfc_get_response(req.head.ruid, &msg, max_wait_time_ms);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: wait ack timeout, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u, "
             "ret=%d",
@@ -444,11 +449,11 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
     }
 
     dms_message_t msg = {0};
-    int32 max_wait_rsp_time_ms = dms_ctx->max_wait_rsp_time == 0 ? DMS_WAIT_MAX_TIME : dms_ctx->max_wait_rsp_time;
-    int32 ret = mfc_get_response(dms_ctx->ctx_ruid, &msg, max_wait_rsp_time_ms);
+    int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
+    int32 ret = mfc_get_response(dms_ctx->ctx_ruid, &msg, max_wait_time_ms);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_handle_ask_master_ack]:wait master ack timeout timeout=%d ms, ruid=%llu",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type), max_wait_rsp_time_ms, dms_ctx->ctx_ruid);
+            cm_display_resid(dms_ctx->resid, dms_ctx->type), max_wait_time_ms, dms_ctx->ctx_ruid);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
         return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
@@ -600,9 +605,9 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     if (result.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
-        int32 max_wait_rsp_time_ms = dms_ctx->max_wait_rsp_time == 0 ? DMS_WAIT_MAX_TIME : dms_ctx->max_wait_rsp_time;
+        int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
         ret = dms_invalidate_share_copy_with_timeout(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
-            dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE, max_wait_rsp_time_ms);
+            dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE, max_wait_time_ms);
         if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
             (void)mfc_get_response(dms_ctx->ctx_ruid, NULL, 0);
             dms_end_stat(dms_ctx->sess_id);

@@ -859,7 +859,7 @@ int dms_check_and_handle_alock_rsp_msg(void *cookie, dms_message_t *recv_msg)
     dms_smon_deadlock_alock_rsp_t *rsp = (dms_smon_deadlock_alock_rsp_t *)recv_msg->buffer;
     *user_data->result_len = rsp->data_size;
     if (rsp->data_size != 0) {
-        uint32 len = rsp->data_size + sizeof(dms_smon_deadlock_alock_rsp_t);
+        uint32 len = rsp->data_size + (uint32)sizeof(dms_smon_deadlock_alock_rsp_t);
         CM_CHK_RESPONSE_SIZE2(recv_msg, len, CM_FALSE);
         CM_ASSERT(user_data->buf_len >= rsp->data_size);
         errno_t err = memcpy_s(user_data->result_buf, user_data->buf_len, rsp->data, rsp->data_size);
@@ -885,7 +885,7 @@ int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned ch
     dms_send_req_and_handle_ack_ctx_t msg_proc_ctx = {
         .req_msg_type = MSG_REQ_SMON_ALOCK_BY_DRID,
         .rsp_msg_type = MSG_ACK_SMON_ALOCK_BY_DRID,
-        .msg_size = sizeof(dms_smon_deadlock_alock_req_t),
+        .msg_size = (uint16)sizeof(dms_smon_deadlock_alock_req_t),
         .cookie = (void *)&user_data,
         .build_req_msg_body = dms_build_smon_alock_req_msg_body,
         .check_and_handle_rsp_msg = dms_check_and_handle_alock_rsp_msg,
@@ -921,12 +921,13 @@ void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *rece
         receive_msg->head->msg_proto_ver);
     head->size = (uint16)mes_size;
     head->ruid = receive_msg->head->ruid;
-    uint32 buf_len = mes_size - sizeof(dms_smon_deadlock_alock_rsp_t);
+    uint16 rsp_head_size = (uint16)sizeof(dms_smon_deadlock_alock_rsp_t);
+    uint32 buf_len = mes_size - rsp_head_size;
     uint32 info_len = 0;
     ret = g_dms.callback.get_alock_wait_info(ctx->db_handle, (char *)&req->key, rsp_msg->data, buf_len, &info_len);
-    rsp_msg->ret_code = ret;
+    rsp_msg->ret_code = (uint32)ret;
     rsp_msg->data_size = info_len;
-    head->size = sizeof(dms_smon_deadlock_alock_rsp_t) + rsp_msg->data_size;
+    head->size = rsp_head_size + (uint16)rsp_msg->data_size;
 
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {

@@ -36,7 +36,7 @@ int dms_reform_rebuild_alock(void *handle, uint8 thread_index, uint8 thread_num)
 int dms_reform_send_req_alock_rebuild(dms_alock_info_t *lock_info, uint8 new_master, unsigned char thread_index)
 {
     int ret;
-    uint32 append_size = sizeof(dms_alock_info_t);
+    uint32 append_size = (uint32)sizeof(dms_alock_info_t);
     if (thread_index == CM_INVALID_ID8) {
         ret = dms_reform_req_rebuild_lock(MSG_REQ_ALOCK_REBUILD, (void *)lock_info, append_size, new_master);
     } else {
