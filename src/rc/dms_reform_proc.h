@@ -57,6 +57,7 @@ int dms_reform_tx_area_init(instance_list_t *list);
 int dms_reform_tx_area_load(instance_list_t *list);
 int dms_reform_tx_rollback_start(instance_list_t *list);
 int dms_reform_drc_clean(void);
+int dms_reform_full_clean(void);
 int dms_reform_migrate(void);
 int dms_reform_rebuild(void);
 int dms_reform_validate_lock_mode(void);
@@ -65,13 +66,15 @@ int dms_reform_remaster(void);
 int dms_reform_repair(void);
 int dms_reform_flush_copy(void);
 int dms_reform_drc_clean_fault_inst_by_partid(uint16 part_id, uint32 sess_id);
-void dms_reform_drc_clean_full_by_partid(uint16 part_id);
 int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
 int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
 int dms_reform_repair_by_partid(uint16 part_id, void *handle, uint32 sess_id);
 int dms_reform_lsn_validate_by_partid(uint16 part_id, uint8 thread_index);
 int dms_reform_lsn_validate_buf_res(drc_buf_res_t *buf_res, uint8 thread_index);
 int drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id);
+void dms_reform_full_clean_init_assist(full_clean_assist_t *assist);
+void dms_reform_full_clean_reinit(uint8 thread_index, uint8 thread_num, full_clean_assist_t *assist);
+void dms_reform_full_clean_concat_free_list(full_clean_assist_t *assist);
 
 typedef enum en_reform_clean_stat {
     DRPS_DRC_CLEAN_NO_OWNER = 1,

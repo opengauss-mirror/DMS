@@ -875,6 +875,20 @@ static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 ins
         item_size, res_cmp_func, get_hash_func);
 }
 
+void dms_global_res_reinit(drc_global_res_map_t *global_res, uint8 thread_index, uint8 thread_num, bilist_t *temp)
+{
+    uint32 total_count = DRC_MAX_PART_NUM;
+    uint32 task_num = (total_count + thread_num - 1) / thread_num;
+    uint32 task_begin = thread_index * task_num;
+    uint32 task_end = MIN(task_begin + task_num, total_count);
+
+    for (uint32 i = task_begin; i < task_end; i++) {
+        cm_bilist_init(&global_res->res_parts[i].list);
+        GS_INIT_SPIN_LOCK(global_res->res_parts[i].lock);
+    }
+    drc_res_map_reinit(&global_res->res_map, thread_index, thread_num, temp);
+}
+
 static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;

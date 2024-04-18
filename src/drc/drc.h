@@ -81,6 +81,7 @@ typedef struct st_drc_res_pool {
 } drc_res_pool_t;
 
 int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 max_extend_num, uint32 res_size, uint32 res_num);
+void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_num, bilist_t *temp);
 void drc_res_pool_destroy(drc_res_pool_t *pool);
 char *drc_res_pool_alloc_item(drc_res_pool_t *pool);
 void drc_res_pool_free_item(drc_res_pool_t *pool, char *res);
@@ -106,6 +107,7 @@ typedef struct st_drc_res_map {
 
 int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_type, uint32 item_num,
     uint32 item_size, res_cmp_callback res_cmp, res_hash_callback res_hash);
+void drc_res_map_reinit(drc_res_map_t *res_map, uint8 thread_index, uint8 thread_num, bilist_t *temp);
 void drc_res_map_destroy(drc_res_map_t* res_map);
 drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, uint32 len);
 void drc_res_map_add_res(drc_res_bucket_t* bucket, char* res);
