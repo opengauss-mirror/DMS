@@ -171,6 +171,7 @@ drps_desc_t g_drps_desc_t[] = {
     {DMS_REFORM_STEP_LOCK_INSTANCE,                             DRPS_LEVEL_TOP,     "LOCK_INSTANCE"},
     {DMS_REFORM_STEP_PUSH_GCV_AND_UNLOCK,                       DRPS_LEVEL_TOP,     "PUSH_GCV_AND_UNLOCK"},
     {DMS_REFORM_STEP_DRC_CLEAN,                                 DRPS_LEVEL_TOP,     "DRC_CLEAN"},
+    {DMS_REFORM_STEP_FULL_CLEAN,                                DRPS_LEVEL_TOP,     "FULL_CLEAN"},
     {DRPS_DRC_CLEAN_TIMEOUT,                                    DRPS_LEVEL_ONE,     "ACK TIMEOUT"},
     {DRPS_DRC_CLEAN_PAGE,                                       DRPS_LEVEL_ONE,     "PAGE"},
     {DRPS_DRC_CLEAN_PAGE_NO_OWNER,                              DRPS_LEVEL_TWO,     "NO_OWNER"},
