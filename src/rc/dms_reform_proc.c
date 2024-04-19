@@ -633,7 +633,9 @@ static int dms_reform_ctl_rcy_clean(void)
     reform_context_t* reform_ctx = DMS_REFORM_CONTEXT;
 
     LOG_RUN_FUNC_ENTER;
+    dms_reform_proc_stat_start(DRPS_CTL_RCY_CLEAN_WAIT_LATCH);
     cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    dms_reform_proc_stat_end(DRPS_CTL_RCY_CLEAN_WAIT_LATCH);
     g_dms.callback.dms_ctl_rcy_clean_parallel(reform_ctx->handle_proc, CM_INVALID_ID8, CM_INVALID_ID8);
     cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
     dms_reform_next_step();
@@ -1130,7 +1132,9 @@ static int dms_reform_file_blocked(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     LOG_RUN_FUNC_ENTER;
+    dms_reform_proc_stat_start(DRPS_FILE_BLOCKED_WAIT_LATCH);
     cm_latch_x(&reform_info->file_latch, g_dms.reform_ctx.sess_proc, NULL);
+    dms_reform_proc_stat_end(DRPS_FILE_BLOCKED_WAIT_LATCH);
     reform_info->file_unable = CM_TRUE;
     cm_unlatch(&reform_info->file_latch, NULL);
     LOG_RUN_FUNC_SUCCESS;

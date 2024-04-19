@@ -500,7 +500,9 @@ int dms_reform_flush_copy_parallel(void)
 int dms_reform_rebuild_parallel(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    dms_reform_proc_stat_start(DRPS_DRC_REBUILD_WAIT_LATCH);
     cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    dms_reform_proc_stat_end(DRPS_DRC_REBUILD_WAIT_LATCH);
     int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_REBUILD);
     cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
     return ret;
@@ -509,7 +511,9 @@ int dms_reform_rebuild_parallel(void)
 int dms_reform_ctl_rcy_clean_parallel(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    dms_reform_proc_stat_start(DRPS_CTL_RCY_CLEAN_WAIT_LATCH);
     cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    dms_reform_proc_stat_end(DRPS_CTL_RCY_CLEAN_WAIT_LATCH);
     int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_CTL_RCY_CLEAN);
     cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
     return ret;
@@ -523,7 +527,9 @@ int drc_recycle_buf_res_parallel(void)
 int dms_reform_validate_lock_mode_parallel(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_WAIT_LATCH);
     cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_WAIT_LATCH);
     int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_VALIDATE_LOCK_MODE);
     cm_unlatch(&reform_ctx->res_ctrl_latch, NULL);
     return ret;

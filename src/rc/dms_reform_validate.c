@@ -410,7 +410,9 @@ int dms_reform_validate_lock_mode(void)
     int ret = DMS_SUCCESS;
 
     LOG_RUN_FUNC_ENTER;
+    dms_reform_proc_stat_start(DRPS_VALIDATE_LOCK_MODE_WAIT_LATCH);
     cm_latch_x(&reform_ctx->res_ctrl_latch, CM_INVALID_INT32, NULL);
+    dms_reform_proc_stat_end(DRPS_VALIDATE_LOCK_MODE_WAIT_LATCH);
     ret = dms_reform_validate_lock_mode_inner(reform_ctx->handle_proc, reform_ctx->sess_proc, CM_INVALID_ID8,
         CM_INVALID_ID8);
     cm_panic_log(ret != ERRNO_DMS_REFORM_LMODE_VLDT_PANIC,
