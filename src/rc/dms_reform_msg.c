@@ -1104,7 +1104,7 @@ int dms_reform_proc_tlock_rebuild(void *lock_info, uint8 src_inst)
 
 void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    dms_reform_proc_req_lock_rebuild_base(ctx, receive_msg, sizeof(drc_local_lock_res_t),
+    dms_reform_proc_req_lock_rebuild_base(ctx, receive_msg, sizeof(dms_tlock_info_t),
         dms_reform_proc_tlock_rebuild);
 }
 
@@ -1120,7 +1120,7 @@ int dms_reform_proc_tlock_validate(void *lock_info, uint8 src_inst)
 
 void dms_reform_proc_req_tlock_validate(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
-    dms_reform_proc_req_lock_validate_base(ctx, receive_msg, sizeof(drc_local_lock_res_t),
+    dms_reform_proc_req_lock_validate_base(ctx, receive_msg, sizeof(dms_tlock_info_t),
         dms_reform_proc_tlock_validate);
 }
 
