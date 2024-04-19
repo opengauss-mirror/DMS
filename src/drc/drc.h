@@ -445,7 +445,7 @@ static inline uint32 drc_get_lock_partid(uint8 *id, uint32 len, uint32 range)
     uint32 trunc_len = 0;
 #ifndef OPENGAUSS
     if (DMS_DR_IS_TABLE_TYPE(((dms_drid_t *)id)->type)) {
-        trunc_len = sizeof(((dms_drid_t *)0)->parent_part) + sizeof(((dms_drid_t *)0)->part);
+        trunc_len = (uint32)(sizeof(((dms_drid_t *)0)->parent_part) + sizeof(((dms_drid_t *)0)->part));
     }
 #endif
 

@@ -1737,7 +1737,7 @@ inline void dms_set_node_proto_version(uint8 inst_id, uint32 version)
     uint32 ret = CM_FALSE;
     do {
         atomic32_t cur_version = cm_atomic32_get(&g_dms.cluster_proto_vers[inst_id]);
-        if (cur_version == version) {
+        if ((uint32)cur_version == version) {
             break;
         }
         ret = cm_atomic32_cas(&g_dms.cluster_proto_vers[inst_id], cur_version, version);
