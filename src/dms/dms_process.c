@@ -441,7 +441,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
     }
 
 #ifdef OPENGAUSS
-    bool32 enable_proc = !g_dms.enable_reform || DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
+    bool32 enable_proc = DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
 #else
     bool32 enable_proc = CM_TRUE;
 #endif
@@ -1228,7 +1228,6 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     g_dms.inst_id = dms_profile->inst_id;
     g_dms.inst_cnt = dms_profile->inst_cnt;
     g_dms.inst_map = dms_profile->inst_map;
-    g_dms.enable_reform = dms_profile->enable_reform;
     g_dms.scrlock_ctx.enable = dms_profile->enable_scrlock;
     g_dms.gdb_in_progress = CM_FALSE;
     g_dms.max_wait_time = dms_check_max_wait_time(dms_profile->max_wait_time);

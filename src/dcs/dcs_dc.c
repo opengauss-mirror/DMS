@@ -120,9 +120,6 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
     } else {
         all_inst = (dms_broad_info->scope == DMS_BROADCAST_ONLINE_LIST) ?
             reform_info->bitmap_connect : reform_info->bitmap_in;
-#ifdef OPENGAUSS
-        all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
-#endif
         all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
     }
     
@@ -216,9 +213,6 @@ int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigne
     DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_BROADCAST, 0, dms_ctx->inst_id, 0,  dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(dms_message_head_t) + len);
     uint64 all_inst = reform_info->bitmap_connect;
-#ifdef OPENGAUSS
-    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
-#endif
     all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_BROADCAST, MSG_REQ_BROADCAST);
     mfc_broadcast2(all_inst, &head, (const void *)data, success_inst);
@@ -235,9 +229,6 @@ int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int t
     dms_reset_error();
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint64 all_inst = reform_info->bitmap_connect;
-#ifdef OPENGAUSS
-    all_inst = g_dms.enable_reform ? all_inst : g_dms.inst_map;
-#endif
     all_inst = all_inst & (~((uint64)0x1 << inst_id));
     int ret = mfc_get_broadcast_res_with_succ_insts(ruid, timeout, all_inst, success_inst);
     if (ret != DMS_SUCCESS) {
@@ -262,11 +253,6 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
     boc_req.inst_id = dms_ctx->inst_id;
 
     uint64 all_inst = reform_info->bitmap_connect;
-#ifdef OPENGAUSS
-    if (!g_dms.enable_reform) {
-        all_inst = g_dms.inst_map;
-    }
-#endif
     uint64 inval_insts = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_BOC, MSG_REQ_BOC);
     mfc_broadcast(inval_insts, (void *)&boc_req, success_inst);
@@ -296,10 +282,7 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
 
     head.size = size;
 
-    uint64 all_inst = reform_info->bitmap_connect;
-    if (!g_dms.enable_reform) {
-        all_inst = g_dms.inst_map;
-    }   
+    uint64 all_inst = reform_info->bitmap_connect; 
 
     uint64 invld_insts = 0;
     switch ((dms_opengauss_lock_req_type_t)lock_req_type) {

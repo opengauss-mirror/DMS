@@ -163,10 +163,10 @@ static int scrlock_init(dms_profile_t *dms_profile)
     SCRLockServerOptions server_options;
 
     // common configs
-    while (dms_profile->enable_reform && g_dms.reform_ctx.reform_info.reformer_id == CM_INVALID_ID8) {
+    while (g_dms.reform_ctx.reform_info.reformer_id == CM_INVALID_ID8) {
         cm_sleep(1);
     }
-    uint32 primary_inst_id = dms_profile->enable_reform ? g_dms.reform_ctx.reform_info.reformer_id : dms_profile->primary_inst_id;
+    uint32 primary_inst_id = g_dms.reform_ctx.reform_info.reformer_id;
     options.logLevel = dms_profile->scrlock_log_level;
     ret = memcpy_s(options.serverAddr.ip, SCRLOCK_MAX_IP_LEN, dms_profile->inst_net_addr[primary_inst_id].ip, DMS_MAX_IP_LEN);
     DMS_SECUREC_CHECK(ret);

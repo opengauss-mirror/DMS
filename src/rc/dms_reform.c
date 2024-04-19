@@ -75,11 +75,6 @@ int dms_reform_in_process(void)
 
 int dms_drc_accessible(unsigned char res_type)
 {
-#ifdef OPENGAUSS
-    if (!g_dms.enable_reform) {
-        return CM_TRUE;
-    }
-#endif
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     if (res_type == DRC_RES_PAGE_TYPE) {
         return (int)res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_ACCESS;
@@ -308,15 +303,6 @@ int dms_reform_init(dms_profile_t *dms_profile)
     share_info_t *share_info = DMS_SHARE_INFO;
     int ret = DMS_SUCCESS;
     g_dms.cluster_ver = 0;
-
-#ifdef OPENGAUSS
-    if (!dms_profile->enable_reform) {
-        drc_res_ctx_t *ctx = DRC_RES_CTX;
-        ctx->global_buf_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
-        ctx->global_lock_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
-        return DMS_SUCCESS;
-    }
-#endif
 
     if (g_dms.scrlock_ctx.enable) {
         dms_init_scrlock_ctx(dms_profile);

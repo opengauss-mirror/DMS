@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           147
+#define DMS_LOCAL_VERSION           148
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1202,7 +1202,6 @@ typedef struct st_dms_profile {
     unsigned char rdma_rpc_bind_core_start;
     unsigned char rdma_rpc_bind_core_end;
     char ock_log_path[DMS_OCK_LOG_PATH_LEN];
-    unsigned char enable_reform;
     // ock scrlock configs
     unsigned char enable_scrlock;
     unsigned int primary_inst_id;
