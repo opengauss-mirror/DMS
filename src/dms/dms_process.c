@@ -1619,12 +1619,12 @@ void dms_get_dms_thread(thread_set_t *thread_set)
     DMS_SECUREC_CHECK_SS(err);
     mes_get_all_threads(&mes_thread_set);
 
-    for (uint32 i = 0; i < mes_thread_set.thread_count; i++) {
+    for (int32 i = 0; i < mes_thread_set.thread_count; i++) {
         if (thread_set->thread_count >= MAX_DMS_THREAD_NUM) {
             return;
         }
         err = sprintf_s(thread_set->threads[thread_set->thread_count].thread_name,
-            DMS_MAX_NAME_LEN, mes_thread_set.threads[i].thread_name);
+            DMS_MAX_NAME_LEN, "%s", mes_thread_set.threads[i].thread_name);
         DMS_SECUREC_CHECK_SS(err);
         thread_set->threads[thread_set->thread_count].thread_info = mes_thread_set.threads[i].thread_info;
         thread_set->thread_count++;

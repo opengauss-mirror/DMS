@@ -999,7 +999,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_CREATE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
-    ack.return_code = ret;
+    ack.return_code = (uint32)ret;
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_CREATE_GLOBAL_XA_RES, MSG_ACK_CREATE_GLOBAL_XA_RES);
     ret = mfc_send_data(&ack.head);
@@ -1085,7 +1085,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_DELETE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
-    ack.return_code = ret;
+    ack.return_code = (uint32)ret;
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_DELETE_GLOBAL_XA_RES, MSG_ACK_DELETE_GLOBAL_XA_RES);
     ret = mfc_send_data(&ack.head);
