@@ -949,6 +949,24 @@ static void dms_reform_set_az_switchover_result(void)
 }
 #endif
 
+static inline void dms_reform_mark_locking(bool8 is_locking)
+{
+    g_dms.reform_ctx.reform_info.is_locking = is_locking;
+    if (is_locking) {
+        mes_interrupt_get_response();
+    } else {
+        mes_resume_get_response();
+    }
+}
+
+static inline void dms_reform_instance_lock_reset()
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    dms_reform_mark_locking(CM_FALSE);
+    /* mes workers might be latching S, so be precise here and only unlatch X by reform proc */
+    cm_unlatch_x(&reform_info->instance_lock, NULL);
+}
+
 static void dms_reform_end(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
@@ -962,6 +980,7 @@ static void dms_reform_end(void)
     // health check should pause before clear share info
     dms_reform_health_set_pause();
     dms_reform_proc_set_pause();
+    dms_reform_instance_lock_reset();
 
 #ifdef OPENGAUSS
     dms_reform_handle_fail_in_special_scenario();
@@ -1551,16 +1570,6 @@ static int dms_reform_startup_opengauss(void)
     return DMS_SUCCESS;
 }
 
-static inline void dms_reform_mark_locking(bool8 is_locking)
-{
-    g_dms.reform_ctx.reform_info.is_locking = is_locking;
-    if (is_locking) {
-        mes_interrupt_get_response();
-    } else {
-        mes_resume_get_response();
-    }
-}
-
 /*
  * Put X on instance lock to push GCV. Partner needs lock too, to prevent concurrent iusses
  * such as DRC rebuild and invalidate msg happens at the same time. The timed lock
@@ -1605,10 +1614,10 @@ static int dms_reform_push_gcv_and_unlock(void)
         g_dms.cluster_ver = 0;
     }
     g_dms.cluster_ver++;
-    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]GCV++:%u, inst_id:%u",
-            DMS_GLOBAL_CLUSTER_VER, g_dms.inst_id);
 
     cm_unlatch(&reform_info->instance_lock, NULL);
+    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]GCV++:%u, inst_id:%u; lock_instance unlock",
+        DMS_GLOBAL_CLUSTER_VER, g_dms.inst_id);
 
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
