@@ -61,10 +61,9 @@ typedef struct st_dms_instance {
     reform_context_t reform_ctx;
     mfc_t mfc;
     uint64 min_scn[DMS_MAX_INSTANCES];
-    uint8 enable_reform;
     uint8 gdb_in_progress;
     bool8 dms_init_finish;
-    uint8 unused;
+    uint8 unused[2];
     cm_res_mgr_t cm_res_mgr;
     uint32 cluster_ver;
     void* mes_ptr;

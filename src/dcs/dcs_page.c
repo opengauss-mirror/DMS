@@ -432,7 +432,7 @@ int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode
 
 #ifdef OPENGAUSS
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    if (g_dms.enable_reform && !reform_info->first_reform_finish && dms_ctx->sess_type == DMS_SESSION_NORMAL) {
+    if (!reform_info->first_reform_finish && dms_ctx->sess_type == DMS_SESSION_NORMAL) {
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
