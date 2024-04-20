@@ -30,6 +30,7 @@
 #include "cm_timer.h"
 #include "dms_reform_judge_stat.h"
 #include "dms_reform_judge_switch.h"
+#include "dms_dynamic_trace.h"
 
 extern dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT];
 
@@ -1704,7 +1705,7 @@ static void dms_reform_judgement_mes_init(void)
 
 void dms_reform_judgement_thread(thread_t *thread)
 {
-    cm_set_thread_name("reform_judgement");
+    cm_set_thread_name(DMS_REFORM_JUDG_THRD_NAME);
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif

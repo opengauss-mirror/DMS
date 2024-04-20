@@ -32,6 +32,7 @@
 #include "dms_msg.h"
 #include "dms_msg_protocol.h"
 #include "fault_injection.h"
+#include "dms_dynamic_trace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -362,6 +363,10 @@ void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(request.head.cmd),
         (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
         (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
+    LOG_DYNAMIC_TRACE("[CLO][%s]sent srcid=%u ssid=%u dstid=%u dsid=%u has_edp=%u lsn=%llu",
+        cm_display_resid(dms_ctx->resid, dms_ctx->type),
+        (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
+        (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
 }
 
 static int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
@@ -520,6 +525,10 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(ack_dms_head->cmd),
         (uint32)msg.head->src_inst, (uint32)msg.head->src_sid, (uint32)msg.head->dst_inst,
         (uint32)msg.head->dst_sid, (uint32)msg.head->flags, msg.head->ruid);
+    LOG_DYNAMIC_TRACE("[AMR ACK][%s]srcid=%u ssid=%u dstid=%u dsid =%u flag=%u ruid=%llu",
+        cm_display_resid(dms_ctx->resid, dms_ctx->type),
+        (uint32)msg.head->src_inst, (uint32)msg.head->src_sid, (uint32)msg.head->dst_inst,
+        (uint32)msg.head->dst_sid, (uint32)msg.head->flags, msg.head->ruid);
 
     switch (ack_dms_head->cmd) {
         case MSG_ACK_GRANT_OWNER:
@@ -568,32 +577,37 @@ static int32 dms_handle_local_req_result(dms_context_t *dms_ctx, void *res,
     switch (result->type) {
         case DRC_REQ_OWNER_GRANTED:
             ret = dms_handle_grant_owner_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, NULL);
+            dms_dyn_trc_end(dms_ctx->sess_id);
             dms_end_stat(dms_ctx->sess_id);
 
-            LOG_DEBUG_INF("[DMS][%s][ask master local]:granted, inst_id=%u, req_mode=%u, curr_mode=%u",
+            LOG_DEBUG_INF("[DMS][%s][AML]:granted, inst_id=%u, req_mode=%u, curr_mode=%u",
                 cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)req_mode, (uint32)curr_mode);
             return ret;
 
         case DRC_REQ_OWNER_ALREADY_OWNER:
             ret = dms_handle_already_owner_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, NULL);
+            dms_dyn_trc_end(dms_ctx->sess_id);
             dms_end_stat(dms_ctx->sess_id);
 
-            LOG_DEBUG_INF("[DMS][%s][ask master local]:already owner, inst_id=%u, req_mode=%u, curr_mode=%u",
+            LOG_DEBUG_INF("[DMS][%s][AML]:already owner, inst_id=%u, req_mode=%u, curr_mode=%u",
                 cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)req_mode, (uint32)curr_mode);
             return ret;
 
         case DRC_REQ_OWNER_CONVERTING:
             // owner is another instance
             ret = dms_ask_owner_for_res(dms_ctx, res, curr_mode, req_mode, result);
+            dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
             dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
             return ret;
 
         case DRC_REQ_OWNER_WAITING:
             ret = dms_handle_ask_master_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, NULL);
+            dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
             dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
             return ret;
 
         default:
+            dms_dyn_trc_end(dms_ctx->sess_id);
             dms_end_stat(dms_ctx->sess_id);
             LOG_DEBUG_ERR("[DMS][%s]dms_handle_local_req_result]: result type %u not expect",
                 cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)result->type);
@@ -617,28 +631,39 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY, CM_TRUE);
 
+    dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY);
+    LOG_DYNAMIC_TRACE("[AML][%s]srcid=%u rmode=%u cmode=%u pruid=%llu",
+        cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)req_mode,
+        (uint32)curr_mode, dms_ctx->ctx_ruid);
+
     int32 ret = drc_request_page_owner(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len, dms_ctx->type, &req_info,
         &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         (void)mfc_get_response(dms_ctx->ctx_ruid, NULL, 0);
+        dms_dyn_trc_end(dms_ctx->sess_id);
         dms_end_stat(dms_ctx->sess_id);
         return ret;
     }
 
     if (result.invld_insts != 0) {
-        LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
+        LOG_DEBUG_INF("[DMS][%s]invld sharers:%llu",
+            cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
+        LOG_DYNAMIC_TRACE("[AML][%s]invld sharers:%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
         int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
         ret = dms_invalidate_share_copy_with_timeout(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
             dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE, max_wait_time_ms);
         if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
             (void)mfc_get_response(dms_ctx->ctx_ruid, NULL, 0);
+            dms_dyn_trc_end(dms_ctx->sess_id);
             dms_end_stat(dms_ctx->sess_id);
             return ret;
         }
     }
 
-    LOG_DEBUG_INF("[DMS][%s][dms_ask_master4res_l] result type=%u",
+    LOG_DEBUG_INF("[DMS][%s][ask master local]result type=%u",
+        cm_display_resid(dms_ctx->resid, dms_ctx->type), result.type);
+    LOG_DYNAMIC_TRACE("[AML][%s]result type=%u",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), result.type);
 
     // dms_stat ends in sub-func for different scenarios
@@ -686,6 +711,9 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     int ret1 = mfc_send_data(&req.head);
     if (ret1 == DMS_SUCCESS) {
         dms_ctx->ctx_ruid = req.head.ruid;
+        LOG_DYNAMIC_TRACE("[AMR][%s]srcid=%u dstid=%u rmode=%u cmode=%u pruid=%llu",
+        cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)master_id,
+            (uint32)req_mode, (uint32)curr_mode, dms_ctx->ctx_ruid);
         return DMS_SUCCESS;
     }
 
@@ -698,9 +726,11 @@ static int32 dms_ask_master4res_r(dms_context_t *dms_ctx, void *res, uint8 maste
     dms_lock_mode_t mode)
 {
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_2WAY, CM_TRUE);
+    dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_2WAY);
 
     int32 ret = dms_send_ask_master_req(dms_ctx, master_id, curr_mode, mode);
     if (ret != DMS_SUCCESS) {
+        dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_2WAY);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_2WAY);
         return ret;
     }
@@ -708,6 +738,7 @@ static int32 dms_ask_master4res_r(dms_context_t *dms_ctx, void *res, uint8 maste
     dms_wait_event_t event = DMS_EVT_DCS_REQ_MASTER4PAGE_2WAY;
     ret = dms_handle_ask_master_ack(dms_ctx, res, master_id, mode, &event);
 
+    dms_dyn_trc_end_ex(dms_ctx->sess_id, event);
     dms_end_stat_ex(dms_ctx->sess_id, event);
     return ret;
 }
@@ -1687,17 +1718,50 @@ static void dms_smon_confirm_converting(res_id_t *res_id)
     dms_smon_handle_confirm_ack(ruid, res_id, &cvt_req);
 }
 
+static void dms_event_trace_monitor(void)
+{
+    char buf[DMS_DYN_TRACE_HEADER_SZ];
+    int len = 0;
+    for (int sid = 0; sid < g_dms_stat.sess_cnt; sid++) {
+        if (!dms_dyn_trc_inited() || !DMS_SID_IS_VALID(sid)) {
+            return;
+        }
+        dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
+        if (sess_trc->wait[0].is_waiting) {
+            timeval_t begin = sess_trc->wait[0].begin_tv;
+            timeval_t end;
+            (void)cm_gettimeofday(&end);
+            if ((uint64)TIMEVAL_DIFF_US(&begin, &end) >= DMS_EVENT_MONITOR_TIMEOUT) {
+                len = snprintf_s(buf, DMS_DYN_TRACE_HEADER_SZ, DMS_DYN_TRACE_HEADER_SZ - 1,
+                    "[DMS DYNAMIC TRACE]HANG SESSION DETECTED, sid=%d, evt=%s:\n",
+                    sid, dms_get_event_desc(sess_trc->wait[0].event));
+                CM_ASSERT(len > 0);
+                LOG_DMS_EVENT_TRACE(buf, len);
+                LOG_DMS_EVENT_TRACE(sess_trc->trc_buf, sess_trc->trc_len);
+                LOG_DMS_EVENT_TRACE("\n", 1);
+            }
+        }
+    }
+}
+
 void dms_smon_entry(thread_t *thread)
 {
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
     res_id_t res_id;
+    date_t begin = g_timer()->now;
+    date_t end;
 
     DRC_RES_CTX->smon_handle = g_dms.callback.get_db_handle(&DRC_RES_CTX->smon_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(DRC_RES_CTX->smon_handle != NULL, "alloc db handle failed");
     
     while (!thread->closed) {
+        end = g_timer()->now;
+        if ((end - begin) >= DMS_EVENT_MONITOR_INTERVAL) {
+            begin = end;
+            dms_event_trace_monitor();
+        }
         if (cm_chan_recv_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_MSG_SLEEP_TIME) != CM_SUCCESS) {
             continue;
         }

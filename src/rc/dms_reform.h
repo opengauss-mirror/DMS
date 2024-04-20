@@ -37,6 +37,13 @@
 extern "C" {
 #endif
 
+#define DMS_REFORM_PROC_THRD_NAME       "reform_proc"
+#define DMS_REFORM_HEALTH_THRD_NAME     "reform_health"
+#define DMS_REFORM_JUDG_THRD_NAME       "reform_judge"
+#define DMS_REFORM_PREEMPT_THRD_NAME    "reform_preempt"
+#define DMS_REFORM_FI_THRD_NAME         "reform_fi"
+#define DMS_REFORM_PARA_THRD_NAME       "reform_para"
+
 #define DMS_REFORM_LONG_SLEEP           cm_sleep(500)
 #define DMS_REFORM_SHORT_SLEEP          cm_sleep(10)
 #define DMS_REFORM_LONG_TIMEOUT         5000

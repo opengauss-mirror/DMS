@@ -32,6 +32,7 @@
 #include "dms_reform_proc.h"
 #include "dms_msg_protocol.h"
 #include "cm_encrypt.h"
+#include "dms_dynamic_trace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -110,6 +111,8 @@ int32 dcs_handle_prepare_need_load(dms_context_t *dms_ctx, dms_message_t *msg, d
 
     dcs_set_ctrl4granted(dms_ctx, ctrl, *granted_mode);
     LOG_DEBUG_INF("[DCS][%s][dcs_handle_prepare_need_load] lock_mode=%u",
+        cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)ctrl->lock_mode);
+    LOG_DYNAMIC_TRACE("[HNL][%s]need load lmode=%u",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)ctrl->lock_mode);
     return DMS_SUCCESS;
 }
@@ -315,6 +318,7 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
 {
     int32 ret;
     dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE, CM_TRUE);
+    dms_dyn_trc_begin(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE);
 
     if (page_ack->head.flags & MSG_FLAG_NO_PAGE) {
         ret = mfc_send_data(&page_ack->head);
@@ -337,6 +341,7 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
             page_ack->head.dst_inst, page_ack->head.dst_sid, req_info->req_mode,
             ctrl->lock_mode, ctrl->is_edp, page_ack->lsn, page_ack->scn, page_ack->edp_map);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, page_ack->head.cmd, page_ack->head.dst_inst);
+        dms_dyn_trc_end(ctx->sess_id);
         dms_end_stat(ctx->sess_id);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
@@ -346,7 +351,13 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
         cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack->head.cmd), page_ack->head.dst_inst,
         page_ack->head.dst_sid, req_info->req_mode, ctrl->lock_mode, ctrl->is_edp, page_ack->lsn,
         page_ack->scn, g_dms.callback.get_page_lsn(ctrl), page_ack->edp_map, page_ack->head.flags, page_ack->head.size);
+    LOG_DYNAMIC_TRACE("[SAP][%s]sent dstid=%d dsid=%d rmode=%u cmode=%d is_edp=%d glsn=%llu gscn=%llu plsn=%llu"
+        "edp_map=%llu flags=%u size=%d", cm_display_pageid(req_info->resid), page_ack->head.dst_inst,
+        page_ack->head.dst_sid, req_info->req_mode, ctrl->lock_mode, ctrl->is_edp, page_ack->lsn,
+        page_ack->scn, g_dms.callback.get_page_lsn(ctrl), page_ack->edp_map, page_ack->head.flags,
+        page_ack->head.size);
 
+    dms_dyn_trc_end(ctx->sess_id);
     dms_end_stat(ctx->sess_id);
     return ret;
 }
@@ -668,6 +679,7 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     }
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_TRY, CM_TRUE);
+    dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_TRY);
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID);
     ret = mfc_send_data(&page_req.head);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -679,6 +691,7 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
             page_req.head.dst_inst);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID,
             page_req.head.dst_inst);
+        dms_dyn_trc_end(dms_ctx->sess_id);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
@@ -692,9 +705,11 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
             page_req.head.dst_inst, ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
+        dms_dyn_trc_end(dms_ctx->sess_id);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
+    dms_dyn_trc_end(dms_ctx->sess_id);
     dms_end_stat(dms_ctx->sess_id);
 
     session_stat_t *sess_stat = DMS_GET_SESSION_STAT(dms_ctx->sess_id);
@@ -803,6 +818,7 @@ static int dcs_release_owner_r(dms_context_t *dms_ctx, uint8 master_id, unsigned
     *released = ack->released;
 
     LOG_DEBUG_INF("[DCS][%s][release owner result]: released=%d", cm_display_pageid(dms_ctx->resid), (*released));
+    LOG_DYNAMIC_TRACE("[ROR][%s]released=%d", cm_display_pageid(dms_ctx->resid), (*released));
     mfc_release_response(&msg);
     return DMS_SUCCESS;
 }
@@ -831,7 +847,9 @@ int dms_can_release_owner(dms_context_t *dms_ctx, unsigned char *released)
         ret = dcs_release_owner_l(dms_ctx, released);
     } else {
         dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_RELEASE_OWNER, CM_TRUE);
+        dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_RELEASE_OWNER);
         ret = dcs_release_owner_r(dms_ctx, master_id, released);
+        dms_dyn_trc_end(dms_ctx->sess_id);
         dms_end_stat(dms_ctx->sess_id);
     }
 

@@ -147,6 +147,11 @@ typedef struct st_dms_instance {
 #define DMS_DEFAULT_MSG_NUM_FLOOR 0
 #define DEFAULT_TIME_FOR_ABNORMAL_STATUS 10
 
+#define DMS_LOG_BACKUP_FILE_COUNT   (10)
+#define DMS_MAX_LOG_FILE_SIZE       ((uint64)SIZE_M(1024) * 1)
+#define DMS_MAX_DYN_TRC_WARN_BUF    "DMS_MAX_DYN_TRACE_SIZE reached:"
+#define DMS_MAX_DYN_TRC_WARN_SZ     31
+
 extern dms_instance_t g_dms;
 
 static inline void dms_proc_msg_ack(dms_process_context_t *process_ctx, dms_message_t *msg)
@@ -178,6 +183,8 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
 void *dms_malloc(size_t size);
 void dms_free(void *ptr);
+void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32 buf_size);
+
 #define DMS_FREE_PROT_PTR(pointer) \
     do {                           \
         if ((pointer) != NULL) {   \
@@ -200,6 +207,7 @@ static inline void dms_get_one_thread(thread_set_t *thread_set, thread_t *thread
 }
 
 void dms_global_res_reinit(drc_global_res_map_t *global_res, uint8 thread_index, uint8 thread_num, bilist_t *temp);
+int dms_dyn_trc_init_logger_handle();
 
 #ifdef __cplusplus
 }

@@ -27,6 +27,7 @@
 #include "dms_process.h"
 #include "dms.h"
 #include "mes_func.h"
+#include "dms_dynamic_trace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,7 @@ extern "C" {
 dms_stat_t g_dms_stat;
 dms_time_consume_t g_dms_time_consume;
 
-void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
+void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
 {
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
     uint32 curr_level = stat->level++;
@@ -50,8 +51,8 @@ void dms_begin_stat(uint32     sid, dms_wait_event_t event, bool32 immediate)
     stat->wait[curr_level].usecs = 0;
     stat->wait[curr_level].pre_spin_usecs = cm_total_spin_usecs();
     stat->wait[curr_level].immediate = immediate;
-    LOG_DEBUG_INF("[DMS][dms_begin_stat]: stat event %u, immediate %d, sid %u, current level %u",
-        event, immediate, sid, curr_level);
+    char *evt_desc = dms_get_event_desc(event);
+    LOG_DEBUG_INF("[DMS][EVT %u-%u]%s", sid, curr_level, evt_desc);
 
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
@@ -82,7 +83,7 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
     session_stat_t *stat = g_dms_stat.sess_stats + sid;
 
     uint32 curr_level = --stat->level;
-    LOG_DEBUG_INF("[DMS][dms_end_stat_ex]: stat event %u, sid %u, current level %u", event, sid, curr_level);
+    LOG_DEBUG_INF("[DMS][EVT %u-%u]END", sid, curr_level);
 
     timeval_t tv_end;
 

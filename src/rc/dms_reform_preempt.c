@@ -52,7 +52,7 @@ static void dms_reformer_preempt_for_unshared(void)
 
 void dms_reformer_preempt_thread(thread_t *thread)
 {
-    cm_set_thread_name("reformer_preempt");
+    cm_set_thread_name(DMS_REFORM_PREEMPT_THRD_NAME);
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 reform_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;

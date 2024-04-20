@@ -50,6 +50,11 @@
 #include "fault_injection.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_alock.h"
+#include "dms_dynamic_trace.h"
+
+#ifndef WIN32
+#include <sys/prctl.h>
+#endif
 
 #define DEBUG_LOG_LEVEL 0x0000007F
 
@@ -68,7 +73,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_ASK_MASTER_FOR_PAGE,    dms_proc_ask_master_for_res,      CM_TRUE, CM_TRUE,  "ask master for res" },
     { MSG_REQ_ASK_OWNER_FOR_PAGE,     dms_proc_ask_owner_for_res,       CM_TRUE, CM_TRUE,  "ask owner for res" },
     { MSG_REQ_INVALIDATE_SHARE_COPY,  dms_proc_invld_req,               CM_TRUE, CM_TRUE,  "invalidate req" },
-    { MSG_REQ_CLAIM_OWNER,            dms_proc_claim_ownership_req,     CM_TRUE, CM_TRUE,  "claim ownership req" },
+    { MSG_REQ_CLAIM_OWNER,            dms_proc_claim_ownership_req,     CM_TRUE, CM_TRUE,  "claim owner req" },
     { MSG_REQ_CR_PAGE,                dcs_proc_pcr_request,             CM_TRUE, CM_FALSE, "consistency read page req" },
     { MSG_REQ_ASK_MASTER_FOR_CR_PAGE, dcs_proc_pcr_req_master,          CM_TRUE, CM_FALSE, "ask master for cr page" },
     { MSG_REQ_ASK_OWNER_FOR_CR_PAGE,  dcs_proc_pcr_req_owner,           CM_TRUE, CM_FALSE, "ask owner for cr page" },
@@ -166,7 +171,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OWNER_CKPT_EDP,               dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "owner ckpt edp ack msg" },
     { MSG_ACK_MASTER_CLEAN_EDP,             dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "master clean edp ack msg" },
     { MSG_ACK_OWNER_CLEAN_EDP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "owner clean edp ack msg" },
-    { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "error msg" },
+    { MSG_ACK_ERROR,                        dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "remote ack error" },
     { MSG_ACK_RELEASE_PAGE_OWNER,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "release page owner ack" },
     { MSG_ACK_CONFIRM_CVT,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "confirm converting ack" },
     { MSG_ACK_INVLDT_SHARE_COPY,            dms_proc_broadcast_ack2, CM_FALSE, CM_TRUE, "relase lock owner ack" },
@@ -204,6 +209,28 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_SMON_ALOCK_BY_DRID,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack smon deadlock alock drid" },
     { MSG_ACK_CHECK_OWNERSHIP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack check page ownership" },
 };
+
+static bool32 dms_cmd_is_reform(uint32 cmd)
+{
+    switch (cmd) {
+        case MES_REQ_MGRT_MASTER_DATA:
+        case MSG_REQ_PAGE_REBUILD:
+        case MSG_REQ_LOCK_REBUILD:
+        case MSG_REQ_SYNC_STEP:
+        case MSG_REQ_SYNC_SHARE_INFO:
+        case MSG_REQ_SYNC_NEXT_STEP:
+        case MSG_REQ_PAGE:
+        case MSG_REQ_SWITCHOVER:
+        case MSG_REQ_CHECK_REFORM_DONE:
+        case MSG_REQ_MAP_INFO:
+        case MSG_REQ_REFORM_GCV_SYNC:
+        case MSG_REQ_OPENGAUSS_ONDEMAND_REDO:
+        case MSG_REQ_XA_REBUILD:
+            return CM_TRUE;
+        default:
+            return CM_FALSE;
+    }
+}
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
 {
@@ -448,6 +475,12 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         return;
     }
 
+    if (dms_cmd_is_reform(head->cmd)) {
+        dms_dyn_trc_begin(ctx->sess_id, DMS_EVT_PROC_REFORM_REQ);
+    } else {
+        /* temp ban DMS_EVT_PROC_GENERIC_REQ event trace for better performance */
+    }
+
 #ifdef OPENGAUSS  
     (void)g_dms.callback.cache_msg(ctx->db_handle, (char*)mes_msg->buffer);
 #endif
@@ -466,6 +499,10 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
      */
     if (g_dms.callback.mem_reset != NULL) {
         g_dms.callback.mem_reset(ctx->db_handle);
+    }
+
+    if (dms_cmd_is_reform(head->cmd)) {
+        dms_dyn_trc_end(ctx->sess_id);
     }
 
     dms_unlock_instance_s(head->cmd);
@@ -1129,6 +1166,14 @@ static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, 
         case LOG_AUDIT:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/audit/%s", log_param->log_home, "dms.aud");
             break;
+        case LOG_DMS_EVT_TRC:
+            ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN,
+                "%s/trc/%s", log_param->log_home, "dms_event.trc");
+            break;
+        case LOG_DMS_RFM_TRC:
+            ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN,
+                "%s/trc/%s", log_param->log_home, "dms_reform.trc");
+            break;
         default:
             ret = 0;
             break;
@@ -1146,8 +1191,17 @@ static int32 init_single_logger(log_param_t *log_param, log_type_t log_id)
 {
     char file_name[CM_FILE_NAME_BUFFER_SIZE] = {'\0'};
     CM_RETURN_IFERR(init_single_logger_core(log_param, log_id, file_name, CM_FILE_NAME_BUFFER_SIZE));
+    LOG_RUN_INF("[DMS]log file name=%s", file_name);
     (void)cm_log_init(log_id, (const char *)file_name);
     cm_log_open_compress(log_id, true);
+    return DMS_SUCCESS;
+}
+
+int dms_dyn_trc_init_logger_handle()
+{
+    log_param_t *log_param = cm_log_param_instance();
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_EVT_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_RFM_TRC));
     return DMS_SUCCESS;
 }
 
@@ -1209,10 +1263,14 @@ int32 dms_init_logger(logger_param_t *param_def)
         return ERRNO_DMS_INIT_LOG_FAILED;
     }
 
+#ifdef OPENGAUSS
     CM_RETURN_IFERR(init_single_logger(log_param, LOG_RUN));
     CM_RETURN_IFERR(init_single_logger(log_param, LOG_DEBUG));
     CM_RETURN_IFERR(init_single_logger(log_param, LOG_ALARM));
     CM_RETURN_IFERR(init_single_logger(log_param, LOG_AUDIT));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_EVT_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_RFM_TRC));
+#endif
 
     log_param->log_instance_startup = (bool32)CM_TRUE;
 #ifdef OPENGAUSS
@@ -1246,6 +1304,7 @@ static int dms_init_stat(dms_profile_t *dms_profile)
 {
     g_dms_stat.time_stat_enabled = dms_profile->time_stat_enabled;
     g_dms_stat.sess_cnt = dms_profile->work_thread_cnt + dms_profile->channel_cnt + dms_profile->max_session_cnt;
+    g_dms_stat.sess_iterator = 0;
 
     size_t size = g_dms_stat.sess_cnt * sizeof(session_stat_t);
     g_dms_stat.sess_stats = (session_stat_t *)dms_malloc(size);
@@ -1257,8 +1316,15 @@ static int dms_init_stat(dms_profile_t *dms_profile)
 
     int ret = memset_s(g_dms_stat.sess_stats, size, 0, size);
     DMS_SECUREC_CHECK(ret);
+    g_dms_stat.inited = CM_TRUE;
 
     return DMS_SUCCESS;
+}
+
+static void dms_uninit_stat()
+{
+    g_dms_stat.inited = CM_FALSE;
+    DMS_FREE_PROT_PTR(g_dms_stat.sess_stats);
 }
 
 static void dms_set_global_dms(dms_profile_t *dms_profile)
@@ -1324,6 +1390,11 @@ int dms_init(dms_profile_t *dms_profile)
     dms_set_global_dms(dms_profile);
 
     ret = dms_init_stat(dms_profile);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    ret = dms_init_dynamic_trace(dms_profile);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -1403,6 +1474,8 @@ void dms_uninit(void)
     DMS_FREE_PROT_PTR(g_dms_stat.sess_stats);
     DMS_FREE_PROT_PTR(cm_log_param_instance()->log_compress_buf);
     dms_deinit_proc_ctx();
+    dms_uninit_dynamic_trace();
+    dms_uninit_stat();
 }
 
 unsigned long long dms_get_min_scn(unsigned long long min_scn)

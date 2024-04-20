@@ -27,6 +27,7 @@
 #include "cm_types.h"
 #include "dms.h"
 #include "cm_error.h"
+#include "dms_stat.h"
 
 #ifdef __cplusplus
 extern "C" {

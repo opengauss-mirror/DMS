@@ -36,6 +36,7 @@
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_xa.h"
 #include "dms_reform_fault_inject.h"
+#include "dms_dynamic_trace.h"
 
 static void dms_reform_set_next_step(uint8 step)
 {
@@ -1909,7 +1910,8 @@ static void dms_reform_inner(void)
 
 void dms_reform_proc_thread(thread_t *thread)
 {
-    cm_set_thread_name("reform_proc");
+    dms_set_is_reform_thrd(CM_TRUE);
+    cm_set_thread_name(DMS_REFORM_PROC_THRD_NAME);
     reform_info_t *reform_info = DMS_REFORM_INFO;
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
 #ifdef OPENGAUSS

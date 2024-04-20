@@ -1041,6 +1041,13 @@ DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx,
  */
 DMS_DECLARE unsigned char dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode);
 
+DMS_DECLARE unsigned char dms_dyn_trc_is_tracing(void);
+DMS_DECLARE unsigned char dms_dyn_trc_trace_reform(void);
+DMS_DECLARE void dms_dyn_trc_set_dump_flag(unsigned char has_err);
+DMS_DECLARE void dms_dynamic_trace_cache(unsigned int log_level, char *buf_text, unsigned int buf_size);
+
+DMS_DECLARE int dms_dynamic_trace_dump_iterator(char **sess_trc_buf, unsigned char* ended);
+
 DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
 DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 DMS_DECLARE void dms_fsync_logfile(void);
