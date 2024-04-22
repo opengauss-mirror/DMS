@@ -31,7 +31,7 @@
 extern "C" {
 #endif
 
-#ifdef _DEBUG
+#if defined (_DEBUG) && !defined (OPENGAUSS)
 void dms_reform_fault_inject_init(char *gsdb_home);
 void dms_reform_fault_inject_deinit(void);
 void dms_reform_fault_inject_before_step(dms_reform_proc_t *reform_proc);
