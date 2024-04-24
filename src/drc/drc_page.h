@@ -44,7 +44,7 @@ static inline bool32 if_cvt_need_confirm(drc_buf_res_t *buf_res)
 }
 
 void drc_release_buf_res_by_part(drc_part_list_t *part, uint8 type);
-int drc_request_page_owner(char* resid, uint16 len, uint8 res_type,
+int drc_request_page_owner(uint32 inst_id, uint32 sid, char* resid, uint16 len, uint8 res_type,
     drc_request_info_t* req_info, drc_req_owner_result_t* result);
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info);
 void drc_add_edp_map(drc_buf_res_t *buf_res, uint8 inst_id, uint64 lsn);
@@ -55,6 +55,7 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id);
 bool8 drc_chk_4_recycle(char *resid, uint16 len);
 bool8 drc_recycle_buf_res(dms_process_context_t *ctx, drc_buf_res_t *buf_res);
 void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type);
+bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_mode);
 #ifdef __cplusplus
 }
 #endif

@@ -148,6 +148,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_AZ_SWITCHOVER_DEMOTE, dms_reform_proc_req_az_switchover, CM_TRUE, CM_FALSE,  "dms az switchover demote" },
     { MSG_REQ_AZ_SWITCHOVER_PROMOTE, dms_reform_proc_req_az_switchover, CM_TRUE, CM_FALSE,  "dms az switchover promote" },
     { MSG_REQ_AZ_FAILOVER, dms_reform_proc_req_az_failover, CM_TRUE, CM_FALSE,  "dms az failover" },
+    { MSG_REQ_CHECK_OWNERSHIP, dms_proc_check_page_ownership, CM_TRUE, CM_FALSE,  "check page ownership" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -207,6 +208,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_XA_IN_USE,                    dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack ask xa in use or not" },
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack immediate ckpt request" },
     { MSG_ACK_SMON_ALOCK_BY_DRID,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack smon deadlock alock drid" },
+    { MSG_ACK_CHECK_OWNERSHIP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack check page ownership" },
 };
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
@@ -634,6 +636,7 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
             return MES_PRIORITY_TWO;
         case MSG_REQ_MASTER_CKPT_EDP:
         case MSG_REQ_OWNER_CKPT_EDP:
+        case MSG_REQ_CHECK_OWNERSHIP:
             return MES_PRIORITY_THREE;
         case MSG_REQ_MASTER_CLEAN_EDP:
         case MSG_REQ_OWNER_CLEAN_EDP:

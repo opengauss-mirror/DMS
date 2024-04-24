@@ -326,6 +326,7 @@ typedef struct st_dms_context {
     dms_session_e sess_type;  // request page: recovery session flag
     unsigned char is_try;
     unsigned char type;
+    unsigned char is_upgrade;
     unsigned short len;
     unsigned long long ctx_ruid; /* this ruid indicates one message ack is pending recv */
     union {
@@ -430,7 +431,6 @@ typedef struct st_dms_broadcast_context {
 } dms_broadcast_context_t;
 
 typedef struct st_dms_buf_ctrl {
-    volatile unsigned char is_remote_dirty;
     volatile unsigned char lock_mode;       // used only in DMS, 0: Null, 1: Shared lock, 2: Exclusive lock
     // used only in DMS, 0: no, 1: yes, this page is old version,
     // can be discard only after latest version in other instance is cleaned
@@ -439,8 +439,8 @@ typedef struct st_dms_buf_ctrl {
     volatile unsigned char need_flush;      // for recovery, owner is abort, copy instance should flush before release
     volatile unsigned char been_loaded;     // first alloc ctrl:FALSE, after successfully loaded: TRUE
     volatile unsigned char in_rcy;          // if drc lost, we can rebuild in_recovery flag according buf_ctrl
-    unsigned char release_conflict : 1;
-    unsigned char unused : 7;
+    unsigned short release_conflict : 1;
+    unsigned short unused : 15;
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.

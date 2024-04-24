@@ -103,6 +103,7 @@ typedef enum en_msg_command {
     MSG_REQ_ALOCK_REBUILD = 74,
     MSG_REQ_ALOCK_VALIDATE = 75,
     MSG_REQ_SMON_ALOCK_BY_DRID = 76,
+    MSG_REQ_CHECK_OWNERSHIP = 77,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -161,6 +162,7 @@ typedef enum en_msg_command {
     MSG_ACK_XA_IN_USE = 180,
     MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT = 181,
     MSG_ACK_SMON_ALOCK_BY_DRID = 182,
+    MSG_ACK_CHECK_OWNERSHIP = 183,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;
