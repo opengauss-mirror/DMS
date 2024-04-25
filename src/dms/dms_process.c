@@ -1351,6 +1351,8 @@ void dms_uninit(void)
 #ifdef OPENGAUSS    
     dms_scrlock_uninit();
     dms_reform_uninit();
+#else
+    dms_reform_cm_res_unlock();
 #endif
     drc_smon_ctx_deinit();
     mfc_uninit();
