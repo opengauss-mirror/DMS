@@ -1077,6 +1077,8 @@ DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx,
 DMS_DECLARE unsigned char dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode);
 
 DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
+DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
+DMS_DECLARE void dms_fync_logfile(void);
 
 #ifdef __cplusplus
 }
