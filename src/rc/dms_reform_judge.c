@@ -1382,6 +1382,17 @@ static void dms_reform_judgement_validate_lock_mode(instance_list_t *inst_lists)
     dms_reform_add_step(DMS_REFORM_STEP_VALIDATE_LOCK_MODE);
 }
 
+static void dms_reform_judgement_standby_sync(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_STANDBY_UPDATE_REMOVE_NODE_CTRL);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_STANDBY_STOP_THREAD);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_STANDBY_RELOAD_NODE_CTRL);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST);
+}
+
 static void dms_reform_judgement_start_lrpl(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_START_LRPL);
@@ -1529,6 +1540,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_reset_user();
     dms_reform_judgement_validate_lock_mode(inst_lists);
     dms_reform_judgement_drc_access();
+    dms_reform_judgement_standby_sync();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_page_access();
@@ -1753,6 +1765,7 @@ static void dms_reform_judgement_az_switchover_demote(instance_list_t *inst_list
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_drc_access();
+    dms_reform_judgement_standby_sync();
     dms_reform_judgement_page_access();
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_file_blocked(inst_lists);

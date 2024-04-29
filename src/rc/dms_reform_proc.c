@@ -68,7 +68,6 @@ static int dms_reform_db_prepare(void)
     return DMS_SUCCESS;
 #else
     share_info_t *share_info = DMS_SHARE_INFO;
-    g_dms.callback.set_online_list(g_dms.reform_ctx.handle_normal, share_info->bitmap_online);
     int ret = g_dms.callback.db_prepare(g_dms.reform_ctx.handle_proc);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -1005,17 +1004,66 @@ static void dms_reform_set_idle_behavior(void)
 }
 #endif
 
+static int dms_reform_standby_update_remove_node_ctrl(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (DMS_IS_SHARE_REFORMER) {
+        g_dms.callback.standby_update_remove_node_ctrl(g_dms.reform_ctx.handle_normal, share_info->bitmap_online);
+    }
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_standby_stop_thread(void)
+{
+    LOG_DEBUG_INF("[DMS REFORM] dms_reform_standby_stop_thread enter");
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    int ret = g_dms.callback.standby_stop_thread(g_dms.reform_ctx.handle_normal, share_info->bitmap_online,
+        share_info->reformer_id);
+    if (ret == DMS_SUCCESS) {
+        dms_reform_next_step();
+        LOG_RUN_FUNC_SUCCESS;
+    }
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_standby_reload_node_ctrl(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    g_dms.callback.standby_reload_node_ctrl(g_dms.reform_ctx.handle_normal);
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_standby_set_online_list(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    g_dms.callback.set_online_list(g_dms.reform_ctx.handle_normal, share_info->bitmap_online);
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_start_lrpl(void)
 {
+    LOG_RUN_FUNC_ENTER;
     g_dms.callback.start_lrpl(g_dms.reform_ctx.handle_normal, DMS_IS_SHARE_REFORMER);
     dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
 }
 
 static int dms_reform_stop_lrpl(void)
 {
+    LOG_RUN_FUNC_ENTER;
     g_dms.callback.stop_lrpl(g_dms.reform_ctx.handle_normal, DMS_IS_SHARE_REFORMER);
     dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
 }
 
@@ -1752,6 +1800,13 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_VALIDATE_LSN] = { "VALIDATE_LSN", dms_reform_validate_lsn,
         dms_reform_validate_lsn_parallel, CM_TRUE },
     [DMS_REFORM_STEP_SET_CURRENT_POINT] = { "SET_CURR_POINT", dms_reform_set_current_point, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STANDBY_UPDATE_REMOVE_NODE_CTRL] = { "UPDATE_REMOVE_NODE_CTRL",
+        dms_reform_standby_update_remove_node_ctrl, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STANDBY_STOP_THREAD] = { "STANDBY_STOP_THREAD", dms_reform_standby_stop_thread, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STANDBY_RELOAD_NODE_CTRL] = { "RELOAD_NODE_CTRL", dms_reform_standby_reload_node_ctrl,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST] = { "STANDBY_SET_ONLINE_LIST", dms_reform_standby_set_online_list,
+        NULL, CM_FALSE },
     [DMS_REFORM_STEP_START_LRPL] = { "START_LRPL", dms_reform_start_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1,
