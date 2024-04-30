@@ -987,6 +987,7 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t 
         cm_display_resid(req.resid, req.res_type),
         req.head.src_inst, req.head.src_sid, req.req_mode, req.curr_mode);
 
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
     drc_request_info_t req_info = { 0 };
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid,
         req.head.ruid, req.curr_mode, req.req_mode, req.is_try, req.sess_type, req.req_time, req.srsn,
@@ -1028,6 +1029,7 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *proc_ctx, dms_message_t *r
         return;
     }
 
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: src_id=%d, src_sid=%d",
         cm_display_resid(req.resid, req.res_type), req.head.src_inst, req.head.src_sid);
 
@@ -1307,6 +1309,7 @@ void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_messag
         (uint32)request->head.src_sid, (uint32)request->head.dst_inst,
         (uint32)request->head.dst_sid, (uint32)request->has_edp, (uint32)request->req_mode);
 
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, request->res_type, CM_FALSE);
     // call drc interface to claim ownership
     (void)dms_set_claim_info(&claim_info, request->resid, request->len, (uint8)request->res_type,
         request->head.src_inst, request->req_mode, (bool8)request->has_edp, request->lsn, request->head.src_sid,
@@ -1383,6 +1386,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t 
         cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
         (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
 
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
     drc_request_info_t req_info;
     dms_set_req_info(&req_info, req.head.src_inst, req.head.src_sid, req.head.ruid, 0, 0, CM_FALSE,
         req.sess_type, g_timer()->now, req.srsn, req.intercept_type, req.head.msg_proto_ver);
