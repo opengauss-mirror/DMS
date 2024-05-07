@@ -79,7 +79,7 @@ fi
 if [ -z "${build_tool}" ] || [ "$build_tool"x == ""x ]; then
     build_tool=cmake
 fi
-if [ ! "$version_mode"x == "Debug"x ] && [ ! "$version_mode"x == "Release"x ] && [ ! "$version_mode"x == "DMSTest"x ] && [ ! "$version_mode"x == "Memcheck"x ]; then
+if [ ! "$version_mode"x == "Debug"x ] && [ ! "$version_mode"x == "Release"x ] && [ ! "$version_mode"x == "DMSTest"x ] && [ ! "$version_mode"x == "MemcheckDMSTest"x ]; then
     echo "ERROR: version_mode param is error"
     exit 1
 fi
