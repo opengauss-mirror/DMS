@@ -316,6 +316,18 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
         }                                                                                       \
     } while (0)
 
+#define CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(msg, res_type, has_ack)                             \
+do {                                                                                            \
+        if ((res_type) != DRC_RES_PAGE_TYPE && (res_type) != DRC_RES_LOCK_TYPE &&               \
+            (res_type) != DRC_RES_GLOBAL_XA_TYPE) {                                             \
+            LOG_DEBUG_ERR("recv invalid msg, res_type:%u", res_type);                           \
+            if (has_ack) {                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
+            }                                                                                   \
+            return;                                                                             \
+        }                                                                                       \
+    } while (0)
+
 #define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \
     do {                                                                                                        \
         dms_check_message_cmd(v_cmd, CM_TRUE);                                                                  \
