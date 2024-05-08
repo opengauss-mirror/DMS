@@ -352,12 +352,14 @@ static int dms_reform_rebuild_lock_by_bucket(drc_res_bucket_t *bucket, uint8 thr
                     cm_display_lockid(&lock_res->resid));
                 break;
             }
+            dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_LOCAL_RES);
             drc_lock_local_resx(lock_res, NULL, NULL);
+            dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_RES);
             LOG_DEBUG_INF("[lock rebuild][%s]local_lock_res lock_mode: %d",
                 cm_display_lockid(&lock_res->resid), lock_res->latch_stat.lock_mode);
             ret = dms_reform_rebuild_lock_inner(lock_res, remaster_id, thread_index);
             drc_unlock_local_resx(lock_res);
-            dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_RES);
+            dms_reform_proc_stat_end(DRPS_DRC_REBUILD_LOCK_LOCAL_RES);
             DMS_BREAK_IF_ERROR(ret);
         }
         node = BINODE_NEXT(node);
