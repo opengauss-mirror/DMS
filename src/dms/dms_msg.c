@@ -424,6 +424,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_message_t msg = {0};
     int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
     ret = mfc_get_response(req.head.ruid, &msg, max_wait_time_ms);
+    dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_OWNER, dms_ctx->type, ret);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: wait ack timeout, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u, "
             "ret=%d",
@@ -694,6 +695,7 @@ int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_
         ret = dms_ask_master4res_l(dms_ctx, res, curr_mode, req_mode);
     } else {
         ret = dms_ask_master4res_r(dms_ctx, res, master_id, curr_mode, req_mode);
+        dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_OWNER, dms_ctx->type, ret);
     }
     return ret;
 }
@@ -2086,6 +2088,38 @@ void dms_proc_opengauss_immediate_ckpt(dms_process_context_t *process_ctx, dms_m
     if (mfc_send_data3(&ack_head, sizeof(dms_message_head_t), &redo_lsn) != CM_SUCCESS) {
         LOG_DEBUG_ERR( "[DMS][request_immediately_ckpt] send openGauss checkpoint result ack message failed, "
             "src_inst = %u, dst_inst = %u",  (uint32)ack_head.src_inst, (uint32)ack_head.dst_inst);
+    }
+}
+
+void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret)
+{
+    if (cmd >= DMS_STAT_CMD_COUNT) {
+        return;
+    }
+    
+    if (ret != CM_SUCCESS) {
+        if (type == DRC_RES_LOCK_TYPE) {
+            g_dms.msg_stats[sid].stat_cmd[cmd].ask_lock_fail_cnt++;
+        } else if (type == DRC_RES_PAGE_TYPE) {
+            g_dms.msg_stats[sid].stat_cmd[cmd].ask_page_fail_cnt++;
+        }
+    }
+    if (type == DRC_RES_LOCK_TYPE) {
+        g_dms.msg_stats[sid].stat_cmd[cmd].ask_lock_succ_cnt++;
+    } else if (type == DRC_RES_PAGE_TYPE) {
+        g_dms.msg_stats[sid].stat_cmd[cmd].ask_page_succ_cnt++;
+    }
+}
+
+void dms_get_msg_stats(dms_msg_stats_t *msg_stat)
+{
+    for (uint32 sess_idx = 0; sess_idx < DMS_CM_MAX_SESSIONS; sess_idx++) {
+        for (uint32 idx = 0; idx < DMS_STAT_CMD_COUNT; idx++) {
+            msg_stat->stat_cmd[idx].ask_lock_succ_cnt += g_dms.msg_stats[sess_idx].stat_cmd[idx].ask_lock_succ_cnt;
+            msg_stat->stat_cmd[idx].ask_lock_fail_cnt += g_dms.msg_stats[sess_idx].stat_cmd[idx].ask_lock_fail_cnt;
+            msg_stat->stat_cmd[idx].ask_page_succ_cnt += g_dms.msg_stats[sess_idx].stat_cmd[idx].ask_page_succ_cnt;
+            msg_stat->stat_cmd[idx].ask_page_fail_cnt += g_dms.msg_stats[sess_idx].stat_cmd[idx].ask_page_fail_cnt;
+        }
     }
 }
 

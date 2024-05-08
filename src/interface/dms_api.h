@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           148
+#define DMS_LOCAL_VERSION           149
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -129,7 +129,7 @@ typedef enum en_dms_persistent_id {
 
 // for smon deadlock check
 #define DMS_SMON_DLOCK_MSG_MAX_LEN  24
-#define DMS_SMON_TLOCK_MSG_MAX_LEN  56
+#define DMS_SMON_TLOCK_MSG_MAX_LEN  64
 #define DMS_SMON_MAX_SQL_LEN    10240  // The maximum size of a message to be transferred in the MES is 32 KB.
 #define MAX_TABLE_LOCK_NUM 512
 #define DMS_MAX_W_MARKS_NUM (16320 * 64)
@@ -190,6 +190,7 @@ typedef enum en_drc_res_type {
     DRC_RES_LOCAL_TXN_TYPE,
     DRC_RES_LOCK_ITEM_TYPE,
     DRC_RES_GLOBAL_XA_TYPE,
+    DRC_RES_TYPE_MAX_COUNT,
 } drc_res_type_e;
 
 typedef enum en_dms_session {
@@ -770,6 +771,26 @@ typedef struct st_dms_broadcast_info {
     unsigned char handle_recv_msg;
     unsigned char check_session_kill; 
 } dms_broadcast_info_t;
+
+typedef enum st_dms_stat_cmd {
+    DMS_STAT_ASK_MASTER,
+    DMS_STAT_ASK_OWNER,
+    DMS_STAT_ASK_CR_PAGE,
+    DMS_STAT_ASK_MASTER_CR_PAGE,
+    DMS_STAT_ASK_OWNER_CR_PAGE,
+    DMS_STAT_CMD_COUNT,
+} dms_stat_cmd_e;
+
+typedef struct st_dms_stat_by_cmd {
+    unsigned long long ask_lock_succ_cnt;
+    unsigned long long ask_lock_fail_cnt;
+    unsigned long long ask_page_succ_cnt;
+    unsigned long long ask_page_fail_cnt;
+} dms_stat_by_cmd_t;
+
+typedef struct st_dms_msg_stats {
+    dms_stat_by_cmd_t stat_cmd[DMS_STAT_CMD_COUNT];
+} dms_msg_stats_t;
 
 typedef struct dms_fi_entry dms_fi_entry;
 typedef int(*dms_fi_callback_func)(const dms_fi_entry *entry, va_list args);

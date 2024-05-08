@@ -1065,6 +1065,9 @@ DMS_DECLARE int dms_reform_validate_alock_parallel(
  */
 DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned char dst_inst,
     dms_drlatch_t *alatch, char *res_buf, unsigned int buf_len, unsigned int *res_len);
+
+ DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
+
 #ifdef __cplusplus
 }
 #endif

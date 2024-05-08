@@ -452,7 +452,10 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
         return ret;
     }
 
-    return dcs_request_cr_page(dms_ctx, dms_cr, dst_id, &request, sizeof(msg_pcr_request_t), CM_TRUE);
+    ret = dcs_request_cr_page(dms_ctx, dms_cr, dst_id, &request, sizeof(msg_pcr_request_t), CM_TRUE);
+    dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_CR_PAGE, DRC_RES_PAGE_TYPE, ret);
+
+    return ret;
 }
 
 int dms_forward_heap_cr_page_reqeust(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
@@ -478,7 +481,10 @@ static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
 
     g_dms.callback.get_entry_pageid_from_cr_cursor(dms_cr->cr_cursor, msg.entry);
     g_dms.callback.get_index_profile_from_cr_cursor(dms_cr->cr_cursor, msg.profile);
-    return dcs_request_cr_page(dms_ctx, dms_cr, dst_id, request, sizeof(msg_index_pcr_request_t), CM_FALSE);
+    ret = dcs_request_cr_page(dms_ctx, dms_cr, dst_id, request, sizeof(msg_index_pcr_request_t), CM_FALSE);
+    dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_CR_PAGE, DRC_RES_PAGE_TYPE, ret);
+
+    return ret;
 }
 
 int dms_forward_btree_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
@@ -809,15 +815,17 @@ void dcs_proc_check_visible(dms_process_context_t *process_ctx, dms_message_t *r
 }
 
 static inline void dcs_get_msg_cmd_by_cr_status(dms_cr_phase_t cr_phase, msg_command_t *msg_cmd,
-    const char **log_info)
+    const char **log_info, dms_stat_cmd_e *stat_cmd)
 {
     switch (cr_phase) {
         case DMS_CR_PHASE_REQ_MASTER:
             *msg_cmd = MSG_REQ_ASK_MASTER_FOR_CR_PAGE;
+            *stat_cmd = DMS_STAT_ASK_MASTER_CR_PAGE;
             *log_info = "master";
             break;
         case DMS_CR_PHASE_REQ_OWNER:
             *msg_cmd = MSG_REQ_ASK_OWNER_FOR_CR_PAGE;
+            *stat_cmd = DMS_STAT_ASK_OWNER_CR_PAGE;
             *log_info = "owner";
             break;
         default:
@@ -835,8 +843,9 @@ int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned 
     int ret;
     msg_command_t msg_cmd;
     const char *log_info = NULL;
+    dms_stat_cmd_e stat_cmd = DMS_STAT_CMD_COUNT;
 
-    dcs_get_msg_cmd_by_cr_status(dms_cr->phase, &msg_cmd, &log_info);
+    dcs_get_msg_cmd_by_cr_status(dms_cr->phase, &msg_cmd, &log_info, &stat_cmd);
 
     DMS_INIT_MESSAGE_HEAD(&request.head, msg_cmd, 0, dms_ctx->inst_id, dst_inst_id, dms_ctx->sess_id, CM_INVALID_ID16);
     request.head.size = (uint16)sizeof(msg_pcr_request_t);
@@ -856,11 +865,13 @@ int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned 
         dms_begin_stat(dms_ctx->sess_id, event, CM_TRUE);
 
         if (mfc_send_data(&request.head) != CM_SUCCESS) {
+            dms_inc_msg_stat(dms_ctx->sess_id, stat_cmd, DRC_RES_PAGE_TYPE, CM_ERROR);
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
 
         if (mfc_get_response(request.head.ruid, &message, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
+            dms_inc_msg_stat(dms_ctx->sess_id, stat_cmd, DRC_RES_PAGE_TYPE, CM_ERROR);
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
@@ -871,10 +882,12 @@ int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned 
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message);
         if (ret != DMS_SUCCESS) {
+            dms_inc_msg_stat(dms_ctx->sess_id, stat_cmd, DRC_RES_PAGE_TYPE, ret);
             mfc_release_response(&message);
             return ret;
         }
 
+        dms_inc_msg_stat(dms_ctx->sess_id, stat_cmd, DRC_RES_PAGE_TYPE, ret);
         mfc_release_response(&message);
         return DMS_SUCCESS;
     }
