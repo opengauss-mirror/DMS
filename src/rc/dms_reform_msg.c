@@ -286,7 +286,7 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
     dms_message_t res;
     int ret = DMS_SUCCESS;
 
-    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
+    ret = mfc_get_response(ruid, &res, DMS_MSG_SLEEP_TIME);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_req_dms_status_wait error: %d, dst_id: %d", ret, dst_id);
         return ret;

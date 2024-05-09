@@ -1348,7 +1348,7 @@ void dms_pre_uninit(void)
 
 void dms_uninit(void)
 {
-#ifdef OPENGAUSS    
+#ifdef OPENGAUSS
     dms_scrlock_uninit();
     dms_reform_uninit();
 #else
@@ -1357,7 +1357,6 @@ void dms_uninit(void)
     drc_smon_ctx_deinit();
     mfc_uninit();
     drc_destroy();
-    cm_res_mgr_uninit(&g_dms.cm_res_mgr);
     cm_close_timer(g_timer());
     DMS_FREE_PROT_PTR(g_dms_stat.sess_stats);
     DMS_FREE_PROT_PTR(cm_log_param_instance()->log_compress_buf);
