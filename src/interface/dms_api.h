@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           149
+#define DMS_LOCAL_VERSION           150
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -720,6 +720,11 @@ typedef enum en_broadcast_scope {
     DMS_BROADCAST_TYPE_COUNT,
 } dms_broadcast_scope_e;
 
+typedef enum en_dms_buf_stats_type {
+    DMS_BUF_STATS_NULL = 0,
+    DMS_BUF_STATS_LOAD = 1,
+    DMS_BUF_STATS_EXPIRE = 2,
+} dms_buf_stats_type_e;
 /*
 * used by openGauss server to get DRC information
 */
@@ -829,6 +834,7 @@ typedef unsigned int(*dms_get_page_hash_val)(const char pageid[DMS_PAGEID_SIZE])
 typedef unsigned int(*dms_inc_and_get_srsn)(unsigned int sess_id);
 typedef unsigned long long(*dms_get_page_lsn)(const dms_buf_ctrl_t *buf_ctrl);
 typedef int(*dms_set_buf_load_status)(dms_buf_ctrl_t *buf_ctrl, dms_buf_load_status_t dms_buf_load_status);
+typedef int(*dms_stats_buf)(void *db_handle, dms_buf_ctrl_t *buf_ctrl, dms_buf_stats_type_e stats_type);
 typedef int(*dms_remove_buf_load_status)(dms_buf_ctrl_t *buf_ctrl, dms_buf_load_status_t dms_buf_load_status);
 typedef void(*dms_update_global_lsn)(void *db_handle, unsigned long long lamport_lsn);
 typedef void(*dms_update_global_scn)(void *db_handle, unsigned long long lamport_scn);
@@ -1075,6 +1081,7 @@ typedef struct st_dms_callback {
     dms_read_page read_page;
     dms_leave_page leave_page;
     dms_verify_page verify_page;
+    dms_stats_buf stats_buf;
 
     /* memory manager callback functions provided by DB */
     dms_mem_alloc mem_alloc;
