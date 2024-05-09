@@ -131,11 +131,11 @@ void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_
         cm_bilist_init(&pool->free_list);
     }
     for (uint32 i = 0; i < pool->extend_num; i++) {
-        uint32 total_count = (uint32)pool->each_pool_size[i];
-        uint32 task_num = (total_count + thread_num - 1) / thread_num;
-        uint32 task_begin = thread_index * task_num;
-        uint32 task_end = MIN(task_begin + task_num, total_count);
-        for (uint32 j = task_begin; j < task_end; j++) {
+        uint64 total_count = pool->each_pool_size[i];
+        uint64 task_num = (total_count + thread_num - 1) / thread_num;
+        uint64 task_begin = thread_index * task_num;
+        uint64 task_end = MIN(task_begin + task_num, total_count);
+        for (uint64 j = task_begin; j < task_end; j++) {
             bilist_node_t *node = (bilist_node_t *)(pool->addr[i] + j * pool->item_size);
             cm_bilist_node_init(node);
             cm_bilist_add_tail(node, temp);
@@ -269,11 +269,11 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
 
 void drc_res_map_reinit(drc_res_map_t *res_map, uint8 thread_index, uint8 thread_num, bilist_t *temp)
 {
-    uint32 total_count = res_map->bucket_num;
-    uint32 task_num = (total_count + thread_num - 1) / thread_num;
-    uint32 task_begin = thread_index * task_num;
-    uint32 task_end = MIN(task_begin + task_num, total_count);
-    uint64 bucket_size = ((uint64)(task_end - task_begin) * sizeof(drc_res_bucket_t));
+    uint64 total_count = res_map->bucket_num;
+    uint64 task_num = (total_count + thread_num - 1) / thread_num;
+    uint64 task_begin = thread_index * task_num;
+    uint64 task_end = MIN(task_begin + task_num, total_count);
+    uint64 bucket_size = (task_end - task_begin) * sizeof(drc_res_bucket_t);
     drc_init_over2g_buffer(&res_map->buckets[task_begin], 0, bucket_size);
     drc_res_pool_reinit(&res_map->res_pool, thread_index, thread_num, temp);
 }
