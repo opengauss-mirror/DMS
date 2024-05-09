@@ -204,6 +204,7 @@ drps_desc_t g_drps_desc_t[] = {
     {DRPS_DRC_REBUILD_PAGE_REMOTE_REST,                         DRPS_LEVEL_TWO,     "REMOTE_REST"},
     {DRPS_DRC_REBUILD_LOCK,                                     DRPS_LEVEL_ONE,     "LOCK"},
     {DRPS_DRC_REBUILD_LOCK_RES,                                 DRPS_LEVEL_TWO,     "LOCAL RES"},
+    {DRPS_DRC_REBUILD_LOCK_LOCAL_RES,                           DRPS_LEVEL_THREE,   "LOCK_LOCAL_RES"},
     {DRPS_DRC_REBUILD_LOCK_LOCAL,                               DRPS_LEVEL_THREE,   "LOCAL"},
     {DRPS_DRC_REBUILD_LOCK_REMOTE,                              DRPS_LEVEL_THREE,   "REMOTE"},
     {DRPS_DRC_REBUILD_LOCK_REMOTE_REST,                         DRPS_LEVEL_TWO,     "REMOTE_REST"},

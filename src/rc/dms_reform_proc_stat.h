@@ -157,6 +157,7 @@ typedef enum en_dms_reform_proc_stat {
     DRPS_FILE_BLOCKED_WAIT_LATCH,
     DRPS_VALIDATE_LOCK_MODE_WAIT_LATCH,
     DRPS_CTL_RCY_CLEAN_WAIT_LATCH,
+    DRPS_DRC_REBUILD_LOCK_LOCAL_RES,
     /* add new item above */
     DRPS_COUNT
 } dms_reform_proc_stat_e;
