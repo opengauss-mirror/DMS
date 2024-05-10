@@ -75,6 +75,9 @@ static inline int32 dcs_set_ctrl4edp_local(dms_context_t *dms_ctx, dms_buf_ctrl_
     ctrl->been_loaded = CM_TRUE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
     LOG_DEBUG_INF("[DCS][%s]: lock mode=%d, edp=%d", cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, ctrl->is_edp);
+#ifndef OPENGAUSS
+    g_dms.callback.stats_buf(dms_ctx->db_handle, ctrl, DMS_BUF_STATS_LOAD);
+#endif
     return g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 }
 
@@ -115,6 +118,9 @@ int32 dcs_handle_prepare_edp_remote(dms_context_t *dms_ctx, dms_message_t *msg, 
     ctrl->is_edp = 0;
     ctrl->been_loaded = CM_TRUE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
+#ifndef OPENGAUSS
+    g_dms.callback.stats_buf(dms_ctx->db_handle, ctrl, DMS_BUF_STATS_LOAD);
+#endif
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 
     uint64 page_lsn = g_dms.callback.get_page_lsn(ctrl);
@@ -370,6 +376,9 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     ctrl->been_loaded = CM_TRUE;
     CM_MFENCE;
     dcs_set_ctrl_in_rcy(dms_ctx, ctrl);
+#ifndef OPENGAUSS
+    g_dms.callback.stats_buf(dms_ctx->db_handle, ctrl, DMS_BUF_STATS_LOAD);
+#endif
     g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_IS_LOADED);
 
     LOG_DEBUG_INF("[DCS][%s][%s]: lock mode=%d, edp=%d, src_id=%d, src_sid=%d, dest_id=%d,"
@@ -765,6 +774,9 @@ static void dcs_change_page_status(dms_process_context_t *ctx, dms_buf_ctrl_t *c
 {
     if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
         ctrl->lock_mode = DMS_LOCK_NULL;
+#ifndef OPENGAUSS
+        g_dms.callback.stats_buf(dms_ctx->db_handle, ctrl, DMS_BUF_STATS_EXPIRE);
+#endif
         // If multiple S-readings come later, BUF_LOAD_FAILED can ensure only one invokes DCS page request.
         g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_LOAD_FAILED);
         ctrl->is_remote_dirty = 0;
