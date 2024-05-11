@@ -254,6 +254,9 @@ void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 
     DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_DMS_STATUS, 0, g_dms.inst_id, dst_id, sess_id, CM_INVALID_ID16);
     req->head.size = (uint16)sizeof(dms_reform_req_partner_status_t);
     req->lsn = reform_info->start_time;
+    cm_spin_lock(&g_dms.dms_driver_ping_info.lock, NULL);
+    req->driver_ping_info = g_dms.dms_driver_ping_info.driver_ping_info;
+    cm_spin_unlock(&g_dms.dms_driver_ping_info.lock);
 }
 
 void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
@@ -262,6 +265,10 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
     reform_info_t *reform_info = DMS_REFORM_INFO;
     int ret = DMS_SUCCESS;
     dms_reform_req_partner_status_t *req = (dms_reform_req_partner_status_t*)receive_msg->head;
+    cm_spin_lock(&g_dms.dms_driver_ping_info.lock, NULL);
+    g_dms.dms_driver_ping_info.driver_ping_info = req->driver_ping_info;
+    cm_spin_unlock(&g_dms.dms_driver_ping_info.lock);
+
     dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
         process_ctx->sess_id);
     if (receive_msg->head->src_inst != reform_info->reformer_id) {
@@ -274,6 +281,7 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
         ack_common.result = DMS_SUCCESS;
         ack_common.dms_status = (uint8)g_dms.callback.get_dms_status(process_ctx->db_handle);
         ack_common.start_time = reform_info->start_time;
+        ack_common.db_is_readwrite = (uint8)g_dms.callback.check_db_readwrite(process_ctx->db_handle);
     }
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
@@ -281,7 +289,8 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
     }
 }
 
-int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, uint8 dst_id, uint64 ruid)
+int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, uint8 *online_rw_status,
+    uint8 dst_id, uint64 ruid)
 {
     dms_message_t res;
     int ret = DMS_SUCCESS;
@@ -299,6 +308,7 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
     }
     online_status[dst_id] = ack_common->dms_status;
     online_times[dst_id] = ack_common->start_time;
+    online_rw_status[dst_id] = ack_common->db_is_readwrite;
     mfc_release_response(&res);
     return DMS_SUCCESS;
 }

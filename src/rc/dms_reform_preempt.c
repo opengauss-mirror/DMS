@@ -55,8 +55,6 @@ void dms_reformer_preempt_thread(thread_t *thread)
     cm_set_thread_name("reformer_preempt");
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 reform_id = CM_INVALID_ID8;
-    date_t time_success = g_timer()->now;
-    date_t time_now = 0;
     int ret = DMS_SUCCESS;
 
 #ifdef OPENGAUSS
@@ -86,16 +84,9 @@ void dms_reformer_preempt_thread(thread_t *thread)
         DMS_REFORM_LONG_SLEEP;
         ret = dms_reform_cm_res_get_lock_owner(&reform_id);
         if (ret != DMS_SUCCESS) {
-            time_now = g_timer()->now;
-            if (time_now - time_success > MAX_ALIVE_TIME_FOR_ABNORMAL_STATUS * MICROSECS_PER_SECOND &&
-                !g_dms.gdb_in_progress) {
-                LOG_RUN_ERR("[DMS REFORM]fail to get lock owner for %d seconds, exit",
-                    MAX_ALIVE_TIME_FOR_ABNORMAL_STATUS);
-                cm_exit(0);
-            }
+            LOG_RUN_ERR_INHIBIT(LOG_INHIBIT_LEVEL2, "[DMS REFORM] get lock owner timeout");
             continue;
         }
-        time_success = g_timer()->now;
         if (reform_id == CM_INVALID_ID8) {
             dms_reform_cm_res_lock();
             continue;

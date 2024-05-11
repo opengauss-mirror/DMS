@@ -380,6 +380,7 @@ typedef struct st_reform_scrlock_context {
 typedef struct st_health_info {
     uint8               online_status[DMS_MAX_INSTANCES];
     uint64              online_times[DMS_MAX_INSTANCES];
+    uint8               online_rw_status[DMS_MAX_INSTANCES];
     dms_thread_status_t thread_status;
     date_t              dyn_log_time;
 } health_info_t;
@@ -474,6 +475,11 @@ typedef struct st_reform_context {
     az_switchover_info_t  az_switchover_info;
     latch_t             res_ctrl_latch; // lock control for reform dependent db resources
 } reform_context_t;
+
+typedef struct st_dms_driver_ping_info {
+    spinlock_t lock;
+    driver_ping_info_t driver_ping_info;
+} dms_driver_ping_info_t;
 
 #define REFORM_TYPE_IS_SWITCHOVER(type) (type == DMS_REFORM_TYPE_FOR_SWITCHOVER || \
     type == DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS)

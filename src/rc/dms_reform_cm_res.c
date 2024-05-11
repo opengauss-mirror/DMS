@@ -39,12 +39,15 @@ static config_item_t g_cm_params[] = {
         EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
     { CM_BITMAP_ONLINE, CM_TRUE, CM_FALSE, "3", NULL, NULL, "-", "-", "BIG INTEGER", NULL, CM_PARAM_BITMAP_ONLINE,
         EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
+    { CM_VERSION_ONLINE, CM_TRUE, CM_FALSE, "0", NULL, NULL, "-", "-", "BIG INTEGER", NULL, CM_PARAM_VERSION_ONLINE,
+        EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
 };
 
 static void dms_reform_cm_simulation_init()
 {
     g_cm_simulation.params.reformer_id = CM_INVALID_ID32;
     g_cm_simulation.params.bitmap_online = 0;
+    g_cm_simulation.params.online_version = 0;
 }
 
 static void dms_reform_cm_simulation_refresh(void)
@@ -57,6 +60,11 @@ static void dms_reform_cm_simulation_refresh(void)
     value = cm_get_config_value(&g_cm_simulation.config, CM_BITMAP_ONLINE);
     if (cm_str2uint64(value, &g_cm_simulation.params.bitmap_online) != CM_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to get BITMAP_ONLINE");
+    }
+
+    value = cm_get_config_value(&g_cm_simulation.config, CM_VERSION_ONLINE);
+    if (cm_str2uint64(value, &g_cm_simulation.params.online_version) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to get VERSION_ONLINE");
     }
 }
 
@@ -144,6 +152,12 @@ void dms_reform_cm_simulation_uninit(void)
     cm_close_thread(&g_cm_simulation.thread);
 }
 
+int dms_cm_res_get_online_version(unsigned long long *online_version)
+{
+    *online_version = g_cm_simulation.params.online_version;
+    return DMS_SUCCESS;
+}
+
 static void dms_reform_get_online_list(instance_list_t *list_online)
 {
     char *cm_config_path = getenv(CM_CONFIG_PATH);
@@ -169,9 +183,10 @@ static void dms_reform_get_online_list(instance_list_t *list_online)
 }
 
 int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_t *list_offline,
-    instance_list_t *list_unknown)
+    instance_list_t *list_unknown, unsigned long long *online_version)
 {
     dms_reform_get_online_list(list_online);
+    dms_cm_res_get_online_version(online_version);
     return DMS_SUCCESS;
 }
 
@@ -259,7 +274,7 @@ int dms_reform_cm_res_init(void)
 }
 
 int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_t *list_offline,
-    instance_list_t *list_unknown)
+    instance_list_t *list_unknown, uint64 *online_version)
 {
     cm_res_mgr_t *cm_res_mgr = &g_dms.cm_res_mgr;
     cm_res_mem_ctx_t res_mem_ctx;
@@ -267,6 +282,7 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST);
         return ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST;
     }
+
     cm_res_stat_ptr_t res_stat = cm_res_get_stat(cm_res_mgr, &res_mem_ctx);
     if (res_stat == NULL) {
         cm_res_uninit_memctx(&res_mem_ctx);
@@ -274,8 +290,15 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
         return ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST;
     }
 
-    int res_count = cm_res_get_instance_count(cm_res_mgr, res_stat);
-    for (uint32 i = 0; i < (uint32)res_count; i++) {
+    uint32 inst_count = 0;
+    if (cm_res_get_instance_count(&inst_count, cm_res_mgr, res_stat) != CM_SUCCESS
+        || cm_res_get_cm_version(online_version, cm_res_mgr, res_stat) != CM_SUCCESS) {
+        cm_res_free_stat(cm_res_mgr, res_stat);
+        cm_res_uninit_memctx(&res_mem_ctx);
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST);
+        return ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST;
+    }
+    for (uint32 i = 0; i < inst_count; i++) {
         const cm_res_inst_info_ptr_t inst_info = cm_res_get_instance_info(cm_res_mgr, res_stat, i);
         CM_ASSERT(inst_info != NULL);
 

@@ -49,6 +49,7 @@ typedef struct st_dms_reform_ack_common {
     uint64              lsn;
     uint64              start_time;
     uint64              bitmap_has_xa;
+    uint8               db_is_readwrite;
 } dms_reform_ack_common_t;
 
 typedef struct st_dms_reform_req_sync_step {
@@ -84,9 +85,11 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
 typedef struct st_dms_reform_req_partner_status {
     dms_message_head_t  head;
     uint64              lsn;
+    driver_ping_info_t driver_ping_info;
 } dms_reform_req_partner_status_t;
 void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id, uint32 sess_id);
-int dms_reform_req_dms_status_wait(uint8 *online_status, uint64 *online_times, uint8 dst_id, uint64 ruid);
+int dms_reform_req_dms_status_wait(uint8 *online_status, uint64 *online_times, uint8 *online_rw_status,
+    uint8 dst_id, uint64 ruid);
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_prepare {

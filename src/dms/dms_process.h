@@ -76,6 +76,7 @@ typedef struct st_dms_instance {
     uint32 max_alive_time_for_abnormal_status;
     dms_fi_context_t fi_ctx;
     dms_msg_stats_t msg_stats[DMS_CM_MAX_SESSIONS];
+    dms_driver_ping_info_t dms_driver_ping_info;
 } dms_instance_t;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)

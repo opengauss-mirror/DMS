@@ -90,7 +90,7 @@ static void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *li
 }
 
 // get online offline unknown list from CMS
-int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline)
+int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline, uint64 *online_version)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     instance_list_t list_unknown;
@@ -115,7 +115,7 @@ int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *l
         return DMS_SUCCESS;
     }
 
-    ret = dms_reform_cm_res_get_inst_stat(list_online, list_offline, &list_unknown);
+    ret = dms_reform_cm_res_get_inst_stat(list_online, list_offline, &list_unknown, online_version);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
         return ret;
@@ -147,19 +147,22 @@ void dms_reform_update_reformer_version(uint64 start_time, uint8 inst_id)
     cm_spin_unlock(&reform_info->version_lock);
 }
 
-static int dms_reform_get_online_status_l(uint8 *online_status, uint64 *online_times, uint8 dst_id)
+static int dms_reform_get_online_status_l(uint8 *online_status, uint64 *online_times,
+    uint8 *online_rw_status, uint8 dst_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 status = (uint8)g_dms.callback.get_dms_status(g_dms.reform_ctx.handle_judge);
     CM_ASSERT(status <= DMS_STATUS_IN);
     online_status[dst_id] = status;
     online_times[dst_id] = reform_info->start_time;
+    online_rw_status[dst_id] = (uint8)g_dms.callback.check_db_readwrite(g_dms.reform_ctx.handle_judge);
     dms_reform_update_reformer_version(reform_info->start_time, dst_id);
     return DMS_SUCCESS;
 }
 
 // don't retry while wait overtime, finish current judgement and get online list again
-static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_times, uint8 dst_id, uint32 sess_id)
+static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_times, uint8 *online_rw_status,
+    uint8 dst_id, uint32 sess_id)
 {
     dms_reform_req_partner_status_t req;
 
@@ -170,7 +173,7 @@ static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_t
         return ret;
     }
 
-    ret = dms_reform_req_dms_status_wait(online_status, online_times, dst_id, req.head.ruid);
+    ret = dms_reform_req_dms_status_wait(online_status, online_times, online_rw_status, dst_id, req.head.ruid);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_get_online_status_r WAIT error: %d, dst_id: %d", ret, dst_id);
     }
@@ -178,20 +181,43 @@ static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_t
     return ret;
 }
 
-// 1. req to online list and get status
-int dms_reform_get_online_status(uint8 *online_status, uint64* online_times, uint32 sess_id)
+static void dms_update_rw_bitmap(uint64 *rw_bitmap, uint8 *online_rw_status, instance_list_t *list_online)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-    instance_list_t *list_online = &share_info->list_online;
+    dms_reform_list_to_bitmap(rw_bitmap, list_online);
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        if (!bitmap64_exist(rw_bitmap, i)) {
+            continue;
+        }
+        if (!online_rw_status[i]) {
+            bitmap64_clear(rw_bitmap, i);
+        }
+    }
+}
+
+void dms_set_driver_ping_info(uint64 online_version, uint8 *online_rw_status, instance_list_t *list_online)
+{
+    uint64 rw_bitmap = 0ULL;
+    dms_update_rw_bitmap(&rw_bitmap, online_rw_status, list_online);
+    cm_spin_lock(&g_dms.dms_driver_ping_info.lock, NULL);
+    g_dms.dms_driver_ping_info.driver_ping_info.rw_bitmap = rw_bitmap;
+    g_dms.dms_driver_ping_info.driver_ping_info.major_version = online_version;
+    g_dms.dms_driver_ping_info.driver_ping_info.minor_version = (uint64)g_timer()->now;
+    cm_spin_unlock(&g_dms.dms_driver_ping_info.lock);
+}
+
+// 1. req to online list and get status
+int dms_reform_get_online_status(instance_list_t *list_online, uint8 *online_status, uint64* online_times,
+    uint8 *online_rw_status, uint32 sess_id)
+{
     uint8 dst_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
     for (uint8 i = 0; i < list_online->inst_id_count; i++) {
         dst_id = list_online->inst_id_list[i];
         if (dms_dst_id_is_self(dst_id)) {
-            ret = dms_reform_get_online_status_l(online_status, online_times, dst_id);
+            ret = dms_reform_get_online_status_l(online_status, online_times, online_rw_status, dst_id);
         } else {
-            ret = dms_reform_get_online_status_r(online_status, online_times, dst_id, sess_id);
+            ret = dms_reform_get_online_status_r(online_status, online_times, online_rw_status, dst_id, sess_id);
         }
         if (ret != DMS_SUCCESS) {
             return ret;
@@ -2440,8 +2466,10 @@ static void dms_reform_judgement_reformer(void)
         return;
     }
 
+    uint64 online_version = 0ULL;
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_LIST_ONLINE);
-    if (dms_reform_get_list_from_cm(&share_info->list_online, &share_info->list_offline) != DMS_SUCCESS) {
+    if (dms_reform_get_list_from_cm(&share_info->list_online, &share_info->list_offline, &online_version)
+        != DMS_SUCCESS) {
         dms_reform_judgement_stat_desc("fail to get online list");
         return;
     }
@@ -2466,11 +2494,13 @@ static void dms_reform_judgement_reformer(void)
     }
 #endif
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_ONLINE_STATUS);
-    if (dms_reform_get_online_status(health_info->online_status, health_info->online_times, reform_ctx->sess_judge) !=
-        DMS_SUCCESS) {
+    if (dms_reform_get_online_status(&share_info->list_online, health_info->online_status, health_info->online_times,
+        health_info->online_rw_status, reform_ctx->sess_judge) != DMS_SUCCESS) {
         dms_reform_judgement_stat_desc("fail to get online status");
         return;
     }
+
+    dms_set_driver_ping_info(online_version, health_info->online_rw_status, &share_info->list_online);
 
     if (!dms_reform_judgement(health_info->online_status)) {
         return;
@@ -2483,8 +2513,9 @@ static void dms_reform_judgement_partner(void)
 {
     instance_list_t list_online;
     instance_list_t list_offline;
+    uint64 online_version = 0ULL;
 
-    if (dms_reform_get_list_from_cm(&list_online, &list_offline) != DMS_SUCCESS) {
+    if (dms_reform_get_list_from_cm(&list_online, &list_offline, &online_version) != DMS_SUCCESS) {
         return;
     }
 
