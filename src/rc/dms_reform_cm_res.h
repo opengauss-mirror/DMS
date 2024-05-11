@@ -58,7 +58,7 @@ typedef enum {
 
 int dms_reform_cm_res_init(void);
 int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_t *list_offline,
-    instance_list_t *list_unknown);
+    instance_list_t *list_unknown, uint64 *online_version);
 int dms_reform_cm_res_get_lock_owner(uint8 *owner_id);
 void dms_reform_cm_res_lock(void);
 void dms_reform_cm_res_unlock(void);
@@ -68,10 +68,12 @@ void dms_reform_cm_res_trans_lock(uint8 inst_id);
 #define CM_CONFIG_PATH        "CM_CONFIG_PATH"
 #define CM_REFORMER_ID        "REFORMER_ID"
 #define CM_BITMAP_ONLINE      "BITMAP_ONLINE"
+#define CM_VERSION_ONLINE     "VERSION_ONLINE"
 
 typedef enum en_cm_params {
     CM_PARAM_REFORMER_ID,
     CM_PARAM_BITMAP_ONLINE,
+    CM_PARAM_VERSION_ONLINE,
 
     /* add above here */
     CM_PARAM_COUNT
@@ -80,6 +82,7 @@ typedef enum en_cm_params {
 typedef struct st_cm_params {
     uint64          bitmap_online;
     uint32          reformer_id;
+    uint64          online_version;
 } cm_params_t;
 
 typedef struct st_cm_simulation {

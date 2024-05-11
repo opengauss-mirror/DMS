@@ -170,6 +170,7 @@ static bool32 dms_reform_health_check_partner(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 online_status[DMS_MAX_INSTANCES] = { 0 };
     uint64 online_times[DMS_MAX_INSTANCES] = { 0 };
+    uint8 online_rw_status[DMS_MAX_INSTANCES] = { 0 };
     instance_list_t list_online;
     instance_list_t list_offline;
 
@@ -177,7 +178,8 @@ static bool32 dms_reform_health_check_partner(void)
         return CM_TRUE;
     }
 
-    if (dms_reform_get_list_from_cm(&list_online, &list_offline) != DMS_SUCCESS) {
+    uint64 online_version = 0ULL;
+    if (dms_reform_get_list_from_cm(&list_online, &list_offline, &online_version) != DMS_SUCCESS) {
         return CM_TRUE;
     }
 
@@ -185,11 +187,22 @@ static bool32 dms_reform_health_check_partner(void)
         return CM_FALSE;
     }
 
-    if (dms_reform_get_online_status(online_status, online_times, reform_ctx->sess_health) != DMS_SUCCESS) {
+    if (dms_reform_get_online_status(&list_online, online_status, online_times, online_rw_status,
+        reform_ctx->sess_health) != DMS_SUCCESS) {
         return CM_TRUE;
     }
+    dms_set_driver_ping_info(online_version, online_rw_status, &list_online);
 
     return dms_reform_cmp_online_status(online_status, online_times);
+}
+
+void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info)
+{
+    cm_spin_lock(&g_dms.dms_driver_ping_info.lock, NULL);
+    *driver_ping_info = g_dms.dms_driver_ping_info.driver_ping_info;
+    cm_spin_unlock(&g_dms.dms_driver_ping_info.lock);
+    LOG_DEBUG_INF("[DMS] rw_bitmap:%llu, major_version:%llu, minor_version:%llu",
+        driver_ping_info->rw_bitmap, driver_ping_info->major_version, driver_ping_info->minor_version);
 }
 
 static void dms_reform_health_handle_fail(void)

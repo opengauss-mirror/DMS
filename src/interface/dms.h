@@ -1068,6 +1068,8 @@ DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx,
 
  DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 
+DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
+
 #ifdef __cplusplus
 }
 #endif

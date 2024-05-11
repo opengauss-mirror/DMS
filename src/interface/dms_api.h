@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           150
+#define DMS_LOCAL_VERSION           151
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -994,6 +994,7 @@ typedef int (*dms_az_failover_promote_phase1)(void *db_handle);
 typedef int (*dms_az_failover_promote_resetlog)(void *db_handle);
 typedef int (*dms_az_failover_promote_phase2)(void *db_handle);
 typedef int (*dms_check_shutdown_consistency)(void *db_handle, instance_list_t *old_remove);
+typedef int (*dms_check_db_readwrite)(void *db_handle);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1185,6 +1186,7 @@ typedef struct st_dms_callback {
     dms_dyn_log dyn_log;
     dms_get_alock_wait_info get_alock_wait_info;
     dms_check_shutdown_consistency check_shutdown_consistency;
+    dms_check_db_readwrite check_db_readwrite;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1356,6 +1358,12 @@ typedef struct thread_set {
     thread_info_t threads[MAX_DMS_THREAD_NUM];
     int thread_count;
 } thread_set_t;
+
+typedef struct st_driver_ping_info {
+    unsigned long long rw_bitmap;
+    unsigned long long major_version;
+    unsigned long long minor_version;
+} driver_ping_info_t;
 
 #ifdef __cplusplus
 }
