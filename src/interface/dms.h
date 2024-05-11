@@ -1067,6 +1067,14 @@ DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx,
     dms_drlatch_t *alatch, char *res_buf, unsigned int buf_len, unsigned int *res_len);
 
  DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
+/*
+ * @brief check page ownership, must lock ctrl latch before invoke this function.
+ * @[in]param dms_ctx -  Obtains the context information required by the page.
+ * @[in]param inst_id -  Check if this inst is the owner.
+ * @[in]param curr_mode - Refer to this mode to check
+ * @return CM_TRUE;CM_FALSE
+ */
+DMS_DECLARE unsigned char dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode);
 
 #ifdef __cplusplus
 }

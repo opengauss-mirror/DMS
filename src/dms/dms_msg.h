@@ -52,17 +52,27 @@ typedef struct st_msg_error {
 
 typedef struct st_dms_ask_res_req {
     dms_message_head_t head;
-    dms_lock_mode_t req_mode;
-    dms_lock_mode_t curr_mode;
-    dms_session_e sess_type;
+    union {
+        struct {
+            uint8  inst_id;
+            uint8  curr_mode;
+            uint8  req_mode;
+            uint8  is_try;
+            uint8  intercept_type;
+            uint8  is_upgrade;
+            uint16 sess_id;
+            uint64 ruid;
+            uint32 srsn;
+            date_t req_time;
+            uint32 req_proto_ver;
+            dms_session_e sess_type;
+        };
+        drc_request_info_t drc_reg_info;
+    };
     uint16 len;
-    bool8 is_try;
-    uint8 res_type;
-    uint8 intercept_type;
-    uint8 unused[3];
-    date_t req_time;
+    uint8  res_type;
+    uint8  unused;
     char resid[DMS_RESID_SIZE];
-    uint32 srsn;
 } dms_ask_res_req_t;
 
 // msg for notifying instance load page from disk
@@ -147,12 +157,27 @@ typedef struct st_dms_res_req_info {
 
 typedef struct st_dms_cancel_request_res {
     dms_message_head_t head;
-    dms_session_e sess_type;
+        union {
+        struct {
+            uint8  inst_id;
+            uint8  curr_mode;
+            uint8  req_mode;
+            uint8  is_try;
+            uint8  intercept_type;
+            uint8  is_upgrade;
+            uint16 sess_id;
+            uint64 ruid;
+            uint32 srsn;
+            date_t req_time;
+            uint32 req_proto_ver;
+            dms_session_e sess_type;
+        };
+        drc_request_info_t drc_reg_info;
+    };
     uint16 len;
     uint8  res_type;
-    uint8  intercept_type;
+    uint8  unused;
     char resid[DMS_RESID_SIZE];
-    uint32 srsn;
 }dms_cancel_request_res_t;
 
 typedef struct st_dms_confirm_cvt_req {
@@ -246,6 +271,14 @@ typedef struct st_dms_common_ack {
     dms_message_head_t head;
     int32 ret;
 } dms_common_ack_t;
+
+typedef struct st_dms_chk_ownership_req {
+    dms_message_head_t head;
+    char resid[DMS_RESID_SIZE];
+    uint16 len;
+    uint8  inst_id;
+    uint8  curr_mode;
+} dms_chk_ownership_req_t;
 
 static inline void cm_print_error_msg(const void *msg_data)
 {
@@ -366,23 +399,6 @@ do {                                                                            
 
 #define DMS_MESSAGE_BODY(msg) ((msg)->buffer + sizeof(dms_message_head_t))
 
-static inline void dms_set_req_info(drc_request_info_t *req_info, uint8 req_id, uint16 sess_id, uint64 ruid,
-    dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, uint8 is_try,
-    dms_session_e sess_type, date_t req_time, uint32 srsn, uint8 intercept_type, uint32 req_proto_ver)
-{
-    req_info->ruid = ruid;
-    req_info->inst_id = req_id;
-    req_info->sess_id = sess_id;
-    req_info->is_try = is_try;
-    req_info->curr_mode = curr_mode;
-    req_info->req_mode = req_mode;
-    req_info->sess_type = sess_type;
-    req_info->req_time = req_time;
-    req_info->srsn = srsn;
-    req_info->intercept_type = intercept_type;
-    req_info->req_proto_ver = req_proto_ver;
-}
-
 void cm_send_error_msg(dms_message_head_t *head, int32 err_code, char *err_info);
 void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, int32 ret);
 void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, char *msg,
@@ -412,7 +428,9 @@ dms_message_head_t* get_dms_head(dms_message_t *msg);
 bool8 dms_cmd_is_broadcast(uint32 cmd);
 bool8 dms_cmd_is_req(uint32 cmd);
 bool8 dms_cmd_need_ack(uint32 cmd);
-
+void dms_proc_check_page_ownership(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_build_req_info_local(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode,
+    drc_request_info_t *req_info);
 /*
 * The following structs are used for communication
 * between Primary and Standby to obtain relevant

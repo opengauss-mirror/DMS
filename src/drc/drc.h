@@ -121,13 +121,14 @@ typedef struct st_drc_request_info {
     uint8   curr_mode;          /* current holding lock mode in request instance */
     uint8   req_mode;           /* the expected lock mode that request instance wants */
     uint8   is_try;             /* if is try request */
-    dms_session_e sess_type;    /* session type */
-    uint64  ruid;               /* request packet ruid */
+    uint8   intercept_type;
+    uint8   is_upgrade;
     uint16  sess_id;            /* the session id that the request comes from */
+    uint64  ruid;               /* request packet ruid */
+    uint32  srsn;
     date_t  req_time;
-    uint32 srsn;
-    uint32 req_proto_ver;
-    uint8  intercept_type;
+    uint32  req_proto_ver;    
+    dms_session_e sess_type;    /* session type */
 } drc_request_info_t;
 
 typedef struct st_drc_lock_item {
@@ -404,6 +405,7 @@ static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
     converting->req_info.curr_mode = DMS_LOCK_NULL;
     converting->req_info.req_mode = DMS_LOCK_NULL;
     converting->req_info.is_try = 0;
+    converting->req_info.is_upgrade = 0;
 }
 
 static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_type)

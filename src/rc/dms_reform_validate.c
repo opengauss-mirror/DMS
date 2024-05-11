@@ -117,7 +117,7 @@ int dms_reform_proc_page_validate(char *resid, dms_ctrl_info_t *ctrl_info, uint8
     }
 
     LOG_DEBUG_INF("[DRC validate][%s]remote_ditry: %d, lock_mode: %d, edp: %d, inst_id: %d, lsn: %llu, is_dirty: %d",
-        cm_display_pageid(resid), ctrl->is_remote_dirty, ctrl->lock_mode, ctrl->is_edp, inst_id, lsn, is_dirty);
+        cm_display_pageid(resid), ctrl->edp_map > 0, ctrl->lock_mode, ctrl->is_edp, inst_id, lsn, is_dirty);
 
     drc_buf_res_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_FALSE);
