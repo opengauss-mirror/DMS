@@ -420,7 +420,9 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 
     if (SECUREC_UNLIKELY(ctx->db_handle == NULL)) {
         ctx->db_handle = g_dms.callback.get_db_handle(&ctx->sess_id, DMS_SESSION_TYPE_WORKER);
-        cm_panic_log(ctx->db_handle != NULL, "alloc db handle failed");
+        if (ctx->db_handle == NULL) {
+            return;
+        }
     }
     
     /* ruid should have been brought in dms msghead */
