@@ -51,6 +51,8 @@
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_alock.h"
 
+#define DEBUG_LOG_LEVEL 0x0000007F
+
 dms_instance_t g_dms = { 0 };
 
 typedef struct st_processor_func {
@@ -1193,7 +1195,18 @@ int32 dms_init_logger(logger_param_t *param_def)
     CM_RETURN_IFERR(init_single_logger(log_param, LOG_AUDIT));
 
     log_param->log_instance_startup = (bool32)CM_TRUE;
+#ifdef OPENGAUSS
+    if (log_param->log_level >= DEBUG_LOG_LEVEL) {
+        cm_recovery_log_file(LOG_DEBUG);
+        cm_recovery_log_file(LOG_RUN);
+    }
+#endif
     return DMS_SUCCESS;
+}
+
+void dms_fync_logfile(void)
+{
+    cm_fync_logfile();
 }
 
 /* max timeout interval should be within [1, 30]s */
