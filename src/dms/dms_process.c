@@ -922,11 +922,15 @@ static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
 int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_size, unsigned long long old_data_buffer_size)
 {
     dms_reset_error();
-    if (new_data_buffer_size <= old_data_buffer_size) {
-        LOG_RUN_ERR("Can not reduce DATA_BUFFER_SIZE online. old_data_buffer_size:%llu, new_data_buffer_size:%llu",
+    if (new_data_buffer_size < old_data_buffer_size) {
+        LOG_RUN_ERR("[DRC]Can not reduce DATA_BUFFER_SIZE online. old_data_buffer_size:%llu, new_data_buffer_size:%llu",
             old_data_buffer_size, new_data_buffer_size);
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "new data_buffer_size");
         return DMS_ERROR;
+    }
+
+    if (new_data_buffer_size == old_data_buffer_size) {
+        return DMS_SUCCESS;
     }
 
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -937,7 +941,7 @@ int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_size, unsigned
     pool->max_extend_num = MIN(DRC_RES_EXTEND_MAX_NUM, MAX(old_max_extend_num,
         ceil(change_pool_num_rate * old_max_extend_num)));
     cm_spin_unlock(&pool->lock);
-    LOG_RUN_INF("buf drc pool's max_extend_num changes, ori:%u, now:%u", old_max_extend_num, pool->max_extend_num);
+    LOG_RUN_INF("[DRC]buf drc pool's max_extend_num changes, ori:%u, now:%u", old_max_extend_num, pool->max_extend_num);
     return DMS_SUCCESS;
 }
 
