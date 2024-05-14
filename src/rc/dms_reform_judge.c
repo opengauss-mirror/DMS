@@ -990,10 +990,21 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
     dms_reform_list_init(&share_info->list_rollback);
 
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE) ||
-        dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN) ||
-        dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY)) {
-        dms_reform_judgement_rollback_for_az_standby(inst_lists);
+        dms_reform_type_is(DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN)) {
+        for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+            remaster_info->deposit_map[inst_id] = share_info->reformer_id;
+            if (inst_id != g_dms.inst_id) {
+                dms_reform_list_add(&share_info->list_rollback, inst_id);
+            }
+        }
 
+        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+        dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK_PREPARE);
+        return;
+    }
+
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY)) {
+        dms_reform_judgement_rollback_for_az_standby(inst_lists);
         dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
         dms_reform_add_step(DMS_REFORM_STEP_ROLLBACK_PREPARE);
         return;
