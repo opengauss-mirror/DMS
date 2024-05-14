@@ -281,7 +281,11 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
         ack_common.result = DMS_SUCCESS;
         ack_common.dms_status = (uint8)g_dms.callback.get_dms_status(process_ctx->db_handle);
         ack_common.start_time = reform_info->start_time;
+#ifdef OPENGAUSS
+        ack_common.db_is_readwrite = 1;
+#else
         ack_common.db_is_readwrite = (uint8)g_dms.callback.check_db_readwrite(process_ctx->db_handle);
+#endif
     }
     ret = mfc_send_data(&ack_common.head);
     if (ret != DMS_SUCCESS) {
