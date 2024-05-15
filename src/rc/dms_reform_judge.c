@@ -155,7 +155,11 @@ static int dms_reform_get_online_status_l(uint8 *online_status, uint64 *online_t
     CM_ASSERT(status <= DMS_STATUS_IN);
     online_status[dst_id] = status;
     online_times[dst_id] = reform_info->start_time;
+#ifdef OPENGAUSS
+    online_rw_status[dst_id] = 1;
+#else
     online_rw_status[dst_id] = (uint8)g_dms.callback.check_db_readwrite(g_dms.reform_ctx.handle_judge);
+#endif
     dms_reform_update_reformer_version(reform_info->start_time, dst_id);
     return DMS_SUCCESS;
 }
