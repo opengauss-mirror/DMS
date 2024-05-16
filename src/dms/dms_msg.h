@@ -404,7 +404,7 @@ void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receiv
 void cm_ack_result_msg2(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, char *msg,
     uint32 len, char *ack_buf);
 
-void dms_send_error_ack(uint32 src_inst, uint32 src_sid, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret,
+void dms_send_error_ack(dms_process_context_t *ctx, uint8 dst_inst, uint32 dst_sid, uint64 dst_ruid, int32 ret,
     uint32 req_proto_ver);
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn);

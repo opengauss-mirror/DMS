@@ -114,7 +114,7 @@ static inline void drc_register_converting_simply(drc_buf_res_t* buf_res, drc_cv
     }
 }
 
-static int32 drc_chk_conflict_4_upgrade(uint32 inst_id, uint32 sid, drc_buf_res_t *buf_res, drc_request_info_t *req,
+static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_buf_res_t *buf_res, drc_request_info_t *req,
     bool32 *can_cvt)
 {
     drc_lock_item_t *curr = NULL;
@@ -137,7 +137,7 @@ static int32 drc_chk_conflict_4_upgrade(uint32 inst_id, uint32 sid, drc_buf_res_
             return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
         }
         if (chk_conflict_with_x_lock(buf_res->data, buf_res->type, req, &curr->req_info)) {
-            dms_send_error_ack(inst_id, sid, curr->req_info.inst_id, curr->req_info.sess_id,
+            dms_send_error_ack(ctx, curr->req_info.inst_id, curr->req_info.sess_id,
                 curr->req_info.ruid, ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER, curr->req_info.req_proto_ver);
             cm_bilist_del(&curr->node, &buf_res->convert_q);
             drc_res_pool_free_item(&DRC_RES_CTX->lock_item_pool, (char*)curr);
@@ -168,7 +168,7 @@ static int32 drc_chk_conflict_4_upgrade(uint32 inst_id, uint32 sid, drc_buf_res_
     
     if (converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
         if (converting->req_info.curr_mode == DMS_LOCK_SHARE) {
-            dms_send_error_ack(inst_id, sid, converting->req_info.inst_id, converting->req_info.sess_id,
+            dms_send_error_ack(ctx, converting->req_info.inst_id, converting->req_info.sess_id,
                 converting->req_info.ruid, ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER, converting->req_info.req_proto_ver);
         } else {
             drc_lock_item_t *item = (drc_lock_item_t*)drc_res_pool_alloc_item(&DRC_RES_CTX->lock_item_pool);
@@ -204,7 +204,6 @@ static int32 drc_chk_conflict_4_normal(drc_buf_res_t *buf_res, drc_request_info_
             drc_register_converting_simply(buf_res, converting);
         }
         *can_cvt  = CM_TRUE;
-        *is_retry = CM_TRUE;
         converting->req_info = *req;
         converting->begin_time = g_timer()->now;
         return DMS_SUCCESS;
@@ -231,21 +230,20 @@ static int32 drc_chk_conflict_4_normal(drc_buf_res_t *buf_res, drc_request_info_
         DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
-    *can_cvt = CM_FALSE;
     return chk_convertq_4_conflict(buf_res, req, is_retry);
 }
 
-static inline int32 drc_check_req_4_conflict(uint32 inst_id, uint32 sid, drc_buf_res_t *buf_res,
+static inline int32 drc_check_req_4_conflict(dms_process_context_t *ctx, drc_buf_res_t *buf_res,
     drc_request_info_t *req, bool32 *is_retry, bool32 *can_cvt)
 {
     if (!req->is_upgrade) {
         return drc_chk_conflict_4_normal(buf_res, req, is_retry, can_cvt);
     }
     
-    return drc_chk_conflict_4_upgrade(inst_id, sid, buf_res, req, can_cvt);
+    return drc_chk_conflict_4_upgrade(ctx, buf_res, req, can_cvt);
 }
 
-static int32 drc_enq_req_item(uint32 inst_id, uint32 sid, drc_buf_res_t *buf_res, drc_request_info_t *req_info,
+static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_buf_res_t *buf_res, drc_request_info_t *req_info,
     bool32 *converting)
 {
     /* there is no waiting and converting */
@@ -264,7 +262,7 @@ static int32 drc_enq_req_item(uint32 inst_id, uint32 sid, drc_buf_res_t *buf_res
     }
 
     bool32 is_retry_quest = CM_FALSE;
-    int32 ret = drc_check_req_4_conflict(inst_id, sid, buf_res, req_info, &is_retry_quest, converting);
+    int32 ret = drc_check_req_4_conflict(ctx, buf_res, req_info, &is_retry_quest, converting);
     if (ret != DMS_SUCCESS || is_retry_quest || *converting) {
         return ret;
     }
@@ -405,7 +403,7 @@ static bool8 drc_page_check_for_prefetch(drc_request_info_t *req_info, drc_req_o
     return CM_FALSE;
 }
 
-static int drc_request_page_owner_internal(uint32 inst_id, uint32 sid, char *resid, uint8 type,
+static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *resid, uint8 type,
     drc_request_info_t *req_info, drc_req_owner_result_t *result, drc_buf_res_t *buf_res)
 {
     if (req_info->sess_type == DMS_SESSION_NORMAL && buf_res->in_recovery) {
@@ -421,7 +419,7 @@ static int drc_request_page_owner_internal(uint32 inst_id, uint32 sid, char *res
     }
 
     bool32 can_cvt = CM_FALSE;
-    int32 ret = drc_enq_req_item(inst_id, sid, buf_res, req_info, &can_cvt);
+    int32 ret = drc_enq_req_item(ctx, buf_res, req_info, &can_cvt);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         drc_try_prepare_confirm_cvt(buf_res);
         return ret;
@@ -434,7 +432,7 @@ static int drc_request_page_owner_internal(uint32 inst_id, uint32 sid, char *res
     return DMS_SUCCESS;
 }
 
-int32 drc_request_page_owner(uint32 inst_id, uint32 sid, char* resid, uint16 len, uint8 res_type,
+int32 drc_request_page_owner(dms_process_context_t *ctx, char* resid, uint16 len, uint8 res_type,
     drc_request_info_t* req_info, drc_req_owner_result_t* result)
 {
     result->invld_insts    = 0;
@@ -453,7 +451,7 @@ int32 drc_request_page_owner(uint32 inst_id, uint32 sid, char* resid, uint16 len
         LOG_DEBUG_WAR("[DMS][%s]buf res is recycling", cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_IS_RECYCLING;
     }
-    ret = drc_request_page_owner_internal(inst_id, sid, resid, res_type, req_info, result, buf_res);
+    ret = drc_request_page_owner_internal(ctx, resid, res_type, req_info, result, buf_res);
     drc_leave_buf_res(buf_res);
     return ret;
 }
