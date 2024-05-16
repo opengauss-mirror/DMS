@@ -1204,7 +1204,7 @@ int32 dms_init_logger(logger_param_t *param_def)
     return DMS_SUCCESS;
 }
 
-void dms_fync_logfile(void)
+void dms_fsync_logfile(void)
 {
     cm_fync_logfile();
 }
