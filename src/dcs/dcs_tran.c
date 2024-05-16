@@ -1098,7 +1098,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     }
 }
 
-void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+void dms_proc_ask_xa_owner(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_xa_owner_req_t), CM_TRUE);
     dms_ask_xa_owner_req_t req = *(dms_ask_xa_owner_req_t *)receive_msg->buffer;
@@ -1113,9 +1113,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
     drc_global_xa_res_t *xa_res = NULL;
     int32 ret = drc_enter_xa_res(xid, &xa_res, req.check_xa_drc);
     if (ret != DMS_SUCCESS) {
-        dms_send_error_ack(
-            proc_ctx->inst_id, proc_ctx->sess_id, req.head.src_inst, req.head.src_sid, req.head.ruid, ret,
-            req.head.msg_proto_ver);
+        dms_send_error_ack(ctx, req.head.src_inst, req.head.src_sid, req.head.ruid, ret, req.head.msg_proto_ver);
         return;
     }
 
@@ -1128,8 +1126,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *proc_ctx, dms_message_t *recei
     drc_leave_xa_res(xa_res_map, bucket);
 
     dms_ask_xa_owner_ack_t ack = { 0 };
-    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_XA_OWNER_ID, sizeof(dms_ask_xa_owner_ack_t),
-        proc_ctx->sess_id);
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_XA_OWNER_ID, sizeof(dms_ask_xa_owner_ack_t), ctx->sess_id);
     ack.owner_id = owner_id;
 
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_xa_owner]: src_id = %u, src_sid = %u",

@@ -658,16 +658,14 @@ static int dcs_owner_transfer_edp(dms_process_context_t *ctx, dms_res_req_info_t
 
     if (ret != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
-        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid,
-            req_info->req_ruid, ret, req_info->req_proto_ver);
+        dms_send_error_ack(ctx, req_info->req_id, req_info->req_sid, req_info->req_ruid, ret, req_info->req_proto_ver);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
     if (ctrl == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_DCS_READ_LOCAL_PAGE);
         LOG_DEBUG_ERR("[DCS][%s][owner transfer edp]: ctrl is NULL", cm_display_pageid(req_info->resid));
-        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->req_id, req_info->req_sid,
-            req_info->req_ruid, ret, req_info->req_proto_ver);
+        dms_send_error_ack(ctx, req_info->req_id, req_info->req_sid, req_info->req_ruid, ret, req_info->req_proto_ver);
         return ERRNO_DMS_DCS_READ_LOCAL_PAGE;
     }
 
@@ -848,11 +846,9 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
         cm_display_resid(page_req.resid, page_req.res_type), page_req.head.src_inst, page_req.head.src_sid,
         page_req.req_mode, page_req.curr_mode);
 
-    int ret = drc_request_page_owner(ctx->inst_id, ctx->sess_id, page_req.resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE,
-        req_info, &result);
+    int ret = drc_request_page_owner(ctx, page_req.resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, req_info, &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        dms_send_error_ack(ctx->inst_id, ctx->sess_id, req_info->inst_id, req_info->sess_id, req_info->ruid, ret,
-            req_info->req_proto_ver);
+        dms_send_error_ack(ctx, req_info->inst_id, req_info->sess_id, req_info->ruid, ret, req_info->req_proto_ver);
         return;
     }
 
@@ -896,8 +892,8 @@ static int dcs_try_get_page_owner_l(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl
 
     dms_build_req_info_local(dms_ctx, ctrl->lock_mode, req_mode, &req_info);
 
-    int ret = drc_request_page_owner(dms_ctx->inst_id, dms_ctx->sess_id, dms_ctx->resid, DMS_PAGEID_SIZE,
-        DRC_RES_PAGE_TYPE, &req_info, &result);
+    int ret = drc_request_page_owner(&dms_ctx->proc_ctx, dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, &req_info,
+        &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         return ret;
     }
