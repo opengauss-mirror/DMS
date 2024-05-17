@@ -773,7 +773,7 @@ static void dcs_change_page_status(dms_process_context_t *ctx, dms_buf_ctrl_t *c
     if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
         ctrl->lock_mode = DMS_LOCK_NULL;
 #ifndef OPENGAUSS
-        g_dms.callback.stats_buf(dms_ctx->db_handle, ctrl, DMS_BUF_STATS_EXPIRE);
+        g_dms.callback.stats_buf(ctx->db_handle, ctrl, DMS_BUF_STATS_EXPIRE);
 #endif
         // If multiple S-readings come later, BUF_LOAD_FAILED can ensure only one invokes DCS page request.
         g_dms.callback.set_buf_load_status(ctrl, DMS_BUF_LOAD_FAILED);
