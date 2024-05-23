@@ -195,16 +195,16 @@ void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is
     STAT_TOTAL_WAIT_USECS_END;
 }
 
-bool8 dms_latch_timed_wait(drc_local_latch_t *latch_stat, latch_statis_t *stat, unsigned int wait_ticks, uint32 ticks,
-    uint32 count, latch_mode_t latch_mode)
+static bool8 dms_latch_timed_wait(drc_local_latch_t *latch_stat, latch_statis_t *stat,
+    unsigned int wait_ticks, uint32 *ticks, uint32 *count, latch_mode_t latch_mode)
 {
     while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
-        if (ticks >= wait_ticks) {
+        if ((*ticks) >= wait_ticks) {
             return CM_FALSE;
         }
 
-        count++;
-        if (count >= GS_SPIN_COUNT) {
+        (*count)++;
+        if ((*count) >= GS_SPIN_COUNT) {
             switch (latch_mode) {
                 case LATCH_MODE_S:
                     SPIN_STAT_INC(stat, s_sleeps);
@@ -216,8 +216,8 @@ bool8 dms_latch_timed_wait(drc_local_latch_t *latch_stat, latch_statis_t *stat, 
                     break;
             }
             cm_spin_sleep();
-            count = 0;
-            ticks++;
+            *count = 0;
+            (*ticks)++;
         }
     }
     return CM_TRUE;
@@ -234,7 +234,7 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 #endif
     bool8 ret = CM_FALSE;
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_LATCH_S, CM_TRUE);
-    if (g_dms.scrlock_ctx.enable) {
+    if (SECUREC_UNLIKELY(g_dms.scrlock_ctx.enable)) {
         ret = dms_scrlock_timed_s(dms_ctx, dlatch, wait_ticks);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
         return ret;
@@ -289,7 +289,7 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
         } else {
             uint32 count = 0;
             drc_unlock_local_resx(lock_res);
-            ret = dms_latch_timed_wait(latch_stat, stat, wait_ticks, ticks, count, LATCH_MODE_S);
+            ret = dms_latch_timed_wait(latch_stat, stat, wait_ticks, &ticks, &count, LATCH_MODE_S);
             if (!ret) {
                 LOG_DEBUG_INF("[DLS] add timed latch_s(%s) timeout", cm_display_lockid(&dlatch->drid));
                 dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
@@ -519,7 +519,7 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 #endif
     bool8 ret = CM_FALSE;
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_LATCH_X, CM_TRUE);
-    if (g_dms.scrlock_ctx.enable) {
+    if (SECUREC_UNLIKELY(g_dms.scrlock_ctx.enable)) {
         ret = dms_scrlock_timed_x(dms_ctx, dlatch, wait_ticks);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
         return ret;
@@ -585,7 +585,7 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
             if (LATCH_NEED_STAT(stat)) {
                 stat->misses++;
             }
-            ret = dms_latch_timed_wait(latch_stat, stat, wait_ticks, ticks, count, LATCH_MODE_X);
+            ret = dms_latch_timed_wait(latch_stat, stat, wait_ticks, &ticks, &count, LATCH_MODE_X);
             if (!ret) {
                 LOG_DEBUG_INF("[DLS] add timed latch_x(%s) timeout", cm_display_lockid(&dlatch->drid));
                 dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
@@ -605,7 +605,7 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     }
 #endif
 
-    if (g_dms.scrlock_ctx.enable) {
+    if (SECUREC_UNLIKELY(g_dms.scrlock_ctx.enable)) {
         dms_scrlock_unlock(dms_ctx, dlatch);
         return;
     }
