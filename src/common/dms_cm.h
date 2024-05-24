@@ -42,6 +42,8 @@ extern "C" {
 #define SSL_CERT_CHK_NOT_FIRST (2)
 #define DMS_IS_INST_SEND(bits, id) (((bits) >> (id)) & 0x1)
 
+#define DMS_TICKS_PER_MILLISEC (uint32)20 /* 1s ~ 20000ticks on 2.6GHz 56u */
+
 #define DMS_RETURN_IF_ERROR(ret)      \
     do {                              \
         int _status_ = (ret);         \

@@ -1625,29 +1625,30 @@ static int dms_reform_startup_opengauss(void)
 /*
  * Put X on instance lock to push GCV. Partner needs lock too, to prevent concurrent iusses
  * such as DRC rebuild and invalidate msg happens at the same time. The timed lock
- * waits 1s since we need preserve reform RTO. Usually it latches instantly.
+ * waits max_wait_time since we need preserve reform RTO. Usually it latches instantly.
+ * SS_DMS_MSG_MAX_WAIT_TIME from DB is < 30s, ticks with uint32 can handle ~40000s, hence no overflow
+ * Important: if panicked here, look for dms_process_message stacks in coredump that caused timeout
  */
 static int dms_reform_lock_instance(void)
 {
     LOG_RUN_FUNC_ENTER;
-    date_t begin_time = g_timer()->now;
-    int ticks = 400; /* let each latch take ~0.1s, as each tick measures ~0.25ms on 72-core x86 */
+    uint64 curr_time;
+    uint64 begin_time = cm_clock_monotonic_now();
+    uint32 ticks = (DMS_REFORM_LOCK_INST_TIMEOUT / MICROSECS_PER_MILLISEC * DMS_TICKS_PER_MILLISEC);
     uint32 sess_pid = g_dms.reform_ctx.sess_proc;
 
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance try lock, gcv:%d",
-        DMS_GLOBAL_CLUSTER_VER);
+    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance, gcv:%d", DMS_GLOBAL_CLUSTER_VER);
     dms_reform_mark_locking(CM_TRUE);
-    while (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, ticks, NULL) == CM_FALSE) {
-        if (g_timer()->now - begin_time >= DMS_REFORM_LOCK_INST_TIMEOUT) {
-            LOG_RUN_ERR("[DMS REFORM][GCV PUSH]dms_reform_lock_instance timeout error, inst:%d exits now",
-                g_dms.inst_id);
+    if (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, ticks, NULL) == CM_FALSE) {
+        curr_time = cm_clock_monotonic_now();
+        LOG_RUN_ERR("[DMS REFORM]dms_reform_lock_instance timeout error, time:%llu, inst:%d exits now",
+            curr_time - begin_time, g_dms.inst_id);
 #ifdef _DEBUG
-            cm_panic(0);
+        cm_panic(0);
 #else
-            cm_exit(0);
+        cm_exit(0);
 #endif
-        }
     }
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
     dms_reform_mark_locking(CM_FALSE);
