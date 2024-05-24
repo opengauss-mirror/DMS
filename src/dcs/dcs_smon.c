@@ -50,7 +50,7 @@ static void dcs_proc_smon_get_sid(dms_process_context_t *ctx, dms_message_t *rec
     }
 
     // must be local rmid, and check session not in INACTIVE
-    uint32 sid = g_dms.callback.get_sid_by_rmid(ctx->db_handle, rmid); // ss_get_sid_by_rmid
+    uint16 sid = g_dms.callback.get_sid_by_rmid(ctx->db_handle, rmid);
 
     cm_ack_result_msg2(ctx, receive_msg, MSG_ACK_SMON_DLOCK_INFO, (char *)&sid, sizeof(uint16), send_msg);
 
