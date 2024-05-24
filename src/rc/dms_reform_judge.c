@@ -2470,6 +2470,27 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     return CM_TRUE;
 }
 
+static void dms_reform_modify_online_list()
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    health_info_t *health_info = DMS_HEALTH_INFO;
+    if (share_info->inst_bitmap[INST_LIST_OLD_IN] == 0) {
+        return;
+    }
+    uint64 bitmap_kick_out = 0;
+    for (uint8 i = 0; i < share_info->list_online.inst_id_count; ++i) {
+        uint8 inst_id = share_info->list_online.inst_id_list[i];
+        if ((health_info->online_status[inst_id] == DMS_STATUS_JOIN ||
+            health_info->online_status[inst_id] == DMS_STATUS_OUT) &&
+            bitmap64_exist(&share_info->bitmap_stable, inst_id)) {
+            LOG_RUN_INF("[DMS REFORM] inst %d should be kick out from online list", inst_id);
+            bitmap64_set(&bitmap_kick_out, inst_id);
+        }
+    }
+    bitmap64_minus(&share_info->bitmap_online, bitmap_kick_out);
+    dms_reform_bitmap_to_list(&share_info->list_online, share_info->bitmap_online);
+}
+
 static void dms_reform_judgement_reformer(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
@@ -2515,6 +2536,9 @@ static void dms_reform_judgement_reformer(void)
         return;
     }
 
+#ifndef OPENGAUSS
+    dms_reform_modify_online_list();
+#endif
     dms_set_driver_ping_info(online_version, health_info->online_rw_status, &share_info->list_online);
 
     if (!dms_reform_judgement(health_info->online_status)) {
