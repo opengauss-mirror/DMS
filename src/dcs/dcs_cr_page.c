@@ -436,12 +436,12 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
     return DMS_SUCCESS;
 }
 
-static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id)
+static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dest_id)
 {
     msg_pcr_request_t request;
     int ret;
 
-    DMS_INIT_MESSAGE_HEAD(&request.head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
+    DMS_INIT_MESSAGE_HEAD(&request.head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dest_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     request.head.size = (uint16)(sizeof(msg_pcr_request_t) + g_dms.page_size);
     if (dms_cr->fb_mark != NULL) {
@@ -452,7 +452,7 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
         return ret;
     }
 
-    ret = dcs_request_cr_page(dms_ctx, dms_cr, dst_id, &request, sizeof(msg_pcr_request_t), CM_TRUE);
+    ret = dcs_request_cr_page(dms_ctx, dms_cr, dest_id, &request, sizeof(msg_pcr_request_t), CM_TRUE);
     dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_CR_PAGE, DRC_RES_PAGE_TYPE, ret);
 
     return ret;
@@ -464,13 +464,13 @@ int dms_forward_heap_cr_page_reqeust(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
     return dcs_heap_request_cr_page(dms_ctx, dms_cr, (uint8)dst_inst_id);
 }
 
-static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id)
+static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dest_id)
 {
     msg_index_pcr_request_t msg;
     msg_pcr_request_t *request = &msg.pcr_request;
     int ret = DMS_SUCCESS;
 
-    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dst_id,
+    DMS_INIT_MESSAGE_HEAD(&request->head, MSG_REQ_CR_PAGE, 0, dms_ctx->inst_id, dest_id,
         dms_ctx->sess_id, CM_INVALID_ID16);
     request->head.size = (uint16)(sizeof(msg_index_pcr_request_t) + g_dms.page_size);
 
@@ -481,7 +481,7 @@ static int dcs_index_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, u
 
     g_dms.callback.get_entry_pageid_from_cr_cursor(dms_cr->cr_cursor, msg.entry);
     g_dms.callback.get_index_profile_from_cr_cursor(dms_cr->cr_cursor, msg.profile);
-    ret = dcs_request_cr_page(dms_ctx, dms_cr, dst_id, request, sizeof(msg_index_pcr_request_t), CM_FALSE);
+    ret = dcs_request_cr_page(dms_ctx, dms_cr, dest_id, request, sizeof(msg_index_pcr_request_t), CM_FALSE);
     dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_CR_PAGE, DRC_RES_PAGE_TYPE, ret);
 
     return ret;

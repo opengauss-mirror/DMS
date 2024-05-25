@@ -34,7 +34,7 @@
 extern "C" {
 #endif
 
-#define DLS_SPIN_COUNT 3
+#define DLS_SPIN_COUNT 1
 #define DLS_MSG_RETRY_TIME 3 // ms
 
 /*
