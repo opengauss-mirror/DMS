@@ -28,6 +28,7 @@
 #include "dms_error.h"
 #include "drc_page.h"
 #include "dms_reform_judge.h"
+#include "dms_reform_judge_switch.h"
 #include "dcs_page.h"
 #include "dms_reform_health.h"
 #include "cm_timer.h"
@@ -928,13 +929,7 @@ static void dms_reform_set_az_switchover_result(void)
     if (REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
         LOG_RUN_INF("[DMS REFORM]dms_reform_set_az_switchover_result, reform_type: %u, promote_id: %d, current_id: %u",
             share_info->reform_type, share_info->promote_id, g_dms.inst_id);
-            cm_spin_lock(&switchover_info->lock, NULL);
-            switchover_info->switch_start = CM_FALSE;
-            switchover_info->inst_id = CM_INVALID_ID8;
-            switchover_info->sess_id = CM_INVALID_ID16;
-            switchover_info->switch_req = CM_FALSE;
-            switchover_info->switch_type = AZ_IDLE;
-            cm_spin_unlock(&switchover_info->lock);
+            dms_reform_judgement_az_switchover_info_reset();
             g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, reform_info->err_code);
     } else {
         cm_spin_lock(&switchover_info->lock, NULL);
