@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           151
+#define DMS_LOCAL_VERSION           152
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -841,6 +841,7 @@ typedef void(*dms_update_global_scn)(void *db_handle, unsigned long long lamport
 typedef void(*dms_update_node_lfn)(void *db_handle, unsigned long long lfn, char node_id);
 typedef void(*dms_update_page_lfn)(dms_buf_ctrl_t *buf_ctrl, unsigned long long lastest_lfn);
 typedef unsigned long long (*dms_get_page_lfn)(dms_buf_ctrl_t *buf_ctrl);
+typedef unsigned long long (*dms_get_page_scn)(dms_buf_ctrl_t *buf_ctrl);
 typedef unsigned long long(*dms_get_global_lfn)(void *db_handle);
 typedef unsigned long long(*dms_get_global_scn)(void *db_handle);
 typedef unsigned long long(*dms_get_global_lsn)(void *db_handle);
@@ -1064,6 +1065,7 @@ typedef struct st_dms_callback {
     dms_get_global_lsn get_global_lsn;
     dms_get_global_lfn get_global_lfn;
     dms_get_page_lfn get_page_lfn;
+    dms_get_page_scn get_page_scn;
     dms_get_global_flushed_lfn get_global_flushed_lfn;
     dms_read_local_page4transfer read_local_page4transfer;
     dms_page_is_dirty page_is_dirty;

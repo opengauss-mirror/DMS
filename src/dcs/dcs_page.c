@@ -782,7 +782,7 @@ static void dcs_change_page_status(dms_process_context_t *ctx, dms_buf_ctrl_t *c
         if (g_dms.callback.page_is_dirty(ctrl)) {
             ctrl->is_edp = CM_TRUE;
 #ifndef OPENGAUSS
-            ctrl->edp_scn = g_dms.callback.get_global_scn(ctx->db_handle);
+            ctrl->edp_scn = g_dms.callback.get_page_scn(ctrl);
 #endif
             LOG_DEBUG_INF("[DCS][%s]: lock mode=%d, edp=%d",
                 cm_display_pageid(req_info->resid), ctrl->lock_mode, ctrl->is_edp);
