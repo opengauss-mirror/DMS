@@ -37,6 +37,9 @@ extern "C" {
 #define DMS_MSG_HEAD_SIZE       sizeof(dms_message_head_t)
 #define DMS_ASYNC_OR_INVLD_RUID (0)
 
+#define DMS_MSG_HEAD_UNUSED_SIZE 24
+#define DMS_MAX_WORK_THREAD_CNT  128
+
 #define MFC_RETURN_IF_BAD_RUID(ruid)                \
     do {                                            \
         if (ruid == 0) {                            \
@@ -44,9 +47,6 @@ extern "C" {
             return CM_ERROR;                        \
         }                                           \
     } while (0)
-
-#define DMS_MSG_HEAD_UNUSED_SIZE 24
-#define DMS_MAX_WORK_THREAD_CNT  128
 
 typedef struct st_dms_message_head {
     unsigned int msg_proto_ver;
@@ -74,7 +74,6 @@ typedef struct st_dms_message_t {
     dms_message_head_t *head;
     char *buffer;
 } dms_message_t;
-
 
 typedef struct st_mfc_ticket {
     uint16 count;
@@ -135,6 +134,7 @@ void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body
 int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts);
 int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts);
 int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, mes_msg_list_t *msg_list);
+
 
 static inline void mfc_release_broadcast_response(mes_msg_list_t *response)
 {

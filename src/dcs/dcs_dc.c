@@ -88,11 +88,10 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
     return DMS_SUCCESS;
 }
 
-static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 timeout, uint64 ruid,
-    uint64 expect_inst)
+static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 timeout, uint64 ruid, uint64 expect_inst)
 {
     int ret;
-    mes_msg_list_t recv_msg = { 0 };
+    mes_msg_list_t recv_msg = {0};
 
     ret = mfc_get_broadcast_res_with_msg(ruid, timeout, expect_inst, &recv_msg);
     if (ret == DMS_SUCCESS) {
@@ -122,9 +121,10 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
             reform_info->bitmap_connect : reform_info->bitmap_in;
         all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
     }
-    
+
     mfc_broadcast2(all_inst, &head, (const void *)dms_broad_info->data, &succ_inst);
     LOG_DEBUG_INF("Send broadcast cmd: %d, all inst: %llu, expect succ inst: %llu", cmd, all_inst, succ_inst);
+
     if (!dms_broad_info->handle_recv_msg) {
         ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, dms_broad_info->timeout, all_inst, &succ_inst);
     } else {
@@ -224,7 +224,8 @@ int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigne
     return DMS_ERROR;
 }
 
-int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout, unsigned long long *success_inst)
+int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout,
+    unsigned long long *success_inst)
 {
     dms_reset_error();
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -282,8 +283,7 @@ int dms_broadcast_opengauss_ddllock(dms_context_t *dms_ctx, char *data, unsigned
 
     head.size = size;
 
-    uint64 all_inst = reform_info->bitmap_connect; 
-
+    uint64 all_inst = reform_info->bitmap_connect;
     uint64 invld_insts = 0;
     switch ((dms_opengauss_lock_req_type_t)lock_req_type) {
         case SHARED_INVAL_MSG:
