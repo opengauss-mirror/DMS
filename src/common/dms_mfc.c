@@ -67,7 +67,6 @@ static inline bool32 mfc_msg_is_req(dms_message_head_t *head)
 {
     return head->cmd < MSG_REQ_END;
 }
-
 static bool8 mfc_try_get_ticket(uint8 dst_inst)
 {
     mfc_ticket_t *ticket = &g_dms.mfc.remain_tickets[dst_inst];
@@ -160,7 +159,7 @@ int32 mfc_send_data_async(dms_message_head_t *msg)
     int ret = DMS_SUCCESS;
     if (DMS_MFC_OFF) {
         ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
-    } else{
+    } else {
         if (mfc_msg_is_req(msg)) {
             ret = mfc_send_data_req(msg, CM_FALSE);
         } else {
@@ -197,6 +196,7 @@ int32 mfc_send_data(dms_message_head_t *msg)
     return ret;
 }
 
+/* explicitly send response, need adaptation if mfc to be enabled */
 int32 mfc_send_response(dms_message_head_t *msg)
 {
     FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
@@ -275,7 +275,7 @@ static inline int32 mfc_send_data4_req(dms_message_head_t *head, uint32 head_siz
 
     int ret = DMS_SUCCESS;
     ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
-            DMS_THREE, head, head_size, body1, len1, body2, len2);
+        DMS_THREE, head, head_size, body1, len1, body2, len2);
     if (ret != CM_SUCCESS) {
         mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
     }
@@ -357,7 +357,6 @@ static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
         }
         return ERRNO_DMS_PROTOCOL_VERSION_NOT_MATCH;
     }
-
     return DMS_SUCCESS;
 }
 
@@ -368,6 +367,7 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
         return mes_get_response(ruid, NULL, 0);
     }
     uint64 start_stat_time = dms_cm_get_time_usec();
+
     mes_msg_t msg = { 0 };
     int ret = mes_get_response(ruid, &msg, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
@@ -375,6 +375,7 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
     response->head = (dms_message_head_t *)msg.buffer;
     ret = dms_handle_recv_ack_internal(response);
     dms_consume_with_time(response->head->cmd, start_stat_time, ret);
+
     if (DMS_MFC_OFF) {
         if (dms_check_if_protocol_compatibility_error(ret)) {
             mes_release_msg(&msg);
@@ -387,6 +388,7 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
     if (dms_check_if_protocol_compatibility_error(ret)) {
         mes_release_msg(&msg);
     }
+
     return ret;
 }
 
@@ -417,13 +419,13 @@ void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
     if (inst_bits == 0) {
         return;
     }
-
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     uint32 count = dms_count_bits(inst_bits);
-    dms_message_head_t *head = (dms_message_head_t *)msg_data;
     uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
     dms_inst_bits_to_list(inst_bits, inst_list);
+
+    dms_message_head_t *head = (dms_message_head_t *)msg_data;
     int ret = mes_broadcast_request_sp(inst_list, count, mfc_get_mes_flag(head), &head->ruid, msg_data, head->size);
     dms_consume_with_time(head->cmd, start_stat_time, ret);
 }
@@ -434,25 +436,24 @@ void mfc_broadcast2(uint64 inst_bits, dms_message_head_t *head, const void *body
     FAULT_INJECTION_ACTION_TRIGGER(return);
     *success_inst = inst_bits; /* cannot tell success insts until get response */
     if (inst_bits == 0) {
-        *success_inst = 0;
         return;
     }
-
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     uint32 count = dms_count_bits(inst_bits);
     uint32 inst_list[DMS_MAX_INSTANCES] = { 0 };
     dms_inst_bits_to_list(inst_bits, inst_list);
+
     int ret = mes_broadcast_request_spx(inst_list, count, mfc_get_mes_flag(head), &head->ruid,
         DMS_TWO, head, sizeof(dms_message_head_t), body, head->size - sizeof(dms_message_head_t));
     dms_consume_with_time(head->cmd, start_stat_time, ret);
 }
 
 static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
-    uint64 expect_insts, uint64 *recv_success_insts)
+    uint64 expect_insts, uint64 *recv_succ_insts)
 {
     int32 ret = CM_SUCCESS;
-    *recv_success_insts = 0;
+    *recv_succ_insts = 0;
     int32 high_priority_ret = DMS_SUCCESS;
 
     for (uint32 i = 0; i < msg_list->count; i++) {
@@ -470,29 +471,30 @@ static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
 
         dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
         if (head->cmd != MSG_ACK_PROTOCOL_VERSION_NOT_MATCH && (!check_ret || ack_msg->ret == DMS_SUCCESS)) {
-            *recv_success_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
+            *recv_succ_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
         }
     }
 
     DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(high_priority_ret);
-    if (high_priority_ret == DMS_SUCCESS && expect_insts != *recv_success_insts) {
+    if (high_priority_ret == DMS_SUCCESS && expect_insts != *recv_succ_insts) {
         high_priority_ret = ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
     if (high_priority_ret == DMS_SUCCESS) {
-        LOG_DEBUG_INF("Succeed to recv bcast ack from all nodes");
+        LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
     }
     return high_priority_ret;
 }
 
 /*
  * previously mfc_wait_acks. return status only
- * mes buf is released before return
+ * mes buffer is released before return
  */
 int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 {
     if (ruid == 0) {
         return DMS_SUCCESS;
     }
+
     mes_msg_list_t responses = { 0 };
     int ret = DMS_SUCCESS;
     uint64 recv_succ_insts = 0;
@@ -518,7 +520,7 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 
 /*
  * previously mfc_wait_acks2. returns ret and succ_insts
- * mes buf is released before return
+ * mes buffer is released before return
  */
 int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts)
 {
@@ -585,6 +587,7 @@ int mfc_add_instance_batch(const unsigned char *inst_id_list, unsigned char inst
         if (g_dms.inst_id == inst_id) {
             continue;
         }
+
         ret = mes_connect_instance(inst_id);
         if (ret != CM_SUCCESS && ret != ERR_MES_IS_CONNECTED) {
             LOG_RUN_ERR("failed to add instance %d", inst_id);

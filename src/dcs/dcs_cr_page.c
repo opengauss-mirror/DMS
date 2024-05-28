@@ -138,7 +138,9 @@ static int dcs_handle_pcr_result(dms_process_context_t *ctx,
     msg_pcr_request_t *request, dms_cr_assist_t *pcr)
 {
     int ret;
-    /* send message according to CR construct result */
+    /* 
+     * send message according to CR construct result
+     */
     switch (pcr->status) {
         case DMS_CR_STATUS_ALL_VISIBLE:
             ret = dcs_send_pcr_ack(ctx, request, pcr->page, (bool8 *)pcr->fb_mark);
@@ -209,7 +211,7 @@ static int dcs_btree_construct_cr_page(dms_process_context_t *ctx, msg_pcr_reque
     if (g_dms.callback.btree_construct_cr_page(&pcr) != DMS_SUCCESS) {
         return DMS_ERROR;
     }
-    
+
     return dcs_handle_pcr_result(ctx, request, &pcr);
 }
 
@@ -224,6 +226,21 @@ static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *ms
     uint32 total_size = request->cr_type == CR_TYPE_HEAP ? sizeof(msg_pcr_request_t) : sizeof(msg_index_pcr_request_t);
     total_size += g_dms.page_size;
     CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, total_size, CM_TRUE);
+
+    if (request->cr_type == CR_TYPE_HEAP) {
+        LOG_DEBUG_INF("[DCS][dcs_handle_pcr_request]:src_inst=%d, dst_inst=%d, src_sid=%u, dst_sid=%u, cr_type=%s, "
+            "force_cvt=%d, ssn=%u, query_scn=%llu, pageid=%s, xid=%s", (int32)request->head.src_inst,
+            (int32)request->head.dst_inst, (uint32)request->head.src_sid, (uint32)request->head.dst_sid,
+            "heap", (int32)request->force_cvt, (uint32)request->ssn, (uint64)request->query_scn,
+            cm_display_pageid(request->pageid), cm_display_xid(request->xid));
+    } else {
+        LOG_DEBUG_INF("[DCS][dcs_handle_pcr_request]:src_inst=%d, dst_inst=%d, src_sid=%u, dst_sid=%u, cr_type=%s, "
+            "force_cvt=%d, ssn=%u, query_scn=%llu, pageid=%s, xid=%s, entry=%s", (int32)request->head.src_inst,
+            (int32)request->head.dst_inst, (uint32)request->head.src_sid, (uint32)request->head.dst_sid,
+            "heap", (int32)request->force_cvt, (uint32)request->ssn, (uint64)request->query_scn,
+            cm_display_pageid(request->pageid), cm_display_xid(request->xid),
+            cm_display_pageid(((msg_index_pcr_request_t *)request)->entry));
+    }
 
     /*
      * NOTE:
@@ -246,7 +263,7 @@ static void dcs_handle_pcr_request(dms_process_context_t *ctx, dms_message_t *ms
             break;
     }
 
-    if(ret != DMS_SUCCESS) {
+    if (ret != DMS_SUCCESS) {
         cm_send_error_msg(msg->head, ret, (char *)err_msg);
     }
 }
@@ -256,8 +273,7 @@ void dcs_proc_pcr_request(dms_process_context_t *process_ctx, dms_message_t *rec
 {
 #ifndef OPENGAUSS
     if (recv_msg->head->src_inst == process_ctx->inst_id) {
-        recv_msg->head->dst_sid = recv_msg->head->src_sid;
-        dms_proc_msg_ack(process_ctx, recv_msg);
+        LOG_DEBUG_ERR("PCR should not process req as ack any more!");
         return;
     }
 
@@ -343,6 +359,7 @@ static int dcs_proc_msg_ack_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dm
 static inline int dcs_proc_msg_ack_txn_wait(dms_cr_t *dms_cr, dms_message_t *message)
 {
     CM_CHK_PROC_MSG_SIZE(message, (uint32)(sizeof(dms_message_head_t) + DMS_XID_SIZE), CM_FALSE);
+
     char *wxid = g_dms.callback.get_wxid_from_cr_cursor(dms_cr->cr_cursor);
     int ret = memcpy_sp(wxid, DMS_XID_SIZE, DMS_MESSAGE_BODY(message), DMS_XID_SIZE);
     DMS_SECUREC_CHECK(ret);
@@ -370,6 +387,7 @@ static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms
             return dcs_proc_msg_ack_txn_wait(dms_cr, message);
         }
         case MSG_ACK_ERROR:
+            dms_cr->status = DMS_CR_STATUS_ABORT; 
             cm_print_error_msg_and_throw_error(message->buffer);
             return ERRNO_DMS_COMMON_MSG_ACK;
         case MSG_ACK_GRANT_OWNER:
@@ -380,13 +398,14 @@ static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms
             dms_cr->phase = DMS_CR_PHASE_CHECK_MASTER;
             break;
         default:
+            dms_cr->status = DMS_CR_STATUS_ABORT;
             break;
     }
 
     return DMS_SUCCESS;
 }
 
-static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dst_id, msg_pcr_request_t *request,
+static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 dest_id, msg_pcr_request_t *request,
     uint32 head_size, bool8 for_heap)
 {
     int ret;
@@ -395,7 +414,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
     LOG_DEBUG_INF("[PCR][%s][request cr page] cr_type %u query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dst_id);
+        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
 
     dms_wait_event_t evt = for_heap ? DMS_EVT_PCR_REQ_HEAP_PAGE : DMS_EVT_PCR_REQ_BTREE_PAGE;
 
@@ -426,10 +445,12 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
         return ret;
     }
 
+    /* error occurs, we want to retry in DB layer, so return success to DB, should judge status in state machine */
+    dms_cr->status = DMS_CR_STATUS_DB_NOT_READY;
     LOG_DEBUG_INF("[PCR][%s][request cr page failed] cr_type %u query_scn %llu query_ssn %u "
         "src_inst %u src_sid %u dst_inst %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dst_id);
+        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
 
     cm_sleep(DMS_MSG_RETRY_TIME);
 
@@ -458,7 +479,7 @@ static int dcs_heap_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, ui
     return ret;
 }
 
-int dms_forward_heap_cr_page_reqeust(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
+int dms_forward_heap_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id)
 {
     dms_reset_error();
     return dcs_heap_request_cr_page(dms_ctx, dms_cr, (uint8)dst_inst_id);
@@ -497,6 +518,7 @@ int dms_forward_btree_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, 
 static void dcs_send_already_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
     dms_message_head_t head;
+
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
     dms_init_ack_head(msg->head, &head, MSG_ACK_ALREADY_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
 
@@ -506,6 +528,7 @@ static void dcs_send_already_owner(dms_process_context_t *ctx, dms_message_t *ms
 static void dcs_send_grant_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
     dms_message_head_t head;
+
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
     dms_init_ack_head(msg->head, &head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
 
@@ -525,9 +548,11 @@ static void dcs_route_pcr_request_owner(dms_process_context_t *ctx, msg_pcr_requ
     request->head.ruid = ruid;
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_OWNER_FOR_CR_PAGE, MSG_REQ_ASK_OWNER_FOR_CR_PAGE);
+    /* askowner wouldn't be sending req as ack to src_inst as outer func has judget */
     (void)mfc_forward_request(&request->head);
 }
 
+/* pcr am */
 static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_request_t *request, bool32 *local_route)
 {
     uint8 master_id;
@@ -543,16 +568,18 @@ static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_req
         return DMS_SUCCESS;
     }
 
+    /* ruid remains the same to be relayed to new master */
     uint64 ruid = request->head.ruid;
+    /* head size should use original value */
     uint32 send_proto_ver = dms_get_forward_request_proto_version(master_id, request->head.msg_proto_ver);
     DMS_INIT_MESSAGE_HEAD2(&request->head, MSG_REQ_ASK_MASTER_FOR_CR_PAGE, 0, request->head.src_inst, master_id,
         request->head.src_sid, CM_INVALID_ID16, send_proto_ver, request->head.size);
     request->head.ruid = ruid;
 
     LOG_DEBUG_INF("[PCR][%s][reroute request] cr_type %u query_scn %llu query_ssn %u "
-        "src_inst %u src_sid %u dst_inst %u",
+        "src_inst %u src_sid %u dst_inst %u ruid %llu",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)master_id);
+        (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)master_id, (uint64)request->head.ruid);
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_MASTER_FOR_CR_PAGE, MSG_REQ_ASK_MASTER_FOR_CR_PAGE);
     if (master_id == request->head.src_inst) {
@@ -641,6 +668,13 @@ static void dcs_handle_pcr_req_master(dms_process_context_t *ctx, dms_message_t 
     bool32 local_route = CM_TRUE;
     int ret;
 
+    LOG_DEBUG_INF("[DCS][dcs_handle_pcr_req_master]:src_inst=%d, dst_inst=%d, src_sid=%u, dst_sid=%u, cr_type=%s, "
+        "force_cvt=%d, ssn=%u, query_scn=%llu, pageid=%s, xid=%s", (int32)request->head.src_inst,
+        (int32)request->head.dst_inst, (uint32)request->head.src_sid, (uint32)request->head.dst_sid,
+        (request->cr_type == CR_TYPE_HEAP) ? "heap" : "btree", (int32)request->force_cvt,
+        (uint32)request->ssn, (uint64)request->query_scn, cm_display_pageid(request->pageid),
+        cm_display_xid(request->xid));
+
     while (local_route) {
         ret = drc_get_page_owner_id(CM_INVALID_ID8, request->pageid, request->sess_type, &owner_id);
         if (ret != DMS_SUCCESS) {
@@ -680,6 +714,7 @@ void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, dms_message_t *
 {
 #ifndef OPENGAUSS
     if (recv_msg->head->src_inst == process_ctx->inst_id) {
+        LOG_DEBUG_ERR("PCR should not process req as ack anymore!");
         recv_msg->head->dst_sid = recv_msg->head->src_sid;
         dms_proc_msg_ack(process_ctx, recv_msg);
         return;
@@ -689,7 +724,6 @@ void dcs_proc_pcr_req_master(dms_process_context_t *process_ctx, dms_message_t *
 #endif
 }
 
-
 void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *recv_msg)
 {
 #ifndef OPENGAUSS
@@ -697,6 +731,13 @@ void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *r
     msg_pcr_request_t *request = (msg_pcr_request_t *)(recv_msg->buffer);
     bool32 local_route = CM_FALSE;
     int ret;
+
+    LOG_DEBUG_INF("[DCS][dcs_handle_pcr_req_owner]:src_inst=%d, dst_inst=%d, src_sid=%u, dst_sid=%u, cr_type=%s, "
+        "force_cvt=%d, ssn=%u, query_scn=%llu, pageid=%s, xid=%s", (int32)request->head.src_inst,
+        (int32)request->head.dst_inst, (uint32)request->head.src_sid, (uint32)request->head.dst_sid,
+        (request->cr_type == CR_TYPE_HEAP) ? "heap" : "btree", (int32)request->force_cvt,
+        (uint32)request->ssn, (uint64)request->query_scn, cm_display_pageid(request->pageid),
+        cm_display_xid(request->xid));
 
     if (request->cr_type == CR_TYPE_HEAP) {
         ret = dcs_proc_heap_pcr_construct(process_ctx, request, &local_route);
@@ -708,6 +749,7 @@ void dcs_proc_pcr_req_owner(dms_process_context_t *process_ctx, dms_message_t *r
     }
 
     if (local_route) {
+        LOG_DEBUG_INF("[DCS][dcs_proc_pcr_req_owner] local route");
         dcs_handle_pcr_req_master(process_ctx, recv_msg);
     }
 #endif
@@ -778,7 +820,7 @@ static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
     switch (pcr.status) {
         case DMS_CR_STATUS_ALL_VISIBLE:
         case DMS_CR_STATUS_INVISIBLE_TXN:
-            ret = dcs_send_check_visible_ack(ctx, check, (bool)(*pcr.check_found));
+            ret = dcs_send_check_visible_ack(ctx, check, (bool8)(*pcr.check_found));
             break;
         case DMS_CR_STATUS_OTHER_NODE_INVISIBLE_TXN:
             ret = dcs_send_check_visible(ctx, check, pcr.relay_inst);
@@ -801,6 +843,7 @@ void dcs_proc_check_visible(dms_process_context_t *process_ctx, dms_message_t *r
 {
 #ifndef OPENGAUSS
     if (recv_msg->head->src_inst == process_ctx->inst_id) {
+        LOG_DEBUG_ERR("PCR should not process req as ack anymore!");
         recv_msg->head->dst_sid = recv_msg->head->src_sid;
         dms_proc_msg_ack(process_ctx, recv_msg);
         return;
@@ -860,8 +903,8 @@ int dms_request_heap_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned 
         (uint32)dms_ctx->inst_id, dms_ctx->sess_id, (uint32)dst_inst_id);
 
     for (;;) {
-        dms_wait_event_t event = (dms_cr->phase == DMS_CR_PHASE_REQ_MASTER) ?
-            DMS_EVT_PCR_REQ_MASTER : DMS_EVT_PCR_REQ_OWNER;
+        dms_wait_event_t event = (dms_cr->phase == DMS_CR_PHASE_REQ_MASTER)
+            ? DMS_EVT_PCR_REQ_MASTER : DMS_EVT_PCR_REQ_OWNER;
         dms_begin_stat(dms_ctx->sess_id, event, CM_TRUE);
 
         if (mfc_send_data(&request.head) != CM_SUCCESS) {

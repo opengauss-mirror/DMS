@@ -64,7 +64,7 @@ static void dcs_proc_smon_get_txn_dlock(dms_process_context_t *ctx, dms_message_
     uint32 mes_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_DLOCK_MSG_MAX_LEN);
     char ss_lock[DMS_SMON_DLOCK_MSG_MAX_LEN] = {0};
 
-     if (SECUREC_UNLIKELY(rmid >= CM_MAX_RMS)) {
+    if (SECUREC_UNLIKELY(rmid >= CM_MAX_RMS)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid rmid value");
         LOG_RUN_ERR("[SMON] proc get txn dlock, the rmid %u is invalid", (uint32)rmid);
         return;
@@ -117,6 +117,7 @@ static void dcs_proc_smon_get_rowid(dms_process_context_t *ctx, dms_message_t *r
 void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
 #ifdef OPENGAUSS
+    /* pass */
 #else
     uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint32) + sizeof(uint16));
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE);
@@ -145,6 +146,7 @@ void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *re
     return;
 #endif
     char ilock[DMS_SMON_TLOCK_MSG_MAX_LEN] = {0};
+
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)(sizeof(dms_message_head_t) + DMS_XID_SIZE), CM_TRUE);
     uint32 mes_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN);
 
@@ -205,13 +207,13 @@ void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *recei
 
     g_dms.callback.mem_free(ctx->db_handle, ack_buf);
     g_dms.callback.mem_free(ctx->db_handle, body);
-
     return;
 }
 
 void dcs_proc_smon_tlock_by_rm(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
 #ifdef OPENGAUSS
+    /* pass */
 #else
     int ret;
     uint8 *send_msg = NULL;
@@ -341,7 +343,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     }
 
     head = (dms_message_head_t *)send_msg;
-    
+
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_ITL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     char *dest = (char *)(send_msg + sizeof(dms_message_head_t));
@@ -379,10 +381,9 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     }
 
     CM_ASSERT(ilock_len >= DMS_SMON_TLOCK_MSG_MAX_LEN);
-    CM_CHK_RESPONSE_SIZE(&recv_msg,
-        (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN), CM_FALSE);
-    errno_t err = memcpy_s((char *)ilock, ilock_len, recv_msg.buffer + sizeof(dms_message_head_t),
-        DMS_SMON_TLOCK_MSG_MAX_LEN);
+    CM_CHK_RESPONSE_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN), CM_FALSE);
+    errno_t err =
+        memcpy_s((char *)ilock, ilock_len, recv_msg.buffer + sizeof(dms_message_head_t), DMS_SMON_TLOCK_MSG_MAX_LEN);
     if (err != EOK) {
         mfc_release_response(&recv_msg);
         LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
@@ -414,7 +415,7 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_SQL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     *((uint16 *)(send_msg + sizeof(dms_message_head_t))) = sid;
-    head->size = msg_size;    
+    head->size = msg_size;
 
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
@@ -434,7 +435,7 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
@@ -444,9 +445,11 @@ int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned char dst_inst
     CM_CHK_RESPONSE_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + sizeof(uint32)), CM_FALSE);
     uint32 len = *(uint32 *)(recv_msg.buffer + sizeof(dms_message_head_t));
     if (len != 0) {
-        CM_CHK_RESPONSE_SIZE(&recv_msg, (uint32)(sizeof(dms_message_head_t) + sizeof(uint32) + len), CM_FALSE);
+        CM_CHK_RESPONSE_SIZE(&recv_msg,
+            (uint32)(sizeof(dms_message_head_t) + sizeof(uint32) + len), CM_FALSE);
         CM_ASSERT(sql_str_len >= len);
-        errno_t err = memcpy_s(sql_str, sql_str_len, recv_msg.buffer + sizeof(dms_message_head_t) + sizeof(uint32), len);
+        errno_t err = memcpy_s(sql_str, sql_str_len,
+            recv_msg.buffer + sizeof(dms_message_head_t) + sizeof(uint32), len);
         if (err != EOK) {
             mfc_release_response(&recv_msg);
             LOG_DEBUG_ERR("[SMON] memcpy_s failed, errno = %d", err);
@@ -487,7 +490,6 @@ int dms_smon_req_tlock_by_rm(dms_context_t *dms_ctx, unsigned char dst_inst, uns
     req_tlock->sid = sid;
     req_tlock->type = type;
     
-
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         g_dms.callback.mem_free(dms_ctx->db_handle, send_msg);
@@ -507,7 +509,7 @@ int dms_smon_req_tlock_by_rm(dms_context_t *dms_ctx, unsigned char dst_inst, uns
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 
-    dms_message_head_t *ack_dms_head= get_dms_head(&recv_msg);
+    dms_message_head_t *ack_dms_head = get_dms_head(&recv_msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg_and_throw_error(recv_msg.buffer);
         mfc_release_response(&recv_msg);
@@ -532,7 +534,7 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
     uint32 output_msg_len = 0;
-    uint32 msg_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN * MAX_TABLE_LOCK_NUM); 
+    uint32 msg_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN * MAX_TABLE_LOCK_NUM);
 
     dms_message_head_t *ack_head = (dms_message_head_t *)g_dms.callback.mem_alloc(ctx->db_handle, msg_size);
     char *output_msg = (char *)ack_head + sizeof(dms_message_head_t);
@@ -545,6 +547,7 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
         .data = data, .len = len, .output_msg = output_msg, .output_msg_len = &output_msg_len};
     int32 ret = g_dms.callback.process_broadcast(ctx->db_handle, &broad_ctx);
     if (output_msg_len != 0) {
+        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST_WITH_MSG, MSG_ACK_BROADCAST_WITH_MSG);
         dms_init_ack_head2(ack_head, MSG_ACK_BROADCAST_WITH_MSG, 0, receive_msg->head->dst_inst,
             receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
             receive_msg->head->msg_proto_ver);
@@ -554,6 +557,7 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
             LOG_DEBUG_ERR("send result msg to instance %d failed.", receive_msg->head->src_inst);
         }
     } else {
+        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST,MSG_ACK_BROADCAST);
         cm_ack_result_msg(ctx, receive_msg, MSG_ACK_BROADCAST, ret);
     }
     g_dms.callback.mem_free(ctx->db_handle, ack_head);
@@ -568,7 +572,7 @@ void dcs_proc_smon_tlock_by_tid(dms_process_context_t *ctx, dms_message_t *recei
     dcs_req_tlock_by_tid_t req = *(dcs_req_tlock_by_tid_t *)(receive_msg->buffer + sizeof(dms_message_head_t));
     uint32 msg_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN * MAX_TABLE_LOCK_NUM);
 
-    LOG_DEBUG_INF("[DMS][dcs_proc_smon_tlock_by_tid]:src_instid=%d, src_id=%d", rev_head->src_inst,
+    LOG_DEBUG_INF("[DMS][dcs_proc_smon_tlock_by_tid]:src_instid=%d, src_sid=%d", rev_head->src_inst,
         rev_head->src_sid);
 
     char *send_msg = g_dms.callback.mem_alloc(ctx->db_handle, msg_size);
@@ -586,10 +590,10 @@ void dcs_proc_smon_tlock_by_tid(dms_process_context_t *ctx, dms_message_t *recei
         g_dms.callback.mem_free(ctx->db_handle, send_msg);
         return;
     }
-    
+
     ret = mfc_send_data(snd_head);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[SMON] process get tlock message from failed, ret = %d", ret);
+        LOG_DEBUG_ERR("[SMON] process get tlock message from failed, ret = %d ", ret);
     }
     g_dms.callback.mem_free(ctx->db_handle, send_msg);
     return;
@@ -627,10 +631,10 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
     ret = mfc_get_response(ruid, &msg, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
-        LOG_DEBUG_ERR("[DMS][dms_smon_req_tlock_by_tid]:wait get tlock by tid ack timeout");
+        LOG_DEBUG_ERR("[DMS][dms_smon_req_tlock_by_tid]: wait get tlock by tid ack timeout");
         return ret;
     }
-    
+
     dms_message_head_t *ack_dms_head = get_dms_head(&msg);
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(msg.buffer);
@@ -639,7 +643,7 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
-    
+
     CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(dms_message_head_t), CM_FALSE);
     char *recv_msg = msg.buffer + sizeof(dms_message_head_t);
 
@@ -696,7 +700,7 @@ int dms_send_req_msg_and_recv_ack(dms_context_t *dms_ctx, unsigned char dst_inst
 
     ret = mfc_get_response(head->ruid, &recv_msg, DMS_WAIT_MAX_TIME);
     if (ret != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS] receive response message from instance(%u), cookie(%s) errcode(%d) failed",
+        LOG_DEBUG_ERR("[DMS] receive response message from instance(%u) cookie(%s) errcode(%d) failed",
             (uint32)dst_inst, (ctx->cookie_desp_or_null == NULL ? "null" : ctx->cookie_desp_or_null(ctx->cookie)), ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, rsp_msg_type, dst_inst);
@@ -713,7 +717,6 @@ int dms_send_req_msg_and_recv_ack(dms_context_t *dms_ctx, unsigned char dst_inst
     mfc_release_response(&recv_msg);
     return ret;
 }
-
 #pragma pack(4)
 typedef struct st_dms_smon_deadlock_alock_req {
     dms_message_head_t head;
@@ -792,9 +795,7 @@ int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned ch
     };
     return dms_send_req_msg_and_recv_ack(dms_ctx, dst_inst, &msg_proc_ctx);
 }
-
 #define DMS_MAX_DEADLOCK_ALOCK_MES_SIZE SIZE_K(32)
-
 void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *receive_msg)
 {
 #ifdef OPENGAUSS
@@ -813,7 +814,6 @@ void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *rece
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
         return;
     }
-
     head = &rsp_msg->head;
     dms_init_ack_head2(head, MSG_ACK_SMON_ALOCK_BY_DRID, 0, receive_msg->head->dst_inst,
         receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
@@ -843,4 +843,3 @@ void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *rece
 #endif
     return;
 }
-
