@@ -2448,7 +2448,6 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     cm_spin_lock(&reform_context->share_info_lock, NULL);
     share_info->version_num++;
     cm_spin_unlock(&reform_context->share_info_lock);
-    share_info->reformer_id = (uint8)g_dms.inst_id;
 
     // build reform step. check_proc may change reform_type, so reset judgement_proc
     reform_judgement_proc = g_reform_judgement_proc[share_info->reform_type];
@@ -2468,6 +2467,47 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     dms_reform_judgement_step_log();
     dms_reform_judgement_stat_desc("success");
     return CM_TRUE;
+}
+
+static bool8 dms_reform_kick_reboot_inst_online_list()
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    health_info_t *health_info = DMS_HEALTH_INFO;
+    uint64 bitmap_kick_out = 0;
+    uint64 bitmap_status_in = 0;
+    for (uint8 i = 0; i < share_info->list_online.inst_id_count; ++i) {
+        uint8 inst_id = share_info->list_online.inst_id_list[i];
+        if ((health_info->online_status[inst_id] == DMS_STATUS_JOIN ||
+            health_info->online_status[inst_id] == DMS_STATUS_OUT) &&
+            bitmap64_exist(&share_info->bitmap_stable, inst_id)) {
+            bitmap64_set(&bitmap_kick_out, inst_id);
+        }
+        if (health_info->online_status[inst_id] == DMS_STATUS_IN) {
+            bitmap64_set(&bitmap_status_in, inst_id);
+        }
+    }
+    if (bitmap_status_in == 0 || bitmap_kick_out == 0) {
+        return CM_TRUE;
+    }
+
+    LOG_RUN_INF("[DMS REFORM] bitmap_status_in is %llu, bitmap_kick_out is %llu", bitmap_status_in, bitmap_kick_out);
+
+    if (bitmap64_exist(&bitmap_kick_out, (uint8)g_dms.inst_id)) {
+        LOG_RUN_INF("[DMS REFORM] reformer inst %u should be kicked out", g_dms.inst_id);
+        uint8 new_reformer_id = bitmap64_get_bit_is_one(bitmap_status_in);
+        LOG_RUN_INF("[DMS REFORM] new reformer is inst %u", new_reformer_id);
+        dms_reform_cm_res_trans_lock(new_reformer_id);
+        reform_info_t *reform_info = DMS_REFORM_INFO;
+        reform_info->dms_role = DMS_ROLE_PARTNER;
+        return CM_FALSE;
+    } else {
+        dms_reform_list_to_bitmap(&share_info->bitmap_online, &share_info->list_online);
+        LOG_RUN_INF("[DMS REFORM] share_info->bitmap_online before kick is %llu", share_info->bitmap_online);
+        bitmap64_minus(&share_info->bitmap_online, bitmap_kick_out);
+        LOG_RUN_INF("[DMS REFORM] share_info->bitmap_online after kick is %llu", share_info->bitmap_online);
+        dms_reform_bitmap_to_list(&share_info->list_online, share_info->bitmap_online);
+        return CM_TRUE;
+    }
 }
 
 static void dms_reform_judgement_reformer(void)
@@ -2514,7 +2554,12 @@ static void dms_reform_judgement_reformer(void)
         dms_reform_judgement_stat_desc("fail to get online status");
         return;
     }
-
+    share_info->reformer_id = (uint8)g_dms.inst_id;
+#ifndef OPENGAUSS
+    if (!dms_reform_kick_reboot_inst_online_list()) {
+        return;
+    }
+#endif
     dms_set_driver_ping_info(online_version, health_info->online_rw_status, &share_info->list_online);
 
     if (!dms_reform_judgement(health_info->online_status)) {

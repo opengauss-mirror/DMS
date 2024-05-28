@@ -486,6 +486,17 @@ static inline bool32 bitmap64_exist(const uint64 *bitmap, uint8 num)
     return (tmp == 0) ? CM_FALSE : CM_TRUE;
 }
 
+static inline uint8 bitmap64_get_bit_is_one(uint64 bitmap)
+{
+    uint8 bit = 0;
+    while (bitmap != 0) {
+        if (bitmap & (uint64)1) {
+            return bit;
+        }
+        bitmap = bitmap >> (uint64)1;
+        ++bit;
+    }
+}
 static inline uint64 bitmap64_create(const uint8 *inst_id, uint8 inst_count)
 {
     uint64 inst_map = 0;
