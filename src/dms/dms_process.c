@@ -445,6 +445,8 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         return;
     }
 
+    mes_msg_info_t msg_data = {head->cmd, head->src_sid};
+    mes_set_cur_msg_info(work_idx, &msg_data, sizeof(mes_msg_info_t));
     dms_processor_t *processor = &g_dms.processors[head->cmd];
     if (processor->is_enqueue) {
         bool8 pass_check = dms_check_message_proto_version(head);

@@ -1053,6 +1053,13 @@ DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 DMS_DECLARE void dms_fsync_logfile(void);
 DMS_DECLARE void dms_set_elapsed_switch(unsigned char elapsed_switch);
 
+DMS_DECLARE int dms_get_task_worker_msg_stat(unsigned int worker_id,
+    mes_worker_msg_stats_info_t *mes_worker_msg_stats_result);
+
+DMS_DECLARE int dms_get_task_worker_priority_stat(unsigned int priority_id,
+    mes_task_priority_stats_info_t *mes_task_priority_stats_result);
+
+
 #ifdef __cplusplus
 }
 #endif
