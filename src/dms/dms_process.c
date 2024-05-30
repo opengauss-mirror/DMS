@@ -54,6 +54,7 @@
 #define DEBUG_LOG_LEVEL 0x0000007F
 
 dms_instance_t g_dms = { 0 };
+mes_thread_set_t g_mes_thread_set = { 0 };
 
 typedef struct st_processor_func {
     msg_command_t cmd_type;
@@ -1636,19 +1637,18 @@ static void dms_get_reform_parallel_thread(thread_set_t *thread_set, char *dms_t
 
 void dms_get_dms_thread(thread_set_t *thread_set)
 {
-    mes_thread_set_t mes_thread_set;
-    errno_t err = memset_s(&mes_thread_set, sizeof(mes_thread_set_t), 0, sizeof(mes_thread_set_t));
+    errno_t err = memset_s(&g_mes_thread_set, sizeof(mes_thread_set_t), 0, sizeof(mes_thread_set_t));
     DMS_SECUREC_CHECK_SS(err);
-    mes_get_all_threads(&mes_thread_set);
+    mes_get_all_threads(&g_mes_thread_set);
 
-    for (int32 i = 0; i < mes_thread_set.thread_count; i++) {
+    for (int32 i = 0; i < g_mes_thread_set.thread_count; i++) {
         if (thread_set->thread_count >= MAX_DMS_THREAD_NUM) {
             return;
         }
         err = sprintf_s(thread_set->threads[thread_set->thread_count].thread_name,
-            DMS_MAX_NAME_LEN, "%s", mes_thread_set.threads[i].thread_name);
+            DMS_MAX_NAME_LEN, "%s", g_mes_thread_set.threads[i].thread_name);
         DMS_SECUREC_CHECK_SS(err);
-        thread_set->threads[thread_set->thread_count].thread_info = mes_thread_set.threads[i].thread_info;
+        thread_set->threads[thread_set->thread_count].thread_info = g_mes_thread_set.threads[i].thread_info;
         thread_set->thread_count++;
     }
 
