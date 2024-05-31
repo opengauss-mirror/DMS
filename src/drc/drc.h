@@ -496,6 +496,7 @@ static inline uint8 bitmap64_get_bit_is_one(uint64 bitmap)
         bitmap = bitmap >> (uint64)1;
         ++bit;
     }
+    return 0;
 }
 static inline uint64 bitmap64_create(const uint8 *inst_id, uint8 inst_count)
 {
