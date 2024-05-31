@@ -2469,6 +2469,7 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     return CM_TRUE;
 }
 
+#ifndef OPENGAUSS
 static bool8 dms_reform_kick_reboot_inst_online_list()
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -2509,6 +2510,7 @@ static bool8 dms_reform_kick_reboot_inst_online_list()
         return CM_TRUE;
     }
 }
+#endif
 
 static void dms_reform_judgement_reformer(void)
 {
