@@ -345,8 +345,8 @@ DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_re
         return;
     }
 
-    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.count[g_wait_cmd_desc[index].cmd];
-    cmd_stat_result->wait_time = g_dms_time_consume.time[g_wait_cmd_desc[index].cmd];
+    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].count;
+    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].time;
     cmd_stat_result->is_valid = CM_TRUE;
 }
 

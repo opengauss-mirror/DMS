@@ -296,10 +296,11 @@ typedef struct st_reform_info {
     version_info_t      reformer_version;
     uint64              start_time;
     uint64              proc_time;              // check proc if active or fall into an endless loop
-    spinlock_t          status_lock;
     int32               err_code;
     dms_thread_status_t thread_status;
+    char                aligned1[CM_CACHE_LINE_SIZE];
     latch_t             instance_lock;          // latch to avoid concurrent modifications on db buf and dms drc
+    char                aligned2[CM_CACHE_LINE_SIZE];
     uint8               dms_role;
     uint8               reformer_id;            // who hold dms_reformer_lock, it is realtime
     bool8               last_fail;              // record last round reform result

@@ -210,7 +210,9 @@ enum {
 };
 
 typedef struct st_drc_global_res_map {
+    char aligned1[CM_CACHE_LINE_SIZE];
     latch_t res_latch;
+    char aligned2[CM_CACHE_LINE_SIZE];
     volatile uint8 drc_accessible_stage;
     uint8 resvered[3]; // 3 for resvered
     drc_res_map_t res_map;
