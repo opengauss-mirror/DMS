@@ -139,6 +139,19 @@ bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists)
     return CM_TRUE;
 }
 
+void dms_reform_judgement_az_switchover_info_reset(void)
+{
+    az_switchover_info_t *switchover_info = DMS_AZ_SWITCHOVER_INFO;
+
+    cm_spin_lock(&switchover_info->lock, NULL);
+    switchover_info->switch_start = CM_FALSE;
+    switchover_info->inst_id = CM_INVALID_ID8;
+    switchover_info->sess_id = CM_INVALID_ID16;
+    switchover_info->switch_req = CM_FALSE;
+    switchover_info->switch_type = AZ_IDLE;
+    cm_spin_unlock(&switchover_info->lock);
+}
+
 bool32 dms_reform_judgement_az_switchover_check(instance_list_t *inst_lists)
 {
 #ifdef OPENGAUSS
@@ -152,6 +165,8 @@ bool32 dms_reform_judgement_az_switchover_check(instance_list_t *inst_lists)
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 ||
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0 ||
         inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
+        dms_reform_judgement_az_switchover_info_reset();
+        g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, ERRNO_DMS_REFORM_FAIL);
         return CM_FALSE;
     }
 
@@ -200,6 +215,8 @@ bool32 dms_reform_judgement_az_failover_check(instance_list_t *inst_lists)
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 ||
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0 ||
         inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
+        dms_reform_judgement_az_switchover_info_reset();
+        g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, ERRNO_DMS_REFORM_FAIL);
         return CM_FALSE;
     }
 
