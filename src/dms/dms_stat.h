@@ -94,10 +94,17 @@ void dms_end_stat(uint32    sid);
 // the new event is specified by the parameter of event.
 void dms_end_stat_ex(uint32 sid, dms_wait_event_t event);
 
+typedef struct dms_command_stats {
+    /* if add members, please maintain the padding and cache line size */
+    uint64 time;
+    int64 count;
+    spinlock_t lock;
+    char padding[CM_CACHE_LINE_SIZE - sizeof(uint64) - sizeof(int64) - sizeof(spinlock_t)];
+} dms_command_stats_t;
+
 typedef struct st_dms_time_consume {
-    uint64 time[MSG_CMD_CEIL];
-    int64 count[MSG_CMD_CEIL];
-    spinlock_t lock[MSG_CMD_CEIL];
+    char aligned1[CM_CACHE_LINE_SIZE];
+    dms_command_stats_t cmd_stats[MSG_CMD_CEIL];
 } dms_time_consume_t;
 
 extern dms_time_consume_t g_dms_time_consume;
@@ -127,10 +134,10 @@ static inline void dms_consume_with_time(uint32 cmd, uint64 start_time, int ret)
     }
 
     uint64 elapsed_time = dms_cm_get_time_usec() - start_time;
-    cm_spin_lock(&(g_dms_time_consume.lock[cmd]), NULL);
-    g_dms_time_consume.time[cmd] += elapsed_time;
-    (void)cm_atomic_inc(&(g_dms_time_consume.count[cmd]));
-    cm_spin_unlock(&(g_dms_time_consume.lock[cmd]));
+    cm_spin_lock(&(g_dms_time_consume.cmd_stats[cmd].lock), NULL);
+    g_dms_time_consume.cmd_stats[cmd].time += elapsed_time;
+    (void)cm_atomic_inc(&(g_dms_time_consume.cmd_stats[cmd].count));
+    cm_spin_unlock(&(g_dms_time_consume.cmd_stats[cmd].lock));
     return;
 }
 

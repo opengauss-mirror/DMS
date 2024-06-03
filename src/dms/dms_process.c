@@ -436,7 +436,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
     }
 
     dms_processor_t *processor = &g_dms.processors[head->cmd];
-    mfc_add_tickets(&g_dms.mfc.recv_tickets[head->src_inst], 1);
     if (processor->is_enqueue) {
         bool8 pass_check = dms_check_message_proto_version(head);
         if (!pass_check) {
