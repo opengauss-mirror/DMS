@@ -139,6 +139,9 @@ static int dms_reform_confirm_owner(drc_buf_res_t *buf_res, uint32 sess_id)
         buf_res->lock_mode = lock_mode;
     } else {
         buf_res->claimed_owner = CM_INVALID_ID8;
+        if (buf_res->copy_insts == 0) {
+            buf_res->lock_mode = DMS_LOCK_NULL;
+        }
     }
 
     if (is_edp) {
@@ -226,6 +229,9 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
 
     if (lock_mode == DMS_LOCK_NULL) {
         buf_res->claimed_owner = CM_INVALID_ID8;
+        if (buf_res->copy_insts == 0) {
+            buf_res->lock_mode = DMS_LOCK_NULL;
+        }
     } else if (lock_mode == DMS_LOCK_SHARE) {
         buf_res->lock_mode = DMS_LOCK_SHARE;
         buf_res->claimed_owner = CM_INVALID_ID8;
@@ -265,6 +271,9 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
         if (bitmap64_exist(&share_info->bitmap_clean, buf_res->claimed_owner)) {
             buf_res->claimed_owner = CM_INVALID_ID8;
+            if (buf_res->copy_insts == 0) {
+                buf_res->lock_mode = DMS_LOCK_NULL;
+            }
         }
         dms_reform_clean_proc_stat_times(buf_res->type, DRPS_DRC_CLEAN_NO_CVT);
         return DMS_SUCCESS;
@@ -284,6 +293,9 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     if (owner_fault && cvt_fault) {
         init_drc_cvt_item(&buf_res->converting);
         buf_res->claimed_owner = CM_INVALID_ID8;
+        if (buf_res->copy_insts == 0) {
+            buf_res->lock_mode = DMS_LOCK_NULL;
+        }
         dms_reform_clean_proc_stat_times(buf_res->type, DRPS_DRC_CLEAN_OWNER_CVT_FAULT);
     } else if (!owner_fault && cvt_fault) {
         dms_reform_clean_proc_stat_start(buf_res->type, DRPS_DRC_CLEAN_CONFIRM_OWNER);
