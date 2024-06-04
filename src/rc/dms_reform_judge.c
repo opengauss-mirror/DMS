@@ -1050,8 +1050,8 @@ static void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
 
 static void dms_reform_judgement_reload_txn(void)
 {
-    dms_reform_add_step(DMS_REFORM_STEP_RELOAD_TXN);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_RELOAD_TXN);
 }
 
 static void dms_reform_judgement_rollback_start(instance_list_t *inst_lists)
@@ -2366,6 +2366,9 @@ static void dms_reform_judgement_before_proc(instance_list_t *inst_lists)
     share_info_t *share_info = DMS_SHARE_INFO;
 
     switch (share_info->reform_type) {
+        case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
+        case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
+        case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
         case DMS_REFORM_TYPE_FOR_NEW_JOIN:
             reform_info->has_ddl_2phase = CM_FALSE;
             break;
