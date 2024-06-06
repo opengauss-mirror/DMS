@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           153
+#define DMS_LOCAL_VERSION           154
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -430,7 +430,17 @@ typedef struct st_dms_broadcast_context {
     unsigned int *output_msg_len;
 } dms_broadcast_context_t;
 
-typedef struct st_dms_buf_ctrl {
+// make sure dms_buf_ctrl is aligned by cach line size in V3
+#ifndef OPENGAUSS
+#ifdef WIN32
+typedef struct st_dms_buf_ctrl
+#else
+typedef struct __attribute__((aligned(128))) st_dms_buf_ctrl
+#endif
+#else
+typedef struct st_dms_buf_ctrl
+#endif
+{
     volatile unsigned char lock_mode;       // used only in DMS, 0: Null, 1: Shared lock, 2: Exclusive lock
     // used only in DMS, 0: no, 1: yes, this page is old version,
     // can be discard only after latest version in other instance is cleaned
