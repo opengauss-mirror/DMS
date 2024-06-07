@@ -42,7 +42,6 @@ void dms_reform_judgement_az_failover_promote_phase2(void);
 void dms_reform_judgement_az_switchover_info_reset(void);
 bool32 dms_reform_judgement_az_switchover_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_az_failover_check(instance_list_t *inst_lists);
-bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_switchover_opengauss_check(instance_list_t *inst_lists);
 bool32 dms_reform_judgement_failover_opengauss_check(instance_list_t *inst_lists);
 

@@ -23,56 +23,133 @@
  */
 
 #include "dms_reform_proc.h"
-#include "dms_reform_msg.h"
-#include "drc_res_mgr.h"
-#include "dms_error.h"
 #include "drc_page.h"
-#include "dms_reform_judge.h"
-#include "dcs_page.h"
-#include "dms_reform_health.h"
-#include "cm_timer.h"
-#include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
-#include "dms_reform_xa.h"
-#include "dms_reform_fault_inject.h"
 #include "dms_reform_alock.h"
+#include "cm_num.h"
 
-static void drc_rebuild_set_owner(drc_buf_res_t *buf_res, uint8 owner_id, bool8 is_edp)
+void dms_rebuild_assist_list_init(void)
 {
-    if (buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == owner_id) {
-        buf_res->claimed_owner = owner_id;
-        buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
-        return;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    uint32 size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
+    (void)memset_s((void *)reform_info->normal_copy_lists, size, 0, size);
+}
+
+void dms_reform_rebuild_add_to_flush_copy(drc_buf_res_t *buf_res)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    drc_part_list_t *part_list = &reform_info->normal_copy_lists[buf_res->part_id];
+    cm_spin_lock(&part_list->lock, NULL);
+    cm_bilist_add_head(&buf_res->rebuild_node, &part_list->list);
+    cm_spin_unlock(&part_list->lock);
+}
+
+void dms_reform_rebuild_del_from_flush_copy(drc_buf_res_t *buf_res)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    drc_part_list_t *part_list = &reform_info->normal_copy_lists[buf_res->part_id];
+    cm_spin_lock(&part_list->lock, NULL);
+    cm_bilist_del(&buf_res->rebuild_node, &part_list->list);
+    cm_spin_unlock(&part_list->lock);
+}
+
+bool8 dms_reform_rebuild_set_type_inner(drc_buf_res_t *buf_res, reform_assist_list_type_e type, bool8 recover_analyse)
+{
+    CM_ASSERT(buf_res->rebuild_type < REFORM_ASSIST_LIST_COUNT);
+    CM_ASSERT(type < REFORM_ASSIST_LIST_COUNT);
+    if (buf_res->rebuild_type >= type) {
+        return CM_FALSE;
+    }
+    if (recover_analyse) {
+        buf_res->rebuild_type = (uint8)type;
+        return CM_TRUE;
     }
 
-    // if page is not edp, it is considered to be owner as priority
-    // if last owner has set copy_promote, use current inst instead of last owner
-    if (!is_edp) {
-        bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
-        buf_res->claimed_owner = owner_id;
-        buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
-        bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
+    // if there is no DMS_REFORM_STEP_RECOVERY_ANALYSE next, should add normal copy to flush_copy_list here
+    // such as DMS_REFORM_TYPE_FOR_NORMAL_STANDBY
+    if (buf_res->rebuild_type == REFORM_ASSIST_LIST_NORMAL_COPY) {
+        dms_reform_rebuild_del_from_flush_copy(buf_res);
+    }
+    buf_res->rebuild_type = (uint8)type;
+    if (buf_res->rebuild_type == REFORM_ASSIST_LIST_NORMAL_COPY) {
+        dms_reform_rebuild_add_to_flush_copy(buf_res);
+    }
+
+    return CM_TRUE;
+}
+
+bool8 dms_reform_rebuild_set_type(drc_buf_res_t *buf_res, reform_assist_list_type_e type)
+{
+#ifdef OPENGAUSS
+    return dms_reform_rebuild_set_type_inner(buf_res, type, CM_FALSE);
+#else
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL_STANDBY)) {
+        return dms_reform_rebuild_set_type_inner(buf_res, type, CM_FALSE);
     } else {
-        bitmap64_set(&buf_res->copy_insts, owner_id);
+        return dms_reform_rebuild_set_type_inner(buf_res, type, CM_TRUE);
+    }
+#endif
+}
+
+void dms_reform_page_rebuild_null(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
+{
+    CM_ASSERT(ctrl_info->ctrl.is_edp);
+    drc_add_edp_map(buf_res, inst_id, ctrl_info->lsn);
+}
+
+void dms_reform_page_rebuild_s(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
+{
+    uint64 lsn = ctrl_info->lsn;
+    bool8 is_owner = CM_FALSE;
+
+    cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_SHARE,
+        "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(buf_res->data), buf_res->lock_mode);
+
+    if (ctrl_info->ctrl.is_edp) {
+        is_owner = dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_EDP_COPY);
+        drc_add_edp_map(buf_res, inst_id, lsn);
+    } else if (ctrl_info->is_dirty) {
+        is_owner = dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_OWNER);
+    } else {
+        is_owner = dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_NORMAL_COPY);
+    }
+
+    if (!is_owner) {
+        bitmap64_set(&buf_res->copy_insts, inst_id);
+    } else if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        buf_res->claimed_owner = inst_id;
+    } else {
+        bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
+        buf_res->claimed_owner = inst_id;
+    }
+    bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner); // for msg retry
+
+    buf_res->lock_mode = DMS_LOCK_SHARE;
+    if (lsn == CM_MAX_UINT64) { // instance hold S mode, but has not load page from disk yet
+        return;
+    }
+    if (buf_res->owner_lsn == 0) {
+        buf_res->owner_lsn = lsn;
+    } else {
+        cm_panic_log(buf_res->owner_lsn == lsn, "rebuild_lsn:%llu is not equal lsn:%llu", buf_res->owner_lsn, lsn);
     }
 }
 
-static void drc_rebuild_set_copy(drc_buf_res_t* buf_res, uint8 owner_id, bool8 is_rdp)
+void dms_reform_page_rebuild_x(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
-    if (buf_res->claimed_owner == CM_INVALID_ID8 || buf_res->claimed_owner == owner_id) {
-        buf_res->claimed_owner = owner_id;
-        buf_res->copy_promote = (is_rdp ? DMS_COPY_PROMOTE_RDP : DMS_COPY_PROMOTE_NORMAL);
-        return;
+    cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL ||
+        (buf_res->lock_mode == DMS_LOCK_EXCLUSIVE && buf_res->claimed_owner == inst_id),
+        "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(buf_res->data), buf_res->lock_mode);
+
+    if (ctrl_info->is_dirty) {
+        (void)dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_OWNER);
+    } else {
+        (void)dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_NORMAL_COPY);
     }
 
-    if (is_rdp) {
-        bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
-        buf_res->claimed_owner = owner_id;
-        buf_res->copy_promote = DMS_COPY_PROMOTE_RDP;
-        bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner);
-    } else {
-        bitmap64_set(&buf_res->copy_insts, owner_id);
-    }
+    buf_res->claimed_owner = inst_id;
+    buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
+    buf_res->owner_lsn = ctrl_info->lsn;
 }
 
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
@@ -81,15 +158,13 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
     uint64 lsn = ctrl_info->lsn;
     bool8 is_dirty = ctrl_info->is_dirty;
 
-    if (SECUREC_UNLIKELY(ctrl->lock_mode >= DMS_LOCK_MODE_MAX ||
-        ctrl->is_edp > 1 || ctrl->need_flush > 1)) {
-        LOG_DEBUG_ERR("[DRC rebuild] invalid request message, is_edp=%u, need_flush=%u",
-            (uint32)ctrl->is_edp, (uint32)ctrl->need_flush);
+    if (SECUREC_UNLIKELY(ctrl->lock_mode >= DMS_LOCK_MODE_MAX || ctrl->is_edp > 1)) {
+        LOG_DEBUG_ERR("[DRC rebuild] invalid request message, is_edp=%u", (uint32)ctrl->is_edp);
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "ctrl_info");
         return ERRNO_DMS_PARAM_INVALID;
     }
 
-    LOG_DEBUG_INF("[DRC rebuild][%s]remote_ditry: %d, lock_mode: %d, is_edp: %d, inst_id: %d, lsn: %llu, is_dirty: %d",
+    LOG_DEBUG_INF("[DRC rebuild][%s]remote_dirty: %d, lock_mode: %d, is_edp: %d, inst_id: %d, lsn: %llu, is_dirty: %d",
         cm_display_pageid(resid), ctrl->edp_map > 0, ctrl->lock_mode, ctrl->is_edp, inst_id, lsn, is_dirty);
 
     drc_buf_res_t *buf_res = NULL;
@@ -102,28 +177,23 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
-    if (ctrl->lock_mode == DMS_LOCK_EXCLUSIVE) {
-        cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->claimed_owner == inst_id,
-            "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(resid), buf_res->lock_mode);
-        buf_res->claimed_owner = inst_id;
-        buf_res->lock_mode = ctrl->lock_mode;
-        buf_res->in_recovery = ctrl->in_rcy;
-    } else if (ctrl->lock_mode == DMS_LOCK_SHARE) {
-        cm_panic_log(buf_res->lock_mode == DMS_LOCK_NULL || buf_res->lock_mode == DMS_LOCK_SHARE,
-            "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(resid), buf_res->lock_mode);
-        buf_res->lock_mode = ctrl->lock_mode;
-        if (is_dirty) {
-            drc_rebuild_set_owner(buf_res, inst_id, ctrl->is_edp);
-        } else { // is not dirty, should notify to flush copy
-            drc_rebuild_set_copy(buf_res, inst_id, ctrl->edp_map > 0);
-        }
-        buf_res->in_recovery = ctrl->in_rcy; // recover session may read page during recovery
-    }
+    switch (ctrl->lock_mode) {
+        case DMS_LOCK_NULL:
+            dms_reform_page_rebuild_null(buf_res, ctrl_info, inst_id);
+            break;
 
-    if (ctrl->is_edp) {
-        drc_add_edp_map(buf_res, inst_id, lsn);
-    }
+        case DMS_LOCK_SHARE:
+            dms_reform_page_rebuild_s(buf_res, ctrl_info, inst_id);
+            break;
 
+        case DMS_LOCK_EXCLUSIVE:
+            dms_reform_page_rebuild_x(buf_res, ctrl_info, inst_id);
+            break;
+
+        default:
+            CM_ASSERT(CM_FALSE);
+            break;
+    }
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
 }

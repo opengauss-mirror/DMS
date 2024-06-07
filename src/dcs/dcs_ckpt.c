@@ -110,16 +110,17 @@ static int dcs_get_page_master_id(dms_context_t *dms_ctx, char pageid[DMS_PAGEID
     return drc_get_page_master_id(pageid, master_id);
 }
 
-static int dcs_get_page_owner_id(dms_context_t *dms_ctx, char pageid[DMS_PAGEID_SIZE], unsigned char *owner_id)
+// only used for ckpt
+static int dcs_ckpt_get_page_owner(dms_context_t *dms_ctx, char pageid[DMS_PAGEID_SIZE], unsigned char *owner_id)
 {
-    return drc_get_page_owner_id(dms_ctx->edp_inst, pageid, DMS_SESSION_NORMAL, owner_id);
+    return dcs_ckpt_get_page_owner_inner(dms_ctx->db_handle, dms_ctx->edp_inst, pageid, owner_id);
 }
 
 typedef int32(*cb_calc_edp)(dms_context_t *dms_ctx, char pageid[DMS_PAGEID_SIZE], uint8 *inst_id);
 typedef int32(*cb_process_edp)(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count);
 typedef int32(*cb_send_edp)(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count);
 
-static int32 dcs_notify_process_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count,
+static int32 dcs_notify_process_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count, uint32 *rest_begin,
     cb_calc_edp calc_edp, cb_process_edp process_edp, cb_send_edp send_edp)
 {
     int32 ret;
@@ -133,6 +134,9 @@ static int32 dcs_notify_process_edp(dms_context_t *dms_ctx, dms_edp_info_t *page
             SWAP(dms_edp_info_t, pages[i], pages[tmp_count - 1]);
             tmp_count--;
         }
+    }
+    if (rest_begin != NULL) {
+        *rest_begin = tmp_count;
     }
     sort_edp_by_id(pages, tmp_count);
 
@@ -173,40 +177,6 @@ static int32 dcs_owner_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, u
     return g_dms.callback.ckpt_edp(dms_ctx->db_handle, pages, count);
 }
 
-static int32 dcs_master_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count);
-static int32 dcs_master_clean_ownerless_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count)
-{
-    uint32 tmp_count = count;
-    for (uint32 i = 0; i < tmp_count; i++) {
-        if ((dcs_get_page_owner_id(dms_ctx, pages[i].page, &pages[i].id)) != DMS_SUCCESS) {
-            /* get owner id failed, because buf drc has been recycled */
-            SWAP(dms_edp_info_t, pages[i], pages[tmp_count - 1]);
-            tmp_count--;
-        }
-    }
-
-    return dcs_master_clean_edp(dms_ctx, pages + tmp_count, count - tmp_count);
-}
-
-static int32 dcs_master_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count)
-{
-    int ret;
-    ret = dcs_notify_process_edp(dms_ctx, pages, count,
-        dcs_get_page_owner_id, dcs_owner_ckpt_edp, dcs_send_edp_to_owner_ckpt);
-    if (ret != DMS_SUCCESS) {
-        return ret;
-    }
-    ret = dcs_master_clean_ownerless_edp(dms_ctx, pages, count);
-    return ret;
-}
-
-int dms_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int count)
-{
-    dms_reset_error();
-    return dcs_notify_process_edp(dms_ctx, pages, count,
-        dcs_get_page_master_id, dcs_master_ckpt_edp, dcs_send_edp_to_master_ckpt);
-}
-
 static int32 dcs_owner_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count)
 {
     return g_dms.callback.clean_edp(dms_ctx->db_handle, pages, count);
@@ -225,16 +195,24 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
         return CM_FALSE;
     }
 
+    if (buf_res->need_recover) {
+        drc_leave_buf_res(buf_res);
+        return CM_FALSE;
+    }
+
+    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        edp->edp_map = buf_res->edp_map != 0 ? buf_res->edp_map : CM_INVALID_ID64;
+        buf_res->edp_map = 0;
+        drc_leave_buf_res(buf_res);
+        return CM_TRUE;
+    }
+
     if (buf_res->lsn > edp->lsn || buf_res->edp_map == 0) {
         drc_leave_buf_res(buf_res);
         return CM_FALSE;
     }
 
     edp->edp_map = buf_res->edp_map;
-    if (DMS_IS_INST_SEND(edp->edp_map, g_dms.inst_id) && g_dms.callback.ckpt_session(dms_ctx->db_handle)) {
-        drc_leave_buf_res(buf_res);
-        return CM_FALSE;
-    }
 
     /* cleanup edp map */
     buf_res->edp_map = 0;
@@ -309,10 +287,49 @@ static int32 dcs_master_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages,
     return DMS_SUCCESS;
 }
 
+/*
+  [rest_begin, tmp_count]: owner does not really exist, should clean edp
+  [tmp_count, count]: fail to get owner or owner exists, ignore
+*/
+static void dcs_master_clean_ownerless_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count, uint32 begin)
+{
+    uint32 tmp_count = count;
+    for (uint32 i = begin; i < tmp_count; i++) {
+        if ((dcs_ckpt_get_page_owner(dms_ctx, pages[i].page, &pages[i].id)) != DMS_SUCCESS ||
+            pages[i].id != CM_INVALID_ID8) {
+            /* owner exists or get owner id failed because fail to get disk lsn */
+            SWAP(dms_edp_info_t, pages[i], pages[tmp_count - 1]);
+            tmp_count--;
+        }
+    }
+    (void)dcs_master_clean_edp(dms_ctx, pages + begin, tmp_count - begin);
+}
+
+/*
+  [0, rest_begin]: owner exists, send to owner to do checkpoint
+  [rest_begin, count]: owner not exists or fail to get owner, should re-check
+*/
+static int32 dcs_master_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count)
+{
+    uint32 rest_begin = count;
+    int ret = dcs_notify_process_edp(dms_ctx, pages, count, &rest_begin,
+        dcs_ckpt_get_page_owner, dcs_owner_ckpt_edp, dcs_send_edp_to_owner_ckpt);
+    dcs_master_clean_ownerless_edp(dms_ctx, pages, count, rest_begin);
+    return ret;
+}
+
+int dms_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int count)
+{
+    dms_reset_error();
+    return dcs_notify_process_edp(dms_ctx, pages, count, NULL,
+        dcs_get_page_master_id, dcs_master_ckpt_edp, dcs_send_edp_to_master_ckpt);
+}
+
+
 int dms_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int count)
 {
     dms_reset_error();
-    return dcs_notify_process_edp(dms_ctx, pages, count,
+    return dcs_notify_process_edp(dms_ctx, pages, count, NULL,
         dcs_get_page_master_id, dcs_master_clean_edp, dcs_send_edp_to_master_clean);
 }
 

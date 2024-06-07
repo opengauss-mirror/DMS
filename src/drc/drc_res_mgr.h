@@ -65,8 +65,9 @@ static inline void drc_dec_buf_res_ref(drc_buf_res_t *buf_res)
     (void)cm_atomic32_dec(&buf_res->count);
 }
 
-int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id);
-int32 drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id);
+int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id);
+int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id);
+int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id);
 void drc_add_buf_res_in_part_list(drc_buf_res_t *buf_res);
 void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res);
 void drc_buf_res_shift_to_tail(drc_buf_res_t *buf_res);

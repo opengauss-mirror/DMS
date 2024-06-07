@@ -101,43 +101,6 @@ void dms_reform_judgement_az_failover_promote_phase2(void)
     dms_reform_add_step(DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2);
     share_info->promote_id = (uint8)g_dms.inst_id;
 }
-bool32 dms_reform_judgement_switchover_check(instance_list_t *inst_lists)
-{
-    share_info_t *share_info = DMS_SHARE_INFO;
-    switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
-
-    // if there are restart/remove/new add instances, ignore switchover request at current judgement
-    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 ||
-        inst_lists[INST_LIST_NEW_JOIN].inst_id_count != 0 ||
-        inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
-        return CM_FALSE;
-    }
-
-    cm_spin_lock(&switchover_info->lock, NULL);
-    if (!switchover_info->switch_req) {
-        cm_spin_unlock(&switchover_info->lock);
-        return CM_FALSE;
-    }
-
-    // if the standby node(which has request switchover) is not exist in bitmap_online. clear this request
-    // if the standby node restart, also clear
-    if (!bitmap64_exist(&share_info->bitmap_online, switchover_info->inst_id) ||
-        (health_info->online_times[switchover_info->inst_id] != switchover_info->start_time)) {
-        switchover_info->switch_req = CM_FALSE;
-        switchover_info->inst_id = CM_INVALID_ID8;
-        switchover_info->sess_id = CM_INVALID_ID16;
-        cm_spin_unlock(&switchover_info->lock);
-        return CM_FALSE;
-    }
-
-    share_info->reform_type = DMS_REFORM_TYPE_FOR_SWITCHOVER;
-    share_info->promote_id = switchover_info->inst_id;
-    share_info->switch_version.inst_id = switchover_info->inst_id;
-    share_info->switch_version.start_time = switchover_info->start_time;
-    cm_spin_unlock(&switchover_info->lock);
-    return CM_TRUE;
-}
 
 void dms_reform_judgement_az_switchover_info_reset(void)
 {

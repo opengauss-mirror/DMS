@@ -36,9 +36,7 @@ extern "C" {
 void dms_reform_proc_thread(thread_t *thread);
 int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
 int dms_reform_proc_lock_rebuild(dms_drid_t *resid, uint8 lock_mode, uint8 src_inst);
-int dms_reform_proc_lock_validate(dms_drid_t *lockid, uint8 lock_mode, uint8 inst_id);
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
-int dms_reform_proc_page_validate(char *lockid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
 bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2);
 void dms_reform_next_step(void);
 int dms_reform_clean_buf_res_by_part(drc_part_list_t *part, uint32 sess_id);
@@ -46,7 +44,6 @@ void dms_reform_migrate_collect_local_task(migrate_info_t *local_migrate_info);
 int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 sess_id);
 int dms_reform_repair_by_part(drc_part_list_t *part, void *handle, uint32 sess_id);
 void dms_reform_recovery_set_flag_by_part(drc_part_list_t *part);
-int dms_reform_flush_copy_by_part(uint16 part_id, uint8 thread_index);
 void dms_reform_rebuild_buffer_init(uint8 thread_index);
 void dms_reform_rebuild_buffer_free(void *handle, uint8 thread_index);
 int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num);
@@ -60,21 +57,19 @@ int dms_reform_drc_clean(void);
 int dms_reform_full_clean(void);
 int dms_reform_migrate(void);
 int dms_reform_rebuild(void);
-int dms_reform_validate_lock_mode(void);
-int dms_reform_validate_lsn(void);
 int dms_reform_remaster(void);
-int dms_reform_repair(void);
-int dms_reform_flush_copy(void);
 int dms_reform_drc_clean_fault_inst_by_partid(uint16 part_id, uint32 sess_id);
 int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
-int dms_reform_validate_lock_mode_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
-int dms_reform_repair_by_partid(uint16 part_id, void *handle, uint32 sess_id);
-int dms_reform_lsn_validate_by_partid(uint16 part_id, uint8 thread_index);
-int dms_reform_lsn_validate_buf_res(drc_buf_res_t *buf_res, uint8 thread_index);
 int drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id);
 void dms_reform_full_clean_init_assist(full_clean_assist_t *assist);
 void dms_reform_full_clean_reinit(uint8 thread_index, uint8 thread_num, full_clean_assist_t *assist);
 void dms_reform_full_clean_concat_free_list(full_clean_assist_t *assist);
+void dms_rebuild_assist_list_init(void);
+bool8 dms_reform_rebuild_set_type(drc_buf_res_t *buf_res, reform_assist_list_type_e type);
+int dms_reform_repair_by_partid(uint8 thread_index, uint16 part_id);
+int dms_reform_repair(void);
+void dms_reform_rebuild_add_to_flush_copy(drc_buf_res_t *buf_res);
+void dms_reform_rebuild_del_from_flush_copy(drc_buf_res_t *buf_res);
 
 typedef enum en_reform_clean_stat {
     DRPS_DRC_CLEAN_NO_OWNER = 1,
@@ -87,17 +82,10 @@ typedef enum en_reform_clean_stat {
     DRPS_DRC_CLEAN_COUNT,
 } reform_clean_stat_t;
 
-typedef enum en_reform_repair_stat {
-    DRPS_DRC_REPAIR_NEED_FLUSH = 1,
-    DRPS_DRC_REPAIR_NEED_NOT_FLUSH,
-    DRPS_DRC_REPAIR_WITH_COPY,
-    DRPS_DRC_REPAIR_WITH_COPY_NEED_FLUSH,
-    DRPS_DRC_REPAIR_WITH_LAST_EDP,
-    DRPS_DRC_REPAIR_WITH_EDP_MAP,
-    DRPS_DRC_REPAIR_WITH_EDP_MAP_GET_LSN,
-
-    DRPS_DRC_REPAIR_COUNT,
-} reform_repair_stat_t;
+typedef struct st_repair_item {
+    char        page_id[DMS_PAGEID_SIZE];
+    uint32      action;
+} repair_item_t;
 
 #ifdef __cplusplus
 }

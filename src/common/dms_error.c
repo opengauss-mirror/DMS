@@ -61,6 +61,7 @@ const char *g_dms_errno_dcs_desc[] = {
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_PAGE_IN_BUFFER_FAILED)] = "dms get page in buffer fail, ret: %d",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms page checksum fail",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_REFORM_VISIT_PAGE)] = "dms page is visited by reform",
+    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_DISK_LSN_FAILED)] = "[%s]fail to get disk lsn",
 };
 
 const char *g_dms_errno_drc_desc[] = {

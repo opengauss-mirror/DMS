@@ -34,15 +34,10 @@
 extern "C" {
 #endif
 
-int dms_reform_collect_xa_owner(void);
-int dms_reform_merge_xa_owners(void);
-int dms_reform_recovery_xa(void);
-void dms_reform_proc_xa_merge(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 void dms_reform_proc_xa_rebuild(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrate_t *req, uint32 *offset,
     uint32 sess_id);
 void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
-void dms_reform_proc_req_xaowners(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 void dms_reform_clean_xa_res_by_part(drc_part_list_t *part);
 void dms_reform_delete_xa_rms(void *db_handle, uint8 undo_seg_id);
 int dms_reform_xa_drc_access(void);

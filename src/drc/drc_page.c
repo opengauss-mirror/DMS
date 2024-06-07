@@ -297,29 +297,56 @@ uint8 drc_lookup_owner_id(uint64 *owner_map)
     return 0;
 }
 
-static void drc_get_page_no_owner(drc_req_owner_result_t *result, drc_buf_res_t *buf_res, drc_request_info_t* req_info)
+int drc_get_no_owner_id(void *db_handle, drc_buf_res_t *buf_res, uint8 *owner_id)
+{
+    if (buf_res->last_edp == CM_INVALID_ID8) {
+        LOG_DEBUG_INF("[%s][drc_get_no_owner_id]last edp not exists", cm_display_resid(buf_res->data, buf_res->type));
+        *owner_id = CM_INVALID_ID8;
+        return DMS_SUCCESS;
+    }
+
+    uint64 disk_lsn = 0;
+    if (g_dms.callback.disk_lsn(db_handle, buf_res->data, &disk_lsn) != DMS_SUCCESS) { // page id is invalid
+        LOG_DEBUG_INF("[%s][drc_get_no_owner_id]fail to get disk lsn", cm_display_resid(buf_res->data, buf_res->type));
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_GET_DISK_LSN_FAILED, cm_display_pageid(buf_res->data));
+        return ERRNO_DMS_DCS_GET_DISK_LSN_FAILED;
+    }
+
+    if (disk_lsn >= buf_res->lsn) {
+        LOG_DEBUG_INF("[%s][drc_get_no_owner_id]last edp:%d lsn:%llu less than disk lsn:%llu",
+            cm_display_resid(buf_res->data, buf_res->type), buf_res->last_edp, buf_res->lsn, disk_lsn);
+        *owner_id = CM_INVALID_ID8;
+        return DMS_SUCCESS;
+    }
+
+    buf_res->claimed_owner = buf_res->last_edp;
+    buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
+    *owner_id = buf_res->claimed_owner;
+    LOG_DEBUG_INF("[%s][drc_get_no_owner_id]last edp:%d lsn:%llu greater than disk lsn:%llu",
+        cm_display_resid(buf_res->data, buf_res->type), buf_res->last_edp, buf_res->lsn, disk_lsn);
+    return DMS_SUCCESS;
+}
+
+static int drc_get_page_no_owner(dms_process_context_t *ctx, drc_req_owner_result_t *result, drc_buf_res_t *buf_res,
+    drc_request_info_t* req_info)
 {
     if (req_info->sess_type == DMS_SESSION_RECOVER && buf_res->type == DRC_RES_PAGE_TYPE) {
-        buf_res->in_recovery = CM_TRUE;
+        buf_res->need_recover = CM_TRUE;
     }
 
-    if (buf_res->last_edp == CM_INVALID_ID8) {
+    uint8 owner_id = CM_INVALID_ID8;
+    int ret = drc_get_no_owner_id(ctx->db_handle, buf_res, &owner_id);
+    DMS_RETURN_IF_ERROR(ret);
+    if (owner_id == CM_INVALID_ID8) {
         result->type = DRC_REQ_OWNER_GRANTED;
         result->curr_owner_id = req_info->inst_id;
-        LOG_DEBUG_INF("[DRC][%s][drc_get_page_no_owner]grant owner directly, in recovery: %d, owner: %d, type: %u",
-            cm_display_resid(buf_res->data, buf_res->type), buf_res->in_recovery, result->curr_owner_id, result->type);
-        return;
-    }
-
-    result->curr_owner_id = buf_res->last_edp;
-
-    if (result->curr_owner_id == req_info->inst_id) {
-        result->type = DRC_REQ_EDP_LOCAL;
     } else {
-        result->type = DRC_REQ_EDP_REMOTE;
+        result->type = (owner_id == req_info->inst_id ? DRC_REQ_OWNER_ALREADY_OWNER : DRC_REQ_OWNER_CONVERTING);
+        result->curr_owner_id = owner_id;
     }
-    LOG_DEBUG_INF("[DRC][%s][drc_get_page_no_owner]read from edp, in recovery: %d, owner: %d, type: %u",
-        cm_display_resid(buf_res->data, buf_res->type), buf_res->in_recovery, result->curr_owner_id, result->type);
+    LOG_DEBUG_INF("[DRC][%s][drc_get_page_no_owner]in_rcy: %d, owner: %d, type: %u",
+        cm_display_resid(buf_res->data, buf_res->type), buf_res->need_recover, result->curr_owner_id, result->type);
+    return DMS_SUCCESS;
 }
 
 static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
@@ -345,13 +372,12 @@ static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
     (void)cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id);
 }
 
-static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *buf_res,
+static int drc_set_req_result(dms_process_context_t *ctx, drc_req_owner_result_t *result, drc_buf_res_t *buf_res,
     drc_request_info_t *req_info, bool32 can_cvt)
 {
     if (can_cvt) {
         if (buf_res->claimed_owner == CM_INVALID_ID8) {
-            drc_get_page_no_owner(result, buf_res, req_info);
-            return;
+            return drc_get_page_no_owner(ctx, result, buf_res, req_info);
         }
         result->curr_owner_id = buf_res->claimed_owner;
 
@@ -380,6 +406,7 @@ static void drc_set_req_result(drc_req_owner_result_t *result, drc_buf_res_t *bu
         result->curr_owner_id = CM_INVALID_ID8;
         drc_try_prepare_confirm_cvt(buf_res);
     }
+    return DMS_SUCCESS;
 }
 
 static bool8 drc_page_check_for_prefetch(drc_request_info_t *req_info, drc_req_owner_result_t *result,
@@ -406,7 +433,7 @@ static bool8 drc_page_check_for_prefetch(drc_request_info_t *req_info, drc_req_o
 static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *resid, uint8 type,
     drc_request_info_t *req_info, drc_req_owner_result_t *result, drc_buf_res_t *buf_res)
 {
-    if (req_info->sess_type == DMS_SESSION_NORMAL && buf_res->in_recovery) {
+    if (req_info->sess_type == DMS_SESSION_NORMAL && buf_res->need_recover) {
         LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
         DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
         return ERRNO_DMS_DRC_RECOVERY_PAGE;
@@ -425,7 +452,11 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
         return ret;
     }
 
-    drc_set_req_result(result, buf_res, req_info, can_cvt);
+    ret = drc_set_req_result(ctx, result, buf_res, req_info, can_cvt);
+    if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
+        return ret;
+    }
+ 
     if (buf_res->type == DRC_RES_PAGE_TYPE) {
         drc_buf_res_shift_to_head(buf_res);
     }
@@ -587,8 +618,9 @@ int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
         return ret;
     }
     if (buf_res == NULL) {
-        LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL", cm_display_pageid(claim_info->resid));
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_NOT_FOUND, cm_display_pageid(claim_info->resid));
+        LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: buf_res is NULL",
+            cm_display_resid(claim_info->resid, claim_info->res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_NOT_FOUND, cm_display_resid(claim_info->resid, claim_info->res_type));
         return ERRNO_DMS_DRC_PAGE_NOT_FOUND;
     }
     drc_convert_page_owner(buf_res, claim_info, cvt_info);
@@ -715,9 +747,9 @@ bool8 drc_chk_4_recycle(char *resid, uint16 len)
     if (buf_res->recycling ||
         buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
         buf_res->edp_map != 0 ||
-        buf_res->recovery_skip ||
+        buf_res->need_flush ||
         buf_res->copy_promote != DMS_COPY_PROMOTE_NONE ||
-        buf_res->in_recovery) {
+        buf_res->need_recover) {
         drc_leave_buf_res(buf_res);
         return CM_FALSE;
     }
@@ -758,7 +790,7 @@ bool8 drc_can_release(drc_buf_res_t *buf_res, uint8 inst_id)
     // here, owner is inst_id
     if (buf_res->converting.req_info.inst_id != CM_INVALID_ID8 ||
         buf_res->edp_map != 0 ||
-        buf_res->recovery_skip ||
+        buf_res->need_flush ||
         buf_res->copy_promote != DMS_COPY_PROMOTE_NONE) {
         return CM_FALSE;
     }
@@ -843,50 +875,66 @@ void drc_release_buf_res_by_part(drc_part_list_t *part, uint8 type)
     }
 }
 
-int dms_recovery_page_need_skip(char pageid[DMS_PAGEID_SIZE], unsigned char *skip, unsigned int alloc,
-    unsigned long long group_lsn)
+int dms_recovery_page_need_skip(char *pageid, unsigned long long redo_lsn, unsigned char *skip)
 {
     dms_reset_error();
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(alloc, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
-    if (buf_res == NULL) {
-        *skip = CM_FALSE;
-        return DMS_SUCCESS;
+    if (redo_lsn > buf_res->owner_lsn || buf_res->owner_lsn == 0) { // just created or no owner
+        buf_res->need_recover = CM_TRUE;
     }
-    if (buf_res->group_lsn < group_lsn) {
-        buf_res->group_lsn = group_lsn;
-    }
-    if (buf_res->in_recovery || buf_res->claimed_owner == CM_INVALID_ID8) {
-        buf_res->in_recovery = CM_TRUE;
-        *skip = CM_FALSE;
-    } else {
-#ifndef OPENGAUSS
-        buf_res->recovery_skip = CM_TRUE;
-#endif
-        *skip = CM_TRUE;
-    }
+    *skip = !buf_res->need_recover;
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
 }
 
-int dms_recovery_unregister_group_lsn(char pageid[DMS_PAGEID_SIZE], unsigned long long group_lsn)
+static void dms_recovery_analyse_page_need_recover(drc_buf_res_t *buf_res)
 {
+    buf_res->need_flush = CM_FALSE;
+    buf_res->need_recover = CM_TRUE;
+
+    // if page has been add to NORMAL_COPY_WITH_REDO, should remove, because the page will be dirty
+    if (buf_res->rebuild_type == REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO) {
+        dms_reform_rebuild_del_from_flush_copy(buf_res);
+        buf_res->rebuild_type = REFORM_ASSIST_LIST_NORMAL_COPY;
+    }
+}
+
+static void dms_recovery_analyse_page_skip_recover(drc_buf_res_t *buf_res)
+{
+    if (buf_res->need_recover) {
+        return;
+    }
+    // if page has not been add to NORMAL_COPY_WITH_REDO, should add to NORMAL_COPY_WITH_REDO
+    if (buf_res->rebuild_type == REFORM_ASSIST_LIST_NORMAL_COPY) {
+        dms_reform_rebuild_add_to_flush_copy(buf_res);
+        buf_res->rebuild_type = REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO;
+        buf_res->need_flush = CM_FALSE;
+    }
+}
+
+int dms_recovery_analyse_page(char *pageid, unsigned long long redo_lsn)
+{
+    dms_reset_error();
     drc_buf_res_t *buf_res = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
-    if (buf_res == NULL) {
+    CM_ASSERT(buf_res != NULL);
+    if (buf_res->need_recover) {
+        drc_leave_buf_res(buf_res);
         return DMS_SUCCESS;
     }
-    if (buf_res->group_lsn == group_lsn) {
-        LOG_DEBUG_INF("[DMS REFORM][%s]unregister_group_lsn", cm_display_pageid(pageid));
-        buf_res->group_lsn = 0;
+    if (redo_lsn > buf_res->owner_lsn) {
+        dms_recovery_analyse_page_need_recover(buf_res);
+    } else {
+        dms_recovery_analyse_page_skip_recover(buf_res);
     }
     drc_leave_buf_res(buf_res);
     return DMS_SUCCESS;
@@ -908,13 +956,13 @@ void fill_dv_drc_buf_info(drc_buf_res_t *buf_res, dv_drc_buf_info *res_buf_info)
         cm_spin_unlock(&buf_res->lock);
         return;
     }
-    res_buf_info->in_recovery = buf_res->in_recovery;
+    res_buf_info->in_recovery = buf_res->need_recover;
     res_buf_info->copy_promote = buf_res->copy_promote;
     res_buf_info->part_id = buf_res->part_id;
     res_buf_info->edp_map = buf_res->edp_map;
     res_buf_info->lsn = buf_res->lsn;
     res_buf_info->len = buf_res->len;
-    res_buf_info->recovery_skip = buf_res->recovery_skip;
+    res_buf_info->recovery_skip = buf_res->need_flush;
     res_buf_info->recycling = buf_res->recycling;
     res_buf_info->converting_req_info_inst_id = buf_res->converting.req_info.inst_id;
     res_buf_info->converting_req_info_curr_mode = buf_res->converting.req_info.curr_mode;

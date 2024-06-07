@@ -315,17 +315,17 @@ void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_
     DMS_FAULT_INJECTION_CALL(DMS_FI_CLAIM_OWNER, MSG_REQ_CLAIM_OWNER);
     ret = mfc_send_data_async(&request.head);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, ruid=%llu",
+        LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, lsn=%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(request.head.cmd),
             (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
-            (uint32)request.head.dst_sid, (bool32)request.has_edp, request.head.ruid);
+            (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
         return;
     }
 
-    LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, ruid=%llu",
+    LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, lsn=%llu",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(request.head.cmd),
         (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
-        (uint32)request.head.dst_sid, (bool32)request.has_edp, request.head.ruid);
+        (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
 }
 
 static int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
@@ -501,20 +501,8 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
                 (uint32)msg.head->dst_sid, (uint32)msg.head->flags, msg.head->ruid, ret);
             break;
         }
-        case MSG_ACK_EDP_LOCAL:
-            CM_ASSERT(dms_ctx->type == DRC_RES_PAGE_TYPE);
-            ret = dcs_handle_ack_edp_local(dms_ctx, (dms_buf_ctrl_t*)res, master_id, &msg, mode);
-            break;
-
         case MSG_ACK_PAGE_READY:
             ret = dms_handle_res_ready_ack(dms_ctx, res, master_id, mode, &msg);
-            if (ack_event && master_id != msg.head->src_inst) {
-                *ack_event = DMS_EVT_DCS_REQ_MASTER4PAGE_3WAY;
-            }
-            break;
-        case MSG_ACK_EDP_READY:
-            CM_ASSERT(dms_ctx->type == DRC_RES_PAGE_TYPE);
-            ret = dcs_handle_ack_edp_remote(dms_ctx, (dms_buf_ctrl_t*)res, master_id, &msg, mode);
             if (ack_event && master_id != msg.head->src_inst) {
                 *ack_event = DMS_EVT_DCS_REQ_MASTER4PAGE_3WAY;
             }
@@ -566,23 +554,6 @@ static int32 dms_handle_local_req_result(dms_context_t *dms_ctx, void *res,
         case DRC_REQ_OWNER_WAITING:
             ret = dms_handle_ask_master_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, NULL);
             dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
-            return ret;
-
-        case DRC_REQ_EDP_LOCAL:
-            CM_ASSERT(dms_ctx->type == DRC_RES_PAGE_TYPE);
-            ret = dcs_handle_ack_edp_local(dms_ctx, (dms_buf_ctrl_t*)res, (uint8)dms_ctx->inst_id, NULL, req_mode);
-            dms_end_stat(dms_ctx->sess_id);
-            LOG_DEBUG_INF("[DMS][%s][ask edp local]: ret=%d",
-                cm_display_resid(dms_ctx->resid, (uint8)dms_ctx->type), ret);
-            return ret;
-
-        case DRC_REQ_EDP_REMOTE:
-            CM_ASSERT(dms_ctx->type == DRC_RES_PAGE_TYPE);
-            ret = dcs_handle_ask_edp_remote(dms_ctx, (dms_buf_ctrl_t*)res, result->curr_owner_id, req_mode);
-            dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
-            LOG_DEBUG_INF("[DMS][%s][ask edp remote]: dst_id=%u, req_mode=%u, curr_mode=%u, ret=%d",
-                cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)result->curr_owner_id,
-                (uint32)req_mode, (uint32)curr_mode, ret);
             return ret;
 
         default:
@@ -972,14 +943,6 @@ void dms_handle_remote_req_result(dms_process_context_t *ctx, dms_ask_res_req_t 
                 cm_display_resid(req->resid, req->res_type), (uint32)req->head.src_inst,
                 (uint32)req->head.src_sid, (uint32)req->req_mode, (uint32)req->curr_mode);
             ret = dms_send_req2owner(ctx, req, result);
-            break;
-
-        case DRC_REQ_EDP_LOCAL:
-            dcs_send_requester_edp_local(ctx, req);
-            break;
-
-        case DRC_REQ_EDP_REMOTE:
-            ret = dcs_send_requester_edp_remote(ctx, req, result);
             break;
 
         default:

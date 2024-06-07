@@ -305,26 +305,25 @@ drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, ui
 static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 res_type)
 {
     GS_INIT_SPIN_LOCK(buf_res->lock);
-    buf_res->node.prev = buf_res->node.next = NULL;
-    buf_res->part_node.prev = buf_res->part_node.next = NULL;
+    cm_bilist_node_init(&buf_res->node);
+    cm_bilist_node_init(&buf_res->part_node);
+    cm_bilist_node_init(&buf_res->rebuild_node);
     buf_res->claimed_owner = CM_INVALID_ID8;
     buf_res->copy_insts = 0;
     buf_res->lock_mode = DMS_LOCK_NULL;
     buf_res->last_edp = CM_INVALID_ID8;
     buf_res->edp_map = 0;
     buf_res->lsn = 0;
-    buf_res->in_recovery = CM_FALSE;
+    buf_res->need_recover = CM_FALSE;
     buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
-    buf_res->recovery_skip = CM_FALSE;
+    buf_res->need_flush = CM_FALSE;
     buf_res->type = res_type;
+    buf_res->rebuild_type = (uint8)REFORM_ASSIST_LIST_NONE;
+    buf_res->owner_lsn = 0;
     buf_res->len = len;
     buf_res->count = 0;
     buf_res->recycling = CM_FALSE;
     buf_res->is_using = CM_TRUE;
-    buf_res->group_lsn = 0;
-    buf_res->s_exists = CM_FALSE;
-    buf_res->x_exists = CM_FALSE;
-    buf_res->x_owner = CM_INVALID_ID8;
     cm_bilist_init(&buf_res->convert_q);
     init_drc_cvt_item(&buf_res->converting);
     errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
@@ -336,11 +335,11 @@ static drc_buf_res_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint
 {
     drc_buf_res_t* buf_res = (drc_buf_res_t *)drc_res_pool_alloc_item(pool);
     if (buf_res == NULL) {
-        LOG_DEBUG_WAR("[DRC][%s]buf_res create fail", cm_display_pageid(resid));
+        LOG_DEBUG_WAR("[DRC][%s]buf_res create fail", cm_display_resid(resid, res_type));
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return NULL;
     }
-    LOG_DEBUG_INF("[DRC][%s]buf_res create successful", cm_display_pageid(resid));
+    LOG_DEBUG_INF("[DRC][%s]buf_res create successful", cm_display_resid(resid, res_type));
 
     init_buf_res(buf_res, resid, len, res_type);
     drc_res_map_add_res(bucket, (char *)buf_res);
@@ -566,7 +565,38 @@ void drc_destroy(void)
     }
 }
 
-int32 drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id)
+int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id)
+{
+    drc_buf_res_t *buf_res = NULL;
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
+    int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    if (ret != DMS_SUCCESS) {
+        return ret;
+    }
+
+    if (buf_res == NULL) {
+        *id = CM_INVALID_ID8;
+        return DMS_SUCCESS;
+    }
+
+    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        *id = CM_INVALID_ID8;
+        ret = drc_get_no_owner_id(db_handle, buf_res, id);
+        drc_leave_buf_res(buf_res);
+        return ret;
+    }
+
+    if (edp_inst != CM_INVALID_ID8 &&
+        buf_res->claimed_owner != edp_inst) {
+        bitmap64_set(&buf_res->edp_map, edp_inst);
+    }
+
+    *id = buf_res->claimed_owner;
+    drc_leave_buf_res(buf_res);
+    return DMS_SUCCESS;
+}
+
+int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id)
 {
     drc_buf_res_t *buf_res = NULL;
     uint8 options = drc_build_options(CM_FALSE, sess_type, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
@@ -613,7 +643,7 @@ int32 drc_get_page_master_id(char *pageid, unsigned char *master_id)
     return DMS_SUCCESS;
 }
 
-int32 drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id)
+int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id)
 {
     uint8  inst_id;
     uint32 part_id;
@@ -764,13 +794,13 @@ int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
     drc_info->copy_insts = buf_res->copy_insts;
     drc_info->copy_promote = buf_res->copy_promote;
     drc_info->edp_map = buf_res->edp_map;
-    drc_info->in_recovery = buf_res->in_recovery;
+    drc_info->in_recovery = buf_res->need_recover;
     drc_info->last_edp = buf_res->last_edp;
     drc_info->len = buf_res->len;
     drc_info->lock_mode = buf_res->lock_mode;
     drc_info->lsn = buf_res->lsn;
     drc_info->part_id = buf_res->part_id;
-    drc_info->recovery_skip = buf_res->recovery_skip;
+    drc_info->recovery_skip = buf_res->need_flush;
     drc_info->type = buf_res->type;
     drc_leave_buf_res(buf_res);
 
