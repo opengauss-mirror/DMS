@@ -53,7 +53,7 @@ static bool8 dls_request_spin_lock(dms_context_t *dms_ctx, drc_local_lock_res_t 
 
 static inline void dls_request_spin_unlock(drc_local_lock_res_t *lock_res)
 {
-    drc_set_local_lock_statx(lock_res, CM_FALSE, CM_TRUE);
+    drc_set_local_lock_statx(lock_res, CM_FALSE);
     return;
 }
 
@@ -75,7 +75,7 @@ static void dms_wait4unlock(const drc_local_lock_res_t *lock_res, spin_statis_t 
     spin_statis_instance_t *stat_instance)
 {
     uint32 count = 0;
-    while (lock_res->is_locked) {
+    while (DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat)) {
         SPIN_STAT_INC(stat, spins);
         count++;
         if (count >= GS_SPIN_COUNT) {
@@ -91,8 +91,6 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     if (SECUREC_UNLIKELY(dlock->drid.type == DMS_DR_TYPE_INVALID || dlock->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic_log(0, "[DLS] add spinlock(%s) failed, because lock not initialized", cm_display_lockid(&dlock->drid));
     }
-    bool8 is_locked = CM_FALSE;
-    bool8 is_owner  = CM_FALSE;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlock->drid);
     cm_panic(lock_res != NULL);
 
@@ -106,18 +104,16 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
             continue;
         }
 
-        if (lock_res->is_locked) {
+        if (DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat)) {
             drc_unlock_local_resx(lock_res);
             dms_wait4unlock(lock_res, dms_ctx->stat, dms_ctx->stat_instance);
             continue;
         }
 
-        drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
-
-        LOG_DEBUG_INF("[DLS] entry spinlock(%s), is_owner(%u)", cm_display_lockid(&dlock->drid), (uint32)is_owner);
+        LOG_DEBUG_INF("[DLS] entry spinlock(%s)", cm_display_lockid(&dlock->drid));
 
         STAT_RPC_BEGIN;
-        if (!is_owner && !dls_request_spin_lock(dms_ctx, lock_res, 1)) {
+        if (!DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat) && !dls_request_spin_lock(dms_ctx, lock_res, 1)) {
             dms_spin_stat_wait_usecs(dms_ctx->stat, STAT_RPC_WAIT_USECS);
             dms_instance_stat_wait_usecs(dms_ctx->stat_instance, STAT_RPC_WAIT_USECS);
             drc_unlock_local_resx(lock_res);
@@ -125,7 +121,7 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         }
         dms_spin_stat_wait_usecs(dms_ctx->stat, STAT_RPC_WAIT_USECS);
         dms_instance_stat_wait_usecs(dms_ctx->stat_instance, STAT_RPC_WAIT_USECS);
-        drc_set_local_lock_statx(lock_res, CM_TRUE, CM_TRUE);
+        drc_set_local_lock_statx(lock_res, CM_TRUE);
         lock_res->latch_stat.sid = dms_ctx->sess_id;
         drc_unlock_local_resx(lock_res);
         break;
@@ -166,8 +162,6 @@ void dms_init_spinlock2(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid
 
 static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 {
-    bool8 is_locked;
-    bool8 is_owner;
     if (SECUREC_UNLIKELY(dlock->drid.type == DMS_DR_TYPE_INVALID || dlock->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic(0);
     }
@@ -175,33 +169,32 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     drc_local_lock_res_t *lock_res = NULL;
 
     lock_res = drc_get_local_resx(&dlock->drid);
-    drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
-    if (is_locked || lock_res->releasing) {
+    if (DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat) || lock_res->releasing) {
         LOG_DEBUG_INF("[DLS] try add spinlock(%s), owner(%u) is locked",
-            cm_display_lockid(&dlock->drid), (uint32)is_owner);
+            cm_display_lockid(&dlock->drid), (uint32)lock_res->latch_stat.stat);
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
 
     drc_lock_local_resx(lock_res, NULL, NULL);
-    drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
-    if (is_locked || lock_res->releasing) {
+    lock_res->is_reform_visit = false;
+    if (DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat) || lock_res->releasing) {
         drc_unlock_local_resx(lock_res);
-        LOG_DEBUG_INF("[DLS] try add spinlock(%s), owner(%u) is locked",
-            cm_display_lockid(&dlock->drid), (uint32)is_owner);
+        LOG_DEBUG_INF("[DLS] try add spinlock(%s), lockmode(%u) is locked",
+            cm_display_lockid(&dlock->drid), (uint32)lock_res->latch_stat.stat);
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
 
-    LOG_DEBUG_INF("[DLS] try add spinlock(%s), is_owner=%u", cm_display_lockid(&dlock->drid), (uint32)is_owner);
-    if (!is_owner) {
+    LOG_DEBUG_INF("[DLS] try add spinlock(%s),", cm_display_lockid(&dlock->drid));
+    if (!DLS_LATCH_IS_OWNER(lock_res->latch_stat.lock_mode)) {
         int32 ret = dls_try_request_lock(dms_ctx, lock_res, &lock_res->resid, DMS_LOCK_NULL, DMS_LOCK_EXCLUSIVE);
         if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_LOCK_ABANDON_TRY) {
-            drc_set_local_lock_statx(lock_res, CM_FALSE, CM_FALSE);
+            drc_set_local_lock_statx(lock_res, CM_FALSE);
             drc_unlock_local_resx(lock_res);
             dls_cancel_request_lock(dms_ctx, &dlock->drid);
             return ret;
         }
     }
-    drc_set_local_lock_statx(lock_res, CM_TRUE, CM_TRUE);
+    drc_set_local_lock_statx(lock_res, CM_TRUE);
     lock_res->latch_stat.sid = dms_ctx->sess_id;
     drc_unlock_local_resx(lock_res);
 
@@ -259,9 +252,9 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     CM_ASSERT(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
     
-    LOG_DEBUG_INF("[DLS] add shared_innode lock(%s) stat=%u, lock_mode=%u, is_owner=%u, locked=%u, "
+    LOG_DEBUG_INF("[DLS] add shared_innode lock(%s) stat=%u, lock_mode=%u, "
         "shared_count=%u", cm_display_lockid(&dlock->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
-        (uint32)lock_res->is_owner, (uint32)lock_res->is_locked, (uint32)latch_stat->shared_count);
+        (uint32)latch_stat->shared_count);
 
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
@@ -274,7 +267,7 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 
         if (latch_stat->stat == LATCH_STATUS_S) {
             CM_ASSERT(latch_stat->lock_mode == DMS_LOCK_EXCLUSIVE);
-            CM_ASSERT(lock_res->is_owner && lock_res->is_locked && latch_stat->shared_count > 0);
+            CM_ASSERT(DLS_LATCH_IS_LOCKED(latch_stat->stat) && latch_stat->shared_count > 0);
             latch_stat->shared_count++;
             drc_unlock_local_resx(lock_res);
             break;
@@ -283,6 +276,7 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         if (latch_stat->lock_mode != DMS_LOCK_EXCLUSIVE) {
             CM_ASSERT(latch_stat->lock_mode == DMS_LOCK_NULL);
             STAT_RPC_BEGIN;
+            // change lock_mode in func dls_modify_lock_mode, before claimowner
             if (!dls_request_spin_lock(dms_ctx, lock_res, 1)) {
                 dms_spin_stat_wait_usecs(dms_ctx->stat, STAT_RPC_WAIT_USECS);
                 dms_instance_stat_wait_usecs(dms_ctx->stat_instance, STAT_RPC_WAIT_USECS);
@@ -291,13 +285,10 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
             }
             dms_spin_stat_wait_usecs(dms_ctx->stat, STAT_RPC_WAIT_USECS);
             dms_instance_stat_wait_usecs(dms_ctx->stat_instance, STAT_RPC_WAIT_USECS);
-            latch_stat->lock_mode = DMS_LOCK_EXCLUSIVE;
-            lock_res->is_owner = CM_TRUE;
         }
         latch_stat->stat = LATCH_STATUS_S;
         latch_stat->shared_count = 1;
         latch_stat->sid = dms_ctx->sess_id;
-        lock_res->is_locked = CM_TRUE;
         drc_unlock_local_resx(lock_res);
         break;
     } while (CM_TRUE);
@@ -319,10 +310,9 @@ void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     latch_stat->shared_count--;
 
     if (latch_stat->shared_count == 0) {
-        lock_res->is_locked = CM_FALSE;
         latch_stat->stat = LATCH_STATUS_IDLE;
     }
-    LOG_DEBUG_INF("[DLS] shared_innode unlock(%s), shared_count=%u, is_locked:%u, ",
-        cm_display_lockid(&dlock->drid), (uint32)latch_stat->shared_count, (uint32)lock_res->is_locked);
+    LOG_DEBUG_INF("[DLS] shared_innode unlock(%s), shared_count=%u ",
+        cm_display_lockid(&dlock->drid), (uint32)latch_stat->shared_count);
     drc_unlock_local_resx(lock_res);
 }
