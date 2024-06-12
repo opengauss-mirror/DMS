@@ -631,7 +631,6 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
             return MES_PRIORITY_TWO;
         case MSG_REQ_MASTER_CKPT_EDP:
         case MSG_REQ_OWNER_CKPT_EDP:
-        case MSG_REQ_CHECK_OWNERSHIP:
             return MES_PRIORITY_THREE;
         case MSG_REQ_MASTER_CLEAN_EDP:
         case MSG_REQ_OWNER_CLEAN_EDP:
