@@ -27,6 +27,17 @@
 
 static int dms_reform_repair_new_item(uint8 thread_index, drc_buf_res_t *buf_res, page_action_t action)
 {
+#ifdef OPENGAUSS
+    void *db_handle;
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    if (thread_index == CM_INVALID_ID8) {
+        db_handle = reform_ctx->handle_proc;
+    } else {
+        db_handle = parallel_info->parallel[thread_index].handle;
+    }
+    return g_dms.callback.flush_copy(db_handle, buf_res->data);
+#else
     repair_item_t item;
     uint8 dst = buf_res->claimed_owner;
 
@@ -34,6 +45,7 @@ static int dms_reform_repair_new_item(uint8 thread_index, drc_buf_res_t *buf_res
     (void)memcpy_s(item.page_id, DMS_PAGEID_SIZE, buf_res->data, DMS_PAGEID_SIZE);
 
     return dms_reform_req_group(MSG_REQ_REPAIR_NEW, dst, thread_index, (void *)&item, sizeof(repair_item_t));
+#endif
 }
 
 static int dms_reform_repair_new_item_list(uint8 thread_index, bilist_t *list, page_action_t action)

@@ -1721,7 +1721,11 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL, CM_TRUE },
+#ifdef OPENGAUSS
+    [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel, CM_FALSE },
+#else
     [DMS_REFORM_STEP_REPAIR] = { "REPAIR", dms_reform_repair, dms_reform_repair_parallel, CM_TRUE },
+#endif
     [DMS_REFORM_STEP_RECOVERY_ANALYSE] = { "RECOVERY_ANALYSE", dms_reform_recovery_analyse, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SWITCH_LOCK] = { "SWITCH_LOCK", dms_reform_switch_lock, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SWITCHOVER_DEMOTE] = { "DEMOTE", dms_reform_switchover_demote, NULL, CM_FALSE },

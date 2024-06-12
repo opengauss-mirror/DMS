@@ -2278,6 +2278,8 @@ static void dms_reform_judgement_before_proc(instance_list_t *inst_lists)
         case DMS_REFORM_TYPE_FOR_NORMAL:
         case DMS_REFORM_TYPE_FOR_NORMAL_STANDBY:
         case DMS_REFORM_TYPE_FOR_OLD_REMOVE:
+        case DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS:
+        case DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS:
             share_info->full_clean = CM_TRUE;
             break;
 
