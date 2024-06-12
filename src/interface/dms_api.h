@@ -1277,8 +1277,6 @@ typedef struct st_wait_cmd_stat_result {
 
 typedef struct st_drc_local_lock_res_result {
     char               lock_id[DMS_MAX_NAME_LEN];
-    unsigned char      is_owner;
-    unsigned char      is_locked;
     unsigned char      releasing;
     unsigned char      unused;
     unsigned short     shared_count;

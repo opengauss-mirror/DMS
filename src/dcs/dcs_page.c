@@ -122,8 +122,8 @@ int32 dcs_handle_ack_need_load(dms_context_t *dms_ctx,
     cm_spin_lock(&ctrl->lock_ss_read, NULL);
     if (dcs_is_reform_visit(ctrl)) {
         cm_spin_unlock(&ctrl->lock_ss_read);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_PAGE);
-        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_RES, cm_display_pageid(dms_ctx->resid));
+        return ERRNO_DMS_DCS_REFORM_VISIT_RES;
     }
     dms_lock_mode_t granted_mode = mode;
 
@@ -142,8 +142,8 @@ int32 dcs_handle_ack_already_owner(dms_context_t *dms_ctx,
     cm_spin_lock(&ctrl->lock_ss_read, NULL);
     if (dcs_is_reform_visit(ctrl)) {
         cm_spin_unlock(&ctrl->lock_ss_read);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_PAGE);
-        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_RES, cm_display_pageid(dms_ctx->resid));
+        return ERRNO_DMS_DCS_REFORM_VISIT_RES;
     }
     int ret = dcs_set_ctrl4already_owner(dms_ctx, ctrl, mode);
     cm_spin_unlock(&ctrl->lock_ss_read);
@@ -252,8 +252,8 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
     cm_spin_lock(&ctrl->lock_ss_read, NULL);
     if (dcs_is_reform_visit(ctrl)) {
         cm_spin_unlock(&ctrl->lock_ss_read);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_PAGE);
-        return ERRNO_DMS_DCS_REFORM_VISIT_PAGE;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_RES, cm_display_pageid(dms_ctx->resid));
+        return ERRNO_DMS_DCS_REFORM_VISIT_RES;
     }
 
     int32 ret = dcs_handle_page_from_owner(dms_ctx, ctrl, msg, mode);

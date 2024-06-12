@@ -839,8 +839,6 @@ static inline void fill_dv_drc_local_lock_result(drc_local_lock_res_result_t *dr
         return;
     }
 
-    drc_local_lock_res_result->is_owner = drc_local_lock_res->is_owner;
-    drc_local_lock_res_result->is_locked = drc_local_lock_res->is_locked;
     drc_local_lock_res_result->releasing = drc_local_lock_res->releasing;
     drc_local_lock_res_result->shared_count = drc_local_lock_res->latch_stat.shared_count;
     drc_local_lock_res_result->stat = drc_local_lock_res->latch_stat.stat;
@@ -869,7 +867,7 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
         drc_local_lock_res = (drc_local_lock_res_t*)(res_pool->addr[pool_index]
             + item_index_in_matched_pool * sizeof(drc_local_lock_res_t));
         ++*vmid;
-        if (drc_local_lock_res->is_owner) {
+        if (DLS_LATCH_IS_OWNER(drc_local_lock_res->latch_stat.lock_mode)) {
             fill_dv_drc_local_lock_result(drc_local_lock_res_result, drc_local_lock_res);
             return;
         }

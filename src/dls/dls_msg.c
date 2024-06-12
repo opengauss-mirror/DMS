@@ -40,7 +40,6 @@ bool8 g_lock_matrix[LATCH_STATUS_X + 1][LATCH_STATUS_X + 1] = {
 static inline void dls_change_global_lock_mode(drc_local_lock_res_t *lock_res, uint8 req_mode)
 {
     if (req_mode == DMS_LOCK_EXCLUSIVE) {
-        lock_res->is_owner = CM_FALSE;
         lock_res->latch_stat.lock_mode = DMS_LOCK_NULL;
         return;
     }
@@ -145,10 +144,26 @@ int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_
     ret = mfc_send_data(&page_ack.head);
     return ret;
 }
+int32 dls_modify_lock_mode(drc_local_lock_res_t *lock_res, dms_lock_mode_t mode)
+{
+    cm_spin_lock(&lock_res->modify_mode_lock, NULL);
+    if (lock_res->is_reform_visit == CM_TRUE) {
+        cm_spin_unlock(&lock_res->modify_mode_lock);
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_RES, cm_display_lockid(&lock_res->resid));
+        return ERRNO_DMS_DCS_REFORM_VISIT_RES;
+    }
+    lock_res->latch_stat.lock_mode = mode;
+    cm_spin_unlock(&lock_res->modify_mode_lock);
+    return DMS_SUCCESS;
+}
 
 int32 dls_handle_grant_owner_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
+    if (lock_res != NULL) {
+        int ret = dls_modify_lock_mode(lock_res, mode);
+        DMS_RETURN_IF_ERROR(ret);
+    }
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);
     return DMS_SUCCESS;
 }
@@ -156,6 +171,10 @@ int32 dls_handle_grant_owner_ack(dms_context_t *dms_ctx,
 int32 dls_handle_already_owner_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
+    if (lock_res != NULL) {
+        int ret = dls_modify_lock_mode(lock_res, mode);
+        DMS_RETURN_IF_ERROR(ret);
+    }
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);
     return DMS_SUCCESS;
 }
@@ -164,6 +183,10 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode)
 {
     CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE);
+    if (lock_res != NULL) {
+        int ret = dls_modify_lock_mode(lock_res, mode);
+        DMS_RETURN_IF_ERROR(ret);
+    }
     dms_claim_ownership(dms_ctx, master_id, mode, CM_FALSE, CM_INVALID_INT64);
     return DMS_SUCCESS;
 }
@@ -171,6 +194,9 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
 int32 dls_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, dms_drid_t *resid,
     dms_lock_mode_t curr_mode, dms_lock_mode_t mode)
 {
+    if (lock_res != NULL) {
+        lock_res->is_reform_visit = CM_FALSE;
+    }
     dms_ctx->is_try = CM_FALSE;
     dms_ctx->len    = DMS_DRID_SIZE;
     dms_ctx->type   = DRC_RES_LOCK_TYPE;
@@ -182,6 +208,9 @@ int32 dls_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, d
 int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, dms_drid_t *resid,
     dms_lock_mode_t curr_mode, dms_lock_mode_t mode)
 {
+    if (lock_res != NULL) {
+        lock_res->is_reform_visit = CM_FALSE;
+    }
     dms_ctx->is_try = CM_TRUE;
     dms_ctx->len    = DMS_DRID_SIZE;
     dms_ctx->type   = DRC_RES_LOCK_TYPE;

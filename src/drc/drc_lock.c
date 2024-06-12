@@ -42,8 +42,6 @@ static drc_local_lock_res_t *drc_create_local_lock_res(drc_res_bucket_t *bucket,
     }
 
     lock_res->resid = *lock_id;
-    lock_res->is_locked = CM_FALSE;
-    lock_res->is_owner = CM_FALSE;
     lock_res->lock = 0;
     lock_res->latch_stat.lock_mode = DMS_LOCK_NULL;
     lock_res->latch_stat.shared_count = 0;
@@ -86,19 +84,9 @@ void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
     cm_spin_unlock(&lock_res->lock);
 }
 
-void drc_get_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 *is_locked, bool8 *is_owner)
+void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked)
 {
-    *is_locked = lock_res->is_locked;
-    *is_owner = lock_res->is_owner;
-}
-
-void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked, bool8 is_owner)
-{
-    lock_res->is_locked = is_locked;
-    lock_res->is_owner = is_owner;
-    // only user for spin lock, so we set lock mode X here
-    lock_res->latch_stat.stat = is_locked ? LATCH_STATUS_X : LATCH_STATUS_IDLE;
-    lock_res->latch_stat.lock_mode = is_owner ? DMS_LOCK_EXCLUSIVE : DMS_LOCK_NULL;
+    lock_res->latch_stat.lock_mode = is_locked ? DMS_LOCK_EXCLUSIVE : DMS_LOCK_NULL;
 }
 
 void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t **latch_stat)
@@ -120,9 +108,9 @@ int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
     }
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
-    drc_lock_local_resx(lock_res, NULL, NULL);
+    cm_spin_lock(&lock_res->modify_mode_lock, NULL);
     *lock_mode = lock_res->latch_stat.lock_mode;
-    drc_unlock_local_resx(lock_res);
+    cm_spin_unlock(&lock_res->modify_mode_lock);
     return DMS_SUCCESS;
 }
 
@@ -140,8 +128,8 @@ int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
     }
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
-    drc_lock_local_resx(lock_res, NULL, NULL);
+    cm_spin_lock(&lock_res->modify_mode_lock, NULL);
     *lock_mode = lock_res->latch_stat.lock_mode;
-    drc_unlock_local_resx(lock_res);
+    cm_spin_unlock(&lock_res->modify_mode_lock);
     return DMS_SUCCESS;
 }
