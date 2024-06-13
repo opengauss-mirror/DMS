@@ -40,7 +40,6 @@ int dms_reform_get_online_status(instance_list_t *list_online, uint8 *online_sta
     uint8 *online_rw_status, uint32 sess_id);
 int dms_reform_sync_cluster_version(bool8 pushing);
 char *dms_reform_get_type_desc(uint32 reform_type);
-void dms_reform_bitmap_to_list(instance_list_t *list, uint64 bitmap);
 
 typedef bool32(*dms_reform_judgement_check_proc)(instance_list_t *list);
 typedef void(*dms_reform_judgement_proc)(instance_list_t *list);

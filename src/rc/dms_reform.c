@@ -61,6 +61,17 @@ void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list)
     }
 }
 
+void dms_reform_bitmap_to_list(instance_list_t *list, uint64 bitmap)
+{
+    dms_reform_list_init(list);
+
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        if (bitmap64_exist(&bitmap, i)) {
+            dms_reform_list_add(list, i);
+        }
+    }
+}
+
 int dms_reform_in_process(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -779,4 +790,67 @@ void dms_reform_add_step(reform_step_t step)
 
     share_info->reform_step[share_info->reform_step_count++] = step;
     CM_ASSERT(share_info->reform_step_count < DMS_REFORM_STEP_TOTAL_COUNT);
+}
+
+#ifndef OPENGAUSS
+void dms_reform_list_remove(instance_list_t *list, int index)
+{
+    CM_ASSERT(list != NULL);
+    CM_ASSERT(index < list->inst_id_count);
+
+    list->inst_id_count--;
+    for (int i = index; i < list->inst_id_count; i++) {
+        list->inst_id_list[i] = list->inst_id_list[i + 1];
+    }
+}
+#endif
+
+void dms_reform_list_init(instance_list_t *list)
+{
+    list->inst_id_count = 0;
+}
+
+void dms_reform_list_add(instance_list_t *list_dst, uint8 inst_id)
+{
+    CM_ASSERT(list_dst != NULL);
+    list_dst->inst_id_list[list_dst->inst_id_count++] = inst_id;
+}
+
+void dms_reform_inst_list_add(instance_list_t *inst_lists, uint8 list_index, uint8 inst_id)
+{
+    instance_list_t *inst_list = &inst_lists[list_index];
+    inst_list->inst_id_list[inst_list->inst_id_count++] = inst_id;
+}
+
+void dms_reform_list_add_all(instance_list_t *list_dst)
+{
+    CM_ASSERT(list_dst != NULL);
+    for (uint8 i = 0; i < g_dms.inst_cnt; i++) {
+        list_dst->inst_id_list[list_dst->inst_id_count++] = i;
+    }
+}
+
+void dms_reform_list_cancat(instance_list_t *list_dst, instance_list_t *list_src)
+{
+    CM_ASSERT(list_dst != NULL);
+    CM_ASSERT(list_src != NULL);
+
+    for (uint8 i = 0; i < list_src->inst_id_count; i++) {
+        list_dst->inst_id_list[list_dst->inst_id_count++] = list_src->inst_id_list[i];
+    }
+}
+
+void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *list_src)
+{
+    CM_ASSERT(list_dst != NULL);
+    CM_ASSERT(list_src != NULL);
+
+    instance_list_t list_result;
+    dms_reform_list_init(&list_result);
+    for (uint8 i = 0; i < list_dst->inst_id_count; i++) {
+        if (!dms_reform_list_exist(list_src, list_dst->inst_id_list[i])) {
+            dms_reform_list_add(&list_result, list_dst->inst_id_list[i]);
+        }
+    }
+    *list_dst = list_result;
 }

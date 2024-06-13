@@ -556,11 +556,21 @@ void dms_reform_judgement_step_log(void);
 void dms_reform_set_start(void);
 void dms_reform_uninit(void);
 void dms_reform_list_to_bitmap(uint64 *bitmap, instance_list_t *list);
+void dms_reform_bitmap_to_list(instance_list_t *list, uint64 bitmap);
 bool8 dms_dst_id_is_self(uint8 dst_id);
 bool8 dms_reform_list_exist(instance_list_t *list, uint8 inst_id);
 bool8 dms_reform_type_is(dms_reform_type_t type);
 char *dms_reform_phase_desc(uint8 reform_phase);
 void dms_reform_add_step(reform_step_t step);
+#ifndef OPENGAUSS
+void dms_reform_list_remove(instance_list_t *list, int index);
+#endif
+void dms_reform_list_init(instance_list_t *list);
+void dms_reform_list_add(instance_list_t *list_dst, uint8 inst_id);
+void dms_reform_inst_list_add(instance_list_t *inst_lists, uint8 list_index, uint8 inst_id);
+void dms_reform_list_add_all(instance_list_t *list_dst);
+void dms_reform_list_cancat(instance_list_t *list_dst, instance_list_t *list_src);
+void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *list_src);
 
 #ifdef __cplusplus
 }
