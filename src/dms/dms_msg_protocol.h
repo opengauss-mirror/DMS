@@ -24,6 +24,10 @@
 #ifndef __DMS_MSG_PROTOCOL_H__
 #define __DMS_MSG_PROTOCOL_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum st_dms_protocol_version {
     DMS_PROTO_VER_0 = 0,    // invalid version
     DMS_PROTO_VER_1 = 1,    // first version
@@ -79,5 +83,9 @@ const dms_proto_version_attr *dms_get_version_attr(dms_proto_version_attr *versi
 int dms_fill_versioned_msg_head(dms_proto_version_attr *version_attrs, dms_message_head_t *head, uint32 send_version);
 int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t *msg,
     void *out_info, uint32 info_size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // __DMS_MSG_PROTOCOL_H__
