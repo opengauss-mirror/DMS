@@ -546,6 +546,13 @@ DMS_DECLARE void dms_release_txn_cond(dms_context_t *dms_ctx);
 DMS_DECLARE unsigned char dms_get_deposit_id(unsigned char inst_id);
 
 /*
+ * @brief get inst_id's deposit instance id during recovery
+ * @[in] inst_id - the instance id which will be deposited
+ * @return unsigned char - the deposited id
+ */
+DMS_DECLARE unsigned char dms_get_deposit_id_for_recovery(unsigned char inst_id);
+
+/*
  * @brief get dv_drc_buf_info
  * @[in] index - index in pool
  * @[in] res_buf_info - record res buffer info
