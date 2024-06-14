@@ -74,27 +74,6 @@ drc_local_lock_res_t *drc_get_local_resx(dms_drid_t *lock_id)
     return lock_res;
 }
 
-void drc_lock_local_resx(drc_local_lock_res_t *lock_res, spin_statis_t *stat, spin_statis_instance_t *stat_instance)
-{
-    cm_spin_lock_with_stat(&lock_res->lock, stat, stat_instance);
-}
-
-void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
-{
-    cm_spin_unlock(&lock_res->lock);
-}
-
-void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked)
-{
-    // only use for spin lock, so we set lcok mode X here
-    lock_res->latch_stat.lock_mode = is_locked ? DMS_LOCK_EXCLUSIVE : DMS_LOCK_NULL;
-}
-
-void drc_get_local_latch_statx(drc_local_lock_res_t *lock_res, drc_local_latch_t **latch_stat)
-{
-    *latch_stat = &lock_res->latch_stat;
-}
-
 int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
 {
     dms_drid_t *drid = (dms_drid_t *)resid;
