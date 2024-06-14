@@ -1212,6 +1212,11 @@ static inline uint32 dms_check_max_wait_time(uint32 time)
     return time < min ? min : (time > max ? max : time);
 }
 
+void dms_set_elapsed_switch(unsigned char elapsed_switch)
+{
+    mfc_set_elapsed_switch(elapsed_switch);
+}
+
 static int dms_init_stat(dms_profile_t *dms_profile)
 {
     g_dms_stat.time_stat_enabled = dms_profile->time_stat_enabled;
