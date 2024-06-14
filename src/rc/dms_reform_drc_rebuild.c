@@ -97,6 +97,47 @@ void dms_reform_page_rebuild_null(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_
     drc_add_edp_map(buf_res, inst_id, ctrl_info->lsn);
 }
 
+void dms_reform_page_set_owner(drc_buf_res_t *buf_res, bool8 is_owner, uint8 inst_id)
+{
+    if (!is_owner) {
+        bitmap64_set(&buf_res->copy_insts, inst_id);
+    } else if (buf_res->claimed_owner == CM_INVALID_ID8) {
+        buf_res->claimed_owner = inst_id;
+    } else {
+        bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
+        buf_res->claimed_owner = inst_id;
+    }
+    bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner); // for msg retry
+}
+
+void dms_reform_page_set_owner_lsn(drc_buf_res_t *buf_res, uint64 lsn)
+{
+    // 1. buf_res->owner_lsn == 0, it is the most common situation
+    if (buf_res->owner_lsn == 0) {
+        buf_res->owner_lsn = lsn;
+        return;
+    }
+
+    // 2. lsn == CM_MAX_UINT64, we can not get the real lsn of the page
+    //  for example 1: rebuild page occurs between setting distributed locks and loading pages from disk
+    //  for example 2: rebuild page after page format
+    // owner_lsn is not 0, do not modify it
+    if (lsn == CM_MAX_UINT64) {
+        return;
+    }
+
+    // 3. the page in scenario 2 has been rebuilt
+    // and there is page that we can get real lsn in another instance
+    // modify owner_lsn use the real lsn
+    if (buf_res->owner_lsn == CM_MAX_UINT64) {
+        buf_res->owner_lsn = lsn;
+        return;
+    }
+
+    // 4. owner_lsn is the real lsn and current lsn is the real lsn too, check them
+    cm_panic_log(buf_res->owner_lsn == lsn, "rebuild_lsn:%llu is not equal lsn:%llu", buf_res->owner_lsn, lsn);
+}
+
 void dms_reform_page_rebuild_s(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
     uint64 lsn = ctrl_info->lsn;
@@ -114,25 +155,9 @@ void dms_reform_page_rebuild_s(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_inf
         is_owner = dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_NORMAL_COPY);
     }
 
-    if (!is_owner) {
-        bitmap64_set(&buf_res->copy_insts, inst_id);
-    } else if (buf_res->claimed_owner == CM_INVALID_ID8) {
-        buf_res->claimed_owner = inst_id;
-    } else {
-        bitmap64_set(&buf_res->copy_insts, buf_res->claimed_owner);
-        buf_res->claimed_owner = inst_id;
-    }
-    bitmap64_clear(&buf_res->copy_insts, buf_res->claimed_owner); // for msg retry
-
     buf_res->lock_mode = DMS_LOCK_SHARE;
-    if (lsn == CM_MAX_UINT64) { // instance hold S mode, but has not load page from disk yet
-        return;
-    }
-    if (buf_res->owner_lsn == 0) {
-        buf_res->owner_lsn = lsn;
-    } else {
-        cm_panic_log(buf_res->owner_lsn == lsn, "rebuild_lsn:%llu is not equal lsn:%llu", buf_res->owner_lsn, lsn);
-    }
+    dms_reform_page_set_owner(buf_res, is_owner, inst_id);
+    dms_reform_page_set_owner_lsn(buf_res, lsn);
 }
 
 void dms_reform_page_rebuild_x(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
