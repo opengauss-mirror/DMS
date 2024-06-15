@@ -270,12 +270,12 @@ drps_desc_t g_drps_desc_t[] = {
     {DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1,                   DRPS_LEVEL_TOP,     "AZ_SWITCH_DEMOTE_PHASE1"},
     {DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE,                  DRPS_LEVEL_TOP,     "AZ_SWITCH_DEMOTE_APPROVE"},
     {DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2,                   DRPS_LEVEL_TOP,     "AZ_SWITCH_DEMOTE_PHASE2"},
-    {DMS_REFORM_STEP_AZ_SWITCH_PROMOTE,                         DRPS_LEVEL_TOP,     "AZ_SWITCH_PROMOTE"},
     {DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1,                DRPS_LEVEL_TOP,     "AZ_FAILOVER_PROMOTE_PHASE1"},
     {DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG,              DRPS_LEVEL_TOP,     "AZ_FAILOVER_PROMOTE_RESETLOG"},
     {DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2,                DRPS_LEVEL_TOP,     "AZ_FAILOVER_PROMOTE_PHASE2"},
     {DMS_REFORM_STEP_RELOAD_TXN,                                DRPS_LEVEL_TOP,     "RELOAD_TXN"},
 };
+
 
 drps_level_format_t g_drps_level_format[DRPS_LEVEL_COUNT] = {
     [DRPS_LEVEL_TOP]    = {"%-22s%16.3lf%16.3lf%9llu"},
@@ -285,6 +285,7 @@ drps_level_format_t g_drps_level_format[DRPS_LEVEL_COUNT] = {
 };
 
 #define MICROSECS_PER_MILLISECF     1000.0
+
 
 static void drps_log(drps_desc_t *drps_descs, uint32 drps_desc_num, drps_items_t *drps_items)
 {
@@ -339,6 +340,7 @@ dms_reform_proc_stat_e g_callback_stat_map[REFORM_CALLBACK_STAT_COUNT] = {
     [REFORM_CALLBACK_STAT_REBUILD_ALOCK_LOCAL] = DRPS_CALLBACK_STAT_REBUILD_ALOCK_LOCAL,
     [REFORM_CALLBACK_STAT_REBUILD_DRC_ALOCK_REMOTE] = DRPS_CALLBACK_STAT_REBUILD_DRC_ALOCK_REMOTE,
 };
+
 
 void dms_reform_proc_callback_stat_start(reform_callback_stat_e callback_stat)
 {

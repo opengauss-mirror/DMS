@@ -393,7 +393,6 @@ static inline uint32 dms_xa_res_hash(int32 res_type, char *resid, uint32 len)
         ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
         DMS_SECUREC_CHECK(ret);
     }
-    
     return cm_hash_bytes((uint8 *)buffer, offset, INFINITE_HASH_RANGE);
 }
 
@@ -448,6 +447,7 @@ static inline uint32 drc_get_lock_partid(uint8 *id, uint32 len, uint32 range)
     uint32 trunc_len = 0;
 #ifndef OPENGAUSS
     if (DMS_DR_IS_TABLE_TYPE(((dms_drid_t *)id)->type)) {
+        // Ignoring part id is to hash the table and partition into the same part, accelerating table lcok rebuild.
         trunc_len = (uint32)(sizeof(((dms_drid_t *)0)->parent_part) + sizeof(((dms_drid_t *)0)->part));
     }
 #endif
@@ -499,6 +499,7 @@ static inline uint8 bitmap64_get_bit_is_one(uint64 bitmap)
     }
     return 0;
 }
+
 static inline uint64 bitmap64_create(const uint8 *inst_id, uint8 inst_count)
 {
     uint64 inst_map = 0;

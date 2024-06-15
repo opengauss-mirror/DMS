@@ -28,7 +28,7 @@
 
 void dms_reform_judgement_az_demote_phase1(instance_list_t *inst_lists)
 {
-    share_info_t* share_info = DMS_SHARE_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
 
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1);
@@ -37,7 +37,7 @@ void dms_reform_judgement_az_demote_phase1(instance_list_t *inst_lists)
 
 void dms_reform_judgement_az_demote_approve(instance_list_t *inst_lists)
 {
-    share_info_t* share_info = DMS_SHARE_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
 
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE);
@@ -46,23 +46,34 @@ void dms_reform_judgement_az_demote_approve(instance_list_t *inst_lists)
 
 void dms_reform_judgement_az_demote_phase2(instance_list_t *inst_lists)
 {
-    share_info_t* share_info = DMS_SHARE_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
 
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2);
     share_info->demote_id = (uint8)g_dms.inst_id;
 }
 
-void dms_reform_judgement_az_promote(void)
+void dms_reform_judgement_az_promote_phase1(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
 
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
         return;
     }
-
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_PROMOTE);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE1);
+    share_info->promote_id = (uint8)g_dms.inst_id;
+}
+
+void dms_reform_judgement_az_promote_phase2(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
+        return;
+    }
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE2);
     share_info->promote_id = (uint8)g_dms.inst_id;
 }
 
@@ -211,6 +222,7 @@ bool32 dms_reform_judgement_az_failover_check(instance_list_t *inst_lists)
     return CM_TRUE;
 }
 
+#ifdef OPENGAUSS
 bool32 dms_reform_judgement_switchover_opengauss_check(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -264,3 +276,4 @@ bool32 dms_reform_judgement_failover_opengauss_check(instance_list_t *inst_lists
     share_info->promote_id = (uint8)g_dms.inst_id;
     return CM_TRUE;
 }
+#endif

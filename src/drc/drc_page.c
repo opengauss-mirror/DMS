@@ -105,11 +105,11 @@ static int32 chk_convertq_4_conflict(drc_buf_res_t* buf_res, drc_request_info_t*
 
 static inline void drc_register_converting_simply(drc_buf_res_t* buf_res, drc_cvt_item_t *converting)
 {
-    buf_res->lock_mode  = converting->req_info.req_mode;
+    buf_res->lock_mode = converting->req_info.req_mode;
     if (buf_res->claimed_owner == CM_INVALID_ID8) {
         buf_res->copy_insts = 0;
         buf_res->claimed_owner = converting->req_info.inst_id;
-    } else if (buf_res->claimed_owner != converting->req_info.inst_id){
+    } else if (buf_res->claimed_owner != converting->req_info.inst_id) {
         bitmap64_set(&buf_res->copy_insts, converting->req_info.inst_id);
     }
 }
@@ -118,7 +118,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_buf_res_
     bool32 *can_cvt)
 {
     drc_lock_item_t *curr = NULL;
-    drc_lock_item_t *next = (drc_lock_item_t*)cm_bilist_head(&buf_res->convert_q);
+    drc_lock_item_t *next = (drc_lock_item_t *)cm_bilist_head(&buf_res->convert_q);
     while (next != NULL) {
         curr = next;
         next = (drc_lock_item_t*)next->node.next;
@@ -143,8 +143,9 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_buf_res_
             drc_res_pool_free_item(&DRC_RES_CTX->lock_item_pool, (char*)curr);
         }
     }
-    
+
     drc_cvt_item_t *converting = &buf_res->converting;
+
     if (req->inst_id == converting->req_info.inst_id) {
         if (req->req_time <= converting->req_info.req_time) {
             DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
@@ -155,24 +156,26 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_buf_res_
         if (req->curr_mode == converting->req_info.req_mode) {
             drc_register_converting_simply(buf_res, converting);
         }
-        *can_cvt  = CM_TRUE;
+        *can_cvt = CM_TRUE;
         converting->req_info   = *req;
         converting->begin_time = g_timer()->now;
         return DMS_SUCCESS;
     }
-    
+
     if (converting->req_info.is_upgrade) {
         DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
     
+    // converting node can only receive error ack or wait timeout
+    // so we can remove it from converting directly
     if (converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
         if (converting->req_info.curr_mode == DMS_LOCK_SHARE) {
             dms_send_error_ack(ctx, converting->req_info.inst_id, converting->req_info.sess_id,
                 converting->req_info.ruid, ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER, converting->req_info.req_proto_ver);
         } else {
             drc_lock_item_t *item = (drc_lock_item_t*)drc_res_pool_alloc_item(&DRC_RES_CTX->lock_item_pool);
-            if (SECUREC_UNLIKELY(req == NULL)) {
+            if (SECUREC_UNLIKELY(item == NULL)) {
                 DMS_THROW_ERROR(ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH);
                 return ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH;
             }
@@ -239,7 +242,7 @@ static inline int32 drc_check_req_4_conflict(dms_process_context_t *ctx, drc_buf
     if (!req->is_upgrade) {
         return drc_chk_conflict_4_normal(buf_res, req, is_retry, can_cvt);
     }
-    
+
     return drc_chk_conflict_4_upgrade(ctx, buf_res, req, can_cvt);
 }
 
@@ -275,7 +278,7 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_buf_res_t *buf_res
 
     *converting   = CM_FALSE;
     req->req_info = *req_info;
-    
+
     if (!req_info->is_upgrade) {
         cm_bilist_add_tail(&req->node, &buf_res->convert_q);
     } else {
@@ -352,11 +355,11 @@ static int drc_get_page_no_owner(dms_process_context_t *ctx, drc_req_owner_resul
 static void drc_try_prepare_confirm_cvt(drc_buf_res_t *buf_res)
 {
     drc_request_info_t *cvt_req = &buf_res->converting.req_info;
-    
+
     if (!if_cvt_need_confirm(buf_res) || cvt_req->inst_id == CM_INVALID_ID8) {
         return;
     }
-    
+
     res_id_t res_id;
     res_id.type = buf_res->type;
     res_id.len = buf_res->len;
@@ -456,7 +459,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         return ret;
     }
- 
+
     if (buf_res->type == DRC_RES_PAGE_TYPE) {
         drc_buf_res_shift_to_head(buf_res);
     }
@@ -859,6 +862,7 @@ bool8 drc_recycle_buf_res(dms_process_context_t *ctx, drc_buf_res_t *buf_res)
 void drc_release_buf_res_by_part(drc_part_list_t *part, uint8 type)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
+
     drc_res_map_t *res_map = &global_res_map->res_map;
     bilist_node_t *node = cm_bilist_head(&part->list);
     drc_res_bucket_t *bucket = NULL;
@@ -913,7 +917,7 @@ static void dms_recovery_analyse_page_skip_recover(drc_buf_res_t *buf_res)
     if (buf_res->rebuild_type == REFORM_ASSIST_LIST_NORMAL_COPY) {
         dms_reform_rebuild_add_to_flush_copy(buf_res);
         buf_res->rebuild_type = REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO;
-        buf_res->need_flush = CM_FALSE;
+        buf_res->need_flush = CM_TRUE;
     }
 }
 
@@ -1025,7 +1029,7 @@ void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type)
     dms_reset_error();
 
     if (res_buf_info == NULL || index == NULL) {
-        LOG_DEBUG_ERR("[DRC][dms_get_buf_res]:param error");
+        LOG_DEBUG_ERR("[DRC][dms_get_buf_res]: param error");
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_NULL);
         return;
     }

@@ -37,6 +37,8 @@
 #include "config.h"
 #endif
 
+
+
 bool8 dms_dst_id_is_self(uint8 dst_id)
 {
     return g_dms.inst_id == dst_id;
@@ -87,12 +89,15 @@ int dms_reform_in_process(void)
 int dms_drc_accessible(unsigned char res_type)
 {
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        return (int)res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_ACCESS;
-    } else if (res_type == DRC_RES_LOCK_TYPE) {
-        return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
-    } else {
-        return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
+    switch (res_type) {
+        case DRC_RES_PAGE_TYPE:
+            return (int)res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_ACCESS;
+        case DRC_RES_LOCK_TYPE:
+            return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
+        default:
+            return CM_TRUE;
     }
 }
 
@@ -261,7 +266,8 @@ void dms_reform_db_handle_deinit(void)
 static void dms_init_scrlock_ctx(dms_profile_t *dms_profile)
 {
     reform_context_t *reform_context = DMS_REFORM_CONTEXT;
-    errno_t ret = memcpy_s(reform_context->scrlock_reinit_ctx.log_path, DMS_OCK_LOG_PATH_LEN, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
+    errno_t ret = memcpy_s(reform_context->scrlock_reinit_ctx.log_path, DMS_OCK_LOG_PATH_LEN,
+        dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);
     DMS_SECUREC_CHECK(ret);
     reform_context->scrlock_reinit_ctx.scrlock_server_port = dms_profile->scrlock_server_port;
     reform_context->scrlock_reinit_ctx.log_level = dms_profile->scrlock_log_level;
@@ -330,7 +336,7 @@ int dms_reform_init(dms_profile_t *dms_profile)
     if ((ret = dms_reform_init_db_handle()) != DMS_SUCCESS) {
         return ret;
     }
-    
+
 #if defined(OPENGAUSS) || defined(UT_TEST)
     reform_info->build_complete = CM_TRUE;
     reform_info->maintain = CM_FALSE;
@@ -378,7 +384,7 @@ void dms_reform_uninit(void)
 #ifdef DMS_TEST
     dms_reform_cm_simulation_uninit();
 #endif
-    reform_info_t* reform_info = DMS_REFORM_INFO;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     reform_info->reform_fail = CM_TRUE;
     LOG_RUN_INF("[DMS REFORM]set reform fail, dms_reform_uninit");
     cm_close_thread(&reform_context->thread_judgement);
@@ -496,8 +502,8 @@ int dms_is_recovery_session(unsigned int sid)
 int dms_switchover(unsigned int sess_id)
 {
     dms_reset_error();
-    reform_info_t* reform_info = DMS_REFORM_INFO;
-    switchover_info_t* switchover_info = DMS_SWITCHOVER_INFO;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
     dms_reform_req_switchover_t req;
     uint8 reformer_id = reform_info->reformer_id;
     uint64 start_time = 0;
@@ -505,7 +511,7 @@ int dms_switchover(unsigned int sess_id)
 
     while (CM_TRUE) {
         dms_reform_init_req_switchover(&req, reformer_id, (uint16)sess_id);
-        
+
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_switchover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
@@ -550,7 +556,7 @@ int dms_az_failover(unsigned int sess_id)
             cm_spin_lock(&failover_info->lock, NULL);
             if (failover_info->switch_req) {
                 cm_spin_unlock(&failover_info->lock);
-                LOG_DEBUG_ERR("[DMS REFORM] dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+                LOG_DEBUG_ERR("[DMS REFORM]dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
                 return DMS_ERROR;
             }
             failover_info->switch_req = CM_TRUE;
@@ -561,7 +567,7 @@ int dms_az_failover(unsigned int sess_id)
         dms_reform_init_req_az_failover(&req, reformer_id, (uint16)sess_id);
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_ERR("[DMS REFORM] dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
+            LOG_DEBUG_ERR("[DMS REFORM]dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
             return ret;
         }
 
@@ -718,13 +724,11 @@ bool8 dms_reform_type_is(dms_reform_type_t type)
     return share_info->reform_type == type;
 }
 
-#ifndef WIN32
 void dms_show_version(char *version)
 {
     int ret = strcpy_s(version, DMS_VERSION_MAX_LEN, (char *)DEF_DMS_VERSION);
     DMS_SECUREC_CHECK(ret);
 }
-#endif
 
 int dms_reform_last_failed(void)
 {
@@ -764,7 +768,6 @@ static bool8 dms_no_need_wait_sync(reform_step_t step)
     if (step != DMS_REFORM_STEP_SYNC_WAIT) {
         return CM_FALSE;
     }
-
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_BUILD) ||
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN) ||
         dms_reform_type_is(DMS_REFORM_TYPE_FOR_RST_RECOVER)) {
@@ -777,7 +780,7 @@ void dms_reform_add_step(reform_step_t step)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
 
-    // BUILD and MAINTAIN no need to SYNV_WAIT, there is only one instance
+    // BUILD and MAINTAIN no need to SYNC_WAIT, there is only one instance
     if (dms_no_need_wait_sync(step)) {
         return;
     }

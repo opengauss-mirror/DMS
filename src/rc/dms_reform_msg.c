@@ -617,11 +617,12 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
     drc_buf_res_t *buf_res = NULL;
     drc_global_xa_res_t *xa_res = NULL;
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
+
     drc_part_list_t *part = &global_res_map->res_parts[migrate_task->part_id];
     bilist_t *res_list = &part->list;
     bilist_node_t *node = cm_bilist_head(res_list);
     uint32 offset = (uint32)sizeof(dms_reform_req_migrate_t);
-    
+
     if (res_list->count == 0) {
         g_dms.callback.mem_free(handle, req);
         return DMS_SUCCESS;
@@ -636,7 +637,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
             DRC_DISPLAY(buf_res, "migrate");
             ret = dms_reform_req_migrate_add_buf_res(buf_res, req, &offset, sess_id);
         }
-        
+
         if (ret != DMS_SUCCESS) {
             g_dms.callback.mem_free(handle, req);
             LOG_DEBUG_FUNC_FAIL;
@@ -713,7 +714,7 @@ static int dms_reform_proc_req_migrate_res(dms_process_context_t *process_ctx, d
             DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "res_msg len");
             return ERRNO_DMS_PARAM_INVALID;
         }
-        
+
         ret = dms_reform_migrate_add_buf_res(process_ctx, res_msg, req->res_type);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_FUNC_FAIL;
@@ -937,8 +938,8 @@ int dms_reform_req_rebuild_lock(msg_command_t cmd, void *local_lock, uint32 appe
     return DMS_SUCCESS;
 }
 
-int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, void *local_lock, uint32 append_size,
-    uint8 master_id, uint8 thread_index)
+int dms_reform_req_rebuild_lock_parallel(msg_command_t cmd, void *local_lock, uint32 append_size, uint8 master_id,
+    uint8 thread_index)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
@@ -989,6 +990,7 @@ void dms_reform_proc_req_lock_rebuild_base(dms_process_context_t *ctx, dms_messa
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
+
     uint8 *lock_info;
     int ret;
 
@@ -1259,7 +1261,7 @@ static int dms_reform_check_reform_done_r(uint8 dst_id)
     int ret = DMS_SUCCESS;
     while (CM_TRUE) {
         dms_reform_init_req_check_reform_done(&head, dst_id);
-        
+
         ret = mfc_send_data(&head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_reform_done SEND error: %d, dst_id: %d", ret, dst_id);
@@ -1388,7 +1390,6 @@ int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms_ctx, void *
 
     // openGauss has not adapted stats yet
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_ONDEMAND_REDO, CM_TRUE);
-
     int32 ret = mfc_send_data3(&redo_req.head, sizeof(dms_reform_req_opengauss_ondemand_redo_t), block_key);
     if (ret != CM_SUCCESS) {
         dms_end_stat(dms_ctx->sess_id);
@@ -1603,19 +1604,17 @@ void dms_reform_req_group_free(uint8 thread_index)
     }
 }
 
-void dms_reform_init_req_az_switchover_demote(dms_reform_req_az_switchover_t *req,
-    uint8 reformer_id, uint16 sess_id)
+void dms_reform_init_req_az_switchover_demote(dms_reform_req_az_switchover_t *req, uint8 reformer_id, uint16 sess_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_AZ_SWITCHOVER_DEMOTE, 0,
-        g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_AZ_SWITCHOVER_DEMOTE, 0, g_dms.inst_id, reformer_id,
+        sess_id, CM_INVALID_ID16);
     req->head.size = (uint16)sizeof(dms_reform_req_az_switchover_t);
     req->start_time = reform_info->start_time;
 }
 
-static void dms_reform_ack_az_switchover(dms_process_context_t *process_ctx,
-    dms_message_t *receive_msg, int result)
+static void dms_reform_ack_az_switchover(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     dms_reform_ack_common_t ack_common;
@@ -1660,7 +1659,7 @@ void dms_reform_proc_req_az_switchover(dms_process_context_t *process_ctx, dms_m
         return;
     }
 
-    if(switchover_info->inst_id == req->head.src_inst &&
+    if (switchover_info->inst_id == req->head.src_inst &&
         switchover_info->sess_id == req->head.src_sid &&
         switchover_info->start_time == req->start_time) {
         cm_spin_unlock(&switchover_info->lock);
@@ -1691,19 +1690,16 @@ int dms_reform_req_az_switchover_wait(uint64 ruid, uint64 *start_time)
     return result;
 }
 
-void dms_reform_init_req_az_failover(dms_reform_req_az_failover_t *req,
-    uint8 reformer_id, uint16 sess_id)
+void dms_reform_init_req_az_failover(dms_reform_req_az_failover_t *req, uint8 reformer_id, uint16 sess_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_AZ_FAILOVER, 0,
-        g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_AZ_FAILOVER, 0, g_dms.inst_id, reformer_id, sess_id, CM_INVALID_ID16);
     req->head.size = (uint16)sizeof(dms_reform_req_az_failover_t);
     req->start_time = reform_info->start_time;
 }
 
-static void dms_reform_ack_az_failover(dms_process_context_t *process_ctx,
-    dms_message_t *receive_msg, int result)
+static void dms_reform_ack_az_failover(dms_process_context_t *process_ctx, dms_message_t *receive_msg, int result)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     dms_reform_ack_common_t ack_common;
@@ -1748,7 +1744,7 @@ void dms_reform_proc_req_az_failover(dms_process_context_t *process_ctx, dms_mes
         return;
     }
 
-    if(switchover_info->inst_id == req->head.src_inst &&
+    if (switchover_info->inst_id == req->head.src_inst &&
         switchover_info->sess_id == req->head.src_sid &&
         switchover_info->start_time == req->start_time) {
         cm_spin_unlock(&switchover_info->lock);
@@ -1784,7 +1780,7 @@ static int dms_reform_proc_repair_inner(dms_process_context_t *process_ctx, repa
 {
     int ret = DMS_SUCCESS;
     switch (item->action) {
-        case  DMS_REQ_FLUSH_COPY:
+        case DMS_REQ_FLUSH_COPY:
             ret = g_dms.callback.flush_copy(process_ctx->db_handle, item->page_id);
             break;
 

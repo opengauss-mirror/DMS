@@ -356,6 +356,7 @@ void dms_reform_judgement_rebuild(instance_list_t *inst_lists)
         dms_reform_add_step(DMS_REFORM_STEP_REBUILD);
         return;
     }
+
 #ifdef OPENGAUSS
     // 1) primary restart 2) failover need rebuild phase
     dms_reform_list_init(&share_info->list_rebuild);
@@ -531,6 +532,27 @@ void dms_reform_judgement_rollback_prepare(instance_list_t *inst_lists)
 
 void dms_reform_judgement_reload_txn(void)
 {
+    share_info_t *share_info = DMS_SHARE_INFO;
+    remaster_info_t *remaster_info = DMS_REMASTER_INFO;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    dms_reform_list_init(&share_info->list_rollback);
+
+    for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
+        remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
+    }
+
+    for (uint8 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
+        if (inst_id == g_dms.inst_id) {
+            dms_reform_list_add(&share_info->list_rollback, inst_id);
+        }
+
+        if (dms_reform_list_exist(&share_info->list_online, inst_id)) {
+            continue;
+        }
+
+        dms_reform_list_add(&share_info->list_rollback, inst_id);
+    }
+
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_RELOAD_TXN);
 }
@@ -740,6 +762,7 @@ void dms_reform_judgement_rollback_for_az_standby(instance_list_t *inst_lists)
     }
 }
 
+#ifdef OPENGAUSS
 /* DEBUG version only, check for DRC reform correctness */
 void dms_reform_judgement_drc_validate(bool8 set_inaccess)
 {
@@ -763,3 +786,4 @@ void dms_reform_judgement_drc_validate(bool8 set_inaccess)
     }
 #endif
 }
+#endif

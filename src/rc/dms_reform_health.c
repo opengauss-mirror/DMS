@@ -191,6 +191,7 @@ static bool32 dms_reform_health_check_partner(void)
         reform_ctx->sess_health) != DMS_SUCCESS) {
         return CM_TRUE;
     }
+
     dms_set_driver_ping_info(online_version, online_rw_status, &list_online);
 
     return dms_reform_cmp_online_status(online_status, online_times);

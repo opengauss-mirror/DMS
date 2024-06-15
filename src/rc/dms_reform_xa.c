@@ -78,9 +78,10 @@ int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrat
             DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
             return ret;
         }
+
         *offset += xid->bqual_len;
     }
-    
+
     req->res_num++;
     return DMS_SUCCESS;
 }
@@ -108,20 +109,20 @@ void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_mess
         DMS_SECUREC_CHECK(ret);
         offset += xid.gtrid_len;
         if (xid.bqual_len > 0) {
-            ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset, xid.bqual_len);
+            ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset,
+                xid.bqual_len);
             DMS_SECUREC_CHECK(ret);
             offset += xid.bqual_len;
         }
-        
 
         ret = drc_create_xa_res(process_ctx->db_handle, process_ctx->sess_id, &xid, owner_id, undo_set_id, CM_FALSE);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DRC][%s]dms_reform_proc_req_xa_migrate", cm_display_resid((char *)&xid,
                 DRC_RES_GLOBAL_XA_TYPE));
+            LOG_DEBUG_FUNC_FAIL;
             break;
         }
     }
-
     dms_reform_ack_req_migrate(process_ctx, receive_msg, ret);
 }
 
@@ -184,7 +185,6 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
     } else {
         req_rebuild = (dms_reform_req_rebuild_t *)parallel->data[master_id];
     }
-    
     if (req_rebuild == NULL) {
         if (thread_index == CM_INVALID_ID8) {
             req_rebuild = (dms_reform_req_rebuild_t *)g_dms.callback.mem_alloc(g_dms.reform_ctx.handle_proc,
@@ -198,8 +198,7 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
         if (req_rebuild == NULL) {
             DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
             return ERRNO_DMS_ALLOC_FAILED;
-        }
-        
+        }   
         if (thread_index == CM_INVALID_ID8) {
             rebuild_info->rebuild_data[master_id] = req_rebuild;
         } else {
@@ -224,14 +223,14 @@ int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
     uint8 remaster_id = CM_INVALID_ID8;
     share_info_t *share_info = DMS_SHARE_INFO;
     drc_global_xid_t *xid = &dms_ctx->global_xid;
-    
+
     int ret = drc_get_master_id((char *)xid, DRC_RES_GLOBAL_XA_TYPE, &master_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s] dms_reform_rebuild_one_xa, fail to get master id", cm_display_resid((char *)xid,
             DRC_RES_GLOBAL_XA_TYPE));
         return ret;
     }
-    
+
     if (!share_info->full_clean && !dms_reform_list_exist(&share_info->list_rebuild, master_id)) {
         return DMS_SUCCESS;
     }
@@ -289,7 +288,6 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
             DMS_SECUREC_CHECK(ret);
             offset += xid.bqual_len;
         }
-        
 
         ret = drc_create_xa_res(ctx->db_handle, ctx->sess_id, &xid, owner_id, undo_set_id, CM_FALSE);
         if (ret != DMS_SUCCESS) {

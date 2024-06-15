@@ -43,13 +43,6 @@ static config_item_t g_cm_params[] = {
         EFFECT_REBOOT, CFG_INS, NULL, NULL, NULL, NULL },
 };
 
-static void dms_reform_cm_simulation_init()
-{
-    g_cm_simulation.params.reformer_id = CM_INVALID_ID32;
-    g_cm_simulation.params.bitmap_online = 0;
-    g_cm_simulation.params.online_version = 0;
-}
-
 static void dms_reform_cm_simulation_refresh(void)
 {
     char *value = cm_get_config_value(&g_cm_simulation.config, CM_REFORMER_ID);
@@ -66,6 +59,14 @@ static void dms_reform_cm_simulation_refresh(void)
     if (cm_str2uint64(value, &g_cm_simulation.params.online_version) != CM_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][cm_simulation]fail to get VERSION_ONLINE");
     }
+}
+
+
+static void dms_reform_cm_simulation_init()
+{
+    g_cm_simulation.params.reformer_id = CM_INVALID_ID32;
+    g_cm_simulation.params.bitmap_online = 0;
+    g_cm_simulation.params.online_version = 0;
 }
 
 static void dms_reform_cm_simulation_thread(thread_t *thread)
@@ -126,6 +127,7 @@ static void dms_reform_cm_simulation(void)
         LOG_RUN_ERR("[DMS REFORM][cm_simulation]fail to create dms_reform_cm_simulation_thread");
     }
 }
+
 
 int dms_reform_cm_res_init(void)
 {
@@ -273,6 +275,7 @@ int dms_reform_cm_res_init(void)
     return DMS_SUCCESS;
 }
 
+
 int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_t *list_offline,
     instance_list_t *list_unknown, uint64 *online_version)
 {
@@ -282,7 +285,6 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST);
         return ERRNO_DMS_REFORM_FAIL_GET_STAT_LIST;
     }
-
     cm_res_stat_ptr_t res_stat = cm_res_get_stat(cm_res_mgr, &res_mem_ctx);
     if (res_stat == NULL) {
         cm_res_uninit_memctx(&res_mem_ctx);
@@ -313,7 +315,6 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
 
         int stat = cm_res_get_inst_stat(cm_res_mgr, inst_info);
         CM_ASSERT(stat < INST_STAT_COUNT);
-
         if (stat == INST_STAT_ONLINE) {
             list_online->inst_id_list[list_online->inst_id_count++] = (uint8)inst_id;
         } else if (stat == INST_STAT_OFFLINE) {
@@ -324,7 +325,6 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
     }
     cm_res_free_stat(cm_res_mgr, res_stat);
     cm_res_uninit_memctx(&res_mem_ctx);
-
     return DMS_SUCCESS;
 }
 
