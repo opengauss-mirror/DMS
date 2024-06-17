@@ -907,12 +907,10 @@ static void dms_reform_judgement_az_switchover_demote(instance_list_t *inst_list
     dms_reform_judgement_standby_sync();
     dms_reform_judgement_page_access();
     dms_reform_judgement_recovery(inst_lists);
-    dms_reform_judgement_file_blocked(inst_lists);
     dms_reform_judgement_update_scn();
     // txn_deposit must before dc_init, otherwise, dc_init may be hung due to transactions accessing the deleted node.
     dms_reform_judgement_rollback_prepare(inst_lists);
     dms_reform_judgement_txn_deposit(inst_lists);
-    dms_reform_judgement_file_unblocked();
     dms_reform_judgement_success();
     dms_reform_judgement_rollback_start(inst_lists);
     dms_reform_judgement_wait_ckpt();

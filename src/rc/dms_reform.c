@@ -553,7 +553,6 @@ int dms_az_failover(unsigned int sess_id)
                 LOG_DEBUG_ERR("[DMS REFORM] dms_az_failover SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
                 return DMS_ERROR;
             }
-            failover_info->switch_req = CM_TRUE;
             cm_spin_unlock(&failover_info->lock);
             break;
         }
@@ -580,6 +579,7 @@ int dms_az_failover(unsigned int sess_id)
 
     cm_spin_lock(&failover_info->lock, NULL);
     // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    failover_info->switch_req = CM_TRUE;
     failover_info->reformer_version.inst_id = reformer_id;
     failover_info->reformer_version.start_time = reform_info->start_time;
     failover_info->switch_start = CM_TRUE;
@@ -609,7 +609,6 @@ int dms_az_switchover_demote(unsigned int sess_id)
                 LOG_DEBUG_ERR("[DMS REFORM] dms_az_switchover_demote SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
                 return DMS_ERROR;
             }
-            switchover_info->switch_req = CM_TRUE;
             cm_spin_unlock(&switchover_info->lock);
             break;
         }
@@ -637,6 +636,7 @@ int dms_az_switchover_demote(unsigned int sess_id)
 
     cm_spin_lock(&switchover_info->lock, NULL);
     // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    switchover_info->switch_req = CM_TRUE;
     switchover_info->reformer_version.inst_id = reformer_id;
     switchover_info->reformer_version.start_time = start_time;
     switchover_info->switch_start = CM_TRUE;
@@ -666,7 +666,6 @@ int dms_az_switchover_promote(unsigned int sess_id)
                 LOG_DEBUG_ERR("[DMS REFORM] dms_az_switchover_promote SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
                 return DMS_ERROR;
             }
-            switchover_info->switch_req = CM_TRUE;
             cm_spin_unlock(&switchover_info->lock);
             break;
         }
@@ -694,6 +693,7 @@ int dms_az_switchover_promote(unsigned int sess_id)
 
     cm_spin_lock(&switchover_info->lock, NULL);
     // record reformer version, if reformer changed or restart, send error to stop the session which has run switchover
+    switchover_info->switch_req = CM_TRUE;
     switchover_info->reformer_version.inst_id = reformer_id;
     switchover_info->reformer_version.start_time = start_time;
     switchover_info->switch_start = CM_TRUE;
