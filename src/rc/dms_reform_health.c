@@ -131,6 +131,12 @@ static bool32 dms_reform_cmp_online_status(uint8 *online_status, uint64 *online_
 
         // for switchover, not need to use online_times to judge
         if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
+            if (online_status[i] != DMS_STATUS_IN) {
+                LOG_RUN_ERR("[DMS REFORM]dms_reform_cmp_online_status error, inst(%d), current: %d, "
+                    "excepted: %d in switchover",
+                    i, online_status[i], DMS_STATUS_IN);
+                return CM_FALSE;
+            }
             continue;
         }
         if (online_times[i] != health_info->online_times[i]) {
