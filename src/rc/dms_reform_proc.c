@@ -1261,6 +1261,8 @@ static void dms_reform_remote_fail(void)
 static int dms_reform_self_fail(void)
 {
     LOG_RUN_FUNC_ENTER;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    reform_info->reform_fail = CM_TRUE;
     if (DMS_IS_SHARE_REFORMER) {
         dms_reform_remote_fail();
     } else {
