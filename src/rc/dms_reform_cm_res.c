@@ -316,6 +316,8 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
 
         if (stat == INST_STAT_ONLINE) {
             list_online->inst_id_list[list_online->inst_id_count++] = (uint8)inst_id;
+        } else if (stat == INST_STAT_OFFLINE) {
+            list_offline->inst_id_list[list_offline->inst_id_count++] = (uint8)inst_id;
         } else if (stat == INST_STAT_UNKNOWN) {
             list_unknown->inst_id_list[list_unknown->inst_id_count++] = (uint8)inst_id;
         }
