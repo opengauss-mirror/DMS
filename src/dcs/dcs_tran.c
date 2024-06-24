@@ -269,12 +269,17 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, dms_message_t *re
     dms_message_head_t ack_head;
     dms_txn_info_t txn_info = { 0 };
 
-    uint32 total_size = (uint32)(sizeof(dms_message_head_t) + sizeof(uint64) + sizeof(bool32));
+    uint32 total_size = (uint32)(sizeof(dms_txn_info_t));
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
-    uint64 xid = *(uint64 *)(receive_msg->buffer + sizeof(dms_message_head_t));
-    bool32 is_scan = *(bool32 *)(receive_msg->buffer + sizeof(dms_message_head_t) + sizeof(uint64));
+    msg_txn_info_request_t *txn_info_req = (msg_txn_info_request_t *)(receive_msg->buffer);
 
-    int ret = g_dms.callback.get_txn_info(process_ctx->db_handle, xid, (bool8)is_scan, &txn_info);
+    /* sync SCN */
+    if (process_ctx->db_handle != NULL) {
+        g_dms.callback.update_global_scn(process_ctx->db_handle, txn_info_req->scn);
+    }
+
+    int ret = g_dms.callback.get_txn_info(process_ctx->db_handle, txn_info_req->xid,
+        (bool8)txn_info_req->is_scan, &txn_info);
     if (ret != DMS_SUCCESS) {
         cm_send_error_msg(req_head, ERRNO_DMS_CALLBACK_GET_TXN_INFO, "get txn info failed");
         return;
@@ -303,6 +308,10 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_TXN_INFO, 0, dms_ctx->inst_id, xid_ctx->inst_id,
         (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
     txn_info_req.xid = xid_ctx->xid;
+#ifndef OPENGAUSS
+    /* sync SCN to remote instance */
+    txn_info_req.scn = (dms_ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(dms_ctx->db_handle) : 0;
+#endif
     txn_info_req.is_scan = xid_ctx->is_scan;
     head->size = (uint16)sizeof(txn_info_req);
 

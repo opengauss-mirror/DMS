@@ -540,6 +540,12 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
         return;
     }
 
+#ifndef OPENGAUSS
+    if (ctx->db_handle != NULL) {
+        g_dms.callback.update_global_scn(ctx->db_handle, page_req.scn);
+    }
+#endif
+
     drc_req_owner_result_t result;
     drc_request_info_t *req_info = &page_req.drc_reg_info;
     req_info->ruid = page_req.head.ruid;
@@ -635,6 +641,9 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     page_req.intercept_type = dms_ctx->intercept_type;
     page_req.req_proto_ver  = page_req.head.msg_proto_ver;
     page_req.srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
+#ifndef OPENGAUSS
+    page_req.scn = (dms_ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(dms_ctx->db_handle) : 0;
+#endif
     int ret = memcpy_sp(page_req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
     if (SECUREC_UNLIKELY(ret != EOK)) {
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(dms_ctx->resid));

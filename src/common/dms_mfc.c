@@ -576,6 +576,28 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
     return ret;
 }
 
+int32 mfc_get_broadcast_res_with_msg_and_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts,
+    uint64 *succ_insts, mes_msg_list_t *msg_list)
+{
+    if (ruid == 0) {
+        *succ_insts = 0;
+        return DMS_SUCCESS;
+    }
+    int ret = DMS_SUCCESS;
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_broadcast_res(msg_list, CM_TRUE, expect_insts, succ_insts);
+        return ret;
+    }
+
+    ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+    DMS_RETURN_IF_ERROR(ret);
+    ret = mfc_check_broadcast_res(msg_list, CM_TRUE, expect_insts, succ_insts);
+    mfc_wait_acks_add_tickets(msg_list);
+    return ret;
+}
+
 /* previously mes_connect_batch; add instance and wait for connection */
 int mfc_add_instance_batch(const unsigned char *inst_id_list, unsigned char inst_id_cnt, bool8 is_sync)
 {
