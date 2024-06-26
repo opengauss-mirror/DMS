@@ -53,12 +53,10 @@ int dms_reform_undo_init(instance_list_t *list);
 int dms_reform_tx_area_init(instance_list_t *list);
 int dms_reform_tx_area_load(instance_list_t *list);
 int dms_reform_tx_rollback_start(instance_list_t *list);
-int dms_reform_drc_clean(void);
 int dms_reform_full_clean(void);
 int dms_reform_migrate(void);
 int dms_reform_rebuild(void);
 int dms_reform_remaster(void);
-int dms_reform_drc_clean_fault_inst_by_partid(uint16 part_id, uint32 sess_id);
 int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
 int drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id);
 void dms_reform_full_clean_init_assist(full_clean_assist_t *assist);
@@ -70,17 +68,6 @@ int dms_reform_repair_by_partid(uint8 thread_index, uint16 part_id);
 int dms_reform_repair(void);
 void dms_reform_rebuild_add_to_flush_copy(drc_buf_res_t *buf_res);
 void dms_reform_rebuild_del_from_flush_copy(drc_buf_res_t *buf_res);
-
-typedef enum en_reform_clean_stat {
-    DRPS_DRC_CLEAN_NO_OWNER = 1,
-    DRPS_DRC_CLEAN_NO_CVT,
-    DRPS_DRC_CLEAN_CONFIRM_COPY,
-    DRPS_DRC_CLEAN_OWNER_CVT_FAULT,
-    DRPS_DRC_CLEAN_CONFIRM_OWNER,
-    DRPS_DRC_CLEAN_CONFIRM_CVT,
-
-    DRPS_DRC_CLEAN_COUNT,
-} reform_clean_stat_t;
 
 typedef struct st_repair_item {
     char        page_id[DMS_PAGEID_SIZE];

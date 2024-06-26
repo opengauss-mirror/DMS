@@ -32,7 +32,6 @@ extern "C" {
 #endif
 
 int dms_reform_reconnect_parallel(void);
-int dms_reform_drc_clean_parallel(void);
 int dms_reform_full_clean_parallel(void);
 int dms_reform_migrate_parallel(void);
 int dms_reform_drc_rcy_clean_parallel(void);
@@ -46,7 +45,6 @@ void dms_reform_parallel_thread_deinit(void);
 
 typedef enum en_dms_reform_parallel {
     DMS_REFORM_PARALLEL_RECONNECT = 0,
-    DMS_REFORM_PARALLEL_DRC_CLEAN,
     DMS_REFORM_PARALLEL_FULL_CLEAN,
     DMS_REFORM_PARALLEL_MIGRATE,
     DMS_REFORM_PARALLEL_DRC_RCY_CLEAN,

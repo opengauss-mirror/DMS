@@ -1038,92 +1038,9 @@ void dms_reform_proc_req_tlock_rebuild(dms_process_context_t *ctx, dms_message_t
         dms_reform_proc_tlock_rebuild);
 }
 
-void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
-    uint32 sess_id)
-{
-    DMS_INIT_MESSAGE_HEAD(&(req->head), MSG_REQ_PAGE, 0, g_dms.inst_id, dst_id, sess_id, CM_INVALID_ID16);
-    dms_reform_set_judge_time(&req->head);
-    req->head.size = (uint16)sizeof(dms_reform_req_res_t);
-    req->action = action;
-    req->res_type = type;
-    errno_t err = memcpy_s(req->resid, DMS_RESID_SIZE, pageid, DMS_RESID_SIZE);
-    DMS_SECUREC_CHECK(err);
-}
-
-static void dms_reform_proc_req_confirm_converting(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
-{
-    dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
-    dms_reform_ack_common_t ack_common;
-    uint8 lock_mode = DMS_LOCK_NULL;
-    int ret = DMS_SUCCESS;
-    uint64 edp_map, lsn;
-
-    mes_discard_response(req->ruid);
-    if (req->res_type == DRC_RES_PAGE_TYPE) {
-        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_CONFIRM_CVT_PAGE);
-        ret = g_dms.callback.confirm_converting(process_ctx->db_handle,
-            req->resid, CM_FALSE, &lock_mode, &edp_map, &lsn);
-        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_CONFIRM_CVT_PAGE);
-    } else {
-        dms_reform_proc_stat_start(DRPS_MES_TASK_STAT_CONFIRM_CVT_LOCK);
-        ret = drc_confirm_converting(process_ctx->db_handle, req->resid, &lock_mode);
-        dms_reform_proc_stat_end(DRPS_MES_TASK_STAT_CONFIRM_CVT_LOCK);
-    }
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS REFORM][%s]confirm_converting fail, error: %d",
-            cm_display_resid(req->resid, req->res_type), ret);
-    }
-
-    dms_init_ack_head(receive_msg->head, &ack_common.head, MSG_ACK_REFORM_COMMON, sizeof(dms_reform_ack_common_t),
-        process_ctx->sess_id);
-    ack_common.result = ret;
-    ack_common.lock_mode = lock_mode;
-    ret = mfc_send_data(&ack_common.head);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS REFORM][%s]dms_reform_proc_req_page_confirm_converting ack fail, error: %d",
-            cm_display_resid(req->resid, req->res_type), ret);
-    }
-}
-
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_res_t), CM_TRUE);
-    dms_reform_req_res_t *req = (dms_reform_req_res_t *)receive_msg->buffer;
-    if (!dms_reform_check_judge_time(&req->head)) {
-        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        cm_send_error_msg(receive_msg->head, ERRNO_DMS_MES_INVALID_MSG, "fail to check judge time");
-        return;
-    }
-    switch (req->action) {
-        case DMS_REQ_CONFIRM_CONVERTING:
-            dms_reform_proc_req_confirm_converting(process_ctx, receive_msg);
-            break;
-
-        default:
-            break;
-    }
-}
-
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint64 ruid)
-{
-    dms_message_t res;
-    dms_reform_ack_common_t *ack_common = NULL;
-    int ret = DMS_SUCCESS;
-
-    *result = DMS_SUCCESS;
-    ret = mfc_get_response(ruid, &res, DMS_WAIT_MAX_TIME);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_FUNC_FAIL;
-        return ret;
-    }
-
-    ack_common = (dms_reform_ack_common_t *)res.buffer;
-    *result = ack_common->result;
-    *lock_mode = ack_common->lock_mode;
-    *is_edp = ack_common->is_edp;
-    *lsn = ack_common->lsn;
-    mfc_release_response(&res);
-    return ret;
+    /* pass */
 }
 
 void dms_reform_init_req_switchover(dms_reform_req_switchover_t *req, uint8 reformer_id, uint16 sess_id)

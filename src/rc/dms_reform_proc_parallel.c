@@ -214,11 +214,6 @@ static int dms_reform_reconnect_parallel_proc(resource_id_t *res_id, parallel_th
     return mfc_add_instance_batch(&res_id->node_id, 1, CM_FALSE);
 }
 
-static int dms_reform_drc_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
-{
-    return dms_reform_drc_clean_fault_inst_by_partid(res_id->part_id, parallel->sess_id);
-}
-
 static int dms_reform_full_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
@@ -286,9 +281,6 @@ static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_threa
 dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
     [DMS_REFORM_PARALLEL_RECONNECT] = { "dms_reform_reconnect_parallel",
         dms_reform_parallel_assign_channels, dms_reform_reconnect_parallel_proc },
-
-    [DMS_REFORM_PARALLEL_DRC_CLEAN] = { "dms_reform_drc_clean_parallel",
-        dms_reform_parallel_assign_parts, dms_reform_drc_clean_parallel_proc },
 
     [DMS_REFORM_PARALLEL_FULL_CLEAN] = { "dms_reform_full_clean_parallel",
         dms_reform_parallel_assign_thread, dms_reform_full_clean_parallel_proc },
@@ -417,11 +409,6 @@ int dms_reform_reconnect_parallel(void)
     reform_info->bitmap_connect = share_info->bitmap_online;
     reform_info->bitmap_in = share_info->bitmap_in;
     return DMS_SUCCESS;
-}
-
-int dms_reform_drc_clean_parallel(void)
-{
-    return dms_reform_parallel(DMS_REFORM_PARALLEL_DRC_CLEAN);
 }
 
 int dms_reform_full_clean_parallel(void)

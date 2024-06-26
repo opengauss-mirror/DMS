@@ -70,27 +70,13 @@ void dms_reform_judgement_reconnect(instance_list_t *inst_lists)
 // Notice: DRC_CLEAN and REBUILD must be used in pairs
 void dms_reform_judgement_drc_clean(instance_list_t *inst_lists)
 {
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    if (share_info->full_clean) {
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_FULL_CLEAN);
-        return;
-    }
-
     // if reform_type is fail-over, all DRC has lost, no need to do drc_clean
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS)) {
         return;
     }
 
-    dms_reform_list_init(&share_info->list_clean);
-    if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
-        dms_reform_list_cancat(&share_info->list_clean, &inst_lists[INST_LIST_OLD_JOIN]);
-        dms_reform_list_cancat(&share_info->list_clean, &inst_lists[INST_LIST_OLD_REMOVE]);
-        dms_reform_list_to_bitmap(&share_info->bitmap_clean, &share_info->list_clean);
-        dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
-        dms_reform_add_step(DMS_REFORM_STEP_DRC_CLEAN);
-    }
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_FULL_CLEAN);
 }
 
 void dms_reform_part_copy(void)

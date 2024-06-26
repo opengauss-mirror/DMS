@@ -159,24 +159,7 @@ drps_desc_t g_drps_desc_t[] = {
     {DMS_REFORM_STEP_DRC_INACCESS,                              DRPS_LEVEL_TOP,     "DRC_INACCESS"},
     {DMS_REFORM_STEP_LOCK_INSTANCE,                             DRPS_LEVEL_TOP,     "LOCK_INSTANCE"},
     {DMS_REFORM_STEP_PUSH_GCV_AND_UNLOCK,                       DRPS_LEVEL_TOP,     "PUSH_GCV_AND_UNLOCK"},
-    {DMS_REFORM_STEP_DRC_CLEAN,                                 DRPS_LEVEL_TOP,     "DRC_CLEAN"},
     {DMS_REFORM_STEP_FULL_CLEAN,                                DRPS_LEVEL_TOP,     "FULL_CLEAN"},
-    {DRPS_DRC_CLEAN_TIMEOUT,                                    DRPS_LEVEL_ONE,     "ACK TIMEOUT"},
-    {DRPS_DRC_CLEAN_PAGE,                                       DRPS_LEVEL_ONE,     "PAGE"},
-    {DRPS_DRC_CLEAN_PAGE_NO_OWNER,                              DRPS_LEVEL_TWO,     "NO_OWNER"},
-    {DRPS_DRC_CLEAN_PAGE_NO_CVT,                                DRPS_LEVEL_TWO,     "NO_CVT"},
-    {DRPS_DRC_CLEAN_PAGE_CONFIRM_COPY,                          DRPS_LEVEL_TWO,     "CONFIRM_COPY"},
-    {DRPS_DRC_CLEAN_PAGE_OWNER_CVT_FAULT,                       DRPS_LEVEL_TWO,     "BOTH_FAULT"},
-    {DRPS_DRC_CLEAN_PAGE_CONFIRM_OWNER,                         DRPS_LEVEL_TWO,     "CONFIRM_OWNER"},
-    {DRPS_DRC_CLEAN_PAGE_CONFIRM_CVT,                           DRPS_LEVEL_TWO,     "CONFIRM_CVT"},
-    {DRPS_DRC_CLEAN_LOCK,                                       DRPS_LEVEL_ONE,     "LOCK"},
-    {DRPS_DRC_CLEAN_LOCK_NO_OWNER,                              DRPS_LEVEL_TWO,     "NO_OWNER"},
-    {DRPS_DRC_CLEAN_LOCK_NO_CVT,                                DRPS_LEVEL_TWO,     "NO_CVT"},
-    {DRPS_DRC_CLEAN_LOCK_CONFIRM_COPY,                          DRPS_LEVEL_TWO,     "CONFIRM_COPY"},
-    {DRPS_DRC_CLEAN_LOCK_OWNER_CVT_FAULT,                       DRPS_LEVEL_TWO,     "BOTH_FAULT"},
-    {DRPS_DRC_CLEAN_LOCK_CONFIRM_OWNER,                         DRPS_LEVEL_TWO,     "CONFIRM_OWNER"},
-    {DRPS_DRC_CLEAN_LOCK_CONFIRM_CVT,                           DRPS_LEVEL_TWO,     "CONFIRM_CVT"},
-    {DRPS_DRC_CLEAN_XA,                                         DRPS_LEVEL_ONE,     "XA"},
     {DMS_REFORM_STEP_REBUILD,                                   DRPS_LEVEL_TOP,     "REBUILD"},
     {DRPS_DRC_REBUILD_WAIT_LATCH,                               DRPS_LEVEL_ONE,     "WAIT_LATCH"},
     {DRPS_DRC_REBUILD_PAGE,                                     DRPS_LEVEL_ONE,     "PAGE"},
@@ -373,6 +356,17 @@ void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat)
     dms_reform_proc_stat_times(item);
 }
 
+static bool32 dms_reform_proc_desc_is_skip(uint32 cmd)
+{
+    switch (cmd) {
+        case DRPS_REFORM:
+        case DMS_REFORM_STEP_DRC_CLEAN:
+            return CM_TRUE;
+        default:
+            return CM_FALSE;
+    }
+}
+
 bool32 dms_reform_proc_stat_desc_check(void)
 {
     bool8 has_desc[DRPS_COUNT] = { 0 };
@@ -388,7 +382,7 @@ bool32 dms_reform_proc_stat_desc_check(void)
     }
 
     for (uint32 i = 0; i < DRPS_COUNT; i++) {
-        if (i == DRPS_REFORM) {
+        if (dms_reform_proc_desc_is_skip(i)) {
             continue;
         }
         if (!has_desc[i]) {
