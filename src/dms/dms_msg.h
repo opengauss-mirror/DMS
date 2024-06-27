@@ -84,6 +84,12 @@ typedef struct st_dms_ask_res_ack_load {
     bool8 master_grant;
 } dms_ask_res_ack_ld_t;
 
+// msg for notifying instance is already resource owner
+typedef struct st_dms_already_owner_ack {
+    dms_message_head_t head;
+    uint64 scn;
+} dms_already_owner_ack_t;
+
 typedef struct st_dms_ask_res_ack {
     dms_message_head_t head;
     uint64 lsn;
