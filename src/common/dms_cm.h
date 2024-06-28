@@ -84,6 +84,7 @@ char *cm_display_xid(char xid[DMS_XID_SIZE]);
 char *cm_display_rowid(char rowid[DMS_ROWID_SIZE]);
 void dms_ssl_ca_cert_expire(void);
 char *cm_display_lockid(dms_drid_t *lockid);
+char *cm_display_alockid(alockid_t *lockid);
 char *cm_display_resid(char *resid, uint8 res_type);
 
 typedef struct st_dms_worker_info {

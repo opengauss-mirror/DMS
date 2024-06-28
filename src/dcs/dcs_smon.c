@@ -720,7 +720,7 @@ int dms_send_req_msg_and_recv_ack(dms_context_t *dms_ctx, unsigned char dst_inst
 #pragma pack(4)
 typedef struct st_dms_smon_deadlock_alock_req {
     dms_message_head_t head;
-    dms_drid_t key;
+    alockid_t          alockid;
 } dms_smon_deadlock_alock_req_t;
 
 typedef struct st_dms_smon_deadlock_alock_rsp {
@@ -732,8 +732,7 @@ typedef struct st_dms_smon_deadlock_alock_rsp {
 #pragma pack()
 
 typedef struct st_dms_smon_alock_req_assist {
-    dms_drlatch_t *alatch;
-
+    alockid_t *alockid;
     char *result_buf;
     uint32 buf_len;
     uint32 *result_len;
@@ -742,14 +741,14 @@ typedef struct st_dms_smon_alock_req_assist {
 char *dms_smon_alock_cookie_desp(void *cookie)
 {
     dms_smon_alock_req_assist_t *user_data = cookie;
-    return cm_display_lockid(&user_data->alatch->drid);
+    return cm_display_alockid(user_data->alockid);
 }
 
 int dms_build_smon_alock_req_msg_body(void *cookie, void *req_msg)
 {
     dms_smon_alock_req_assist_t *user_data = cookie;
     dms_smon_deadlock_alock_req_t *req = (dms_smon_deadlock_alock_req_t *)req_msg;
-    errno_t err = memcpy_s(&req->key, sizeof(dms_drid_t), &user_data->alatch->drid, sizeof(dms_drid_t));
+    errno_t err = memcpy_s(&req->alockid, sizeof(alockid_t), user_data->alockid, sizeof(alockid_t));
     DMS_SECUREC_CHECK(err);
     return DMS_SUCCESS;
 }
@@ -774,11 +773,11 @@ int dms_check_and_handle_alock_rsp_msg(void *cookie, dms_message_t *recv_msg)
     return DMS_SUCCESS;
 }
 
-int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned char dst_inst,
-    dms_drlatch_t *alatch, char *res_buf, unsigned int buf_len, unsigned int *res_len)
+int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned char dst_inst, alockid_t *alockid,
+    char *res_buf, unsigned int buf_len, unsigned int *res_len)
 {
     dms_smon_alock_req_assist_t user_data = {
-        .alatch = alatch,
+        .alockid = alockid,
         .result_buf = res_buf,
         .buf_len = buf_len,
         .result_len = res_len
@@ -823,7 +822,7 @@ void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *rece
     uint16 rsp_head_size = (uint16)sizeof(dms_smon_deadlock_alock_rsp_t);
     uint32 buf_len = mes_size - rsp_head_size;
     uint32 info_len = 0;
-    ret = g_dms.callback.get_alock_wait_info(ctx->db_handle, (char *)&req->key, rsp_msg->data, buf_len, &info_len);
+    ret = g_dms.callback.get_alock_wait_info(ctx->db_handle, (char *)&req->alockid, rsp_msg->data, buf_len, &info_len);
     rsp_msg->ret_code = (uint32)ret;
     rsp_msg->data_size = info_len;
     head->size = rsp_head_size + (uint16)rsp_msg->data_size;
@@ -831,13 +830,13 @@ void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *rece
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         LOG_DEBUG_ERR("[SMON] process get alock wait info message from instance(%u) sid(%u) lockid(%s) ret(%d) failed",
-            (uint32)head->dst_inst, (uint32)req->head.src_inst, cm_display_lockid(&req->key), ret);
+            (uint32)head->dst_inst, (uint32)req->head.src_inst, cm_display_alockid(&req->alockid), ret);
         g_dms.callback.mem_free(ctx->db_handle, rsp_msg);
         return;
     }
 
     LOG_DEBUG_INF("[SMON] process get alock wait info message from instance(%u) sid(%u) lockid(%s) ret(%d)",
-        (uint32)head->dst_inst, (uint32)req->head.src_inst, cm_display_lockid(&req->key), ret);
+        (uint32)head->dst_inst, (uint32)req->head.src_inst, cm_display_alockid(&req->alockid), ret);
     g_dms.callback.mem_free(ctx->db_handle, rsp_msg);
 
 #endif

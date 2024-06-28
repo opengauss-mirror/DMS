@@ -92,6 +92,7 @@ int dms_drc_accessible(unsigned char res_type)
     switch (res_type) {
         case DRC_RES_PAGE_TYPE:
             return (int)res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_ACCESS;
+        case DRC_RES_ALOCK_TYPE:
         case DRC_RES_LOCK_TYPE:
             return (int)res_map->drc_accessible_stage != DRC_ACCESS_STAGE_ALL_INACCESS;
         case DRC_RES_GLOBAL_XA_TYPE:
@@ -230,6 +231,7 @@ static void dms_reform_init_for_maintain(void)
         return;
     }
 
+    ctx->global_alock_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     ctx->global_lock_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     ctx->global_xa_res.drc_accessible_stage = DRC_ACCESS_STAGE_ALL_ACCESS;
     inst_part->count = DRC_MAX_PART_NUM;

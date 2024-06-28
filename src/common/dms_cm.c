@@ -49,11 +49,11 @@ char *cm_display_pageid(char pageid[DMS_PAGEID_SIZE])
     return g_dms.callback.display_pageid(g_display_buf, DMS_DISPLAY_SIZE, pageid);
 }
 
-static inline char *cm_display_alockid(dms_drid_t *lockid)
+char *cm_display_alockid(alockid_t *alockid)
 {
     text_t name;
-    cm_str2text_safe((char *)lockid->resid, lockid->len, &name);
-    if (sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%u/%s", lockid->type, T2S(&name)) < 0) {
+    cm_str2text_safe((char *)alockid->name, alockid->len, &name);
+    if (sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%u/%s", alockid->type, T2S(&name)) < 0) {
         g_display_buf[0] = '\0';
     }
     return g_display_buf;
@@ -61,11 +61,8 @@ static inline char *cm_display_alockid(dms_drid_t *lockid)
 
 char *cm_display_lockid(dms_drid_t *lockid)
 {
-    if (DMS_DR_IS_ALOCK_TYPE(lockid->type)) {
-        return cm_display_alockid(lockid);
-    }
-    int ret = sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%u/%u/%u/%u/%u",
-        (uint32)lockid->type, (uint32)lockid->uid, lockid->oid, lockid->index, lockid->part);
+    int ret = sprintf_s(g_display_buf, DMS_DISPLAY_SIZE, "%d/%d/%llu/%u/%u",
+        lockid->type, lockid->uid, lockid->oid, lockid->index, lockid->part);
     if (ret < 0) {
         g_display_buf[0] = '\0';
     }
@@ -86,7 +83,7 @@ char *cm_display_global_xid(drc_global_xid_t *global_xid)
     unsigned int str_len = (unsigned int)strlen(g_display_buf);
     if (bqual.len > 0) {
         ret = memcpy_sp(g_display_buf + str_len, DMS_DISPLAY_SIZE - str_len, bqual.str, bqual.len);
-        if (ret != EOK) {
+        if (ret != 0) {
             g_display_buf[0] = '\0';
             return g_display_buf;
         }
@@ -98,14 +95,18 @@ char *cm_display_global_xid(drc_global_xid_t *global_xid)
 
 char *cm_display_resid(char *resid, uint8 res_type)
 {
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        return cm_display_pageid(resid);
+    switch (res_type) {
+        case DRC_RES_PAGE_TYPE:
+            return cm_display_pageid(resid);
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return cm_display_global_xid((drc_global_xid_t *)resid);
+        case DRC_RES_LOCK_TYPE:
+            return cm_display_lockid((dms_drid_t *)resid);
+        case DRC_RES_ALOCK_TYPE:
+            return cm_display_alockid((alockid_t *)resid);
+        default:
+            return "invalid type";
     }
-
-    if (res_type == DRC_RES_GLOBAL_XA_TYPE) {
-        return cm_display_global_xid((drc_global_xid_t *)resid);
-    }
-    return cm_display_lockid((dms_drid_t *)resid);
 }
 
 char *cm_display_xid(char xid[DMS_XID_SIZE])

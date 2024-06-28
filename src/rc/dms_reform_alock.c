@@ -48,17 +48,18 @@ int dms_reform_send_req_alock_rebuild(dms_alock_info_t *lock_info, uint8 new_mas
 int dms_alock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index)
 {
     uint8 remaster_id;
-    dms_drid_t *lock_id = (dms_drid_t *)&lock_info->resid;
-    int ret = drc_get_lock_remaster_id(lock_id, &remaster_id);
+    alockid_t *lock_id = &lock_info->alockid;
+    int ret = drc_get_lock_remaster_id(lock_id, DMS_ALOCKID_SIZE, &remaster_id);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DRC][%s]dms_alock_rebuild_drc_parallel, fail to get remaster id", cm_display_lockid(lock_id));
+        LOG_DEBUG_ERR("[DRC][%s]dms_alock_rebuild_drc_parallel, fail to get remaster id", cm_display_alockid(lock_id));
         return ret;
     }
-    LOG_DEBUG_INF("[DRC][%s]dms_alock_rebuild_drc_parallel, remaster(%d)", cm_display_lockid(lock_id), remaster_id);
+    LOG_DEBUG_INF("[DRC][%s]dms_alock_rebuild_drc_parallel, remaster(%d)", cm_display_alockid(lock_id), remaster_id);
 
     if (remaster_id == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_ALOCK_LOCAL);
-        ret = dms_reform_proc_lock_rebuild(lock_id, lock_info->lock_mode, remaster_id);
+        ret = dms_reform_proc_lock_rebuild(lock_id, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE, lock_info->lock_mode,
+            remaster_id);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_ALOCK_LOCAL);
     } else {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_ALOCK_REMOTE);
@@ -71,7 +72,8 @@ int dms_alock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_alock_info_t *loc
 int dms_reform_proc_alock_info_rebuild(void *lock_info, uint8 src_inst)
 {
     dms_alock_info_t *alock_info = (dms_alock_info_t *)lock_info;
-    int ret = dms_reform_proc_lock_rebuild(&alock_info->resid, alock_info->lock_mode, src_inst);
+    int ret = dms_reform_proc_lock_rebuild(&alock_info->alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE,
+        alock_info->lock_mode, src_inst);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]dms_reform_proc_alock_info_rebuild, myid:%u", g_dms.inst_id);
     }

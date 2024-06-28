@@ -74,44 +74,24 @@ drc_local_lock_res_t *drc_get_local_resx(dms_drid_t *lock_id)
     return lock_res;
 }
 
-int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
+int drc_confirm_converting(void *db_handle, char* resid, uint8 type, uint8 *lock_mode)
 {
-    dms_drid_t *drid = (dms_drid_t *)resid;
-#ifndef OPENGAUSS
-    if (DMS_DR_IS_TABLE_TYPE(drid->type)) {
-        *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
+    if (type == DRC_RES_LOCK_TYPE) {
+        dms_drid_t *drid = (dms_drid_t *)resid;
+        if (DMS_DR_IS_TABLE_TYPE(drid->type)) {
+            *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
+            return DMS_SUCCESS;
+        }
+        drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
+        cm_spin_lock(&lock_res->modify_mode_lock, NULL);
+        lock_res->is_reform_visit = CM_TRUE;
+        *lock_mode = lock_res->latch_stat.lock_mode;
+        cm_spin_unlock(&lock_res->modify_mode_lock);
         return DMS_SUCCESS;
-    }
-    if (DMS_DR_IS_ALOCK_TYPE(drid->type)) {
+    } else if (type == DRC_RES_ALOCK_TYPE) {
         *lock_mode = g_dms.callback.get_alock_mode(db_handle, resid);
         return DMS_SUCCESS;
     }
-#endif
-    drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
-    cm_spin_lock(&lock_res->modify_mode_lock, NULL);
-    lock_res->is_reform_visit = CM_TRUE;
-    *lock_mode = lock_res->latch_stat.lock_mode;
-    cm_spin_unlock(&lock_res->modify_mode_lock);
-    return DMS_SUCCESS;
-}
-
-int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
-{
-    dms_drid_t *drid = (dms_drid_t *)resid;
-#ifndef OPENGAUSS
-    if (DMS_DR_IS_TABLE_TYPE(drid->type)) {
-        *lock_mode = g_dms.callback.get_tlock_mode(db_handle, resid);
-        return DMS_SUCCESS;
-    }
-    if (DMS_DR_IS_ALOCK_TYPE(drid->type)) {
-        *lock_mode = g_dms.callback.get_alock_mode(db_handle, resid);
-        return DMS_SUCCESS;
-    }
-#endif
-    drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
-    cm_spin_lock(&lock_res->modify_mode_lock, NULL);
-    lock_res->is_reform_visit = CM_TRUE;
-    *lock_mode = lock_res->latch_stat.lock_mode;
-    cm_spin_unlock(&lock_res->modify_mode_lock);
+    cm_panic_log(CM_FALSE, "invalid type: %d", type);
     return DMS_SUCCESS;
 }

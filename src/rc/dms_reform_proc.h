@@ -35,14 +35,12 @@ extern "C" {
 
 void dms_reform_proc_thread(thread_t *thread);
 int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
-int dms_reform_proc_lock_rebuild(dms_drid_t *resid, uint8 lock_mode, uint8 src_inst);
+int dms_reform_proc_lock_rebuild(void *resid, uint8 len, uint8 type, uint8 lock_mode, uint8 src_inst);
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
 bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2);
 void dms_reform_next_step(void);
-int dms_reform_clean_buf_res_by_part(drc_part_list_t *part, uint32 sess_id);
 void dms_reform_migrate_collect_local_task(migrate_info_t *local_migrate_info);
 int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 sess_id);
-int dms_reform_repair_by_part(drc_part_list_t *part, void *handle, uint32 sess_id);
 void dms_reform_recovery_set_flag_by_part(drc_part_list_t *part);
 void dms_reform_rebuild_buffer_init(uint8 thread_index);
 void dms_reform_rebuild_buffer_free(void *handle, uint8 thread_index);
@@ -58,16 +56,16 @@ int dms_reform_migrate(void);
 int dms_reform_rebuild(void);
 int dms_reform_remaster(void);
 int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
-int drc_get_lock_remaster_id(dms_drid_t *lock_id, uint8 *master_id);
+int drc_get_lock_remaster_id(void *lock_id, uint8 len, uint8 *master_id);
 void dms_reform_full_clean_init_assist(full_clean_assist_t *assist);
 void dms_reform_full_clean_reinit(uint8 thread_index, uint8 thread_num, full_clean_assist_t *assist);
 void dms_reform_full_clean_concat_free_list(full_clean_assist_t *assist);
 void dms_rebuild_assist_list_init(void);
-bool8 dms_reform_rebuild_set_type(drc_buf_res_t *buf_res, reform_assist_list_type_e type);
+bool8 dms_reform_rebuild_set_type(drc_page_t *drc_page, reform_assist_list_type_e type);
 int dms_reform_repair_by_partid(uint8 thread_index, uint16 part_id);
 int dms_reform_repair(void);
-void dms_reform_rebuild_add_to_flush_copy(drc_buf_res_t *buf_res);
-void dms_reform_rebuild_del_from_flush_copy(drc_buf_res_t *buf_res);
+void dms_reform_rebuild_add_to_flush_copy(drc_page_t *drc_page);
+void dms_reform_rebuild_del_from_flush_copy(drc_page_t *drc_page);
 
 typedef struct st_repair_item {
     char        page_id[DMS_PAGEID_SIZE];
