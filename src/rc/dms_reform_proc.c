@@ -53,7 +53,6 @@ void dms_reform_next_step(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
 
-
     if (step == DMS_REFORM_STEP_SYNC_WAIT) {
         reform_info->last_step = reform_info->current_step;
         reform_info->next_step = (uint8)share_info->reform_step[reform_info->reform_step_index];
@@ -183,6 +182,7 @@ static int dms_reform_reconnect(void)
     return ret;
 }
 
+#ifdef OPENGAUSS
 void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned long long lsn, unsigned char is_dirty)
 {
     if (ctrl->lock_mode == DMS_LOCK_NULL) {
@@ -200,8 +200,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
     LOG_DEBUG_INF("[DRC][%s]dms_validate_drc check", cm_display_pageid(dms_ctx->resid));
 
     cm_panic_log(memcmp(buf_res->data, dms_ctx->resid, DMS_PAGEID_SIZE) == 0,
-        "[DRC validate]pageid unmatch(DRC:%s, buf:%s)",
-        cm_display_pageid(buf_res->data),
+        "[DRC validate]pageid unmatch(DRC:%s, buf:%s)", cm_display_pageid(buf_res->data),
         cm_display_pageid(dms_ctx->resid));
 
     drc_request_info_t *req_info = &buf_res->converting.req_info;
@@ -214,28 +213,27 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
              */
             if (ctrl->lock_mode != buf_res->lock_mode) {
                 cm_panic_log( req_info->req_mode == ctrl->lock_mode,
-                             "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
-                             cm_display_pageid(dms_ctx->resid), buf_res->lock_mode,
-                             ctrl->lock_mode, req_info->req_mode);
+                    "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
+                    cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode, req_info->req_mode);
             }
         } else {
-            cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,
-                         "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
-                         cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
+            cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,"[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+                cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
         }
     } else {
         bool in_cvt = req_info->inst_id == g_dms.inst_id && ctrl->lock_mode == req_info->req_mode;
         bool in_copy_insts = bitmap64_exist(&buf_res->copy_insts, g_dms.inst_id) && ctrl->lock_mode == DMS_LOCK_SHARE;
         bool first_load = ctrl->lock_mode == DMS_LOCK_EXCLUSIVE && req_info->req_mode != DMS_LOCK_NULL &&
-                          buf_res->copy_insts == 0 && buf_res->claimed_owner == CM_INVALID_ID8;
+            buf_res->copy_insts == 0 && buf_res->claimed_owner == CM_INVALID_ID8;
         cm_panic_log(in_cvt || in_copy_insts || first_load,
-                     "[DRC validate][%s]lock mode unmatch(buf:%d, copy_insts:%lld, inst_id:%d, claimed_owner:%d)",
-                     cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, buf_res->copy_insts, g_dms.inst_id,
-                     (int)buf_res->claimed_owner);
+            "[DRC validate][%s]lock mode unmatch(buf:%d, copy_insts:%lld, inst_id:%d, claimed_owner:%d)",
+            cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, buf_res->copy_insts, g_dms.inst_id,
+            (int)buf_res->claimed_owner);
     }
 
     drc_leave_buf_res(buf_res);
 }
+#endif
 
 static int dms_reform_recovery_analyse_inner(void)
 {
@@ -406,19 +404,51 @@ static int dms_reform_failover_promote_opengauss(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_az_switchover_promote(void)
+static int dms_reform_az_switchover_promote_phase1(void)
 {
     int ret = DMS_SUCCESS;
 
     LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_switchover_promote_phase1(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
 
-    ret = g_dms.callback.az_switchover_promote(g_dms.reform_ctx.handle_normal);
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_switchover_promote_phase2(void)
+{
+    int ret = DMS_SUCCESS;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    instance_list_t *list_rollback = &share_info->list_rollback;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_switchover_promote_phase2(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
     }
 
     g_dms.callback.reset_link(g_dms.reform_ctx.handle_normal);
+
+    if (DMS_IS_SHARE_REFORMER) {
+        ret = dms_reform_tx_rollback_start(list_rollback);
+    } else {
+        instance_list_t list;
+        list.inst_id_count = 0;
+        list.inst_id_list[list.inst_id_count++] = g_dms.inst_id;
+        ret = dms_reform_tx_rollback_start(&list);
+    }
+
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -429,7 +459,6 @@ static int dms_reform_az_switch_demote_phase1(void)
     int ret = DMS_SUCCESS;
 
     LOG_RUN_FUNC_ENTER;
-
     ret = g_dms.callback.az_switchover_demote_phase1(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
@@ -444,7 +473,6 @@ static int dms_reform_az_switch_demote_phase1(void)
 static int dms_reform_az_switch_demote_approve(void)
 {
     int ret = DMS_SUCCESS;
-
     LOG_RUN_FUNC_ENTER;
 
     ret = g_dms.callback.az_switchover_demote_approve(g_dms.reform_ctx.handle_normal);
@@ -461,9 +489,8 @@ static int dms_reform_az_switch_demote_approve(void)
 static int dms_reform_az_switch_demote_phase2(void)
 {
     int ret = DMS_SUCCESS;
-
+    
     LOG_RUN_FUNC_ENTER;
-
     ret = g_dms.callback.az_switchover_demote_phase2(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
@@ -478,9 +505,7 @@ static int dms_reform_az_switch_demote_phase2(void)
 static int dms_reform_az_failover_promote_phase1(void)
 {
     int ret = DMS_SUCCESS;
-
     LOG_RUN_FUNC_ENTER;
-
     ret = g_dms.callback.az_failover_promote_phase1(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
@@ -495,9 +520,7 @@ static int dms_reform_az_failover_promote_phase1(void)
 static int dms_reform_az_failover_promote_resetlog(void)
 {
     int ret = DMS_SUCCESS;
-
     LOG_RUN_FUNC_ENTER;
-
     ret = g_dms.callback.az_failover_promote_resetlog(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
@@ -512,10 +535,25 @@ static int dms_reform_az_failover_promote_resetlog(void)
 static int dms_reform_az_failover_promote_phase2(void)
 {
     int ret = DMS_SUCCESS;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    instance_list_t *list_rollback = &share_info->list_rollback;
 
     LOG_RUN_FUNC_ENTER;
-
     ret = g_dms.callback.az_failover_promote_phase2(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    if (DMS_IS_SHARE_REFORMER) {
+        ret = dms_reform_tx_rollback_start(list_rollback);
+    } else {
+        instance_list_t list;
+        list.inst_id_count = 0;
+        list.inst_id_list[list.inst_id_count++] = g_dms.inst_id;
+        ret = dms_reform_tx_rollback_start(&list);
+    }
+
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -608,7 +646,7 @@ static int dms_reform_drc_rcy_clean(void)
 
 static int dms_reform_ctl_rcy_clean(void)
 {
-    reform_context_t* reform_ctx = DMS_REFORM_CONTEXT;
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
 
     LOG_RUN_FUNC_ENTER;
     dms_reform_proc_stat_start(DRPS_CTL_RCY_CLEAN_WAIT_LATCH);
@@ -829,12 +867,6 @@ static int dms_reform_reload_txn(void)
         return ret;
     }
 
-    ret = dms_reform_convert_to_readwrite();
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_FUNC_FAIL;
-        return ret;
-    }
-
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -967,6 +999,7 @@ static void dms_reform_end(void)
     reform_info->file_unable = CM_FALSE;
     reform_info->reform_done = CM_TRUE;
     reform_info->reform_fail =  CM_FALSE;
+    reform_info->reform_phase =  CM_FALSE;
     reform_ctx->last_reform_info = reform_ctx->reform_info;
     reform_ctx->last_share_info = reform_ctx->share_info;
     reform_ctx->share_info = share_info;
@@ -1084,14 +1117,12 @@ static int dms_reform_done_check()
 #ifdef OPENGAUSS
     g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
 #endif
-
     dms_reform_end();
     reform_info->last_fail = CM_FALSE;
     reform_info->first_reform_finish = CM_TRUE;
     if (!reform_info->rst_recover) { // maintain reeform after rst recover
         reform_info->first_reform_finish = CM_TRUE;
     }
-
 #ifndef OPENGAUSS
     dms_reform_set_idle_behavior();
 #endif
@@ -1431,6 +1462,7 @@ static int dms_reform_page_access(void)
 static int dms_reform_drc_access(void)
 {
     LOG_RUN_FUNC_ENTER;
+
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
     ctx->global_buf_res.drc_accessible_stage = PAGE_ACCESS_STAGE_REALESE_ACCESS;
@@ -1523,7 +1555,7 @@ static int dms_reform_drc_inaccess(void)
             drc_buf_res_set_inaccess(&ctx->global_xa_res);
         }
     }
-    
+
     drc_buf_res_set_inaccess(&ctx->global_buf_res);
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
@@ -1617,16 +1649,19 @@ static int dms_reform_lock_instance(void)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance, gcv:%d", DMS_GLOBAL_CLUSTER_VER);
     dms_reform_mark_locking(CM_TRUE);
+
     if (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, ticks, NULL) == CM_FALSE) {
         curr_time = cm_clock_monotonic_now();
         LOG_RUN_ERR("[DMS REFORM]dms_reform_lock_instance timeout error, time:%llu, inst:%d exits now",
             curr_time - begin_time, g_dms.inst_id);
+
 #ifdef _DEBUG
         cm_panic(0);
 #else
         cm_exit(0);
 #endif
     }
+
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
     dms_reform_mark_locking(CM_FALSE);
 
@@ -1639,6 +1674,7 @@ static int dms_reform_push_gcv_and_unlock(void)
 {
     LOG_RUN_FUNC_ENTER;
     reform_info_t *reform_info = DMS_REFORM_INFO;
+
     /* push reform version here; if wrapped, reset to zero */
     if (DMS_GLOBAL_CLUSTER_VER == CM_INVALID_ID32) {
         g_dms.cluster_ver = 0;
@@ -1649,6 +1685,16 @@ static int dms_reform_push_gcv_and_unlock(void)
     LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]GCV++:%u, inst_id:%u; lock_instance unlock",
         DMS_GLOBAL_CLUSTER_VER, g_dms.inst_id);
 
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_reset_user()
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    g_dms.callback.reset_user(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -1681,17 +1727,6 @@ static int dms_reform_set_remove_point(void)
     dms_reform_next_step();
     return DMS_SUCCESS;
 }
-
-static int dms_reform_reset_user()
-{
-    LOG_RUN_FUNC_ENTER;
-    share_info_t *share_info = DMS_SHARE_INFO;
-    g_dms.callback.reset_user(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
-    LOG_RUN_FUNC_SUCCESS;
-    dms_reform_next_step();
-    return DMS_SUCCESS;
-}
-
 
 static int dms_reform_ddl_2phase_rcy(void)
 {
@@ -1788,7 +1823,10 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2] = { "AZ_SWITCH_DEMOTE_PHASE2", dms_reform_az_switch_demote_phase2,
         NULL, CM_FALSE },
-    [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE] = { "AZ_SWITCH_PROMOTE", dms_reform_az_switchover_promote, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE1] = { "AZ_SWITCH_PROMOTE_PHASE1", dms_reform_az_switchover_promote_phase1,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE2] = { "AZ_SWITCH_PROMOTE_PHASE2", dms_reform_az_switchover_promote_phase2,
+        NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1] = { "AZ_FAILOVER_PROMOTE_PHASE1",
         dms_reform_az_failover_promote_phase1, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG] = { "AZ_FAILOVER_PROMOTE_RESETLOG",
@@ -1822,8 +1860,8 @@ static int dms_reform_proc_inner(void)
         drc_enter_buf_res_set_unblocked();
         drc_recycle_buf_res_set_running();
     }
-    DMS_RFI_AFTER_STEP(reform_proc);
 
+    DMS_RFI_AFTER_STEP(reform_proc);
     return ret;
 }
 

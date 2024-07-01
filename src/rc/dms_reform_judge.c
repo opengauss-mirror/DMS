@@ -271,7 +271,7 @@ static int dms_reform_check_remote_inner(uint8 dst_id)
     bool8 has_ddl_2phase = CM_FALSE;
 
     dms_reform_init_req_prepare(&req, dst_id);
-    
+
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_check_remote_inner SEND error: %d, dst_id: %d", ret, dst_id);
@@ -313,11 +313,9 @@ static int dms_reform_check_remote(void)
     if (reform_info->last_fail) {
         share_info->full_clean = CM_TRUE;
     }
-
 #ifndef OPENGAUSS
     reform_info->has_ddl_2phase = (bool8)g_dms.callback.reform_is_need_ddl_2phase_rcy(g_dms.reform_ctx.handle_proc);
 #endif
-
     for (uint8 i = 0; i < list_online->inst_id_count; i++) {
         dst_id = list_online->inst_id_list[i];
         if (dms_dst_id_is_self(dst_id)) {
@@ -344,7 +342,7 @@ static int dms_reform_sync_cluster_version_inner(uint8 dst_id, bool8 *local_upda
     int ret = DMS_SUCCESS;
 
     dms_reform_init_req_gcv_sync(&req, dst_id, pushing);
-    
+
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM][GCV SYNC]dms_reform_sync_cluster_version_inner "
@@ -426,7 +424,7 @@ char *dms_reform_get_type_desc(uint32 reform_type)
 
         case DMS_REFORM_TYPE_FOR_SWITCHOVER:
             return "SWITCHOVER";
-        
+
         case DMS_REFORM_TYPE_FOR_RST_RECOVER:
             return "FOR RESTORE RECOVER";
 
@@ -463,8 +461,8 @@ char *dms_reform_get_type_desc(uint32 reform_type)
         case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
             return "AZ SWITCHOVER DEMOTE";
 
-	case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
-	     return "AZ SWITCHOVER PROMOTE";
+	    case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
+	        return "AZ SWITCHOVER PROMOTE";
 
         case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
             return "AZ FAILOVER";
@@ -507,6 +505,7 @@ static void dms_reform_instance_list_log(instance_list_t *inst_list, const char 
     char temp_desc[DMS_TEMP_DESC_LEN] = { 0 };
     uint64 bitmap = 0;
     errno_t err;
+
     dms_reform_list_to_bitmap(&bitmap, inst_list);
     err = sprintf_s(temp_desc, DMS_TEMP_DESC_LEN, "[DMS REFORM]list_name: %-30s, bitmap: %llu\n", list_name, bitmap);
     DMS_SECUREC_CHECK_SS(err);
@@ -710,6 +709,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_page_access();
+    /* stop lrpl must after page access and before txn_deposit */
     dms_reform_judgement_stop_lrpl();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_file_blocked(inst_lists);
@@ -729,6 +729,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_done();
 }
 
+#ifdef OPENGAUSS
 static void dms_reform_judgement_switchover_opengauss(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
@@ -791,13 +792,13 @@ static void dms_reform_judgement_normal_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_success();
     dms_reform_judgement_done();
 }
+#endif
 
 static void dms_reform_judgement_build(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_drc_inaccess();
-    dms_reform_judgement_lock_instance();
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
@@ -927,11 +928,12 @@ static void dms_reform_judgement_az_switchover_to_promote(instance_list_t *inst_
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
-    dms_reform_judgement_az_promote();
-    dms_reform_judgement_file_blocked(inst_lists);
-    dms_reform_judgement_update_scn();
+    dms_reform_judgement_az_promote_phase1();
     dms_reform_judgement_reload_txn();
     dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_az_promote_phase2();
+    dms_reform_judgement_file_blocked(inst_lists);
+    dms_reform_judgement_update_scn();
     dms_reform_judgement_ddl_2phase_rcy();
     dms_reform_judgement_space_reload();
     dms_reform_judgement_xa_access();
@@ -953,11 +955,11 @@ static void dms_reform_judgement_az_failover(instance_list_t *inst_lists)
     dms_reform_judgement_page_access();
     dms_reform_judgement_az_failover_promote_phase1();
     dms_reform_judgement_az_failover_promote_resetlog();
+    dms_reform_judgement_reload_txn();
+    dms_reform_judgement_txn_deposit(inst_lists);
     dms_reform_judgement_az_failover_promote_phase2();
     dms_reform_judgement_file_blocked(inst_lists);
     dms_reform_judgement_update_scn();
-    dms_reform_judgement_reload_txn();
-    dms_reform_judgement_txn_deposit(inst_lists);
     dms_reform_judgement_ddl_2phase_rcy();
     dms_reform_judgement_space_reload();
     dms_reform_judgement_xa_access();
@@ -1052,6 +1054,7 @@ static bool32 dms_reform_judgement_build_check(instance_list_t *inst_lists)
     return CM_TRUE;
 }
 
+#ifdef OPENGAUSS
 static bool32 dms_reform_judgement_normal_opengauss_check(instance_list_t *inst_lists)
 {
     // there are instances which status is out or reform, no need reform.
@@ -1077,6 +1080,7 @@ static bool32 dms_reform_judgement_normal_opengauss_check(instance_list_t *inst_
 
     return CM_TRUE;
 }
+#endif
 
 static bool32 dms_reform_judgement_full_clean_check(instance_list_t *inst_lists)
 {
@@ -1267,19 +1271,19 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
 static dms_reform_judgement_proc_t g_reform_judgement_proc[DMS_REFORM_TYPE_COUNT] = {
     [DMS_REFORM_TYPE_FOR_NORMAL] = {
     dms_reform_judgement_normal_check, dms_reform_judgement_normal },
-
+#ifdef OPENGAUSS
     [DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS] = {
     dms_reform_judgement_normal_opengauss_check, dms_reform_judgement_normal_opengauss },
 
     [DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS] = {
     dms_reform_judgement_failover_opengauss_check, dms_reform_judgement_failover_opengauss },
-
+#endif
     [DMS_REFORM_TYPE_FOR_BUILD] = {
     dms_reform_judgement_build_check, dms_reform_judgement_build },
-
+#ifdef OPENGAUSS
     [DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS] = {
     dms_reform_judgement_switchover_opengauss_check, dms_reform_judgement_switchover_opengauss },
-
+#endif
     [DMS_REFORM_TYPE_FOR_FULL_CLEAN] = {
     dms_reform_judgement_full_clean_check, dms_reform_judgement_full_clean },
 
@@ -1380,7 +1384,7 @@ static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *in
     // get part info and txn deposit map from instance which status is IN
     dms_message_head_t head;
     dms_reform_init_map_info_req(&head, inst_lists[INST_LIST_OLD_IN].inst_id_list[0]);
-    
+
     int ret = mfc_send_data(&head);
     if (ret != DMS_SUCCESS) {
         return ret;
@@ -1411,8 +1415,8 @@ static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
 
 static void dms_reform_judgement_record_start_times(void)
 {
-    share_info_t* share_info = DMS_SHARE_INFO;
-    health_info_t* health_info = DMS_HEALTH_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    health_info_t *health_info = DMS_HEALTH_INFO;
 
     for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
         share_info->start_times[i] = health_info->online_times[i];
@@ -1421,7 +1425,7 @@ static void dms_reform_judgement_record_start_times(void)
 
 static void dms_reform_judgement_set_catalog(void)
 {
-    reform_context_t * reform_context = DMS_REFORM_CONTEXT;
+    reform_context_t *reform_context = DMS_REFORM_CONTEXT;
     share_info_t *share_info = DMS_SHARE_INFO;
 #ifndef OPENGAUSS
     if (share_info->reform_type == DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN ||
@@ -1639,6 +1643,7 @@ static void dms_reform_judgement_reformer(void)
         return;
     }
     share_info->reformer_id = (uint8)g_dms.inst_id;
+
 #ifndef OPENGAUSS
     if (!dms_reform_kick_reboot_inst_online_list()) {
         return;

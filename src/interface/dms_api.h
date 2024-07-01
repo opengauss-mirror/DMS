@@ -987,7 +987,8 @@ typedef int (*dms_stop_lrpl)(void *db_handle, int is_reformer);
 typedef int (*dms_az_switchover_demote_phase1)(void *db_handle);
 typedef int (*dms_az_switchover_demote_approve)(void *db_handle);
 typedef int (*dms_az_switchover_demote_phase2)(void *db_handle);
-typedef int (*dms_az_switchover_promote_core)(void *db_handle);
+typedef int (*dms_az_switchover_promote_phase1)(void *db_handle);
+typedef int (*dms_az_switchover_promote_phase2)(void *db_handle);
 typedef void (*dms_dyn_log)(void *db_handle, long long dyn_log_time);
 
 typedef int (*dms_invld_alock_ownership)(void *db_handle, char *resid, unsigned char req_mode, unsigned char is_try);
@@ -1176,7 +1177,8 @@ typedef struct st_dms_callback {
     dms_az_switchover_demote_phase1 az_switchover_demote_phase1;
     dms_az_switchover_demote_approve az_switchover_demote_approve;
     dms_az_switchover_demote_phase2 az_switchover_demote_phase2;
-    dms_az_switchover_promote_core az_switchover_promote;
+    dms_az_switchover_promote_phase1 az_switchover_promote_phase1;
+    dms_az_switchover_promote_phase2 az_switchover_promote_phase2;
     dms_az_failover_promote_phase1 az_failover_promote_phase1;
     dms_az_failover_promote_resetlog az_failover_promote_resetlog;
     dms_az_failover_promote_phase2 az_failover_promote_phase2;

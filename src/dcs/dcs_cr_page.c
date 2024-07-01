@@ -616,6 +616,12 @@ static int dcs_proc_heap_pcr_construct(dms_process_context_t *ctx, msg_pcr_reque
     int ret;
 
     *local_route = CM_FALSE;
+    // prevent depletion of mes_task_proc
+    if (!dms_drc_accessible(DRC_RES_PAGE_TYPE)) {
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
     dcs_read_page_init(&assist, request->pageid, DMS_PAGE_LATCH_MODE_S, DMS_ENTER_PAGE_NORMAL, request->query_scn, 1);
     if (g_dms.callback.read_page(ctx->db_handle, &assist, &page, &cr_version) != DMS_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_CALLBACK_READ_PAGE);

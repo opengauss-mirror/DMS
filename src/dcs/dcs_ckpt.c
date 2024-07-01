@@ -190,11 +190,9 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
     if (ret != DMS_SUCCESS) {
         return CM_FALSE;
     }
-
     if (buf_res == NULL) {
         return CM_FALSE;
     }
-
     if (buf_res->need_recover) {
         drc_leave_buf_res(buf_res);
         return CM_FALSE;
@@ -324,7 +322,6 @@ int dms_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int cou
     return dcs_notify_process_edp(dms_ctx, pages, count, NULL,
         dcs_get_page_master_id, dcs_master_ckpt_edp, dcs_send_edp_to_master_ckpt);
 }
-
 
 int dms_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, unsigned int count)
 {

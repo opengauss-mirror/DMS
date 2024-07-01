@@ -553,13 +553,10 @@ int dms_tlock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_tlock_info_t *loc
     dms_drid_t *lock_id = (dms_drid_t *)&dms_ctx->resid;
     int ret = drc_get_lock_remaster_id(lock_id, &remaster_id);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DRC][%s]dms_tlock_rebuild_drc_parallel, fail to get remaster id", cm_display_lockid(lock_id));
+        LOG_DEBUG_ERR("[DRC][%s]dms_tlock_rebuild_drc_parallel, fail to get remaster id", cm_display_lockid(lock_id));
         return ret;
     }
-    
-
-    LOG_DEBUG_INF("[DRC][%s]dms_tlock_rebuild_drc_parallel, remaster(%d)", cm_display_lockid(lock_id),
-        remaster_id);
+    LOG_DEBUG_INF("[DRC][%s]dms_tlock_rebuild_drc_parallel, remaster(%d)", cm_display_lockid(lock_id), remaster_id);
 
     return dms_tlock_rebuild_drc(lock_id, lock_info, remaster_id, thread_index);
 }

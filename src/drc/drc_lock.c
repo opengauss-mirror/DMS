@@ -86,6 +86,7 @@ void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
 
 void drc_set_local_lock_statx(drc_local_lock_res_t *lock_res, bool8 is_locked)
 {
+    // only use for spin lock, so we set lcok mode X here
     lock_res->latch_stat.lock_mode = is_locked ? DMS_LOCK_EXCLUSIVE : DMS_LOCK_NULL;
 }
 
@@ -109,6 +110,7 @@ int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
     cm_spin_lock(&lock_res->modify_mode_lock, NULL);
+
     lock_res->is_reform_visit = CM_TRUE;
     *lock_mode = lock_res->latch_stat.lock_mode;
     cm_spin_unlock(&lock_res->modify_mode_lock);
@@ -130,6 +132,7 @@ int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
 #endif
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
     cm_spin_lock(&lock_res->modify_mode_lock, NULL);
+
     lock_res->is_reform_visit = CM_TRUE;
     *lock_mode = lock_res->latch_stat.lock_mode;
     cm_spin_unlock(&lock_res->modify_mode_lock);

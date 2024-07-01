@@ -131,10 +131,8 @@ static int dms_reform_confirm_owner(drc_buf_res_t *buf_res, uint32 sess_id)
         init_drc_cvt_item(&buf_res->converting);
         return DMS_SUCCESS;
     }
-
     int ret = dms_reform_confirm_owner_inner(buf_res, sess_id, dst_id, &lock_mode, &is_edp, &lsn);
     DMS_RETURN_IF_ERROR(ret);
-
     if (lock_mode != DMS_LOCK_NULL) {
         buf_res->lock_mode = lock_mode;
     } else {
@@ -143,7 +141,6 @@ static int dms_reform_confirm_owner(drc_buf_res_t *buf_res, uint32 sess_id)
             buf_res->lock_mode = DMS_LOCK_NULL;
         }
     }
-
     if (is_edp) {
         drc_add_edp_map(buf_res, dst_id, lsn);
     }
@@ -216,16 +213,13 @@ static int dms_reform_confirm_converting(drc_buf_res_t *buf_res, uint32 sess_id)
     if (ret != DMS_SUCCESS) {
         return ret;
     }
-
-    /*
-        1.if lock_mode is NULL, it means that node of converting has not been received ack from owner
+    /*  1.if lock_mode is NULL, it means that node of converting has not been received ack from owner
           before owner crashed. So set no owner in drc
         2.if lock_mode is S, it means that node of converting has been received ack from owner
           before owner crashed, or there is copy page in node of converting already.
           Anyway, it is just copy page in node of converting.
           we can not set node of converting to be owner here, just let repair to do that
-        3.if lock mode is X, node of converting is undisputed owner
-    */
+        3.if lock mode is X, node of converting is undisputed owner */
 
     if (lock_mode == DMS_LOCK_NULL) {
         buf_res->claimed_owner = CM_INVALID_ID8;
@@ -249,7 +243,6 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     int ret = DMS_SUCCESS;
-
     DRC_DISPLAY(buf_res, "clean");
     dms_reform_clean_buf_res_fault_inst_info_inner(buf_res);
     if (buf_res->claimed_owner == CM_INVALID_ID8) {
@@ -267,7 +260,6 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
             return ret;
         }
     }
-    
     if (buf_res->converting.req_info.inst_id == CM_INVALID_ID8) {
         if (bitmap64_exist(&share_info->bitmap_clean, buf_res->claimed_owner)) {
             buf_res->claimed_owner = CM_INVALID_ID8;
@@ -278,7 +270,6 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
         dms_reform_clean_proc_stat_times(buf_res->type, DRPS_DRC_CLEAN_NO_CVT);
         return DMS_SUCCESS;
     }
-
     // if converting request X and buf_res has copy_insts, should confirm copy_insts
     if (buf_res->lock_mode == DMS_LOCK_SHARE && buf_res->copy_insts != 0 &&
         buf_res->converting.req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
@@ -287,7 +278,6 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
         dms_reform_clean_proc_stat_end(buf_res->type, DRPS_DRC_CLEAN_CONFIRM_COPY);
         DMS_RETURN_IF_ERROR(ret);
     }
-
     bool32 owner_fault = bitmap64_exist(&share_info->bitmap_clean, buf_res->claimed_owner);
     bool32 cvt_fault = bitmap64_exist(&share_info->bitmap_clean, buf_res->converting.req_info.inst_id);
     if (owner_fault && cvt_fault) {
@@ -308,12 +298,10 @@ static int dms_reform_clean_buf_res_fault_inst_info(drc_buf_res_t *buf_res, uint
     }
     // (!owner_fault && !cvt_fault) this situation no need handle now
     // even if cvt claim msg lost or declined by reform. smon thread will handle later
-
     if (buf_res->claimed_owner != CM_INVALID_ID8 &&
         buf_res->lock_mode == DMS_LOCK_EXCLUSIVE) {
         buf_res->copy_insts = 0;
     }
-
     return ret;
 }
 

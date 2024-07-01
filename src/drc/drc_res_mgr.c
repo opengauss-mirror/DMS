@@ -205,7 +205,6 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
     pool->inited = CM_FALSE;
     int ret = memset_s(pool->each_pool_size, sizeof(pool->each_pool_size), 0, sizeof(pool->each_pool_size));
     DMS_SECUREC_CHECK(ret);
-
     cm_spin_unlock(&pool->lock);
 }
 
@@ -361,6 +360,7 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
 drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
+
     drc_res_map_t *res_map = &global_res_map->res_map;
     drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
 
@@ -391,6 +391,7 @@ drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 op
 static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
+
     uint8 master_id = CM_INVALID_ID8;
 
     if (!cm_latch_timed_s(&res_map->res_latch, 1, CM_FALSE, NULL)) {
@@ -805,10 +806,9 @@ int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
     drc_leave_buf_res(buf_res);
 
     ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
-    if (drc_info->copy_insts != 0 || 
-        drc_info->claimed_owner != drc_info->dms_ctx.inst_id || 
+    if (drc_info->copy_insts != 0 ||
+        drc_info->claimed_owner != drc_info->dms_ctx.inst_id ||
         drc_info->master_id != drc_info->dms_ctx.inst_id) {
-        
         ret = dms_send_request_buf_info(&drc_info->dms_ctx, drc_info);
     }
     return ret;

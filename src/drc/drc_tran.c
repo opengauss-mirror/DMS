@@ -182,7 +182,6 @@ static uint16 drc_get_global_xid_partid(drc_global_xid_t *global_xid)
             global_xid->bqual_len);
         DMS_SECUREC_CHECK(ret);
     }
-    
     uint32 bytes_size = sizeof(uint64) + global_xid->gtrid_len + global_xid->bqual_len;
     uint32 part_id = cm_hash_bytes(bytes, bytes_size, DRC_MAX_PART_NUM);
     return part_id;
@@ -227,7 +226,6 @@ static void drc_add_xa_part_list(drc_global_xa_res_t *xa_res)
 static void drc_del_xa_part_list(drc_global_xa_res_t *xa_res)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    xa_res->part_id = drc_get_global_xid_partid(&xa_res->xid);
     drc_part_list_t *part = &ctx->global_xa_res.res_parts[xa_res->part_id];
     cm_spin_lock(&part->lock, NULL);
     cm_bilist_del(&xa_res->part_node, &part->list);

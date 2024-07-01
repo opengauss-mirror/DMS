@@ -35,7 +35,8 @@ extern "C" {
 void dms_reform_judgement_az_demote_phase1(instance_list_t *inst_lists);
 void dms_reform_judgement_az_demote_approve(instance_list_t *inst_lists);
 void dms_reform_judgement_az_demote_phase2(instance_list_t *inst_lists);
-void dms_reform_judgement_az_promote(void);
+void dms_reform_judgement_az_promote_phase1(void);
+void dms_reform_judgement_az_promote_phase2(void);
 void dms_reform_judgement_az_failover_promote_phase1(void);
 void dms_reform_judgement_az_failover_promote_resetlog(void);
 void dms_reform_judgement_az_failover_promote_phase2(void);
