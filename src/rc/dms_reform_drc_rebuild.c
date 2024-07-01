@@ -155,6 +155,9 @@ void dms_reform_page_rebuild_s(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_inf
         is_owner = dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_NORMAL_COPY);
     }
 
+    if (!buf_res->need_recover) {
+        buf_res->need_recover = ctrl_info->ctrl.in_rcy;
+    }
     buf_res->lock_mode = DMS_LOCK_SHARE;
     dms_reform_page_set_owner(buf_res, is_owner, inst_id);
     dms_reform_page_set_owner_lsn(buf_res, lsn);
@@ -166,15 +169,11 @@ void dms_reform_page_rebuild_x(drc_buf_res_t *buf_res, dms_ctrl_info_t *ctrl_inf
         (buf_res->lock_mode == DMS_LOCK_EXCLUSIVE && buf_res->claimed_owner == inst_id),
         "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(buf_res->data), buf_res->lock_mode);
 
-    if (ctrl_info->is_dirty) {
-        (void)dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_OWNER);
-    } else {
-        (void)dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_NORMAL_COPY);
-    }
-
+    (void)dms_reform_rebuild_set_type(buf_res, REFORM_ASSIST_LIST_OWNER);
     buf_res->claimed_owner = inst_id;
     buf_res->lock_mode = DMS_LOCK_EXCLUSIVE;
     buf_res->owner_lsn = ctrl_info->lsn;
+    buf_res->need_recover = ctrl_info->ctrl.in_rcy;
 }
 
 int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)

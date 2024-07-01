@@ -618,6 +618,7 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
         case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHECK_REFORM_DONE:
+        case MSG_REQ_REPAIR_NEW:
             return MES_PRIORITY_ZERO;
         case MSG_REQ_OPENGAUSS_DDLLOCK:
         case MSG_REQ_DDL_SYNC:

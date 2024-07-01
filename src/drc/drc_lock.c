@@ -111,6 +111,7 @@ int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode)
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
     cm_spin_lock(&lock_res->modify_mode_lock, NULL);
 
+    lock_res->is_reform_visit = CM_TRUE;
     *lock_mode = lock_res->latch_stat.lock_mode;
     cm_spin_unlock(&lock_res->modify_mode_lock);
     return DMS_SUCCESS;
@@ -132,6 +133,7 @@ int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode)
     drc_local_lock_res_t *lock_res = drc_get_local_resx(drid);
     cm_spin_lock(&lock_res->modify_mode_lock, NULL);
 
+    lock_res->is_reform_visit = CM_TRUE;
     *lock_mode = lock_res->latch_stat.lock_mode;
     cm_spin_unlock(&lock_res->modify_mode_lock);
     return DMS_SUCCESS;

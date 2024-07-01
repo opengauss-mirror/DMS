@@ -466,6 +466,7 @@ typedef struct st_dms_buf_ctrl
     void *ctrl_lock;
     volatile unsigned char need_check_pincount;
     volatile unsigned int pinned_count;
+    volatile unsigned long long lsn_on_disk;
 #endif
 } dms_buf_ctrl_t;
 
@@ -1304,6 +1305,10 @@ typedef enum en_reform_callback_stat {
     REFORM_MES_TASK_STAT_CONFIRM_CVT_SS_READ_LOCK,
     REFORM_CALLBACK_STAT_REBUILD_ALOCK_LOCAL,
     REFORM_CALLBACK_STAT_REBUILD_DRC_ALOCK_REMOTE,
+    REFORM_CALLBACK_STAT_OPEN_DATAFILE,
+    REFORM_CALLBACK_STAT_GET_DATAFILE_SIZE,
+    REFORM_CALLBACK_STAT_OPEN_CTRLFILE,
+    REFORM_CALLBACK_STAT_GET_CTRLFILE_SIZE,
     REFORM_CALLBACK_STAT_COUNT
 } reform_callback_stat_e;
 
