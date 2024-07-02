@@ -390,6 +390,173 @@ int dms_get_task_worker_priority_stat(unsigned int priority_id,
     return DMS_SUCCESS;
 }
 
+typedef enum en_mem_stat {
+    MEM_SESSION_STAT = 0,
+    MEM_DRC_LOCK_ITEM = 1,
+    MEM_DRC_GLOBAL_PAGE = 2,
+    MEM_DRC_GLOBAL_LOCK = 3,
+    MEM_DRC_LOCAL_LOCK = 4,
+    MEM_DRC_GLOBAL_ALOCK = 5,
+    MEM_DRC_GLOBAL_XA = 6,
+    MEM_DRC_TXN_RES = 7,
+    MEM_DRC_LOCAL_TXN = 8,
+    MEM_MES_RECEIVE_POOL_BUF = 9,
+    MEM_MES_CHANNEL_BUF = 10,
+    MEM_MES_ROOM_BROADCAST = 11,
+    MEM_MES_RECEIVE_MSGQUEUE = 12,
+    MEM_MES_RECEIVE_MSGITEM = 13,
+
+    // bottom, please add above.
+    MEM_STAT_ROW_RESULT_COUNT
+} mem_stat_t;
+
+mem_info_stat_t g_mem_stat_row_results[MEM_STAT_ROW_RESULT_COUNT] = {
+    {"session_stat", 0, 0, 0},
+    {"drc_convert_q", 0, 0, 0},
+    {"drc_global_page_res", 0, 0, 0},
+    {"drc_global_lock_res", 0, 0, 0},
+    {"drc_local_lock_res", 0, 0, 0},
+    {"drc_global_alock_res", 0, 0, 0},
+    {"drc_global_xa_res", 0, 0, 0},
+    {"drc_txn_res", 0, 0, 0},
+    {"drc_local_txn_res", 0, 0, 0},
+    {"mes_receive_buf_pool", 0, 0, 0},
+    {"mes_channel_mem", 0, 0, 0},
+    {"mes_room_broadcast_mem", 0, 0, 0},
+    {"mes_receive_msgqueue", 0, 0, 0},
+    {"mes_receive_msgitem", 0, 0, 0},
+};
+
+
+static void calc_percentage(mem_info_stat_t *mem_stat_row_results)
+{
+    double used_percentage =
+        (mem_stat_row_results->total == 0) ? 0 : (double)mem_stat_row_results->used / mem_stat_row_results->total * 100;
+    mem_stat_row_results->used_percentage = used_percentage;
+}
+
+int dms_collect_mem_usage_stat()
+{
+    if (!g_dms.dms_init_finish) {
+        return DMS_ERROR;
+    }
+
+    drc_res_pool_t *pool = NULL;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+
+    // dms session stat
+    g_mem_stat_row_results[MEM_SESSION_STAT].total = (uint64)(g_dms_stat.sess_cnt) * sizeof(session_stat_t);
+    g_mem_stat_row_results[MEM_SESSION_STAT].used = g_mem_stat_row_results[MEM_SESSION_STAT].total;
+    calc_percentage(&g_mem_stat_row_results[MEM_SESSION_STAT]);
+
+    // drc_lock_item_pool
+    pool = &ctx->lock_item_pool;
+    g_mem_stat_row_results[MEM_DRC_LOCK_ITEM].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_LOCK_ITEM].used = (uint64)pool->item_size * pool->used_num;
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_LOCK_ITEM]);
+
+    // drc_global_buf_res
+    pool = &ctx->global_buf_res.res_map.res_pool;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_PAGE].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_PAGE].total +=
+        (uint64)ctx->global_buf_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_PAGE].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_PAGE].used +=
+        (uint64)ctx->global_buf_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_GLOBAL_PAGE]);
+
+    // drc_global_lock_res
+    pool = &ctx->global_lock_res.res_map.res_pool;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_LOCK].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_LOCK].total +=
+        (uint64)ctx->global_lock_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_LOCK].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_LOCK].used +=
+        (uint64)ctx->global_lock_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_GLOBAL_LOCK]);
+
+    // drc_local_lock_res
+    pool = &ctx->local_lock_res.res_pool;
+    g_mem_stat_row_results[MEM_DRC_LOCAL_LOCK].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_LOCAL_LOCK].total +=
+        (uint64)ctx->local_lock_res.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_LOCAL_LOCK].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_LOCAL_LOCK].used +=
+        (uint64)ctx->local_lock_res.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_LOCAL_LOCK]);
+
+    // drc_global_alock_res
+    pool = &ctx->global_alock_res.res_map.res_pool;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_ALOCK].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_ALOCK].total +=
+        (uint64)ctx->global_alock_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_ALOCK].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_ALOCK].used +=
+        (uint64)ctx->global_alock_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_GLOBAL_ALOCK]);
+
+    // drc_global_xa_res
+    pool = &ctx->global_xa_res.res_map.res_pool;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_XA].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_XA].total +=
+        (uint64)ctx->global_xa_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_XA].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_GLOBAL_XA].used +=
+        (uint64)ctx->global_xa_res.res_map.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_GLOBAL_XA]);
+
+    // drc_txn_res
+    pool = &ctx->txn_res_map.res_pool;
+    g_mem_stat_row_results[MEM_DRC_TXN_RES].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_TXN_RES].total += (uint64)ctx->txn_res_map.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_TXN_RES].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_TXN_RES].used += (uint64)ctx->txn_res_map.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_TXN_RES]);
+
+    // drc_local_txn_res
+    pool = &ctx->local_txn_map.res_pool;
+    g_mem_stat_row_results[MEM_DRC_LOCAL_TXN].total = (uint64)pool->item_size * pool->item_num;
+    g_mem_stat_row_results[MEM_DRC_LOCAL_TXN].total += (uint64)ctx->local_txn_map.bucket_num * sizeof(drc_res_bucket_t);
+    g_mem_stat_row_results[MEM_DRC_LOCAL_TXN].used = (uint64)pool->item_size * pool->used_num;
+    g_mem_stat_row_results[MEM_DRC_LOCAL_TXN].used += (uint64)ctx->local_txn_map.bucket_num * sizeof(drc_res_bucket_t);
+    calc_percentage(&g_mem_stat_row_results[MEM_DRC_LOCAL_TXN]);
+
+    //collect mes_mem
+    mes_collect_mem_usage_stat();
+
+    // mes receive buf
+    mes_get_mem_usage_stat_row(MEM_RECEIVE_BUF_POOL, (mes_mem_info_stat_t *)&g_mem_stat_row_results[MEM_MES_RECEIVE_POOL_BUF]);
+
+    // mes channel mem
+    mes_get_mem_usage_stat_row(MEM_CHANNEL_MEM, (mes_mem_info_stat_t *)&g_mem_stat_row_results[MEM_MES_CHANNEL_BUF]);
+
+    // mes room broadcast mem
+    mes_get_mem_usage_stat_row(MEM_ROOM_BROADCAST,
+        (mes_mem_info_stat_t *)&g_mem_stat_row_results[MEM_MES_ROOM_BROADCAST]);
+
+    // mes receive msgqueue
+    mes_get_mem_usage_stat_row(MEM_RECEIVE_MSGQUEUE,
+        (mes_mem_info_stat_t *)&g_mem_stat_row_results[MEM_MES_RECEIVE_MSGQUEUE]);
+
+    // mes receive msgitem
+    mes_get_mem_usage_stat_row(MEM_RECEIVE_MSGITEM,
+        (mes_mem_info_stat_t *)&g_mem_stat_row_results[MEM_MES_RECEIVE_MSGITEM]);
+
+    return DMS_SUCCESS;
+}
+
+int dms_get_mem_usage_stat_row(unsigned int mem_id, mem_info_stat_t *mem_stat_row_result)
+{
+    if (!g_dms.dms_init_finish || mem_id >= MEM_STAT_ROW_RESULT_COUNT) {
+        return DMS_ERROR;
+    }
+    mem_stat_row_result->area = g_mem_stat_row_results[mem_id].area;
+    mem_stat_row_result->total = g_mem_stat_row_results[mem_id].total;
+    mem_stat_row_result->used = g_mem_stat_row_results[mem_id].used;
+    mem_stat_row_result->used_percentage = g_mem_stat_row_results[mem_id].used_percentage;
+    return DMS_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif
