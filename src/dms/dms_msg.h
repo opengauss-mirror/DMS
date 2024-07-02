@@ -72,6 +72,7 @@ typedef struct st_dms_ask_res_req {
     uint16 len;
     uint8  res_type;
     uint8  unused;
+    uint64 scn; /* sync SCN to remote instance */
     char resid[DMS_RESID_SIZE];
 } dms_ask_res_req_t;
 
@@ -82,6 +83,12 @@ typedef struct st_dms_ask_res_ack_load {
     uint64 scn;
     bool8 master_grant;
 } dms_ask_res_ack_ld_t;
+
+// msg for notifying instance is already resource owner
+typedef struct st_dms_already_owner_ack {
+    dms_message_head_t head;
+    uint64 scn;
+} dms_already_owner_ack_t;
 
 typedef struct st_dms_ask_res_ack {
     dms_message_head_t head;
@@ -116,6 +123,7 @@ typedef struct st_dms_claim_owner_req {
 
 typedef struct st_dms_invld_req {
     dms_message_head_t head;
+    uint64 scn; /* sync SCN to remote instance */
     uint8  is_try;
     uint8  res_type;
     uint16 len;
@@ -273,6 +281,11 @@ typedef struct st_dms_common_ack {
     dms_message_head_t head;
     int32 ret;
 } dms_common_ack_t;
+
+typedef struct st_dms_invld_ack {
+    dms_common_ack_t common_ack;
+    uint64 scn;
+} dms_invld_ack_t;
 
 typedef struct st_dms_chk_ownership_req {
     dms_message_head_t head;

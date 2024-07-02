@@ -104,6 +104,7 @@ typedef struct st_msg_ack_owner_id {
 typedef struct st_msg_txn_info_request {
     dms_message_head_t head;
     uint64 xid;
+    uint64 scn;
     bool32 is_scan;
 } msg_txn_info_request_t;
 

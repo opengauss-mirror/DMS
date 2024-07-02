@@ -390,10 +390,18 @@ static int dcs_pcr_process_message(dms_context_t *dms_ctx, dms_cr_t *dms_cr, dms
             dms_cr->status = DMS_CR_STATUS_ABORT; 
             cm_print_error_msg_and_throw_error(message->buffer);
             return ERRNO_DMS_COMMON_MSG_ACK;
-        case MSG_ACK_GRANT_OWNER:
-        case MSG_ACK_ALREADY_OWNER:
+        case MSG_ACK_GRANT_OWNER: {
             dms_cr->phase = DMS_CR_PHASE_READ_PAGE;
+            dms_ask_res_ack_ld_t *ack = (dms_ask_res_ack_ld_t *)(message->buffer);
+            g_dms.callback.update_global_scn(dms_ctx->db_handle, ack->scn);
             break;
+        }
+        case MSG_ACK_ALREADY_OWNER: {
+            dms_cr->phase = DMS_CR_PHASE_READ_PAGE;
+            dms_already_owner_ack_t *ack = (dms_already_owner_ack_t *)(message->buffer);
+            g_dms.callback.update_global_scn(dms_ctx->db_handle, ack->scn);
+            break;
+        }
         case MSG_REQ_ASK_MASTER_FOR_CR_PAGE:
             dms_cr->phase = DMS_CR_PHASE_CHECK_MASTER;
             break;
@@ -517,22 +525,30 @@ int dms_forward_btree_cr_page_request(dms_context_t *dms_ctx, dms_cr_t *dms_cr, 
 #ifndef OPENGAUSS
 static void dcs_send_already_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
-    dms_message_head_t head;
+    dms_already_owner_ack_t ack;
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
-    dms_init_ack_head(msg->head, &head, MSG_ACK_ALREADY_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
+    dms_init_ack_head(msg->head, &ack.head, MSG_ACK_ALREADY_OWNER, sizeof(dms_already_owner_ack_t), ctx->sess_id);
+#ifndef OPENGAUSS
+    ack.scn = (ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(ctx->db_handle) : 0;
+#endif
 
-    (void)mfc_send_data(&head);
+    (void)mfc_send_data(&ack.head);
 }
 
 static void dcs_send_grant_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
-    dms_message_head_t head;
+    dms_ask_res_ack_ld_t ack;
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
-    dms_init_ack_head(msg->head, &head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
+    dms_init_ack_head(msg->head, &ack.head, MSG_ACK_GRANT_OWNER, sizeof(dms_ask_res_ack_ld_t), ctx->sess_id);
+#ifndef OPENGAUSS
+    ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
+    ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
+#endif
+    ack.master_grant = CM_TRUE;
 
-    (void)mfc_send_data(&head);
+    (void)mfc_send_data(&ack.head);
 }
 
 static void dcs_route_pcr_request_owner(dms_process_context_t *ctx, msg_pcr_request_t *request, uint8 owner_id)
@@ -817,6 +833,7 @@ static int dcs_heap_check_visible(dms_process_context_t *ctx, msg_cr_check_t *ch
     pcr.check_restart = CM_FALSE;
     pcr.check_found = &is_found;
 
+    g_dms.callback.update_global_scn(ctx->db_handle, check->query_scn);
     ret = g_dms.callback.check_heap_page_visible(&pcr);
     if (ret != DMS_SUCCESS) {
         return ret;

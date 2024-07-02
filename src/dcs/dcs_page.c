@@ -145,6 +145,13 @@ int32 dcs_handle_ack_already_owner(dms_context_t *dms_ctx,
         return ERRNO_DMS_DCS_REFORM_VISIT_RES;
     }
 
+#ifndef OPENGAUSS
+    if (msg != NULL) {
+        dms_already_owner_ack_t *ack = (dms_already_owner_ack_t *)(msg->buffer);
+        g_dms.callback.update_global_scn(dms_ctx->db_handle, ack->scn);
+    }
+#endif
+
     int ret = dcs_set_ctrl4already_owner(dms_ctx, ctrl, mode);
     cm_spin_unlock(&ctrl->lock_ss_read);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -540,6 +547,12 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
         return;
     }
 
+#ifndef OPENGAUSS
+    if (ctx->db_handle != NULL) {
+        g_dms.callback.update_global_scn(ctx->db_handle, page_req.scn);
+    }
+#endif
+
     drc_req_owner_result_t result;
     drc_request_info_t *req_info = &page_req.drc_reg_info;
     req_info->ruid = page_req.head.ruid;
@@ -557,20 +570,29 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
     LOG_DEBUG_INF("[DMS][%s][dcs_proc_try_ask_master_for_page]success, type=%d",
         cm_display_resid(page_req.resid, page_req.res_type), result.type);
 
-    dms_message_head_t ack_head;
-    ack_head.ruid = page_req.head.ruid;
-    ack_head.cluster_ver = DMS_GLOBAL_CLUSTER_VER;
-
     if (result.type == DRC_REQ_OWNER_GRANTED) {
         // this page_req not in memory of other instance, notify requester to load from disk
-        dms_init_ack_head(&page_req.head, &ack_head, MSG_ACK_GRANT_OWNER, sizeof(dms_message_head_t), ctx->sess_id);
-        ret = mfc_send_data(&ack_head);
+        dms_ask_res_ack_ld_t ack;
+        dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_GRANT_OWNER,
+            sizeof(dms_ask_res_ack_ld_t), ctx->sess_id);
+#ifndef OPENGAUSS
+        ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
+        ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
+#endif
+        ack.master_grant = CM_TRUE;
+
+        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
+        ret = mfc_send_data(&ack.head);
     } else if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
-        // aker is already owner, just notify requester(owner) page_req is ready
-        dms_init_ack_head(&page_req.head, &ack_head, MSG_ACK_ALREADY_OWNER,
-            sizeof(dms_message_head_t), ctx->sess_id);
+        // asker is already owner, just notify requester(owner) page_req is ready
+        dms_already_owner_ack_t ack;
+        dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_ALREADY_OWNER,
+            sizeof(dms_already_owner_ack_t), ctx->sess_id);
+#ifndef OPENGAUSS
+        ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
+#endif
         DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
-        ret = mfc_send_data(&ack_head);
+        ret = mfc_send_data(&ack.head);
     } else {
         msg_ack_owner_id_t ack;
         dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_PAGE_OWNER_ID,
@@ -635,6 +657,9 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     page_req.intercept_type = dms_ctx->intercept_type;
     page_req.req_proto_ver  = page_req.head.msg_proto_ver;
     page_req.srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
+#ifndef OPENGAUSS
+    page_req.scn = (dms_ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(dms_ctx->db_handle) : 0;
+#endif
     int ret = memcpy_sp(page_req.resid, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
     if (SECUREC_UNLIKELY(ret != EOK)) {
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_pageid(dms_ctx->resid));
@@ -675,13 +700,13 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait[sess_stat->level].usecs;
 
     dms_message_head_t *ack_dms_head = get_dms_head(&msg);
-    if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_GRANT_OWNER)) {
+    if (ack_dms_head->cmd == MSG_ACK_GRANT_OWNER) {
         *owner_id = (uint8)dms_ctx->inst_id;
-        ret = dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, NULL, req_mode);
-    } else if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_ALREADY_OWNER)) {
+        ret = dcs_handle_ack_need_load(dms_ctx, ctrl, master_id, &msg, req_mode);
+    } else if (ack_dms_head->cmd == MSG_ACK_ALREADY_OWNER) {
         *owner_id = (uint8)dms_ctx->inst_id;
-        ret = dcs_handle_ack_already_owner(dms_ctx, ctrl, master_id, NULL, req_mode);
-    } else if (SECUREC_UNLIKELY(ack_dms_head->cmd == MSG_ACK_PAGE_OWNER_ID)) {
+        ret = dcs_handle_ack_already_owner(dms_ctx, ctrl, master_id, &msg, req_mode);
+    } else if (ack_dms_head->cmd == MSG_ACK_PAGE_OWNER_ID) {
         CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(msg_ack_owner_id_t), CM_FALSE);
         *owner_id = (uint8)(*(uint32 *)DMS_MESSAGE_BODY(&msg));
     } else {
