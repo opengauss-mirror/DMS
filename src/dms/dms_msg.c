@@ -176,10 +176,10 @@ static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64
 {
     mes_msg_list_t responses = { 0 };
     int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, succ_insts, &responses);
-    dms_handle_invld_ack_msg(ctx, &responses, succ_insts);
 #ifndef OPENGAUSS
-    mfc_release_broadcast_response(&responses);
+    dms_handle_invld_ack_msg(ctx, &responses, succ_insts);
 #endif
+    mfc_release_broadcast_response(&responses);
     return ret;
 }
 
