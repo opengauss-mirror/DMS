@@ -200,20 +200,13 @@ static int dms_reform_init_thread(void)
 #ifndef UT_TEST
 static bool8 dms_reform_get_maintain(void)
 {
-    char *dms_maintain = getenv(DMS_MAINTAIN_ENV);
-
-    if (dms_maintain == NULL) {
-        LOG_RUN_INF("[DMS REFORM]DMS_MAINTAIN is NULL");
-        return CM_FALSE;
+    if (g_dms.callback.check_is_maintain == NULL) {
+        cm_panic_log(0, "[DMS REFORM]check_is_maintain interface is NULL");
     }
 
-    if (cm_strcmpi(dms_maintain, "TRUE") == 0) {
-        LOG_RUN_INF("[DMS REFORM]DMS_MAINTAIN is TRUE");
-        return CM_TRUE;
-    }
-
-    LOG_RUN_INF("[DMS REFORM]DMS_MAINTAIN is not TRUE");
-    return CM_FALSE;
+    unsigned int is_maintain = g_dms.callback.check_is_maintain();
+    LOG_RUN_INF("[DMS REFORM]DMS_MAINTAIN is %s", (is_maintain > 0) ? "TRUE" : "FALSE");
+    return (bool8)is_maintain;
 }
 #endif
 #endif
