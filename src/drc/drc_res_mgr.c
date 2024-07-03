@@ -56,6 +56,12 @@ unsigned char dms_get_deposit_id(unsigned char inst_id)
     return drc_get_deposit_id(inst_id);
 }
 
+unsigned char dms_get_deposit_id_for_recovery(unsigned char inst_id)
+{
+    remaster_info_t* remaster_info = DMS_REMASTER_INFO;
+    return remaster_info->deposit_map[inst_id];
+}
+
 static void drc_init_over2g_buffer(void* dest_addr, int c, size_t dest_size)
 {
     size_t remain_size = dest_size;
