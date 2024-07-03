@@ -293,7 +293,6 @@ static bool32 dms_msg_skip_gcv_check(unsigned int cmd)
         case MES_REQ_MGRT_MASTER_DATA:
         case MSG_REQ_PAGE_REBUILD:
         case MSG_REQ_LOCK_REBUILD:
-        case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHECK_REFORM_DONE:
         case MSG_REQ_TXN_INFO:
@@ -615,7 +614,6 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
         case MES_REQ_MGRT_MASTER_DATA:
         case MSG_REQ_PAGE_REBUILD:
         case MSG_REQ_LOCK_REBUILD:
-        case MSG_REQ_PAGE:
         case MSG_REQ_SWITCHOVER:
         case MSG_REQ_CHECK_REFORM_DONE:
         case MSG_REQ_REPAIR_NEW:

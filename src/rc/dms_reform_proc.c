@@ -1753,7 +1753,6 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_START] = { "START", dms_reform_start, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DISCONNECT] = { "DISCONN", dms_reform_disconnect, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, dms_reform_reconnect_parallel, CM_FALSE },
-    [DMS_REFORM_STEP_DRC_CLEAN] = { "DRC_CLEAN", dms_reform_drc_clean, dms_reform_drc_clean_parallel, CM_TRUE },
     [DMS_REFORM_STEP_FULL_CLEAN] = { "FULL_CLEAN", dms_reform_full_clean, dms_reform_full_clean_parallel, CM_TRUE },
     [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel, CM_FALSE },

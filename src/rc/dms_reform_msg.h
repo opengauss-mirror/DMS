@@ -139,25 +139,10 @@ void dms_reform_proc_req_lock_rebuild_base(dms_process_context_t *ctx, dms_messa
     uint32 entry_size, dms_reform_proc_lock_info_rebuild proc);
 
 typedef enum dms_reform_req_page_action {
-    DMS_REQ_CONFIRM_OWNER,
-    DMS_REQ_CONFIRM_CONVERTING,
     DMS_REQ_FLUSH_COPY,
 } page_action_t;
 
-typedef struct st_dms_reform_req_res {
-    dms_message_head_t head;
-    uint32 action;
-    uint32 sess_id;
-    uint64 ruid;
-    char resid[DMS_RESID_SIZE];
-    uint8 res_type;
-    uint64 lsn;
-} dms_reform_req_res_t;
-void dms_reform_init_req_res(dms_reform_req_res_t *req, uint8 type, char *pageid, uint8 dst_id, uint32 action,
-    uint32 sess_id);
-int dms_reform_req_page_wait(int *result, uint8 *lock_mode, bool8 *is_edp, uint64 *lsn, uint64 ruid);
 void dms_reform_proc_req_page(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
-
 int dms_reform_send_data(dms_message_head_t *msg_head, uint32 sess_id);
 
 typedef struct st_dms_reform_req_switchover {
