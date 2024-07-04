@@ -206,10 +206,13 @@ static bool32 dms_reform_health_check_partner(void)
 void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info)
 {
     cm_spin_lock(&g_dms.dms_driver_ping_info.lock, NULL);
+    /* REFORMER:dms_set_driver_ping_info */
+    g_dms.dms_driver_ping_info.driver_ping_info.dms_role = g_dms.reform_ctx.reform_info.dms_role;
     *driver_ping_info = g_dms.dms_driver_ping_info.driver_ping_info;
     cm_spin_unlock(&g_dms.dms_driver_ping_info.lock);
-    LOG_DEBUG_INF("[DMS] rw_bitmap:%llu, major_version:%llu, minor_version:%llu",
-        driver_ping_info->rw_bitmap, driver_ping_info->major_version, driver_ping_info->minor_version);
+    LOG_DEBUG_INF("[DMS] rw_bitmap:%llu, dms_role:%d, major_version:%llu, minor_version:%llu",
+        driver_ping_info->rw_bitmap, driver_ping_info->dms_role, driver_ping_info->major_version,
+        driver_ping_info->minor_version);
 }
 
 static void dms_reform_health_handle_fail(void)

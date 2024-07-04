@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           157
+#define DMS_LOCAL_VERSION           158
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1349,6 +1349,7 @@ typedef struct thread_set {
 
 typedef struct st_driver_ping_info {
     unsigned long long rw_bitmap;
+    dms_role_t dms_role;
     unsigned long long major_version;
     unsigned long long minor_version;
 } driver_ping_info_t;
