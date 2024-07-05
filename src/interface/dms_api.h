@@ -788,7 +788,7 @@ typedef struct st_dms_broadcast_info {
     unsigned char check_session_kill; 
 } dms_broadcast_info_t;
 
-typedef enum st_dms_stat_cmd {
+typedef enum en_dms_stat_cmd {
     DMS_STAT_ASK_MASTER,
     DMS_STAT_ASK_OWNER,
     DMS_STAT_ASK_CR_PAGE,

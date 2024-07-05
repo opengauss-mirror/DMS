@@ -785,7 +785,7 @@ int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_
         ret = dms_ask_master4res_l(dms_ctx, res, curr_mode, req_mode);
     } else {
         ret = dms_ask_master4res_r(dms_ctx, res, master_id, curr_mode, req_mode);
-        dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_OWNER, dms_ctx->type, ret);
+        dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_MASTER, dms_ctx->type, ret);
     }
     return ret;
 }
