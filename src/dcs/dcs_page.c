@@ -527,7 +527,8 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
     }
 
     dcs_change_page_status(ctx, ctrl, req_info);
-    FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(cm_sleep(g_fi_type_map[DMS_FI_TYPE_CUSTOM_FAULT].config->fault_value));
+    FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(DB_FI_CHANGE_STATUS_AFTER_TRANSFER_PAGE,
+        cm_sleep(g_fi_type_map[DMS_FI_TYPE_CUSTOM_FAULT].config->fault_value));
     ret = dcs_owner_transfer_page_ack(ctx, ctrl, req_info, MSG_ACK_PAGE_READY);
 
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_PAGE_READY, MSG_ACK_PAGE_READY);
