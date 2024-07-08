@@ -1558,6 +1558,11 @@ static bool32 dms_reform_judgement(uint8 *online_status)
 #ifndef OPENGAUSS
 static bool8 dms_reform_kick_reboot_inst_online_list()
 {
+    unsigned int db_role;
+    g_dms.callback.get_db_role(g_dms.reform_ctx.handle_judge, &db_role);
+    if (db_role != (unsigned int)DMS_DB_ROLE_PRIMARY) {
+        return CM_FALSE;
+    }
     share_info_t *share_info = DMS_SHARE_INFO;
     health_info_t *health_info = DMS_HEALTH_INFO;
     uint64 bitmap_kick_out = 0;
@@ -1574,7 +1579,7 @@ static bool8 dms_reform_kick_reboot_inst_online_list()
         }
     }
     if (bitmap_status_in == 0 || bitmap_kick_out == 0) {
-        return CM_TRUE;
+        return CM_FALSE;
     }
 
     LOG_RUN_INF("[DMS REFORM] bitmap_status_in is %llu, bitmap_kick_out is %llu", bitmap_status_in, bitmap_kick_out);
@@ -1586,14 +1591,14 @@ static bool8 dms_reform_kick_reboot_inst_online_list()
         dms_reform_cm_res_trans_lock(new_reformer_id);
         reform_info_t *reform_info = DMS_REFORM_INFO;
         reform_info->dms_role = DMS_ROLE_PARTNER;
-        return CM_FALSE;
+        return CM_TRUE;
     } else {
         dms_reform_list_to_bitmap(&share_info->bitmap_online, &share_info->list_online);
         LOG_RUN_INF("[DMS REFORM] share_info->bitmap_online before kick is %llu", share_info->bitmap_online);
         bitmap64_minus(&share_info->bitmap_online, bitmap_kick_out);
         LOG_RUN_INF("[DMS REFORM] share_info->bitmap_online after kick is %llu", share_info->bitmap_online);
         dms_reform_bitmap_to_list(&share_info->list_online, share_info->bitmap_online);
-        return CM_TRUE;
+        return CM_FALSE;
     }
 }
 #endif
@@ -1645,7 +1650,8 @@ static void dms_reform_judgement_reformer(void)
     share_info->reformer_id = (uint8)g_dms.inst_id;
 
 #ifndef OPENGAUSS
-    if (!dms_reform_kick_reboot_inst_online_list()) {
+    bool8 is_kick_out_self = dms_reform_kick_reboot_inst_online_list();
+    if (is_kick_out_self) {
         return;
     }
 #endif
