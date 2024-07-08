@@ -477,7 +477,6 @@ void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned
     unsigned char src_inst, unsigned char dst_inst, unsigned short src_sid, unsigned short dst_sid,
     unsigned int req_proto_ver);
 
-void drc_recycle_buf_res_notify_db(uint32 sess_id);
 void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret);
 
 #ifdef __cplusplus

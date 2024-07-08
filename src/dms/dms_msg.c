@@ -2062,21 +2062,6 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
     return DMS_SUCCESS;
 }
 
-void drc_recycle_buf_res_notify_db(uint32 sess_id)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    dms_message_head_t req = { 0 };
-    DMS_INIT_MESSAGE_HEAD(&req, MSG_REQ_RECYCLE, 0, (uint8)g_dms.inst_id, 0, sess_id, CM_INVALID_ID16);
-    req.size = (uint16)sizeof(dms_message_head_t);
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        if (bitmap64_exist(&reform_info->bitmap_connect, i)) {
-            req.dst_inst = i;
-            DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_RECYCLE, MSG_REQ_RECYCLE);
-            (void)mfc_send_data_async(&req);
-        }
-    }
-}
-
 int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long *redo_lsn)
 {
     dms_message_head_t head;

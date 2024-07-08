@@ -79,7 +79,7 @@ typedef struct st_drc_res_pool {
     uint32      extend_num;
     uint32      max_extend_num;
     char*       addr[DRC_RES_EXTEND_MAX_NUM];
-    bool32      res_depleted;
+    bool32      can_extend;
     uint64      each_pool_size[DRC_RES_EXTEND_MAX_NUM];
 } drc_res_pool_t;
 
@@ -88,7 +88,6 @@ void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_
 void drc_res_pool_destroy(drc_res_pool_t *pool);
 char *drc_res_pool_alloc_item(drc_res_pool_t *pool);
 void drc_res_pool_free_item(drc_res_pool_t *pool, char *res);
-char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool);
 
 typedef bool32 (*res_cmp_callback)(char* res, const char* resid, uint32 len);
 typedef uint32 (*res_hash_callback)(int32 res_type, char* resid, uint32 len);
