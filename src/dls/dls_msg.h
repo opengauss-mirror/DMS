@@ -76,21 +76,6 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info);
 void dls_cancel_request_lock(dms_context_t *dms_ctx, dms_drid_t *lock_id);
 
-static inline void dms_wait4releasing(const drc_local_lock_res_t *lock_res, spin_statis_t *stat,
-    spin_statis_instance_t *stat_instance)
-{
-    uint32 count = 0;
-    while (lock_res->releasing) {
-        SPIN_STAT_INC(stat, spins);
-        count++;
-        if (count >= GS_SPIN_COUNT) {
-            cm_spin_sleep_and_stat(stat);
-            count = 0;
-            SPIN_STAT_INC(stat_instance, wait_times);
-        }
-    }
-}
-
 static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks, uint32 spin_step)
 {
 #ifndef WIN32

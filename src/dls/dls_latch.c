@@ -23,14 +23,13 @@
  */
 
 #include "cm_latch.h"
-#include "dcs_msg.h"
+#include "cm_timer.h"
 #include "dls_msg.h"
 #include "dms.h"
 #include "dms_error.h"
-#include "drc_lock.h"
 #include "dms_msg.h"
 #include "dms_stat.h"
-#include "drc_page.h"
+#include "drc_res_mgr.h"
 
 void dms_init_pl_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned long long oid, unsigned short uid)
 {
@@ -89,7 +88,7 @@ static inline bool8 dls_request_latch_x(dms_context_t *dms_ctx, drc_local_lock_r
     return ret;
 }
 
-void dms_latch_stat_wait_usecs(latch_statis_t *stat, uint64 ss_wait_usecs)
+static inline void dms_latch_stat_wait_usecs(latch_statis_t *stat, uint64 ss_wait_usecs)
 {
     if (LATCH_NEED_STAT(stat)) {
         stat->spin_stat.ss_wait_usecs += ss_wait_usecs;
@@ -103,7 +102,7 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
 
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
         STAT_RPC_BEGIN;
-        // change lock_mode in func dls_modify_lock_mode, before claimowner
+        // change lock_mode in func dls_modify_lock_mode, before claim owner
         if (!dls_request_latch_s(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, wait_ticks)) {
             dms_latch_stat_wait_usecs(dms_ctx->stat, STAT_RPC_WAIT_USECS);
             return CM_FALSE;
@@ -118,9 +117,54 @@ static bool8 dms_latch_timed_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t
     return CM_TRUE;
 }
 
-static bool8 dms_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res)
+static inline bool8 dms_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res)
 {
     return dms_latch_timed_idle2s(dms_ctx, lock_res, 1);
+}
+
+static inline bool8 dms_wait4_latch_s(drc_local_lock_res_t *lock_res, latch_statis_t *stat,
+    uint32 wait_ticks, uint32 *ticks, bool8 is_force)
+{
+    uint32 count = 0;
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+    
+    while (lock_res->releasing || latch_stat->stat == LATCH_STATUS_X ||
+        (latch_stat->stat == LATCH_STATUS_IX && !is_force)) {
+        if (ticks != NULL && (*ticks) >= wait_ticks) {
+            return CM_FALSE;
+        }
+        if (++count >= GS_SPIN_COUNT) {
+            if (ticks != NULL) {
+                (*ticks)++;
+            }
+            count = 0;
+            SPIN_STAT_INC(stat, s_sleeps);
+            cm_spin_sleep();
+        }
+    }
+    return CM_TRUE;
+}
+
+static inline bool8 dms_wait4_latch_x(drc_local_lock_res_t *lock_res, latch_statis_t *stat,
+    uint32 wait_ticks, uint32 *ticks)
+{
+    uint32 count = 0;
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+    
+    while (lock_res->releasing || latch_stat->stat == LATCH_STATUS_X || latch_stat->stat == LATCH_STATUS_IX) {
+        if (ticks != NULL && (*ticks) >= wait_ticks) {
+            return CM_FALSE;
+        }
+        if (++count >= GS_SPIN_COUNT) {
+            if (ticks != NULL) {
+                (*ticks)++;
+            }
+            count = 0;
+            SPIN_STAT_INC(stat, x_sleeps);
+            cm_spin_sleep();
+        }
+    }
+    return CM_TRUE;
 }
 
 void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is_force)
@@ -135,88 +179,42 @@ void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is
     latch_statis_t *stat = dms_ctx->stat;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
-    uint32 count = 0;
-
-    STAT_TOTAL_WAIT_USECS_BEGIN;
-    do {
-        drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->s_spin : NULL,
-            (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-
-        if (lock_res->releasing) {
-            drc_unlock_local_resx(lock_res);
-            dms_wait4releasing(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->s_spin : NULL,
-                (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-            continue;
-        }
-
-        drc_local_latch_t *latch_stat = &lock_res->latch_stat;
-
-        LOG_DEBUG_INF("[DLS] add latch_s(%s) stat=%u, lock_mode=%u, is_force=%u, "
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+    
+    LOG_DEBUG_INF("[DLS] add latch_s(%s) stat=%u, lock_mode=%u, is_force=%u, "
             "shared_count=%u", cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
             (uint32)latch_stat->lock_mode, (uint32)is_force, (uint32)latch_stat->shared_count);
 
-        if (latch_stat->stat == LATCH_STATUS_IDLE) {
-            // s->i->s no need for local latch
-            // if node already got S or X, can grant S directly
-            if (!dms_latch_idle2s(dms_ctx, lock_res)) {
-                drc_unlock_local_resx(lock_res);
-                continue;
-            }
-            drc_unlock_local_resx(lock_res);
-            cm_latch_stat_inc(stat, count);
-            LOG_DEBUG_INF("[DLS] add latch_s finished");
-            break;
-        } else if ((latch_stat->stat == LATCH_STATUS_S) || (latch_stat->stat == LATCH_STATUS_IX && is_force)) {
-            CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
-            latch_stat->shared_count++;
-            drc_unlock_local_resx(lock_res);
-            cm_latch_stat_inc(stat, count);
-            LOG_DEBUG_INF("[DLS] add latch_s finished");
-            break;
-        } else {
-            drc_unlock_local_resx(lock_res);
-            if (LATCH_NEED_STAT(stat)) {
-                stat->misses++;
-            }
-            while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
-                count++;
-                if (count >= GS_SPIN_COUNT) {
-                    SPIN_STAT_INC(stat, s_sleeps);
-                    cm_spin_sleep();
-                    count = 0;
+    STAT_TOTAL_WAIT_USECS_BEGIN;
+    do {
+        if (!lock_res->releasing && (latch_stat->stat < LATCH_STATUS_IX ||
+            (latch_stat->stat == LATCH_STATUS_IX && is_force))) {
+            drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->s_spin : NULL,
+                (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
+                
+            if (latch_stat->stat == LATCH_STATUS_IDLE) {
+                if (!dms_latch_idle2s(dms_ctx, lock_res)) {
+                    drc_unlock_local_resx(lock_res);
+                    continue;
                 }
+                drc_unlock_local_resx(lock_res);
+                break;
             }
+            if ((latch_stat->stat == LATCH_STATUS_S) || (latch_stat->stat == LATCH_STATUS_IX && is_force)) {
+                CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
+                latch_stat->shared_count++;
+                drc_unlock_local_resx(lock_res);
+                break;
+            }
+            drc_unlock_local_resx(lock_res);
         }
+        if (LATCH_NEED_STAT(stat)) {
+            stat->misses++;
+        }
+        (void)dms_wait4_latch_s(lock_res, stat, 0, NULL, is_force);
     } while (CM_TRUE);
+    LOG_DEBUG_INF("[DLS] add latch_s finished");
     STAT_TOTAL_WAIT_USECS_END;
-}
-
-static bool8 dms_latch_timed_wait(drc_local_latch_t *latch_stat, latch_statis_t *stat,
-    unsigned int wait_ticks, uint32 *ticks, uint32 *count, latch_mode_t latch_mode)
-{
-    while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
-        if ((*ticks) >= wait_ticks) {
-            return CM_FALSE;
-        }
-
-        (*count)++;
-        if ((*count) >= GS_SPIN_COUNT) {
-            switch (latch_mode) {
-                case LATCH_MODE_S:
-                    SPIN_STAT_INC(stat, s_sleeps);
-                    break;
-                case LATCH_MODE_X:
-                    SPIN_STAT_INC(stat, x_sleeps);
-                    break;
-                default:
-                    break;
-            }
-            cm_spin_sleep();
-            *count = 0;
-            (*ticks)++;
-        }
-    }
-    return CM_TRUE;
 }
 
 bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks, unsigned char is_force)
@@ -240,60 +238,47 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
     latch_statis_t *stat = dms_ctx->stat;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+    
+    LOG_DEBUG_INF("[DLS] add latch_timed_s(%s) stat=%u, lock_mode=%u, is_force=%u, shared_count=%u",
+        cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
+        (uint32)latch_stat->lock_mode, (uint32)is_force, (uint32)latch_stat->shared_count);
 
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
-        drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->s_spin : NULL,
-            (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-
-        if (lock_res->releasing) {
-            drc_unlock_local_resx(lock_res);
-            dms_wait4releasing(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->s_spin : NULL,
+        if (!lock_res->releasing && (latch_stat->stat < LATCH_STATUS_IX ||
+            (latch_stat->stat == LATCH_STATUS_IX && is_force))) {
+            drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->s_spin : NULL,
                 (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-            continue;
+                
+            if (latch_stat->stat == LATCH_STATUS_IDLE) {
+                ret = dms_latch_timed_idle2s(dms_ctx, lock_res, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
+                drc_unlock_local_resx(lock_res);
+                if (!ret) {
+                    dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+                }
+                break;
+            }
+            if ((latch_stat->stat == LATCH_STATUS_S) || (latch_stat->stat == LATCH_STATUS_IX && is_force)) {
+                CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
+                latch_stat->shared_count++;
+                drc_unlock_local_resx(lock_res);
+                ret = CM_TRUE;
+                break;
+            }
+            drc_unlock_local_resx(lock_res);
         }
-
-        drc_local_latch_t *latch_stat = &lock_res->latch_stat;
-
-        LOG_DEBUG_INF("[DLS] add latch_timed_s(%s) stat=%u, lock_mode=%u, is_force=%u, shared_count=%u",
-            cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
-            (uint32)latch_stat->lock_mode, (uint32)is_force, (uint32)latch_stat->shared_count);
-
-        if (latch_stat->stat == LATCH_STATUS_IDLE) {
-            ret = dms_latch_timed_idle2s(dms_ctx, lock_res, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
-            drc_unlock_local_resx(lock_res);
-            LOG_DEBUG_INF("[DLS] add latch_s finished, ret:%u", (uint32)ret);
-            if (!ret) {
-                dls_cancel_request_lock(dms_ctx, &dlatch->drid);
-                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
-                STAT_TOTAL_WAIT_USECS_END;
-                return CM_FALSE;
-            }
-            dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
-            STAT_TOTAL_WAIT_USECS_END;
-            return CM_TRUE;
-        } else if ((latch_stat->stat == LATCH_STATUS_S) || (latch_stat->stat == LATCH_STATUS_IX && is_force)) {
-            CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
-
-            latch_stat->shared_count++;
-
-            drc_unlock_local_resx(lock_res);
-            LOG_DEBUG_INF("[DLS] add latch_s finished");
-            dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
-            STAT_TOTAL_WAIT_USECS_END;
-            return CM_TRUE;
-        } else {
-            uint32 count = 0;
-            drc_unlock_local_resx(lock_res);
-            ret = dms_latch_timed_wait(latch_stat, stat, wait_ticks, &ticks, &count, LATCH_MODE_S);
-            if (!ret) {
-                LOG_DEBUG_INF("[DLS] add timed latch_s(%s) timeout", cm_display_lockid(&dlatch->drid));
-                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
-                STAT_TOTAL_WAIT_USECS_END;
-                return CM_FALSE;
-            }
+        if (LATCH_NEED_STAT(stat)) {
+            stat->misses++;
+        }
+        if (!dms_wait4_latch_s(lock_res, stat, wait_ticks, &ticks, is_force)) {
+            break;
         }
     } while (CM_TRUE);
+    LOG_DEBUG_INF("[DLS] add latch_timed_s finished, ret:%u", (uint32)ret);
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S);
+    STAT_TOTAL_WAIT_USECS_END;
+    return ret;
 }
 
 static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, drc_local_latch_t *latch_stat,
@@ -323,12 +308,11 @@ static bool32 dls_latch_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_
             latch_stat->stat = LATCH_STATUS_X;
             latch_stat->shared_count = 0;
             drc_unlock_local_resx(lock_res);
-            cm_latch_stat_inc(stat, count);
             return CM_TRUE;
         }
 
         STAT_RPC_BEGIN;
-        // change lock_mode in func dls_modify_lock_mode, before claimerowner
+        // change lock_mode in func dls_modify_lock_mode, before claim owner
         if (dls_request_latch_x(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, 1)) {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
             latch_stat->sid = dms_ctx->sess_id;
@@ -376,12 +360,11 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
             latch_stat->stat = LATCH_STATUS_X;
             latch_stat->shared_count = 0;
             drc_unlock_local_resx(lock_res);
-            cm_latch_stat_inc(stat, count);
             return CM_TRUE;
         }
 
         STAT_RPC_BEGIN;
-        // change lock_mode in func dls_modify_lock_mode, before claimerowner
+        // change lock_mode in func dls_modify_lock_mode, before claim owner
         bool8 ret = dls_request_latch_x(dms_ctx, lock_res, latch_stat->lock_mode, CM_TRUE, wait_ticks - ticks);
         if (ret) {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
@@ -422,7 +405,7 @@ static bool8 dms_latch_timed_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t
     return CM_TRUE;
 }
 
-static bool8 dms_latch_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res)
+static inline bool8 dms_latch_idle2x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res)
 {
     return dms_latch_timed_idle2x(dms_ctx, lock_res, 1);
 }
@@ -439,59 +422,43 @@ void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     latch_statis_t *stat = dms_ctx->stat;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
-    uint32 count = 0;
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+
+    LOG_DEBUG_INF("[DLS] add latch_x(%s) stat=%u, lock_mode=%u, shared_count=%u",
+        cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
+        (uint32)latch_stat->shared_count);
 
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
-        drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->x_spin : NULL,
-            (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-
-        if (lock_res->releasing) {
-            drc_unlock_local_resx(lock_res);
-            dms_wait4releasing(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->x_spin : NULL,
+        if (!lock_res->releasing && latch_stat->stat < LATCH_STATUS_IX) {
+            drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->x_spin : NULL,
                 (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-            continue;
-        }
 
-        drc_local_latch_t *latch_stat = &lock_res->latch_stat;
-
-        LOG_DEBUG_INF("[DLS] add latch_x(%s) stat=%u, lock_mode=%u, shared_count=%u",
-            cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
-            (uint32)latch_stat->shared_count);
-
-        if (latch_stat->stat == LATCH_STATUS_IDLE) {
-            if (!dms_latch_idle2x(dms_ctx, lock_res)) {
-                drc_unlock_local_resx(lock_res);
-                continue;
-            }
-            drc_unlock_local_resx(lock_res);
-            cm_latch_stat_inc(stat, count);
-            LOG_DEBUG_INF("[DLS] add latch_x(%s) finished", cm_display_lockid(&dlatch->drid));
-            break;
-        } else if (latch_stat->stat == LATCH_STATUS_S) {
-            CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
-            latch_stat->stat = LATCH_STATUS_IX;
-            drc_unlock_local_resx(lock_res);
-            if (!dls_latch_ix2x(dms_ctx, lock_res, latch_stat, dlatch->drid.type)) {
-                continue;
-            }
-            LOG_DEBUG_INF("[DLS] add latch_x(%s) finished", cm_display_lockid(&dlatch->drid));
-            break;
-        } else {
-            drc_unlock_local_resx(lock_res);
-            if (LATCH_NEED_STAT(stat)) {
-                stat->misses++;
-            }
-            while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {
-                count++;
-                if (count >= GS_SPIN_COUNT) {
-                    SPIN_STAT_INC(stat, x_sleeps);
-                    cm_spin_sleep();
-                    count = 0;
+            if (latch_stat->stat == LATCH_STATUS_IDLE) {
+                if (!dms_latch_idle2x(dms_ctx, lock_res)) {
+                    drc_unlock_local_resx(lock_res);
+                    continue;
                 }
+                drc_unlock_local_resx(lock_res);
+                break;
             }
+            if (latch_stat->stat == LATCH_STATUS_S) {
+                CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
+                latch_stat->stat = LATCH_STATUS_IX;
+                drc_unlock_local_resx(lock_res);
+                if (!dls_latch_ix2x(dms_ctx, lock_res, latch_stat, dlatch->drid.type)) {
+                    continue;
+                }
+                break;
+            }
+            drc_unlock_local_resx(lock_res);
         }
+        if (LATCH_NEED_STAT(stat)) {
+            stat->misses++;
+        }
+        (void)dms_wait4_latch_x(lock_res, stat, 0, NULL);
     } while (CM_TRUE);
+    LOG_DEBUG_INF("[DLS] add latch_x(%s) finished", cm_display_lockid(&dlatch->drid));
     STAT_TOTAL_WAIT_USECS_END;
 }
 
@@ -513,74 +480,54 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
     }
 
     uint32 ticks = 0;
-    uint32 count = 0;
     latch_statis_t *stat = dms_ctx->stat;
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlatch->drid);
     cm_panic(lock_res != NULL);
+    drc_local_latch_t *latch_stat = &lock_res->latch_stat;
+
+    LOG_DEBUG_INF("[DLS] add latch_timed_x(%s) stat=%u, lock_mode=%u, shared_count=%u",
+        cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
+        (uint32)latch_stat->lock_mode, (uint32)latch_stat->shared_count);
 
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
-        drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->x_spin : NULL,
-            (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-
-        if (lock_res->releasing) {
-            drc_unlock_local_resx(lock_res);
-            dms_wait4releasing(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->x_spin : NULL,
+        if (!lock_res->releasing && latch_stat->stat < LATCH_STATUS_IX) {
+            drc_lock_local_resx(lock_res, (LATCH_NEED_STAT(stat)) ? &stat->x_spin : NULL,
                 (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-            continue;
+
+            if (latch_stat->stat == LATCH_STATUS_IDLE) {
+                ret = dms_latch_timed_idle2x(dms_ctx, lock_res, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
+                drc_unlock_local_resx(lock_res);
+                if (!ret) {
+                    dls_cancel_request_lock(dms_ctx, &dlatch->drid);
+                }
+                break;
+            }
+            if (latch_stat->stat == LATCH_STATUS_S) {
+                CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
+                latch_stat->stat = LATCH_STATUS_IX;
+                drc_unlock_local_resx(lock_res);
+                ret = dls_latch_timed_ix2x(dms_ctx, lock_res, latch_stat, dlatch,
+                    ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
+                if (!ret) {
+                    drc_lock_local_resx(lock_res, NULL, (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
+                    latch_stat->stat = latch_stat->shared_count > 0 ? LATCH_STATUS_S : LATCH_STATUS_IDLE;
+                    drc_unlock_local_resx(lock_res);
+                }
+                break;
+            }
+            drc_unlock_local_resx(lock_res);
         }
-
-        drc_local_latch_t *latch_stat = &lock_res->latch_stat;
-
-        LOG_DEBUG_INF("[DLS] add latch_timed_x(%s) stat=%u, lock_mode=%u, shared_count=%u",
-            cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
-            (uint32)latch_stat->lock_mode, (uint32)latch_stat->shared_count);
-
-        if (latch_stat->stat == LATCH_STATUS_IDLE) {
-            ret = dms_latch_timed_idle2x(dms_ctx, lock_res, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
-            drc_unlock_local_resx(lock_res);
-            if (!ret) {
-                dls_cancel_request_lock(dms_ctx, &dlatch->drid);
-                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
-                STAT_TOTAL_WAIT_USECS_END;
-                return CM_FALSE;
-            }
-            dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
-            cm_latch_stat_inc(stat, count);
-            STAT_TOTAL_WAIT_USECS_END;
-            return CM_TRUE;
-        } else if (latch_stat->stat == LATCH_STATUS_S) {
-            CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
-            latch_stat->stat = LATCH_STATUS_IX;
-            drc_unlock_local_resx(lock_res);
-            if (dls_latch_timed_ix2x(dms_ctx, lock_res, latch_stat, dlatch,
-                ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0))) {
-                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
-                STAT_TOTAL_WAIT_USECS_END;
-                return CM_TRUE;
-            }
-
-            drc_lock_local_resx(lock_res, NULL, (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
-            latch_stat->stat = latch_stat->shared_count > 0 ? LATCH_STATUS_S : LATCH_STATUS_IDLE;
-            drc_unlock_local_resx(lock_res);
-
-            dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
-            STAT_TOTAL_WAIT_USECS_END;
-            return CM_FALSE;
-        } else {
-            drc_unlock_local_resx(lock_res);
-            if (LATCH_NEED_STAT(stat)) {
-                stat->misses++;
-            }
-            ret = dms_latch_timed_wait(latch_stat, stat, wait_ticks, &ticks, &count, LATCH_MODE_X);
-            if (!ret) {
-                LOG_DEBUG_INF("[DLS] add timed latch_x(%s) timeout", cm_display_lockid(&dlatch->drid));
-                dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
-                STAT_TOTAL_WAIT_USECS_END;
-                return CM_FALSE;
-            }
+        if (LATCH_NEED_STAT(stat)) {
+            stat->misses++;
+        }
+        if (!dms_wait4_latch_x(lock_res, stat, wait_ticks, &ticks)) {
+            break;
         }
     } while (CM_TRUE);
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X);
+    STAT_TOTAL_WAIT_USECS_END;
+    return ret;
 }
 
 void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
@@ -637,7 +584,7 @@ static int32 dms_try_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
-        // change lock_mode in func dls_modify_lock_mode, before claimowner
+        // change lock_mode in func dls_modify_lock_mode, before claim owner
 
         int32 ret = dls_try_request_lock(dms_ctx, lock_res, &lock_res->resid, DMS_LOCK_NULL, DMS_LOCK_SHARE);
         if (ret != DMS_SUCCESS) {
