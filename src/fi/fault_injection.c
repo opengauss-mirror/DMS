@@ -239,12 +239,19 @@ int dms_fi_set_entry_value(unsigned int type, unsigned int value)
     return DMS_SUCCESS;
 }
 
+bool8 dms_fi_entry_custom_valid(unsigned int point)
+{
+    dms_fi_entry *entry = dms_fi_get_entry(point);
+    return entry != NULL && dms_fi_entry_type_active(entry, DMS_FI_TYPE_CUSTOM_FAULT);
+}
+
 #else
 int dms_fi_set_entries(unsigned int type, unsigned int *entries, unsigned int count) {return DMS_ERROR;}
 int dms_fi_set_entry_value(unsigned int type, unsigned int value) {return DMS_ERROR;}
 void fault_injection_call(unsigned int point, ...) {}
 int dms_fi_get_tls_trigger_custom() {return DMS_ERROR;}
 void dms_fi_set_tls_trigger_custom(int val) {}
+bool8 dms_fi_entry_custom_valid(unsigned int point) {return CM_FALSE;}
 
 #endif
 

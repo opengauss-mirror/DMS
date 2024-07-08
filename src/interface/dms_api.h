@@ -1322,6 +1322,18 @@ typedef enum e_dms_fi_type {
     DMS_FI_TYPE_END,
 } dms_fi_type_e;
 
+typedef enum en_db_call_dms_trigger_fi_point_name {
+    // call in db, trigger in dms, point range[10800, DB_FI_ENTRY_END]
+    DB_FI_CHANGE_STATUS_AFTER_TRANSFER_PAGE = 10800,
+    DB_FI_ENTRY_END = FI_ENTRY_END
+} db_call_dms_trigger_fi_point_name;
+
+typedef enum en_dms_call_db_trigger_fi_point_name {
+    // call in dms, trigger in db, point range[800, DMS_FI_ENTRY_END]
+    DMS_FI_TRIGGER_IN_DB_ENTRY_BEGIN = 800,
+    DMS_FI_ENTRY_END
+} dms_call_db_trigger_fi_point_name;
+
 struct dms_fi_entry {
     int pointId;
     unsigned int faultFlags;

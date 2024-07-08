@@ -41,6 +41,7 @@ typedef struct st_fi_context {
 } dms_fi_context_t;
 
 typedef enum en_dms_fi_point_name {
+    // CALL and TRIGGER both in DMS
     DMS_FI_ENTRY_BEGIN = 0,
     DMS_FI_REQ_ASK_MASTER_FOR_PAGE = DMS_FI_ENTRY_BEGIN,
     DMS_FI_REQ_ASK_OWNER_FOR_PAGE = 1,
@@ -110,7 +111,6 @@ typedef enum en_dms_fi_point_name {
     DMS_FI_ACK_END_XA = 64,
     DMS_FI_ACK_XA_IN_USE = 65,
     DMS_FI_ROLLBACK_PREPARE = 66,
-    DMS_FI_ENTRY_END
 } dms_fi_point_name_e;
 
 #if defined _DEBUG
@@ -140,6 +140,7 @@ void dms_fi_set_tls_trigger(int val);
 int dms_fi_get_tls_trigger_custom();
 void dms_fi_set_tls_trigger_custom(int val);
 void fault_injection_call(unsigned int point, ...);
+bool8 dms_fi_entry_custom_valid(unsigned int point);
 
 #define FAULT_INJECTION_ACTIVATE(point, flag)         \
     do {                                               \
@@ -168,13 +169,13 @@ void fault_injection_call(unsigned int point, ...);
         }                                              \
     } while (0)
 
-#define FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(action)      \
-    do {                                                   \
-        if (dms_fi_get_tls_trigger_custom() == CM_TRUE) {  \
-            dms_fi_set_tls_trigger_custom(CM_FALSE);       \
-            LOG_DEBUG_INF("[DMS_FI] fi cust action happens at %s", __FUNCTION__);  \
-            action;                                        \
-        }                                                  \
+#define FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(point, action)                                  \
+    do {                                                                                      \
+        if (dms_fi_entry_custom_valid(point) && dms_fi_get_tls_trigger_custom() == CM_TRUE) { \
+            dms_fi_set_tls_trigger_custom(CM_FALSE);                                   \
+            LOG_DEBUG_INF("[DMS_FI] fi cust action happens at %s", __FUNCTION__);      \
+            action;                                                                    \
+        }                                                                              \
     } while (0)
 
 #define DMS_FAULT_INJECTION_CALL(point, ...)                \
@@ -191,7 +192,7 @@ void fault_injection_call(unsigned int point, ...);
 #define FAULT_INJECTION_ACTIVATE(point, flag)
 #define FAULT_INJECTION_INACTIVE(point, flag)
 #define FAULT_INJECTION_ACTION_TRIGGER(action)
-#define FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(action)
+#define FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(point, action)
 #define DMS_FAULT_INJECTION_CALL(point, ...)
 
 #endif
