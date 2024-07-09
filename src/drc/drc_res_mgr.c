@@ -119,6 +119,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
     pool->item_size = res_size;
     pool->lock = 0;
     pool->inited = CM_TRUE;
+    pool->can_extend = CM_TRUE;
     pool->extend_step = res_num;
     pool->extend_num = 1;
     pool->max_extend_num = max_extend_num;
@@ -152,40 +153,22 @@ void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_
 /*
  * spin lock is held outside
  */
-char *drc_res_pool_try_extend_and_alloc(drc_res_pool_t *pool)
+static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
 {
-    if (pool->extend_num >= pool->max_extend_num) {
-        pool->res_depleted = CM_TRUE;
-        return NULL;
-    }
-
     cm_panic(pool->addr[pool->extend_num] == NULL);
     uint64 sz = (uint64)pool->extend_step * (uint64)pool->item_size;
-    uint32 try_times = 0;
-    while (try_times <= DRC_RES_EXTEND_TRY_TIMES && sz > 0) {
-        pool->addr[pool->extend_num] = (char *)dms_malloc(sz);
-        if (pool->addr[pool->extend_num] == NULL) {
-            try_times++;
-            continue;
-        }
-        break;
+    pool->addr[pool->extend_num] = (char *)dms_malloc(sz);
+    if (pool->addr[pool->extend_num] == NULL) {
+        pool->can_extend = CM_FALSE;
+        return CM_FALSE;
     }
-
-    if (pool->addr[pool->extend_num] != NULL) {
-        drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
-        drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
-        pool->item_num += pool->extend_step;
-        pool->each_pool_size[pool->extend_num] = pool->extend_step;
-        pool->extend_num++;
-    }
-
-    if (cm_bilist_empty(&pool->free_list)) {
-        pool->res_depleted = CM_TRUE;
-        return NULL;
-    }
-    char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
-    pool->used_num++;
-    return item_addr;
+    drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
+    drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
+    pool->item_num += pool->extend_step;
+    pool->each_pool_size[pool->extend_num] = pool->extend_step;
+    pool->extend_num++;
+    pool->can_extend = (pool->extend_num < pool->max_extend_num);
+    return CM_TRUE;
 }
 
 void drc_res_pool_destroy(drc_res_pool_t* pool)
@@ -216,18 +199,15 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
 
 char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
 {
-    char* item_addr = NULL;
-
     cm_spin_lock(&pool->lock, NULL);
-    if (cm_bilist_empty(&pool->free_list)) {
-        item_addr = drc_res_pool_try_extend_and_alloc(pool);
+    if (cm_bilist_empty(&pool->free_list) &&
+        (pool->extend_num >= pool->max_extend_num || !drc_res_pool_extend(pool))) {
         cm_spin_unlock(&pool->lock);
-        return item_addr;
+        return NULL;
     }
-    item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
+    char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
     pool->used_num++;
     cm_spin_unlock(&pool->lock);
-
     return item_addr;
 }
 
@@ -941,41 +921,6 @@ static void drc_recycle_buf_res_part_start(void)
     LOG_DEBUG_INF(buf_log);
 }
 
-static bool32 drc_recycle_buf_res_check(bool8 has_recycled)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_res_pool_t *pool = DRC_BUF_RES_POOL;
-
-    if (pool->res_depleted) {
-        if (!has_recycled) {
-            LOG_DEBUG_INF("[DRC recycle]drc pool is depleted, notify db to recycle");
-            drc_recycle_buf_res_notify_db(ctx->smon_recycle_sid);
-        }
-    }
-
-    cm_spin_lock(&pool->lock, NULL);
-    if (pool->extend_num == pool->max_extend_num && pool->used_num > pool->item_num * DRC_RECYCLE_THRESHOLD) {
-        if (!has_recycled) {
-            LOG_DEBUG_INF("[DRC recycle]start, extend: %u, total: %u, used: %u",
-                pool->extend_num, pool->item_num, pool->used_num);
-        }
-        cm_spin_unlock(&pool->lock);
-        return CM_TRUE;
-    }
-    cm_spin_unlock(&pool->lock);
-
-    if (has_recycled) {
-        pool->res_depleted = CM_FALSE;
-        LOG_DEBUG_INF("[DRC recycle]end, total: %u, used: %u", pool->item_num, pool->used_num);
-        drc_recycle_buf_res_part_start();
-    } else {
-        LOG_DEBUG_INF("[DRC recycle]skip, extend: %u, total: %u, used: %u",
-            pool->extend_num, pool->item_num, pool->used_num);
-    }
-
-    return CM_FALSE;
-}
-
 static void drc_recycle_buf_res_start(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -1012,22 +957,21 @@ void drc_recycle_buf_res_thread(thread_t *thread)
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    bool8 has_recycled = CM_FALSE;
+    drc_res_pool_t *pool = DRC_BUF_RES_POOL;
 
     ctx->smon_recycle_handle = g_dms.callback.get_db_handle(&ctx->smon_recycle_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(ctx->smon_recycle_handle != NULL, "alloc db handle failed");
 
     LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread start");
     while (!thread->closed) {
-        if (drc_recycle_buf_res_check(has_recycled)) {
-            cm_spin_lock(&ctx->smon_recycle_lock, NULL);
-            drc_recycle_buf_res_start();
-            cm_spin_unlock(&ctx->smon_recycle_lock);
-            has_recycled = CM_TRUE;
-        } else {
-            has_recycled = CM_FALSE;
+        if (pool->can_extend || pool->used_num < pool->item_num * DRC_RECYCLE_THRESHOLD) {
             cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
+            continue;
         }
+        cm_spin_lock(&ctx->smon_recycle_lock, NULL);
+        drc_recycle_buf_res_start();
+        cm_spin_unlock(&ctx->smon_recycle_lock);
+        drc_recycle_buf_res_part_start();
     }
     LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread close");
 }
