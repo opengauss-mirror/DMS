@@ -68,7 +68,6 @@ static bool8 dls_request_latch(dms_context_t *dms_ctx, drc_local_lock_res_t *loc
 static inline bool8 dls_request_latch_s(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
     dms_lock_mode_t curr_mode, bool8 timeout, uint32 timeout_ticks)
 {
-    dls_init_dms_ctx(dms_ctx, &lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_LATCH_S_REMOTE, CM_TRUE);
     bool8 ret = dls_request_latch(dms_ctx, lock_res, curr_mode, DMS_LOCK_SHARE, timeout, timeout_ticks);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_S_REMOTE);
@@ -78,7 +77,6 @@ static inline bool8 dls_request_latch_s(dms_context_t *dms_ctx, drc_local_lock_r
 static inline bool8 dls_request_latch_x(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res,
     dms_lock_mode_t curr_mode, bool8 timeout, uint32 timeout_ticks)
 {
-    dls_init_dms_ctx(dms_ctx, &lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_LATCH_X_REMOTE, CM_TRUE);
     bool8 ret = dls_request_latch(dms_ctx, lock_res, curr_mode, DMS_LOCK_EXCLUSIVE, timeout, timeout_ticks);
     dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_LATCH_X_REMOTE);
@@ -182,6 +180,7 @@ void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is
         cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
         (uint32)is_force, (uint32)latch_stat->shared_count);
 
+    dls_init_dms_ctx(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
         if (!lock_res->releasing && (latch_stat->stat < LATCH_STATUS_IX ||
@@ -241,6 +240,7 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
         cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
         (uint32)latch_stat->lock_mode, (uint32)is_force, (uint32)latch_stat->shared_count);
 
+    dls_init_dms_ctx(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
         if (!lock_res->releasing && (latch_stat->stat < LATCH_STATUS_IX ||
@@ -252,7 +252,7 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
                 ret = dms_latch_timed_idle2s(dms_ctx, lock_res, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
                 drc_unlock_local_resx(lock_res);
                 if (!ret) {
-                    dls_cancel_request_lock(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+                    dls_cancel_request_lock(dms_ctx);
                 }
                 break;
             }
@@ -373,7 +373,7 @@ static bool32 dls_latch_timed_ix2x(dms_context_t *dms_ctx, drc_local_lock_res_t 
         } else {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
             drc_unlock_local_resx(lock_res);
-            dls_cancel_request_lock(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
     }
@@ -426,6 +426,7 @@ void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
         cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
         (uint32)latch_stat->shared_count);
 
+    dls_init_dms_ctx(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
         if (!lock_res->releasing && latch_stat->stat < LATCH_STATUS_IX) {
@@ -487,6 +488,7 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
         cm_display_lockid(&dlatch->drid), (uint32)latch_stat->stat,
         (uint32)latch_stat->lock_mode, (uint32)latch_stat->shared_count);
 
+    dls_init_dms_ctx(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
         if (!lock_res->releasing && latch_stat->stat < LATCH_STATUS_IX) {
@@ -497,7 +499,7 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
                 ret = dms_latch_timed_idle2x(dms_ctx, lock_res, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0));
                 drc_unlock_local_resx(lock_res);
                 if (!ret) {
-                    dls_cancel_request_lock(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+                    dls_cancel_request_lock(dms_ctx);
                 }
                 break;
             }
@@ -583,7 +585,6 @@ static int32 dms_try_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *
 
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
         // change lock_mode in func dls_modify_lock_mode, before claim owner
-        dls_init_dms_ctx(dms_ctx, &lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_TRUE);
         int32 ret = dls_try_request_lock(dms_ctx, lock_res, DMS_LOCK_NULL, DMS_LOCK_SHARE);
         DMS_RETURN_IF_ERROR(ret);
     }
@@ -616,7 +617,7 @@ static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
         int32 ret = dms_try_latch_idle2s(dms_ctx, lock_res);
         drc_unlock_local_resx(lock_res);
         if (ret != DMS_SUCCESS && ret != ERRNO_DMS_DRC_LOCK_ABANDON_TRY) {
-            dls_cancel_request_lock(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
         }
         LOG_DEBUG_INF("[DLS] try add latch_s finished, result:%d", ret);
         return ret;
@@ -640,6 +641,7 @@ unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     dms_reset_error();
     uint32 spin_times = 0;
 
+    dls_init_dms_ctx(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_TRUE);
     for (;;) {
         int32 ret = dls_try_latch_s(dms_ctx, dlatch);
         if (ret == DMS_SUCCESS) {
@@ -713,7 +715,7 @@ unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch,
             return CM_TRUE;
         }
         if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
-            dls_cancel_request_lock(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
         dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
@@ -732,7 +734,7 @@ unsigned char dms_latch_table_timed(dms_context_t *dms_ctx, dms_drlatch_t *dlatc
     dls_init_dms_ctx(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE, CM_TRUE);
     if (!dls_request_latch(dms_ctx, NULL, dms_ctx->curr_mode, lock_mode, CM_TRUE, wait_ticks)) {
-        dls_cancel_request_lock(dms_ctx, &dlatch->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+        dls_cancel_request_lock(dms_ctx);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_TABLE);
         LOG_DEBUG_ERR("[DLS] add table latch timed(%s) lock_mode = %u failed", cm_display_lockid(&dlatch->drid),
             lock_mode);
@@ -794,7 +796,7 @@ unsigned char dms_alatch_timed_s(dms_context_t *dms_ctx, alockid_t *alockid, uns
     dls_init_dms_ctx(dms_ctx, alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE, CM_FALSE);
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_S, CM_TRUE);
     if (!dls_request_latch(dms_ctx, NULL, dms_ctx->curr_mode, DMS_LOCK_SHARE, CM_TRUE, wait_ticks)) {
-        dls_cancel_request_lock(dms_ctx, alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE);
+        dls_cancel_request_lock(dms_ctx);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_S);
         LOG_DEBUG_ERR("[DLS] add alatch_timed_s(%s) failed", cm_display_alockid(alockid));
         return CM_FALSE;
@@ -814,7 +816,7 @@ unsigned char dms_alatch_timed_x(dms_context_t *dms_ctx, alockid_t *alockid, uns
     dls_init_dms_ctx(dms_ctx, alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE, CM_FALSE);
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_X, CM_TRUE);
     if (!dls_request_latch(dms_ctx, NULL, dms_ctx->curr_mode, DMS_LOCK_EXCLUSIVE, CM_TRUE, wait_ticks)) {
-        dls_cancel_request_lock(dms_ctx, alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE);
+        dls_cancel_request_lock(dms_ctx);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DLS_REQ_ALOCK_X);
         LOG_DEBUG_ERR("[DLS] add alatch_timed_x(%s) failed", cm_display_alockid(alockid));
         return CM_FALSE;
@@ -839,7 +841,7 @@ unsigned char dms_try_alatch_s(dms_context_t *dms_ctx, alockid_t *alockid)
             return CM_TRUE;
         }
         if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
-            dls_cancel_request_lock(dms_ctx, alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
         dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
@@ -861,7 +863,7 @@ unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, alockid_t *alockid)
             return CM_TRUE;
         }
         if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
-            dls_cancel_request_lock(dms_ctx, alockid, DMS_ALOCKID_SIZE, DRC_RES_ALOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
         dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);

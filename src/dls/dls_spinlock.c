@@ -88,7 +88,7 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
-    dls_init_dms_ctx(dms_ctx, &lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
+    dls_init_dms_ctx(dms_ctx, &dlock->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
         if (!lock_res->releasing && latch_stat->stat == LATCH_STATUS_IDLE) {
@@ -167,7 +167,6 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
     }
 
-    dls_init_dms_ctx(dms_ctx, &lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_TRUE);
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
         int32 ret = dls_try_request_lock(dms_ctx, lock_res, DMS_LOCK_NULL, DMS_LOCK_EXCLUSIVE);
         if (ret != DMS_SUCCESS) {
@@ -189,6 +188,7 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     }
     uint32 spin_times = 0;
 
+    dls_init_dms_ctx(dms_ctx, &dlock->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_TRUE);
     for (;;) {
         int32 ret = dls_do_spin_try_lock(dms_ctx, dlock);
         if (ret == DMS_SUCCESS) {
@@ -196,7 +196,7 @@ unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         }
 
         if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
-            dls_cancel_request_lock(dms_ctx, &dlock->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
         dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
@@ -212,13 +212,14 @@ unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, u
         cm_panic(0);
     }
 
+    dls_init_dms_ctx(dms_ctx, &dlock->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     for (;;) {
         if (dls_do_spin_try_lock(dms_ctx, dlock) == DMS_SUCCESS) {
             return CM_TRUE;
         }
 
         if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
-            dls_cancel_request_lock(dms_ctx, &dlock->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE);
+            dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
         dls_sleep(&spin_times, &wait_ticks, GS_SPIN_COUNT);
@@ -250,7 +251,7 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         cm_display_lockid(&dlock->drid), (uint32)latch_stat->stat, (uint32)latch_stat->lock_mode,
         (uint32)latch_stat->shared_count);
 
-    dls_init_dms_ctx(dms_ctx, &lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
+    dls_init_dms_ctx(dms_ctx, &dlock->drid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, CM_FALSE);
     STAT_TOTAL_WAIT_USECS_BEGIN;
     do {
         if (lock_res->releasing) {

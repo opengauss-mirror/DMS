@@ -216,8 +216,7 @@ int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_re
     return dms_request_res_internal(dms_ctx, (void*)lock_res, curr_mode, mode);
 }
 
-void dls_cancel_request_lock(dms_context_t *dms_ctx, void *lockid, uint8 len, uint8 type)
+void dls_cancel_request_lock(dms_context_t *dms_ctx)
 {
-    dls_init_dms_ctx(dms_ctx, lockid, len, type, CM_FALSE);
     dms_cancel_request_res(dms_ctx);
 }

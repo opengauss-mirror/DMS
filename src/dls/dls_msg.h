@@ -65,7 +65,7 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
     drc_local_lock_res_t *lock_res, uint8 master_id, dms_message_t *msg, dms_lock_mode_t mode);
 
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info);
-void dls_cancel_request_lock(dms_context_t *dms_ctx, void *lockid, uint8 len, uint8 type);
+void dls_cancel_request_lock(dms_context_t *dms_ctx);
 
 void dls_init_dms_ctx(dms_context_t *dms_ctx, void *resid, uint8 len, uint8 type, bool8 is_try);
 
