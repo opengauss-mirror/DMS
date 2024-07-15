@@ -315,6 +315,7 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
 
         int stat = cm_res_get_inst_stat(cm_res_mgr, inst_info);
         CM_ASSERT(stat < INST_STAT_COUNT);
+
         if (stat == INST_STAT_ONLINE) {
             list_online->inst_id_list[list_online->inst_id_count++] = (uint8)inst_id;
         } else if (stat == INST_STAT_OFFLINE) {
@@ -323,6 +324,7 @@ int dms_reform_cm_res_get_inst_stat(instance_list_t *list_online, instance_list_
             list_unknown->inst_id_list[list_unknown->inst_id_count++] = (uint8)inst_id;
         }
     }
+
     cm_res_free_stat(cm_res_mgr, res_stat);
     cm_res_uninit_memctx(&res_mem_ctx);
     return DMS_SUCCESS;

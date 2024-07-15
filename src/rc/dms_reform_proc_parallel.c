@@ -298,7 +298,7 @@ dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
         dms_reform_parallel_assign_thread, dms_reform_ctl_rcy_clean_parallel_proc },
 
     [DMS_PROC_PARALLEL_RECYCLE_BUF_RES] = { "drc_recycle_buf_res_parallel",
-        dms_reform_parallel_assign_parts, drc_recycle_buf_res_proc},
+        dms_reform_parallel_assign_parts, drc_recycle_buf_res_proc },
 
     [DMS_REFORM_PARALLEL_REPAIR] = { "dms_reform_repair_parallel",
         dms_reform_parallel_assign_parts, dms_reform_repair_parallel_proc },

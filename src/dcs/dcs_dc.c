@@ -98,6 +98,7 @@ static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 time
         ret = dcs_handle_broadcast_msg(dms_ctx, &recv_msg, NULL, NULL);
         mfc_release_broadcast_response(&recv_msg);
     }
+
     return ret;
 }
 
@@ -140,6 +141,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
         DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
     }
+
     return ret;
 }
 

@@ -113,7 +113,7 @@ void dms_reform_judgement_stat_fetch(unsigned int curr_pos, unsigned int curr_in
     }
     reform_judge_stat_t *stat = &g_judge_stats.stat[curr_pos];
     cm_spin_lock(&stat->lock, NULL);
-    if (stat->index >curr_index || stat->index == 0) {
+    if (stat->index > curr_index || stat->index == 0) {
         cm_spin_unlock(&stat->lock);
         *eof = CM_TRUE;
         return;

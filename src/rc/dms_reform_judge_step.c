@@ -521,8 +521,8 @@ void dms_reform_judgement_reload_txn(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    dms_reform_list_init(&share_info->list_rollback);
 
+    dms_reform_list_init(&share_info->list_rollback);
     for (uint8 inst_id = 0; inst_id < DMS_MAX_INSTANCES; inst_id++) {
         remaster_info->deposit_map[inst_id] = ctx->deposit_map[inst_id];
     }
