@@ -489,7 +489,7 @@ int dms_smon_req_tlock_by_rm(dms_context_t *dms_ctx, unsigned char dst_inst, uns
     req_tlock->rmid = rmid;
     req_tlock->sid = sid;
     req_tlock->type = type;
-    
+
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
         g_dms.callback.mem_free(dms_ctx->db_handle, send_msg);

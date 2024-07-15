@@ -175,6 +175,7 @@ static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64
     uint64 ruid, uint32 timeout_ms, uint64 *succ_insts)
 {
     mes_msg_list_t responses = { 0 };
+
     int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, succ_insts, &responses);
 #ifndef OPENGAUSS
     dms_handle_invld_ack_msg(ctx, &responses, succ_insts);
@@ -227,6 +228,7 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_INVALID_OWNER, owner_id);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
+
     dms_invld_ack_t *ack = (dms_invld_ack_t *)msg.buffer;
 #ifndef OPENGAUSS
     if (ctx->db_handle != NULL) {

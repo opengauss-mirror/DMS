@@ -44,7 +44,7 @@ int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *l
     dms_reform_list_init(list_offline);
     dms_reform_list_init(&list_unknown);
 
-    if(reform_info->rst_recover) {
+    if (reform_info->rst_recover) {
         dms_reform_list_add(list_online, (uint8)g_dms.inst_id);
         return DMS_SUCCESS;
     }
@@ -204,7 +204,7 @@ static void dms_reform_modify_list(void)
     }
     reform_info_t *reform_info = DMS_REFORM_INFO;
     if (reform_info->rst_recover) {
-        // To update the rcy point and lrp point of other nodes
+        // To update the rcy points and lrp point of other nodes
         for (uint32 inst_id = 0; inst_id < g_dms.inst_cnt; inst_id++) {
             if (inst_id != g_dms.inst_id) {
                 dms_reform_list_add(&share_info->list_stable, (uint8)inst_id);
@@ -461,8 +461,8 @@ char *dms_reform_get_type_desc(uint32 reform_type)
         case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
             return "AZ SWITCHOVER DEMOTE";
 
-	    case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
-	        return "AZ SWITCHOVER PROMOTE";
+        case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
+            return "AZ SWITCHOVER PROMOTE";
 
         case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
             return "AZ FAILOVER";
@@ -1108,7 +1108,7 @@ static bool32 dms_reform_judgement_maintain_check(instance_list_t *inst_lists)
 
 static bool32 dms_reform_judgement_rst_recover_check(instance_list_t *inst_lists)
 {
-    // if instance status is not join, finish current judgement, that means last rst recover has finished 
+    // if instance status is not join, finish current judgement, that means last rst recover has finished
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count == 0 && inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
         LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, result: No, old_join: 0, new_join: 0");
         dms_reform_judgement_stat_cancel();

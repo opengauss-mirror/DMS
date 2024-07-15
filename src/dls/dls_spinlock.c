@@ -92,7 +92,6 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     do {
         if (!lock_res->releasing && latch_stat->stat == LATCH_STATUS_IDLE) {
             drc_lock_local_resx(lock_res, dms_ctx->stat, dms_ctx->stat_instance);
-            
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
                 STAT_RPC_BEGIN;
                 if (latch_stat->lock_mode == DMS_LOCK_NULL && !dls_request_spin_lock(dms_ctx, lock_res, 1)) {
@@ -150,9 +149,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     if (SECUREC_UNLIKELY(dlock->drid.type == DMS_DR_TYPE_INVALID || dlock->drid.type >= DMS_DR_TYPE_MAX)) {
         cm_panic(0);
     }
-    
     LOG_DEBUG_INF("[DLS] try add spinlock(%s),", cm_display_lockid(&dlock->drid));
-
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlock->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
@@ -300,7 +297,7 @@ void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     drc_local_lock_res_t *lock_res = drc_get_local_resx(&dlock->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
-    
+
     drc_lock_local_resx(lock_res, NULL, NULL);
     CM_ASSERT(latch_stat->shared_count > 0);
     latch_stat->shared_count--;

@@ -489,7 +489,7 @@ static int dms_reform_az_switch_demote_approve(void)
 static int dms_reform_az_switch_demote_phase2(void)
 {
     int ret = DMS_SUCCESS;
-    
+
     LOG_RUN_FUNC_ENTER;
     ret = g_dms.callback.az_switchover_demote_phase2(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
@@ -895,7 +895,7 @@ static void dms_reform_set_switchover_result(void)
     switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
 
-    // if current reform is SWITCHOVER,should set switchover result for the new primary
+    // if current reform is SWITCHOVER, should set switchover result for the new primary
     // clean switchover request in the original primary
     // if current reform is OTHERS, should set switchover result for the session which has request switchover
     if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
@@ -947,7 +947,12 @@ static void dms_reform_set_az_switchover_result(void)
         cm_spin_lock(&switchover_info->lock, NULL);
         if (switchover_info->switch_start) {
             if (!dms_reform_version_same(&switchover_info->reformer_version, &reform_info->reformer_version)) {
+                LOG_RUN_INF("[DMS REFORM]dms_reform_set_last_az_switchover_result, curr reform_type: %u,"
+                    "promote_id: %d, current_id: %u", share_info->reform_type, share_info->promote_id, g_dms.inst_id);
                 switchover_info->switch_start = CM_FALSE;
+                switchover_info->inst_id = CM_INVALID_ID8;
+                switchover_info->sess_id = CM_INVALID_ID16;
+                switchover_info->switch_req = CM_FALSE;
                 switchover_info->switch_type = AZ_IDLE;
                 g_dms.callback.set_switchover_result(g_dms.reform_ctx.handle_proc, ERRNO_DMS_REFORM_FAIL);
             }

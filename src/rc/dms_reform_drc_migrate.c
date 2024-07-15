@@ -90,7 +90,7 @@ int dms_reform_remaster(void)
         uint8 server_id;
         if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
             server_id = share_info->promote_id;
-        }else {
+        } else {
             server_id = share_info->reformer_id;
         }
         reform_ctx->scrlock_reinit_ctx.scrlock_server_id = server_id;
@@ -141,7 +141,7 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
     }
     part = &ctx->global_lock_res.res_parts[migrate_task->part_id];
     drc_release_buf_res_by_part(part, DRC_RES_LOCK_TYPE);
-    
+
     ret = dms_reform_req_migrate_res(migrate_task, DRC_RES_GLOBAL_XA_TYPE, handle, sess_id);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_FUNC_FAIL;
