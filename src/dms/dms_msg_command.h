@@ -24,6 +24,10 @@
 #ifndef __DMS_MSG_COMMAND_H__
 #define __DMS_MSG_COMMAND_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum en_msg_command {
     MSG_REQ_BEGIN = 0,
     MSG_REQ_ASK_MASTER_FOR_PAGE = MSG_REQ_BEGIN,
@@ -160,5 +164,9 @@ typedef enum en_msg_command {
 
 #define DMS_CMD_SIZE (MSG_CMD_CEIL - (MSG_ACK_BEGIN - MSG_REQ_END))
 #define MSG_REQ_REFORM_TLOCK_TYPE(cmd) ((cmd) == MSG_REQ_TLOCK_REBUILD || (cmd) == MSG_REQ_TLOCK_VALIDATE)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // __DMS_MSG_COMMAND_H__
