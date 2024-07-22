@@ -1163,7 +1163,11 @@ int32 dms_init_logger(logger_param_t *param_def)
     log_param->audit_backup_file_count = param_def->log_backup_file_count;
     log_param->max_log_file_size = param_def->log_max_file_size;
     log_param->max_audit_file_size = param_def->log_max_file_size;
-    log_param->log_compressed = true;
+#ifdef OPENGAUSS
+    log_param->log_compressed = CM_FALSE;
+#else
+    log_param->log_compressed = CM_TRUE;
+#endif
     log_param->log_compress_buf = dms_malloc(CM_LOG_COMPRESS_BUFSIZE);
     if (log_param->log_compress_buf == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
