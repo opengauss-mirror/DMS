@@ -41,7 +41,7 @@ static inline bool8 dcs_is_reform_visit(dms_buf_ctrl_t *ctrl)
     return (bool8)ctrl->is_reform_visit;
 }
 
-static inline void dcs_set_ctrl_in_rcy(dms_context_t* dms_ctx, dms_buf_ctrl_t* ctrl)
+static inline void dcs_set_ctrl_in_rcy(dms_context_t* dms_ctx, dms_buf_ctrl_t *ctrl)
 {
     ctrl->in_rcy = (dms_ctx->sess_type == DMS_SESSION_RECOVER);
 }

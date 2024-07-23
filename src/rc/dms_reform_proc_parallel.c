@@ -257,7 +257,7 @@ static int drc_recycle_buf_res_proc(resource_id_t *res_id, parallel_thread_t *pa
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_list_t *part = &ctx->global_buf_res.res_parts[res_id->part_id];
-    drc_recycle_buf_res_by_part(part, parallel->sess_id, parallel->handle);
+    drc_recycle_drc_page_by_part(part, parallel->sess_id, parallel->handle);
     return DMS_SUCCESS;
 }
 

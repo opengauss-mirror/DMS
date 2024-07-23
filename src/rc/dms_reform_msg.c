@@ -570,7 +570,7 @@ static void dms_reform_req_migrate_init(dms_reform_req_migrate_t *req, migrate_t
     req->res_type = res_type;
 }
 
-static int dms_reform_req_migrate_add_buf_res(drc_buf_res_t *buf_res, dms_reform_req_migrate_t *req, uint32 *offset,
+static int dms_reform_req_migrate_add_buf_res(drc_head_t *drc, dms_reform_req_migrate_t *req, uint32 *offset,
     uint32 sess_id)
 {
     int ret;
@@ -587,15 +587,18 @@ static int dms_reform_req_migrate_add_buf_res(drc_buf_res_t *buf_res, dms_reform
         req->res_num = 0;
     }
     drc_buf_res_msg_t *res_msg = (drc_buf_res_msg_t*)((uint8 *)req + *offset);
-    res_msg->claimed_owner = buf_res->claimed_owner;
-    res_msg->copy_insts = buf_res->copy_insts;
-    res_msg->lsn = buf_res->lsn;
-    res_msg->last_edp = buf_res->last_edp;
-    res_msg->mode = buf_res->lock_mode;
-    res_msg->edp_map = buf_res->edp_map;
-    res_msg->len = buf_res->len;
-    res_msg->converting = buf_res->converting.req_info;
-    ret = memcpy_s(res_msg->resid, DMS_RESID_SIZE, buf_res->data, buf_res->len);
+    res_msg->claimed_owner = drc->owner;
+    res_msg->copy_insts = drc->copy_insts;
+    res_msg->mode = drc->lock_mode;
+    res_msg->len = drc->len;
+    res_msg->converting = drc->converting.req_info;
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *drc_page = (drc_page_t *)drc;
+        res_msg->last_edp = drc_page->last_edp;
+        res_msg->lsn = drc_page->last_edp_lsn;
+        res_msg->edp_map = drc_page->edp_map;
+    }
+    ret = memcpy_s(res_msg->resid, DMS_RESID_SIZE, DRC_DATA(drc), drc->len);
     DMS_SECUREC_CHECK(ret);
     *offset += len;
     req->res_num++;
@@ -614,7 +617,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
     dms_reform_req_migrate_init(req, migrate_task, type, sess_id);
 
     int ret = DMS_SUCCESS;
-    drc_buf_res_t *buf_res = NULL;
+    drc_head_t *drc = NULL;
     drc_global_xa_res_t *xa_res = NULL;
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
 
@@ -633,9 +636,9 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
             xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);
             ret = dms_reform_req_migrate_xa(xa_res, req, &offset, sess_id);
         } else {
-            buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
-            DRC_DISPLAY(buf_res, "migrate");
-            ret = dms_reform_req_migrate_add_buf_res(buf_res, req, &offset, sess_id);
+            drc = DRC_RES_NODE_OF(drc_head_t, node, part_node);
+            DRC_DISPLAY(drc, "migrate");
+            ret = dms_reform_req_migrate_add_buf_res(drc, req, &offset, sess_id);
         }
 
         if (ret != DMS_SUCCESS) {
@@ -665,30 +668,31 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 
 static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, drc_buf_res_msg_t *res_msg, uint8 type)
 {
-    drc_buf_res_t *buf_res = NULL;
+    drc_head_t *drc = NULL;
     uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-    int ret = drc_enter_buf_res(res_msg->resid, res_msg->len, type, options, &buf_res);
+    int ret = drc_enter(res_msg->resid, res_msg->len, type, options, &drc);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
-    if (buf_res == NULL) {
+    if (drc == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH;
     }
-    init_drc_cvt_item(&buf_res->converting);
-    buf_res->claimed_owner = res_msg->claimed_owner;
-    buf_res->copy_insts = res_msg->copy_insts;
-    buf_res->last_edp = res_msg->last_edp;
-    buf_res->lock_mode = res_msg->mode;
-    buf_res->edp_map = res_msg->edp_map;
-    buf_res->lsn  = res_msg->lsn;
-    buf_res->len  = res_msg->len;
-    buf_res->converting.req_info = res_msg->converting;
-    buf_res->type = type;
-    errno_t err = memcpy_s(buf_res->data, DMS_RESID_SIZE, res_msg->resid, res_msg->len);
-    DMS_SECUREC_CHECK(err);
-    cm_bilist_init(&buf_res->convert_q);
-    drc_leave_buf_res(buf_res);
+    init_drc_cvt_item(&drc->converting);
+    drc->type = type;
+    drc->len = res_msg->len;
+    drc->owner = res_msg->claimed_owner;
+    drc->lock_mode = res_msg->mode;
+    drc->copy_insts = res_msg->copy_insts;
+    drc->converting.req_info = res_msg->converting;
+    cm_bilist_init(&drc->convert_q);
+    if (type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *drc_page = (drc_page_t *)drc;
+        drc_page->last_edp = res_msg->last_edp;
+        drc_page->last_edp_lsn = res_msg->lsn;
+        drc_page->edp_map = res_msg->edp_map;
+    }
+    drc_leave(drc);
     return DMS_SUCCESS;
 }
 
@@ -1009,7 +1013,8 @@ void dms_reform_proc_req_lock_rebuild_base(dms_process_context_t *ctx, dms_messa
 int dms_reform_proc_local_lock_res_rebuild(void *lock_info, uint8 src_inst)
 {
     drc_local_lock_res_t *lock_res = (drc_local_lock_res_t *)lock_info;
-    int ret = dms_reform_proc_lock_rebuild(&lock_res->resid, lock_res->latch_stat.lock_mode, src_inst);
+    int ret = dms_reform_proc_lock_rebuild(&lock_res->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE,
+        lock_res->latch_stat.lock_mode, src_inst);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]dms_reform_proc_local_lock_res_rebuild, myid:%u", g_dms.inst_id);
     }
@@ -1025,7 +1030,8 @@ void dms_reform_proc_req_lock_rebuild(dms_process_context_t *ctx, dms_message_t 
 int dms_reform_proc_tlock_rebuild(void *lock_info, uint8 src_inst)
 {
     dms_tlock_info_t *tlock = (dms_tlock_info_t *)lock_info;
-    int ret = dms_reform_proc_lock_rebuild(&tlock->resid, tlock->lock_mode, src_inst);
+    int ret = dms_reform_proc_lock_rebuild(&tlock->resid, DMS_DRID_SIZE, DRC_RES_LOCK_TYPE, tlock->lock_mode,
+        src_inst);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]dms_reform_proc_tlock_rebuild, myid:%u", g_dms.inst_id);
     }

@@ -41,8 +41,12 @@ extern "C" {
 #ifdef OPENGAUSS
 #define DMS_PAGEID_SIZE         24  // openGauss bufferTag size
 #else
-#define DMS_PAGEID_SIZE         16
+#define DMS_PAGEID_SIZE         8
 #endif
+#define DMS_ALOCK_NAME_SIZE     128
+#define DMS_ALOCKID_SIZE        sizeof(alockid_t)
+#define DMS_DRID_SIZE           sizeof(dms_drid_t)
+#define DMS_RESID_SIZE          DMS_ALOCKID_SIZE
 
 #define DMS_XID_SIZE            12
 #define DMS_INSTANCES_SIZE      4
@@ -153,33 +157,26 @@ typedef struct st_dms_drid {
         struct {
             unsigned long long key1;
             unsigned long long key2;
-            unsigned int key3;
+            unsigned long long key3;
         };
         struct {
-            unsigned short  type;  // lock type
-            union {
-                unsigned short  uid;   // user id, for table lock resource
-                unsigned short  len;
-            };
-            union {
-                struct {
-                    unsigned int    oid;   // lock id
-                    unsigned int    index; // index id
-                    unsigned int    parent_part;  // parent partition id
-                    unsigned int    part;  // partition id
-                };
-                struct {
-                    unsigned long long oid_64;
-                    unsigned long long unused;
-                };
-                struct {
-                    unsigned char resid[DMS_DRID_CTX_SIZE];
-                };
-            };
+            unsigned short      type;
+            unsigned short      uid;
+            unsigned int        index;
+            unsigned long long  oid;
+            unsigned int        parent;
+            unsigned int        part;
         };
     };
 } dms_drid_t;
 #pragma pack()
+
+typedef struct st_alockid {
+    char                name[DMS_ALOCK_NAME_SIZE];
+    unsigned char       len;
+    unsigned char       type;
+    unsigned char       unused[2];
+} alockid_t;
 
 typedef enum en_drc_res_type {
     DRC_RES_INVALID_TYPE,
@@ -190,6 +187,7 @@ typedef enum en_drc_res_type {
     DRC_RES_LOCAL_TXN_TYPE,
     DRC_RES_LOCK_ITEM_TYPE,
     DRC_RES_GLOBAL_XA_TYPE,
+    DRC_RES_ALOCK_TYPE,
     DRC_RES_TYPE_MAX_COUNT,
 } drc_res_type_e;
 
@@ -262,9 +260,6 @@ typedef struct st_dms_cr_assist_t {
     dms_cr_phase_t phase;                   /* OUT parameter */
     dms_cr_status_t status;                 /* OUT parameter */
 } dms_cr_assist_t;
-
-#define DMS_RESID_SIZE  132
-#define DMS_DRID_SIZE   sizeof(dms_drid_t)
 
 typedef struct st_dms_drlock {
     dms_drid_t      drid;
@@ -1347,8 +1342,6 @@ typedef struct st_dms_tlock_info {
     unsigned char unused[3];
 } dms_tlock_info_t;
 
-typedef dms_tlock_info_t dms_alock_info_t;
-
 typedef struct thread_info {
     char thread_name[DMS_MAX_NAME_LEN];
     void *thread_info;
@@ -1358,6 +1351,12 @@ typedef struct thread_set {
     thread_info_t threads[MAX_DMS_THREAD_NUM];
     int thread_count;
 } thread_set_t;
+
+typedef struct st_dms_alock_info {
+    alockid_t alockid;
+    unsigned char lock_mode;
+    unsigned char unused[3];
+} dms_alock_info_t;
 
 typedef struct st_driver_ping_info {
     unsigned long long rw_bitmap;

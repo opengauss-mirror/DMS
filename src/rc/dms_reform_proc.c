@@ -188,50 +188,49 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
     if (ctrl->lock_mode == DMS_LOCK_NULL) {
         return;
     }
-    drc_buf_res_t *buf_res = NULL;
+    drc_head_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-
-    int ret = drc_enter_buf_res(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
-    if (ret != DMS_SUCCESS || buf_res == NULL) {
+    int ret = drc_enter(dms_ctx->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &drc);
+    if (ret != DMS_SUCCESS || drc == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return;
     }
 
     LOG_DEBUG_INF("[DRC][%s]dms_validate_drc check", cm_display_pageid(dms_ctx->resid));
 
-    cm_panic_log(memcmp(buf_res->data, dms_ctx->resid, DMS_PAGEID_SIZE) == 0,
-        "[DRC validate]pageid unmatch(DRC:%s, buf:%s)", cm_display_pageid(buf_res->data),
+    cm_panic_log(memcmp(DRC_DATA(drc), dms_ctx->resid, DMS_PAGEID_SIZE) == 0,
+        "[DRC validate]pageid unmatch(DRC:%s, buf:%s)", cm_display_pageid(DRC_DATA(drc)),
         cm_display_pageid(dms_ctx->resid));
 
-    drc_request_info_t *req_info = &buf_res->converting.req_info;
-    if (buf_res->claimed_owner == g_dms.inst_id) {
+    drc_request_info_t *req_info = &drc->converting.req_info;
+    if (drc->owner == g_dms.inst_id) {
         if (req_info->inst_id != CM_INVALID_ID8) {
             /*
              * If lock modes unmatch, then cvt matches ctrl.
              * If lock modes match, then the ack message of cvt request must be lost,
              * no need to check connverting info.
              */
-            if (ctrl->lock_mode != buf_res->lock_mode) {
+            if (ctrl->lock_mode != drc->lock_mode) {
                 cm_panic_log( req_info->req_mode == ctrl->lock_mode,
                     "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
-                    cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode, req_info->req_mode);
+                    cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode, req_info->req_mode);
             }
         } else {
-            cm_panic_log(buf_res->lock_mode == ctrl->lock_mode,"[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
-                cm_display_pageid(dms_ctx->resid), buf_res->lock_mode, ctrl->lock_mode);
+            cm_panic_log(drc->lock_mode == ctrl->lock_mode,"[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+                cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode);
         }
     } else {
         bool in_cvt = req_info->inst_id == g_dms.inst_id && ctrl->lock_mode == req_info->req_mode;
-        bool in_copy_insts = bitmap64_exist(&buf_res->copy_insts, g_dms.inst_id) && ctrl->lock_mode == DMS_LOCK_SHARE;
+        bool in_copy_insts = bitmap64_exist(&drc->copy_insts, g_dms.inst_id) && ctrl->lock_mode == DMS_LOCK_SHARE;
         bool first_load = ctrl->lock_mode == DMS_LOCK_EXCLUSIVE && req_info->req_mode != DMS_LOCK_NULL &&
-            buf_res->copy_insts == 0 && buf_res->claimed_owner == CM_INVALID_ID8;
+            drc->copy_insts == 0 && drc->owner == CM_INVALID_ID8;
         cm_panic_log(in_cvt || in_copy_insts || first_load,
             "[DRC validate][%s]lock mode unmatch(buf:%d, copy_insts:%lld, inst_id:%d, claimed_owner:%d)",
-            cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, buf_res->copy_insts, g_dms.inst_id,
-            (int)buf_res->claimed_owner);
+            cm_display_pageid(dms_ctx->resid), ctrl->lock_mode, drc->copy_insts, g_dms.inst_id,
+            (int)drc->owner);
     }
 
-    drc_leave_buf_res(buf_res);
+    drc_leave(drc);
 }
 #endif
 
@@ -288,22 +287,22 @@ static int dms_reform_space_reload_inner(void)
     return g_dms.callback.space_reload(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
 }
 
-static void dms_reform_recovery_set_flag_by_part_inner(drc_buf_res_t *buf_res)
+static void dms_reform_recovery_set_flag_by_part_inner(drc_page_t *drc_page)
 {
-    DRC_DISPLAY(buf_res, "rcy_clean");
-    buf_res->need_recover = CM_FALSE;
-    buf_res->need_flush = CM_FALSE;
+    DRC_DISPLAY(&drc_page->head, "rcy_clean");
+    drc_page->need_recover = CM_FALSE;
+    drc_page->need_flush = CM_FALSE;
 }
 
 void dms_reform_recovery_set_flag_by_part(drc_part_list_t *part)
 {
     bilist_node_t *node = cm_bilist_head(&part->list);
-    drc_buf_res_t *buf_res;
+    drc_page_t *drc_page = NULL;
 
     while (node != NULL) {
-        buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, part_node);
+        drc_page = (drc_page_t *)DRC_RES_NODE_OF(drc_head_t, node, part_node);
         node = BINODE_NEXT(node);
-        dms_reform_recovery_set_flag_by_part_inner(buf_res);
+        dms_reform_recovery_set_flag_by_part_inner(drc_page);
     }
 }
 
@@ -1470,6 +1469,7 @@ static int dms_reform_drc_access(void)
 
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
+    ctx->global_alock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
     ctx->global_buf_res.drc_accessible_stage = PAGE_ACCESS_STAGE_REALESE_ACCESS;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
@@ -1483,7 +1483,7 @@ static int dms_reform_ddl_2phase_drc_access(void)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS;
     ctx->global_buf_res.drc_accessible_stage = PAGE_ACCESS_STAGE_REALESE_ACCESS;
-
+    ctx->global_alock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -1495,7 +1495,7 @@ static int dms_reform_drc_lock_all_access(void)
 
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ctx->global_lock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
-
+    ctx->global_alock_res.drc_accessible_stage = LOCK_ACCESS_STAGE_ALL_ACCESS;
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
     return DMS_SUCCESS;
@@ -1555,6 +1555,7 @@ static int dms_reform_drc_inaccess(void)
 
     if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN)) {
         drc_buf_res_set_inaccess(&ctx->global_lock_res);
+        drc_buf_res_set_inaccess(&ctx->global_alock_res);
 
         if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
             drc_buf_res_set_inaccess(&ctx->global_xa_res);

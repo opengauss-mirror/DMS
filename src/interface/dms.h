@@ -172,17 +172,6 @@ DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms
     dms_lock_mode_t req_mode, unsigned char *owner_id);
 
 /*
-* @brief init distributed pl spin lock.
-* @param lock - distributed resource lock identifier.
-* @param type - distributed resource type.
-* @param oid - resource object id.
-* @param uid - resource user id.
-* @return
-*/
-DMS_DECLARE void dms_init_pl_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid,
-    unsigned short uid);
-
-/*
 * @brief init distributed spin lock.
 * @param lock - distributed resource lock identifier.
 * @param type - distributed resource type.
@@ -190,8 +179,7 @@ DMS_DECLARE void dms_init_pl_spinlock(dms_drlock_t *lock, dms_dr_type_t type, un
 * @param uid - resource user id.
 * @return
 */
-DMS_DECLARE void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned int oid,
-    unsigned short uid);
+DMS_DECLARE void dms_init_spinlock(dms_drlock_t *lock, dms_dr_type_t type, unsigned long long oid, unsigned short uid);
 
 /*
 * @brief init distributed spin lock.
@@ -259,17 +247,6 @@ DMS_DECLARE unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t
 DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, unsigned int timeout_ticks);
 
 /*
-* @brief init distributed pl latch.
-* @param dlatch - distributed resource lock identifier.
-* @param type - distributed resource type.
-* @param oid - resource object id.
-* @param uid - resource user id.
-* @return
-*/
-DMS_DECLARE void dms_init_pl_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, unsigned long long oid,
-    unsigned short uid);
-
-/*
 * @brief init distributed latch.
 * @param dlatch - distributed resource lock identifier.
 * @param type - distributed resource type.
@@ -277,8 +254,7 @@ DMS_DECLARE void dms_init_pl_latch(dms_drlatch_t *dlatch, dms_dr_type_t type, un
 * @param uid - resource user id.
 * @return
 */
-DMS_DECLARE void dms_init_latch(dms_drlatch_t* dlatch, dms_dr_type_t type, unsigned int oid,
-    unsigned short uid);
+DMS_DECLARE void dms_init_latch(dms_drlatch_t* dlatch, dms_dr_type_t type, unsigned long long oid, unsigned short uid);
 
 /*
 * @brief init distributed latch.
@@ -876,8 +852,6 @@ DMS_DECLARE int dms_reform_req_opengauss_ondemand_redo_buffer(dms_context_t *dms
 
 DMS_DECLARE int dms_info(char *buf, unsigned int len, unsigned int curr);
 
-DMS_DECLARE int dms_reform_res_need_rebuild(char *res, unsigned char res_type, unsigned int *need_rebuild);
-
 DMS_DECLARE unsigned int dms_get_mes_max_watting_rooms(void);
 
 DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point);
@@ -1011,7 +985,7 @@ DMS_DECLARE int dms_dyn_change_buf_drc_num(unsigned long long new_data_buffer_si
 * @param wait_ticks - timeout ticks.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_alatch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+DMS_DECLARE unsigned char dms_alatch_timed_s(dms_context_t *dms_ctx, alockid_t *alockid, unsigned int wait_ticks);
 /*
 * @brief distributed advisory exclusive latch acquire timeout method.
 * @param dms_ctx - dms_context_t structure.
@@ -1019,21 +993,21 @@ DMS_DECLARE unsigned char dms_alatch_timed_s(dms_context_t *dms_ctx, dms_drlatch
 * @param wait_ticks - timeout ticks.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_alatch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+DMS_DECLARE unsigned char dms_alatch_timed_x(dms_context_t *dms_ctx, alockid_t *alockid, unsigned int wait_ticks);
 /*
 * @brief distributed advisory shared latch try acquire method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_try_alatch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE unsigned char dms_try_alatch_s(dms_context_t *dms_ctx, alockid_t *alockid);
 /*
 * @brief distributed advisory exclusive latch try acquire method.
 * @param dms_ctx - dms_context_t structure.
 * @param dlatch - distributed resource lock identifier.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, alockid_t *alockid);
 /*
  * @brief rebuild advisory lock during reform.
  * @[in]param dms_ctx -  Obtains the context information.
@@ -1041,8 +1015,8 @@ DMS_DECLARE unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, dms_drlatch_t
  * @[in]param thread_index - thread index
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_alock_rebuild_drc_parallel(
-    dms_context_t *dms_ctx, dms_alock_info_t *lock_info, unsigned char thread_index);
+DMS_DECLARE int dms_alock_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_alock_info_t *lock_info,
+    unsigned char thread_index);
 
 /*
  * @brief Obtain wait information of the alatch in sepecified instance when db is detecting deadlock
@@ -1055,7 +1029,7 @@ DMS_DECLARE int dms_alock_rebuild_drc_parallel(
  * @return DMS_SUCCESS - success;otherwise: failed
  */
 DMS_DECLARE int dms_smon_deadlock_get_alock_info_by_drid(dms_context_t *dms_ctx, unsigned char dst_inst,
-    dms_drlatch_t *alatch, char *res_buf, unsigned int buf_len, unsigned int *res_len);
+    alockid_t *alockid, char *res_buf, unsigned int buf_len, unsigned int *res_len);
 
  DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 /*

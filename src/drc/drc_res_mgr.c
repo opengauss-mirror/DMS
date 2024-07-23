@@ -208,6 +208,8 @@ char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
     pool->used_num++;
     cm_spin_unlock(&pool->lock);
+    errno_t err = memset_s(item_addr, pool->item_size, 0, pool->item_size);
+    DMS_SECUREC_CHECK(err);
     return item_addr;
 }
 
@@ -287,53 +289,76 @@ drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, ui
     return &res_map->buckets[hash_val % res_map->bucket_num];
 }
 
-static void init_buf_res(drc_buf_res_t* buf_res, char* resid, uint16 len, uint8 res_type)
+static void drc_init(drc_head_t *drc, char* resid, uint16 len, uint8 res_type)
 {
-    GS_INIT_SPIN_LOCK(buf_res->lock);
-    cm_bilist_node_init(&buf_res->node);
-    cm_bilist_node_init(&buf_res->part_node);
-    cm_bilist_node_init(&buf_res->rebuild_node);
-    buf_res->claimed_owner = CM_INVALID_ID8;
-    buf_res->copy_insts = 0;
-    buf_res->lock_mode = DMS_LOCK_NULL;
-    buf_res->last_edp = CM_INVALID_ID8;
-    buf_res->edp_map = 0;
-    buf_res->lsn = 0;
-    buf_res->need_recover = CM_FALSE;
-    buf_res->copy_promote = DMS_COPY_PROMOTE_NONE;
-    buf_res->need_flush = CM_FALSE;
-    buf_res->type = res_type;
-    buf_res->rebuild_type = (uint8)REFORM_ASSIST_LIST_NONE;
-    buf_res->owner_lsn = 0;
-    buf_res->len = len;
-    buf_res->count = 0;
-    buf_res->recycling = CM_FALSE;
-    buf_res->is_using = CM_TRUE;
-    cm_bilist_init(&buf_res->convert_q);
-    init_drc_cvt_item(&buf_res->converting);
-    errno_t ret = memcpy_s(buf_res->data, DMS_RESID_SIZE, resid, len);
+    // init drc_head
+    drc->type = res_type;
+    drc->owner = CM_INVALID_ID8;
+    drc->is_using = CM_TRUE;
+    drc->len = len;
+    init_drc_cvt_item(&drc->converting);
+
+    // memory copy resid
+    errno_t ret = memcpy_s(DRC_DATA(drc), len, resid, len);
     DMS_SECUREC_CHECK(ret);
+
+    // init drc_page
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *drc_page = (drc_page_t *)drc;
+        drc_page->last_edp = CM_INVALID_ID8;
+    }
 }
 
-static drc_buf_res_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
+uint16 drc_get_partid(drc_head_t *drc)
+{
+    switch (drc->type) {
+        case DRC_RES_PAGE_TYPE:
+            return drc_page_partid(DRC_DATA(drc));
+        case DRC_RES_LOCK_TYPE:
+            return drc_get_lock_partid(DRC_DATA(drc), DMS_DRID_SIZE, DRC_MAX_PART_NUM);
+        case DRC_RES_ALOCK_TYPE:
+            return drc_get_lock_partid(DRC_DATA(drc), DMS_ALOCKID_SIZE, DRC_MAX_PART_NUM);
+        default:
+            cm_panic_log(CM_FALSE, "invalid type when get partid");
+            return 0;
+    }
+}
+
+void drc_add_into_part_list(drc_head_t *drc)
+{
+    drc_global_res_map_t *res_map = drc_get_global_res_map(drc->type);
+    drc->part_id = drc_get_partid(drc);
+    drc_part_list_t *part = &res_map->res_parts[drc->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_add_head(&drc->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
+}
+
+void drc_remove_from_part_list(drc_head_t *drc)
+{
+    drc_global_res_map_t *res_map = drc_get_global_res_map(drc->type);
+    drc_part_list_t *part = &res_map->res_parts[drc->part_id];
+    cm_spin_lock(&part->lock, NULL);
+    cm_bilist_del(&drc->part_node, &part->list);
+    cm_spin_unlock(&part->lock);
+}
+
+static drc_head_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
     drc_res_bucket_t *bucket)
 {
-    drc_buf_res_t* buf_res = (drc_buf_res_t *)drc_res_pool_alloc_item(pool);
-    if (buf_res == NULL) {
-        LOG_DEBUG_WAR("[DRC][%s]buf_res create fail", cm_display_resid(resid, res_type));
+    drc_head_t *drc = (drc_head_t *)drc_res_pool_alloc_item(pool);
+    if (drc == NULL) {
+        LOG_DEBUG_WAR("[DRC][%s]drc create fail", cm_display_resid(resid, res_type));
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return NULL;
     }
-    LOG_DEBUG_INF("[DRC][%s]buf_res create successful", cm_display_resid(resid, res_type));
+    LOG_DEBUG_INF("[DRC][%s]drc create successful", cm_display_resid(resid, res_type));
 
-    init_buf_res(buf_res, resid, len, res_type);
-    drc_res_map_add_res(bucket, (char *)buf_res);
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        drc_add_buf_res_in_part_list(buf_res);
-    } else {
-        drc_add_lock_res_in_part_list(buf_res);
-    }
-    return buf_res;
+    drc_init(drc, resid, len, res_type);
+    drc_res_map_add_res(bucket, (char *)drc);
+    drc_add_into_part_list(drc);
+
+    return drc;
 }
 
 void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
@@ -343,19 +368,18 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
-drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
+drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
-
     drc_res_map_t *res_map = &global_res_map->res_map;
     drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
 
     cm_spin_lock(&bucket->lock, NULL);
-    drc_buf_res_t* buf_res = (drc_buf_res_t *)drc_res_map_lookup(res_map, bucket, resid, len);
-    if (buf_res != NULL) {
-        drc_inc_buf_res_ref(buf_res);
+    drc_head_t *drc = (drc_head_t *)drc_res_map_lookup(res_map, bucket, resid, len);
+    if (drc != NULL) {
+        drc_inc_ref_count(drc);
         cm_spin_unlock(&bucket->lock);
-        return buf_res;
+        return drc;
     }
 
     if (!(options & DRC_RES_ALLOC)) {
@@ -363,21 +387,20 @@ drc_buf_res_t* drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 op
         return NULL;
     }
 
-    buf_res = drc_create_buf_res(&res_map->res_pool, resid, len, res_type, bucket);
-    if (SECUREC_UNLIKELY(buf_res == NULL)) {
+    drc = drc_create_buf_res(&res_map->res_pool, resid, len, res_type, bucket);
+    if (SECUREC_UNLIKELY(drc == NULL)) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
     }
 
-    drc_inc_buf_res_ref(buf_res);
+    drc_inc_ref_count(drc);
     cm_spin_unlock(&bucket->lock);
-    return buf_res;
+    return drc;
 }
 
 static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
-
     uint8 master_id = CM_INVALID_ID8;
 
     if (!cm_latch_timed_s(&res_map->res_latch, 1, CM_FALSE, NULL)) {
@@ -436,10 +459,12 @@ void drc_enter_buf_res_set_blocked(void)
     drc_global_res_map_t *buf_res_map = &g_drc_res_ctx.global_buf_res;
     drc_global_res_map_t *lock_res_map = &g_drc_res_ctx.global_lock_res;
     drc_global_res_map_t *xa_res_map = &g_drc_res_ctx.global_xa_res;
+    drc_global_res_map_t *alock_res_map = &g_drc_res_ctx.global_alock_res;
 
     cm_latch_x(&buf_res_map->res_latch, 0, NULL);
     cm_latch_x(&lock_res_map->res_latch, 0, NULL);
     cm_latch_x(&xa_res_map->res_latch, 0, NULL);
+    cm_latch_x(&alock_res_map->res_latch, 0, NULL);
 }
 
 void drc_enter_buf_res_set_unblocked(void)
@@ -447,36 +472,38 @@ void drc_enter_buf_res_set_unblocked(void)
     drc_global_res_map_t *buf_res_map = &g_drc_res_ctx.global_buf_res;
     drc_global_res_map_t *lock_res_map = &g_drc_res_ctx.global_lock_res;
     drc_global_res_map_t *xa_res_map = &g_drc_res_ctx.global_xa_res;
+    drc_global_res_map_t *alock_res_map = &g_drc_res_ctx.global_alock_res;
 
     cm_unlatch(&xa_res_map->res_latch, NULL);
     cm_unlatch(&lock_res_map->res_latch, NULL);
     cm_unlatch(&buf_res_map->res_latch, NULL);
+    cm_unlatch(&alock_res_map->res_latch, NULL);
 }
 
-int drc_enter_buf_res(char *resid, uint16 len, uint8 res_type, uint8 options, drc_buf_res_t **buf_res)
+int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc)
 {
     int ret = drc_buf_res_latch(resid, res_type, options);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
 
-    drc_buf_res_t *tmp_res = drc_get_buf_res(resid, len, res_type, options);
-    if (tmp_res == NULL) {
+    drc_head_t *temp_drc = drc_get_buf_res(resid, len, res_type, options);
+    if (temp_drc == NULL) {
         drc_buf_res_unlatch(res_type);
-        *buf_res = NULL;
+        *drc = NULL;
         return DMS_SUCCESS;
     }
 
-    cm_spin_lock(&tmp_res->lock, NULL);
-    *buf_res = tmp_res;
+    cm_spin_lock(&temp_drc->lock, NULL);
+    *drc = temp_drc;
     return DMS_SUCCESS;
 }
 
-void drc_leave_buf_res(drc_buf_res_t *buf_res)
+void drc_leave(drc_head_t *drc)
 {
-    drc_dec_buf_res_ref(buf_res);
-    cm_spin_unlock(&buf_res->lock);
-    drc_buf_res_unlatch(buf_res->type);
+    drc_dec_ref_count(drc);
+    cm_spin_unlock(&drc->lock);
+    drc_buf_res_unlatch(drc->type);
 }
 
 /*
@@ -537,6 +564,11 @@ void drc_destroy(void)
         cm_bilist_init(&ctx->global_lock_res.res_parts[i].list);
     }
 
+    drc_res_map_destroy(&ctx->global_alock_res.res_map);
+    for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
+        cm_bilist_init(&ctx->global_alock_res.res_parts[i].list);
+    }
+
     drc_res_map_destroy(&ctx->global_xa_res.res_map);
     for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
         cm_bilist_init(&ctx->global_xa_res.res_parts[i].list);
@@ -554,62 +586,62 @@ void drc_destroy(void)
 
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id)
 {
-    drc_buf_res_t *buf_res = NULL;
+    drc_page_t *drc_page = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-    int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    int ret = drc_enter(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
 
-    if (buf_res == NULL) {
+    if (drc_page == NULL) {
         *id = CM_INVALID_ID8;
         return DMS_SUCCESS;
     }
 
-    if (buf_res->claimed_owner == CM_INVALID_ID8) {
+    if (drc_page->head.owner == CM_INVALID_ID8) {
         *id = CM_INVALID_ID8;
-        ret = drc_get_no_owner_id(db_handle, buf_res, id);
-        drc_leave_buf_res(buf_res);
+        ret = drc_get_no_owner_id(db_handle, (drc_head_t *)drc_page, id);
+        drc_leave((drc_head_t *)drc_page);
         return ret;
     }
 
     if (edp_inst != CM_INVALID_ID8 &&
-        buf_res->claimed_owner != edp_inst) {
-        bitmap64_set(&buf_res->edp_map, edp_inst);
+        drc_page->head.owner != edp_inst) {
+        bitmap64_set(&drc_page->edp_map, edp_inst);
     }
 
-    *id = buf_res->claimed_owner;
-    drc_leave_buf_res(buf_res);
+    *id = drc_page->head.owner;
+    drc_leave((drc_head_t *)drc_page);
     return DMS_SUCCESS;
 }
 
 int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id)
 {
-    drc_buf_res_t *buf_res = NULL;
+    drc_page_t *drc_page = NULL;
     uint8 options = drc_build_options(CM_FALSE, sess_type, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-    int ret = drc_enter_buf_res(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    int ret = drc_enter(pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
 
-    if (buf_res == NULL) {
+    if (drc_page == NULL) {
         *id = CM_INVALID_ID8;
         return DMS_SUCCESS;
     }
 
-    if (buf_res->claimed_owner == CM_INVALID_ID8) {
-        drc_leave_buf_res(buf_res);
+    if (drc_page->head.owner == CM_INVALID_ID8) {
+        drc_leave((drc_head_t *)drc_page);
         *id = CM_INVALID_ID8;
         return DMS_SUCCESS;
     }
 
-    if (edp_inst != CM_INVALID_ID8 && buf_res->claimed_owner != edp_inst &&
-        !bitmap64_exist(&buf_res->edp_map, edp_inst)) {
-        bitmap64_set(&buf_res->edp_map, edp_inst);
+    if (edp_inst != CM_INVALID_ID8 && drc_page->head.owner != edp_inst &&
+        !bitmap64_exist(&drc_page->edp_map, edp_inst)) {
+        bitmap64_set(&drc_page->edp_map, edp_inst);
     }
 
-    *id = buf_res->claimed_owner;
-    drc_leave_buf_res(buf_res);
+    *id = drc_page->head.owner;
+    drc_leave((drc_head_t *)drc_page);
     return DMS_SUCCESS;
 }
 
@@ -646,61 +678,23 @@ int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id)
     return DMS_SUCCESS;
 }
 
-void drc_add_buf_res_in_part_list(drc_buf_res_t *buf_res)
+void drc_shift_to_tail(drc_head_t *drc)
 {
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    buf_res->part_id = drc_page_partid(buf_res->data);
-    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
+    drc_global_res_map_t *res_map = drc_get_global_res_map(drc->type);
+    drc_part_list_t *part = &res_map->res_parts[drc->part_id];
     cm_spin_lock(&part->lock, NULL);
-    cm_bilist_add_head(&buf_res->part_node, &part->list);
+    cm_bilist_del(&drc->part_node, &part->list);
+    cm_bilist_add_tail(&drc->part_node, &part->list);
     cm_spin_unlock(&part->lock);
 }
 
-void drc_del_buf_res_in_part_list(drc_buf_res_t *buf_res)
+void drc_shift_to_head(drc_head_t *drc)
 {
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
+    drc_global_res_map_t *res_map = drc_get_global_res_map(drc->type);
+    drc_part_list_t *part = &res_map->res_parts[drc->part_id];
     cm_spin_lock(&part->lock, NULL);
-    cm_bilist_del(&buf_res->part_node, &part->list);
-    cm_spin_unlock(&part->lock);
-}
-
-void drc_add_lock_res_in_part_list(drc_buf_res_t *lock_res)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    lock_res->part_id = (uint16)drc_get_lock_partid((uint8 *)lock_res->data, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
-    drc_part_list_t *part = &ctx->global_lock_res.res_parts[lock_res->part_id];
-    cm_spin_lock(&part->lock, NULL);
-    cm_bilist_add_head(&lock_res->part_node, &part->list);
-    cm_spin_unlock(&part->lock);
-}
-
-void drc_del_lock_res_in_part_list(drc_buf_res_t *lock_res)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = &ctx->global_lock_res.res_parts[lock_res->part_id];
-    cm_spin_lock(&part->lock, NULL);
-    cm_bilist_del(&lock_res->part_node, &part->list);
-    cm_spin_unlock(&part->lock);
-}
-
-void drc_buf_res_shift_to_tail(drc_buf_res_t *buf_res)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
-    cm_spin_lock(&part->lock, NULL);
-    cm_bilist_del(&buf_res->part_node, &part->list);
-    cm_bilist_add_tail(&buf_res->part_node, &part->list);
-    cm_spin_unlock(&part->lock);
-}
-
-void drc_buf_res_shift_to_head(drc_buf_res_t *buf_res)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = &ctx->global_buf_res.res_parts[buf_res->part_id];
-    cm_spin_lock(&part->lock, NULL);
-    cm_bilist_del(&buf_res->part_node, &part->list);
-    cm_bilist_add_head(&buf_res->part_node, &part->list);
+    cm_bilist_del(&drc->part_node, &part->list);
+    cm_bilist_add_head(&drc->part_node, &part->list);
     cm_spin_unlock(&part->lock);
 }
 
@@ -717,15 +711,18 @@ void drc_release_convert_q(bilist_t *convert_q)
 
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
 {
-    if (type == DRC_RES_PAGE_TYPE) {
-        return drc_get_page_master_id(resid, master_id);
+    switch (type) {
+        case DRC_RES_PAGE_TYPE:
+            return drc_get_page_master_id(resid, master_id);
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return drc_get_xa_master_id((drc_global_xid_t *)resid, master_id);
+        case DRC_RES_LOCK_TYPE:
+            return drc_get_lock_master_id(resid, DMS_DRID_SIZE, master_id);
+        case DRC_RES_ALOCK_TYPE:
+            return drc_get_lock_master_id(resid, DMS_ALOCKID_SIZE, master_id);
+        default:
+            return CM_INVALID_ID8;
     }
-
-    if (type == DRC_RES_GLOBAL_XA_TYPE) {
-        return drc_get_xa_master_id((drc_global_xid_t *)resid, master_id);
-    }
-
-    return drc_get_lock_master_id((dms_drid_t*)resid, master_id);
 }
 
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master)
@@ -766,30 +763,31 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_t
 */
 int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
 {
-    drc_buf_res_t *buf_res = NULL;
-    int32 ret = drc_enter_buf_res(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL, &buf_res);
+    drc_page_t *drc_page = NULL;
+    int32 ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL,
+        (drc_head_t **)&drc_page);
     if (ret != DMS_SUCCESS) {
         drc_info = NULL;
         return ret;
     }
-    if (buf_res == NULL) {
+    if (drc_page == NULL) {
         *is_found = 0;
         return DMS_SUCCESS;
     }
     *is_found = 1;
-    drc_info->claimed_owner = buf_res->claimed_owner;
-    drc_info->copy_insts = buf_res->copy_insts;
-    drc_info->copy_promote = buf_res->copy_promote;
-    drc_info->edp_map = buf_res->edp_map;
-    drc_info->in_recovery = buf_res->need_recover;
-    drc_info->last_edp = buf_res->last_edp;
-    drc_info->len = buf_res->len;
-    drc_info->lock_mode = buf_res->lock_mode;
-    drc_info->lsn = buf_res->lsn;
-    drc_info->part_id = buf_res->part_id;
-    drc_info->recovery_skip = buf_res->need_flush;
-    drc_info->type = buf_res->type;
-    drc_leave_buf_res(buf_res);
+    drc_info->claimed_owner = drc_page->head.owner;
+    drc_info->copy_insts = drc_page->head.copy_insts;
+    drc_info->copy_promote = 0;
+    drc_info->edp_map = drc_page->edp_map;
+    drc_info->in_recovery = drc_page->need_recover;
+    drc_info->last_edp = drc_page->last_edp;
+    drc_info->len = drc_page->head.len;
+    drc_info->lock_mode = drc_page->head.lock_mode;
+    drc_info->lsn = drc_page->last_edp_lsn;
+    drc_info->part_id = drc_page->head.part_id;
+    drc_info->recovery_skip = drc_page->need_flush;
+    drc_info->type = drc_page->head.type;
+    drc_leave((drc_head_t *)drc_page);
 
     ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
     if (drc_info->copy_insts != 0 ||
@@ -807,7 +805,7 @@ static inline void find_pos_in_res_pool(uint32 *pool_index, uint32 *item_index_i
             *pool_index = i_extend_num;
             break;
         }
-        *item_index_in_matched_pool -= pool->each_pool_size[i_extend_num];
+        *item_index_in_matched_pool -= (uint32)pool->each_pool_size[i_extend_num];
     }
 }
 
@@ -815,8 +813,8 @@ static inline void fill_dv_drc_local_lock_result(drc_local_lock_res_result_t *dr
     drc_local_lock_res_t *drc_local_lock_res)
 {
     cm_spin_lock(&drc_local_lock_res->lock, NULL);
-    int ret = sprintf_s(drc_local_lock_res_result->lock_id, DMS_MAX_NAME_LEN, "%u/%u/%u/%u/%u",
-        (uint32)drc_local_lock_res->resid.type, (uint32)drc_local_lock_res->resid.uid,
+    int ret = sprintf_s(drc_local_lock_res_result->lock_id, DMS_MAX_NAME_LEN, "%d/%d/%llu/%u/%u",
+        drc_local_lock_res->resid.type, drc_local_lock_res->resid.uid,
         drc_local_lock_res->resid.oid, drc_local_lock_res->resid.index, drc_local_lock_res->resid.part);
     if (ret < EOK) {
         LOG_DEBUG_ERR("[DRC][dms_get_drc_local_lock_res]:sprintf_s err: %d", ret);
@@ -861,15 +859,15 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
     drc_local_lock_res_result->is_valid = CM_FALSE;
 }
 
-static void drc_recycle_buf_res_cancle(drc_buf_res_t *buf_res)
+static void drc_recycle_drc_page_cancle(drc_page_t *drc_page)
 {
-    cm_spin_lock(&buf_res->lock, NULL);
-    buf_res->recycling = CM_FALSE;
-    drc_buf_res_shift_to_head(buf_res);
-    cm_spin_unlock(&buf_res->lock);
+    cm_spin_lock(&drc_page->head.lock, NULL);
+    drc_page->head.is_recycling = CM_FALSE;
+    drc_shift_to_head((drc_head_t *)drc_page);
+    cm_spin_unlock(&drc_page->head.lock);
 }
 
-void drc_recycle_buf_res_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle)
+void drc_recycle_drc_page_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle)
 {
     if (part->list.count == 0) {
         return;
@@ -882,17 +880,17 @@ void drc_recycle_buf_res_by_part(drc_part_list_t *part, uint32 sess_id, void *db
     if (node == NULL) {
         return;
     }
-    drc_buf_res_t *buf_res = BILIST_NODE_OF(drc_buf_res_t, node, part_node);
-    if (!drc_chk_4_recycle(buf_res->data, buf_res->len)) {
+    drc_page_t *drc_page = (drc_page_t *)BILIST_NODE_OF(drc_head_t, node, part_node);
+    if (!drc_chk_4_recycle(drc_page->data, drc_page->head.len)) {
         return;
     }
     ctx.db_handle = db_handle;
     ctx.inst_id = g_dms.inst_id;
     ctx.sess_id = sess_id;
-    if (drc_recycle_buf_res(&ctx, buf_res)) {
+    if (drc_recycle(&ctx, (drc_head_t *)drc_page)) {
         return;
     }
-    drc_recycle_buf_res_cancle(buf_res);
+    drc_recycle_drc_page_cancle(drc_page);
 }
 
 static void drc_recycle_buf_res_single(void)
@@ -902,11 +900,11 @@ static void drc_recycle_buf_res_single(void)
 
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
         part = &ctx->global_buf_res.res_parts[part_id];
-        drc_recycle_buf_res_by_part(part, ctx->smon_recycle_sid, ctx->smon_recycle_handle);
+        drc_recycle_drc_page_by_part(part, ctx->smon_recycle_sid, ctx->smon_recycle_handle);
     }
 }
 
-static void drc_recycle_buf_res_part_start(void)
+static void drc_recycle_buf_res_part_stat(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_list_t *part = NULL;
@@ -919,6 +917,7 @@ static void drc_recycle_buf_res_part_start(void)
         MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, buf_num));
     }
     LOG_DEBUG_INF(buf_log);
+        drc_recycle_buf_res_part_stat();
 }
 
 static void drc_recycle_buf_res_start(void)
@@ -971,7 +970,7 @@ void drc_recycle_buf_res_thread(thread_t *thread)
         cm_spin_lock(&ctx->smon_recycle_lock, NULL);
         drc_recycle_buf_res_start();
         cm_spin_unlock(&ctx->smon_recycle_lock);
-        drc_recycle_buf_res_part_start();
+        drc_recycle_buf_res_part_stat();
     }
     LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread close");
 }

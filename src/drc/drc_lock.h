@@ -54,8 +54,8 @@ typedef struct st_drc_local_lock_res {
 
 /* local lock resource API */
 drc_local_lock_res_t* drc_get_local_resx(dms_drid_t *lock_id);
-int drc_confirm_owner(void *db_handle, char* resid, uint8 *lock_mode);
-int drc_confirm_converting(void *db_handle, char* resid, uint8 *lock_mode);
+
+int drc_confirm_converting(void *db_handle, char* resid, uint8 type, uint8 *lock_mode);
 
 #define STAT_TOTAL_WAIT_USECS_BEGIN     uint64 _begin_time_ = (uint64)g_timer()->now
 #define STAT_TOTAL_WAIT_USECS_END       dms_ctx->wait_usecs = (uint64)g_timer()->now - _begin_time_

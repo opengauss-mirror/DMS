@@ -465,6 +465,7 @@ typedef struct st_full_clean_assist {
     bilist_t            temp_convert_q;
     bilist_t            temp_page;
     bilist_t            temp_lock;
+    bilist_t            temp_alock;
     bilist_t            temp_xa;
 } full_clean_assist_t;
 
@@ -502,7 +503,7 @@ typedef struct st_reform_context {
     /*
         1. handle_judge&sess_judge used in thread<dms_reform_judgement_thread>
         2. handle_proc&sess_proc used in thread<dms_reform_proc_thread> while step before RECOVERY, include RECOVERY
-           it will set buf_res->in_recovery True when access page
+           it will set drc->in_recovery True when access page
     */
     void                *handle_judge;          // used in reform judgment
     void                *handle_proc;           // used in reform, and set recovery flag in buf_res

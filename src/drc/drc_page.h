@@ -35,28 +35,29 @@
 extern "C" {
 #endif
 
-static inline bool32 if_cvt_need_confirm(drc_buf_res_t *buf_res)
+static inline bool32 if_cvt_need_confirm(drc_cvt_item_t *converting)
 {
-    if (((g_timer()->now - buf_res->converting.begin_time) / (int64)MICROSECS_PER_MILLISEC) > DMS_CVT_EXPIRE_TIME) {
+    if (((g_timer()->now - converting->begin_time) / (int64)MICROSECS_PER_MILLISEC) > DMS_CVT_EXPIRE_TIME) {
         return CM_TRUE;
     }
     return CM_FALSE;
 }
 
-void drc_release_buf_res_by_part(drc_part_list_t *part, uint8 type);
+void drc_release_by_part(drc_part_list_t *part, uint8 type);
 int drc_request_page_owner(dms_process_context_t *ctx, char* resid, uint16 len, uint8 res_type,
     drc_request_info_t* req_info, drc_req_owner_result_t* result);
 int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info);
-void drc_add_edp_map(drc_buf_res_t *buf_res, uint8 inst_id, uint64 lsn);
+void drc_add_edp_map(drc_page_t *drc_page, uint8 inst_id, uint64 lsn);
 void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request_info_t *req, cvt_info_t* cvt_info);
-void drc_convert_page_owner(drc_buf_res_t* buf_res, claim_info_t* claim_info, cvt_info_t* cvt_info);
-bool8 drc_cancel_converting(drc_buf_res_t *buf_res, drc_request_info_t *req, cvt_info_t* cvt_info);
+void drc_convert_page_owner(drc_head_t *drc, claim_info_t* claim_info, cvt_info_t* cvt_info);
+bool8 drc_cancel_converting(drc_head_t *drc, drc_request_info_t *req, cvt_info_t* cvt_info);
 bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id);
 bool8 drc_chk_4_recycle(char *resid, uint16 len);
-bool8 drc_recycle_buf_res(dms_process_context_t *ctx, drc_buf_res_t *buf_res);
+bool8 drc_recycle(dms_process_context_t *ctx, drc_head_t *drc);
 void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type);
 bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_mode);
-int drc_get_no_owner_id(void *db_handle, drc_buf_res_t *buf_res, uint8 *owner_id);
+int drc_get_no_owner_id(void *db_handle, drc_head_t *drc, uint8 *owner_id);
+
 #ifdef __cplusplus
 }
 #endif

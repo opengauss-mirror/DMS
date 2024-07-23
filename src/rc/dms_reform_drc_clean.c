@@ -41,6 +41,7 @@ void dms_reform_full_clean_init_assist(full_clean_assist_t *assist)
     cm_bilist_init(&assist->temp_convert_q);
     cm_bilist_init(&assist->temp_page);
     cm_bilist_init(&assist->temp_lock);
+    cm_bilist_init(&assist->temp_alock);
     cm_bilist_init(&assist->temp_xa);
 }
 
@@ -50,6 +51,7 @@ void dms_reform_full_clean_reinit(uint8 thread_index, uint8 thread_num, full_cle
     drc_res_pool_reinit(&ctx->lock_item_pool, thread_index, thread_num, &assist->temp_convert_q);
     dms_global_res_reinit(&ctx->global_buf_res, thread_index, thread_num, &assist->temp_page);
     dms_global_res_reinit(&ctx->global_lock_res, thread_index, thread_num, &assist->temp_lock);
+    dms_global_res_reinit(&ctx->global_alock_res, thread_index, thread_num, &assist->temp_alock);
 #ifndef OPENGAUSS
     dms_global_res_reinit(&ctx->global_xa_res, thread_index, thread_num, &assist->temp_xa);
 #endif
@@ -64,6 +66,8 @@ void dms_reform_full_clean_concat_free_list(full_clean_assist_t *assist)
     LOG_DEBUG_INF("[FULL_CLEAN]page drc free_list:%u", ctx->global_buf_res.res_map.res_pool.free_list.count);
     cm_bilist_concat(&ctx->global_lock_res.res_map.res_pool.free_list, &assist->temp_lock);
     LOG_DEBUG_INF("[FULL_CLEAN]lock drc free_list:%u", ctx->global_lock_res.res_map.res_pool.free_list.count);
+    cm_bilist_concat(&ctx->global_alock_res.res_map.res_pool.free_list, &assist->temp_alock);
+    LOG_DEBUG_INF("[FULL_CLEAN]alock drc free_list:%u", ctx->global_alock_res.res_map.res_pool.free_list.count);
 #ifndef OPENGAUSS
     cm_bilist_concat(&ctx->global_xa_res.res_map.res_pool.free_list, &assist->temp_xa);
     LOG_DEBUG_INF("[FULL_CLEAN]xa drc free_list:%u", ctx->global_xa_res.res_map.res_pool.free_list.count);

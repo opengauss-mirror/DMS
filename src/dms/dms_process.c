@@ -207,16 +207,9 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
 
 static bool32 dms_same_global_lock(char *res_id, const char *res, uint32 len)
 {
-    drc_buf_res_t *buf_res = (drc_buf_res_t *)res_id;
-    dms_drid_t *lockid1 = (dms_drid_t*)buf_res->data;
+    drc_lock_t *drc_lock = (drc_lock_t *)res_id;
+    dms_drid_t *lockid1 = &drc_lock->lockid;
     dms_drid_t *lockid2 = (dms_drid_t *)res;
-    if (lockid1->type != lockid2->type) {
-        return CM_FALSE;
-    }
-
-    if (DMS_DR_IS_ALOCK_TYPE(lockid1->type)) {
-        return memcmp(lockid1, lockid2, sizeof(dms_drid_t)) == 0;
-    }
     return lockid1->key1 == lockid2->key1 && lockid1->key2 == lockid2->key2 && lockid1->key3 == lockid2->key3;
 }
 
@@ -903,9 +896,33 @@ static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
     uint32 res_num_calc = (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
     uint32 res_num = (uint32)MAX(res_num_calc, SIZE_M(1));
     int ret = dms_global_res_init(&ctx->global_buf_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_PAGE, res_num,
-        sizeof(drc_buf_res_t), dms_same_page, dms_res_hash);
+        sizeof(drc_page_t), dms_same_page, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global page resource pool init fail,return error:%d", ret);
+    }
+    return ret;
+}
+
+static bool32 dms_same_global_alock(char *drc, const char *resid, uint32 len)
+{
+    drc_alock_t *drc_alock = (drc_alock_t *)drc;
+    alockid_t *alockid1 = &drc_alock->alockid;
+    alockid_t *alockid2 = (alockid_t *)resid;
+
+    if (alockid1->len != alockid2->len || alockid1->type != alockid2->type) {
+        return CM_FALSE;
+    }
+    return memcmp(alockid1->name, alockid2->name, alockid1->len) == 0 ? CM_TRUE : CM_FALSE;
+}
+
+static int32 init_alock_res_ctx(const dms_profile_t *dms_profile)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+    uint32 alock_num = DRC_DEFAULT_LOCK_RES_NUM;
+    int ret = dms_global_res_init(&ctx->global_alock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_ALOCK, alock_num,
+        sizeof(drc_alock_t), dms_same_global_alock, dms_res_hash);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]global alock resource pool init fail,return error:%d", ret);
     }
     return ret;
 }
@@ -941,7 +958,7 @@ static int32 init_lock_res_ctx(dms_profile_t *dms_profile)
     int ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ret = dms_global_res_init(&ctx->global_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK,
-        DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_buf_res_t), dms_same_global_lock, dms_res_hash);
+        DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_lock_t), dms_same_global_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global lock resource pool init fail,return error:%d", ret);
         return ret;
@@ -1055,7 +1072,11 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
         if ((ret = init_lock_res_ctx(dms_profile)) != DMS_SUCCESS) {
             break;
         }
-        
+
+        if ((ret = init_alock_res_ctx(dms_profile)) != DMS_SUCCESS) {
+            break;
+        }
+
         if ((ret = init_xa_res_ctx(dms_profile)) != DMS_SUCCESS) {
             break;
         }
@@ -1582,9 +1603,11 @@ int dms_calc_mem_usage(dms_profile_t *dms_profile, uint64 *total_mem)
     *total_mem += DMS_CM_MAX_SESSIONS * 2 * sizeof(drc_lock_item_t) * DMS_MAX_INSTANCES;
     // page res
     uint32 page_res_num = (uint32)MAX(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size, SIZE_M(1));
-    *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_buf_res_t), DMS_MAX_INSTANCES);
+    *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_page_t), DMS_MAX_INSTANCES);
     // global lock res
-    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_buf_res_t), DMS_MAX_INSTANCES);
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_lock_t), DMS_MAX_INSTANCES);
+    // global alock res
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_alock_t), DMS_MAX_INSTANCES);
     // local lock res
     *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_local_lock_res_t), DMS_MAX_INSTANCES);
     // xa res

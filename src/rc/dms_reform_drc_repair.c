@@ -25,7 +25,7 @@
 #include "dms_reform_proc.h"
 #include "dms_reform_msg.h"
 
-static int dms_reform_repair_new_item(uint8 thread_index, drc_buf_res_t *buf_res, page_action_t action)
+static int dms_reform_repair_new_item(uint8 thread_index, drc_page_t *drc_page, page_action_t action)
 {
 #ifdef OPENGAUSS
     void *db_handle;
@@ -36,13 +36,13 @@ static int dms_reform_repair_new_item(uint8 thread_index, drc_buf_res_t *buf_res
     } else {
         db_handle = parallel_info->parallel[thread_index].handle;
     }
-    return g_dms.callback.flush_copy(db_handle, buf_res->data);
+    return g_dms.callback.flush_copy(db_handle, drc_page->data);
 #else
     repair_item_t item;
-    uint8 dst = buf_res->claimed_owner;
+    uint8 dst = drc_page->head.owner;
 
     item.action = action;
-    (void)memcpy_s(item.page_id, DMS_PAGEID_SIZE, buf_res->data, DMS_PAGEID_SIZE);
+    (void)memcpy_s(item.page_id, DMS_PAGEID_SIZE, drc_page->data, DMS_PAGEID_SIZE);
 
     return dms_reform_req_group(MSG_REQ_REPAIR_NEW, dst, thread_index, (void *)&item, sizeof(repair_item_t));
 #endif
@@ -51,13 +51,13 @@ static int dms_reform_repair_new_item(uint8 thread_index, drc_buf_res_t *buf_res
 static int dms_reform_repair_new_item_list(uint8 thread_index, bilist_t *list, page_action_t action)
 {
     bilist_node_t *node = cm_bilist_head(list);
-    drc_buf_res_t *buf_res = NULL;
+    drc_page_t *drc_page = NULL;
     int ret = DMS_SUCCESS;
 
     while (node != NULL) {
-        buf_res = DRC_RES_NODE_OF(drc_buf_res_t, node, rebuild_node);
-        DRC_DISPLAY(buf_res, "repair_new");
-        ret = dms_reform_repair_new_item(thread_index, buf_res, action);
+        drc_page = (drc_page_t *)DRC_RES_NODE_OF(drc_page_t, node, flush_node);
+        DRC_DISPLAY(&drc_page->head, "repair_new");
+        ret = dms_reform_repair_new_item(thread_index, drc_page, action);
         DMS_RETURN_IF_ERROR(ret);
         node = BINODE_NEXT(node);
     }

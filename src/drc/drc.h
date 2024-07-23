@@ -27,7 +27,6 @@
 
 #include "cm_bilist.h"
 #include "cm_hash.h"
-#include "cm_spinlock.h"
 #include "dms_cm.h"
 #include "dms.h"
 #include "mes_interface.h"
@@ -66,7 +65,78 @@ typedef enum {
     DMS_RES_TYPE_IS_TXN = 2,
     DMS_RES_TYPE_IS_LOCAL_TXN = 3,
     DMS_RES_TYPE_IS_XA = 4,
+    DMS_RES_TYPE_IS_ALOCK = 5,
 } dms_res_type_e;
+
+typedef struct st_drc_request_info {
+    uint8   inst_id;            /* the instance that the request comes from */
+    uint8   curr_mode;          /* current holding lock mode in request instance */
+    uint8   req_mode;           /* the expected lock mode that request instance wants */
+    uint8   is_try;             /* if is try request */
+    uint8   intercept_type;
+    uint8   is_upgrade;
+    uint16  sess_id;            /* the session id that the request comes from */
+    uint64  ruid;               /* request packet ruid */
+    uint32  srsn;
+    date_t  req_time;
+    uint32  req_proto_ver;
+    dms_session_e sess_type;    /* session type */
+} drc_request_info_t;
+
+typedef struct st_drc_lock_item {
+    bilist_node_t node;
+    drc_request_info_t req_info;
+} drc_lock_item_t;
+
+typedef struct st_drc_cvt_item {
+    int64 begin_time;
+    drc_request_info_t req_info;
+} drc_cvt_item_t;
+
+typedef struct st_drc_head {
+    bilist_node_t       node;               // must be first!!!
+    uint8               type;
+    uint8               owner;
+    uint8               lock_mode;
+    bool8               is_using : 1;
+    bool8               is_recycling : 1;
+    bool8               unused : 6;
+    uint16              len;
+    uint16              part_id;
+    uint64              copy_insts;
+    bilist_node_t       part_node;
+    drc_cvt_item_t      converting;
+    bilist_t            convert_q;
+    spinlock_t          lock;
+    atomic32_t          ref_count;
+} drc_head_t;
+
+typedef struct st_drc_page {
+    drc_head_t          head;
+    char                data[DMS_PAGEID_SIZE];
+    bilist_node_t       flush_node;
+    uint64              owner_lsn;
+    uint64              edp_map;
+    uint64              last_edp_lsn;
+    uint8               last_edp;
+    uint8               rebuild_type;
+    bool8               need_recover : 1;
+    bool8               need_flush : 1;
+    bool8               unused1 : 6;
+    uint8               unused2;
+} drc_page_t;
+
+typedef struct st_drc_lock {
+    drc_head_t          head;
+    dms_drid_t          lockid;
+} drc_lock_t;
+
+typedef struct st_drc_alock {
+    drc_head_t          head;
+    alockid_t           alockid;
+} drc_alock_t;
+
+#define DRC_DATA(drc)           ((char *)(drc) + sizeof(drc_head_t))
 
 typedef struct st_drc_res_pool {
     spinlock_t  lock;
@@ -117,67 +187,6 @@ char* drc_res_map_lookup(const drc_res_map_t* res_map, drc_res_bucket_t* res_buc
 void drc_res_map_del_res(drc_res_map_t* res_map, drc_res_bucket_t* bucket, char* resid, uint32 len);
 void drc_destroy(void);
 void drc_init_deposit_map(void);
-
-typedef struct st_drc_request_info {
-    uint8   inst_id;            /* the instance that the request comes from */
-    uint8   curr_mode;          /* current holding lock mode in request instance */
-    uint8   req_mode;           /* the expected lock mode that request instance wants */
-    uint8   is_try;             /* if is try request */
-    uint8   intercept_type;
-    uint8   is_upgrade;
-    uint16  sess_id;            /* the session id that the request comes from */
-    uint64  ruid;               /* request packet ruid */
-    uint32  srsn;
-    date_t  req_time;
-    uint32  req_proto_ver;    
-    dms_session_e sess_type;    /* session type */
-} drc_request_info_t;
-
-typedef struct st_drc_lock_item {
-    bilist_node_t node;
-    drc_request_info_t req_info;
-} drc_lock_item_t;
-
-typedef struct st_drc_cvt_item {
-    int64 begin_time;
-    drc_request_info_t req_info;
-} drc_cvt_item_t;
-
-typedef enum en_dms_copy_promote {
-    DMS_COPY_PROMOTE_NONE = 0,
-    DMS_COPY_PROMOTE_NORMAL = 1,
-    DMS_COPY_PROMOTE_RDP = 2,
-} dms_copy_promote_t;
-
-/*
- * page buffer resource DRC management structure.
- */
-typedef struct st_drc_buf_res {
-    bilist_node_t   node;               /* used for link drc_buf_res_t in free list or bucket list, must be first */
-    bilist_node_t   rebuild_node;
-    uint64          copy_insts;          /* bitmap for owners, for S mode, more than one owner may exist */
-    spinlock_t      lock;
-    atomic32_t      count;              /* for lock */
-    uint8           claimed_owner;      /* owner */
-    uint8           lock_mode;          /* current DRC lock mode */
-    uint8           last_edp;           /* the newest edp instance id */
-    uint8           type;               /* page or lock */
-    bool8           need_recover;       /* in recovery or not */
-    uint8           copy_promote;       /* copy promote to owner, can not release, may need flush */
-    uint16          part_id;            /* which partition id that current page belongs to */
-    bilist_node_t   part_node;          /* used for link drc_buf_res_t that belongs to the same partition id */
-    uint64          edp_map;            /* indicate which instance has current page's EDP(Earlier Dirty Page) */
-    uint64          lsn;                /* the newest edp LSN of current page in the cluster */
-    uint16          len;                /* the length of data below */
-    bool8           need_flush;         /* DRC is accessed in recovery and skip because drc has owner */
-    bool8           recycling;
-    drc_cvt_item_t  converting;         /* the next requester to grant current page to */
-    bilist_t        convert_q;          /* current page's requester queue */
-    char            data[DMS_RESID_SIZE];            /* user defined resource(page) identifier */
-    uint64          owner_lsn;
-    bool8           is_using;
-    uint8           rebuild_type;
-} drc_buf_res_t;
 
 typedef struct st_drc_buf_res_msg {
     uint8 claimed_owner;
@@ -270,6 +279,7 @@ typedef struct st_drc_part_mngr {
 typedef struct st_drc_res_ctx {
     drc_res_pool_t          lock_item_pool;     /* enqueue item pool */
     drc_global_res_map_t    global_buf_res;     /* page resource map */
+    drc_global_res_map_t    global_alock_res;
     drc_global_res_map_t    global_lock_res;
     drc_global_res_map_t    global_xa_res;      /* global xa resource map */
     drc_res_map_t           local_lock_res;
@@ -365,11 +375,11 @@ typedef struct st_drc_xa_res_msg {
 
 static inline bool32 dms_same_page(char *res, const char *resid, uint32 len)
 {
-    drc_buf_res_t *buf_res = (drc_buf_res_t *)res;
-    if (buf_res == NULL || resid == NULL || len == 0) {
+    drc_page_t *drc_page = (drc_page_t *)res;
+    if (drc_page == NULL || resid == NULL || len == 0) {
         cm_panic(0);
     }
-    return memcmp(buf_res->data, resid, len) == 0 ? CM_TRUE : CM_FALSE;
+    return memcmp(drc_page->data, resid, len) == 0 ? CM_TRUE : CM_FALSE;
 }
 
 static inline uint32 dms_res_hash(int32 res_type, char *resid, uint32 len)
@@ -416,6 +426,8 @@ static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_ty
             return &g_drc_res_ctx.global_lock_res;
         case DRC_RES_GLOBAL_XA_TYPE:
             return &g_drc_res_ctx.global_xa_res;
+        case DRC_RES_ALOCK_TYPE:
+            return &g_drc_res_ctx.global_alock_res;
         default:
             cm_panic(0);
             return NULL;
@@ -425,10 +437,10 @@ static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_ty
 /* page resource related API */
 uint8 drc_get_deposit_id(uint8 instance_id);
 uint8 drc_lookup_owner_id(uint64 *owner_map);
-void drc_get_convert_info(drc_buf_res_t *buf_res, cvt_info_t *cvt_info);
+void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info);
 
 // use BKDR hash algorithm, get the hash id
-static inline uint32 drc_resource_id_hash(uint8 *id, uint32 len, uint32 range)
+static inline uint32 drc_resource_id_hash(char *id, uint32 len, uint32 range)
 {
     uint32 seed = 131; // this is BKDR hash seed: 31 131 1313 13131 131313 etc..
     uint32 hash = 0;
@@ -441,22 +453,22 @@ static inline uint32 drc_resource_id_hash(uint8 *id, uint32 len, uint32 range)
     return (hash % range);
 }
 
-static inline uint32 drc_get_lock_partid(uint8 *id, uint32 len, uint32 range)
+static inline uint16 drc_get_lock_partid(char *id, uint32 len, uint32 range)
 {
     uint32 trunc_len = 0;
 #ifndef OPENGAUSS
     if (DMS_DR_IS_TABLE_TYPE(((dms_drid_t *)id)->type)) {
         // Ignoring part id is to hash the table and partition into the same part, accelerating table lcok rebuild.
-        trunc_len = (uint32)(sizeof(((dms_drid_t *)0)->parent_part) + sizeof(((dms_drid_t *)0)->part));
+        trunc_len = (uint32)(sizeof(((dms_drid_t *)0)->parent) + sizeof(((dms_drid_t *)0)->part));
     }
 #endif
 
-    return drc_resource_id_hash(id, len - trunc_len, range);
+    return (uint16)drc_resource_id_hash(id, len - trunc_len, range);
 }
 
-static inline int32 drc_get_lock_master_id(dms_drid_t *lock_id, uint8 *master_id)
+static inline int32 drc_get_lock_master_id(void *lock_id, uint8 len, uint8 *master_id)
 {
-    uint32 part_id = drc_get_lock_partid((uint8 *)lock_id, sizeof(dms_drid_t), DRC_MAX_PART_NUM);
+    uint32 part_id = drc_get_lock_partid((char *)lock_id, len, DRC_MAX_PART_NUM);
     *master_id = DRC_PART_MASTER_ID(part_id);
     return CM_SUCCESS;
 }
@@ -554,15 +566,24 @@ int32 drc_enter_xa_res(drc_global_xid_t *global_xid, drc_global_xa_res_t **xa_re
 void drc_leave_xa_res(drc_global_res_map_t *xa_res_map, drc_res_bucket_t *bucket);
 void drc_release_xa_by_part(drc_part_list_t *part);
 
-// [file-page][owner-lock-copy-ver][converting][last_edp-lsn-edp_map][in_recovery-copy_promote-recovery_skip]
-// [x_owner-x_exists-s_exists-group_lsn]
-#define DRC_DISPLAY(drc, desc)    LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu-%d, CVT:%d-%d-%d-%d-%d-%llu-%d, "           \
-    "EDP:%d-%llu-%llu, FLAG:%d-%d-%d", desc, cm_display_resid((drc)->data, (drc)->type),                            \
-    (drc)->claimed_owner, (drc)->lock_mode, (drc)->copy_insts, (drc)->rebuild_type,                                 \
-    (drc)->converting.req_info.inst_id, (drc)->converting.req_info.curr_mode, (drc)->converting.req_info.req_mode,  \
-    (drc)->converting.req_info.is_try, (drc)->converting.req_info.sess_type, (drc)->converting.req_info.ruid,       \
-    (drc)->converting.req_info.sess_id, (drc)->last_edp, (drc)->lsn, (drc)->edp_map,                                \
-    (drc)->need_recover, (drc)->copy_promote, (drc)->need_flush)
+#define DRC_DISPLAY(drc, desc)                                                                                      \
+do {                                                                                                                \
+    drc_page_t *_drc_page_ = (drc_page_t *)(drc);                                                                   \
+    drc_request_info_t *cvt = &(drc)->converting.req_info;                                                          \
+    if ((drc)->type == DRC_RES_PAGE_TYPE) {                                                                         \
+        LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, EDP:%d-%llu-%llu, FLAG:%d-%d-%d",        \
+            desc, cm_display_resid(DRC_DATA(drc), (drc)->type), (drc)->owner, (drc)->lock_mode, (drc)->copy_insts,  \
+            cvt->inst_id, cvt->curr_mode, cvt->req_mode, cvt->is_try, cvt->sess_type, cvt->ruid, cvt->sess_id,      \
+            _drc_page_->last_edp, _drc_page_->last_edp_lsn, _drc_page_->edp_map,                                    \
+            _drc_page_->need_recover, _drc_page_->need_flush, _drc_page_->rebuild_type);                            \
+    } else if ((drc)->type == DRC_RES_LOCK_TYPE || (drc)->type == DRC_RES_ALOCK_TYPE) {                             \
+        LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d",                                         \
+            desc, cm_display_resid(DRC_DATA(drc), (drc)->type), (drc)->owner, (drc)->lock_mode, (drc)->copy_insts,  \
+            cvt->inst_id, cvt->curr_mode, cvt->req_mode, cvt->is_try, cvt->sess_type, cvt->ruid, cvt->sess_id);     \
+    } else {                                                                                                        \
+        LOG_DEBUG_INF("invalid drc type: %d", (drc)->type);                                                         \
+    }                                                                                                               \
+} while (0)
 
 #ifdef __cplusplus
 }

@@ -184,39 +184,40 @@ static int32 dcs_owner_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, 
 
 static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
 {
-    drc_buf_res_t *buf_res = NULL;
+    drc_page_t *drc_page = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-    int ret = drc_enter_buf_res(edp->page, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &buf_res);
+    int ret = drc_enter(edp->page, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
     if (ret != DMS_SUCCESS) {
         return CM_FALSE;
     }
-    if (buf_res == NULL) {
-        return CM_FALSE;
+    if (drc_page == NULL) {
+        edp->edp_map = CM_INVALID_ID64;
+        return CM_TRUE;
     }
-    if (buf_res->need_recover) {
-        drc_leave_buf_res(buf_res);
+    if (drc_page->need_recover) {
+        drc_leave((drc_head_t *)drc_page);
         return CM_FALSE;
     }
 
-    if (buf_res->claimed_owner == CM_INVALID_ID8) {
-        edp->edp_map = buf_res->edp_map != 0 ? buf_res->edp_map : CM_INVALID_ID64;
-        buf_res->edp_map = 0;
-        drc_leave_buf_res(buf_res);
+    if (drc_page->head.owner == CM_INVALID_ID8) {
+        edp->edp_map = drc_page->edp_map != 0 ? drc_page->edp_map : CM_INVALID_ID64;
+        drc_page->edp_map = 0;
+        drc_leave((drc_head_t *)drc_page);
         return CM_TRUE;
     }
 
-    if (buf_res->lsn > edp->lsn || buf_res->edp_map == 0) {
-        drc_leave_buf_res(buf_res);
+    if (drc_page->last_edp_lsn > edp->lsn || drc_page->edp_map == 0) {
+        drc_leave((drc_head_t *)drc_page);
         return CM_FALSE;
     }
 
-    edp->edp_map = buf_res->edp_map;
+    edp->edp_map = drc_page->edp_map;
 
     /* cleanup edp map */
-    buf_res->edp_map = 0;
-    buf_res->lsn = edp->lsn;
-    buf_res->last_edp = CM_INVALID_ID8;
-    drc_leave_buf_res(buf_res);
+    drc_page->edp_map = 0;
+    drc_page->last_edp_lsn = edp->lsn;
+    drc_page->last_edp = CM_INVALID_ID8;
+    drc_leave((drc_head_t *)drc_page);
     return CM_TRUE;
 }
 
@@ -293,7 +294,7 @@ static void dcs_master_clean_ownerless_edp(dms_context_t *dms_ctx, dms_edp_info_
 {
     uint32 tmp_count = count;
     for (uint32 i = begin; i < tmp_count; i++) {
-        if ((dcs_ckpt_get_page_owner(dms_ctx, pages[i].page, &pages[i].id)) != DMS_SUCCESS ||
+        if (dcs_ckpt_get_page_owner(dms_ctx, pages[i].page, &pages[i].id) != DMS_SUCCESS ||
             pages[i].id != CM_INVALID_ID8) {
             /* owner exists or get owner id failed because fail to get disk lsn */
             SWAP(dms_edp_info_t, pages[i], pages[tmp_count - 1]);
@@ -304,7 +305,7 @@ static void dcs_master_clean_ownerless_edp(dms_context_t *dms_ctx, dms_edp_info_
 }
 
 /*
-  [0, rest_begin]: owner exists, send to owner to do checkpoint
+  [0, rest_begin]: owner exists, send to owner to do checkpoint.
   [rest_begin, count]: owner not exists or fail to get owner, should re-check
 */
 static int32 dcs_master_ckpt_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uint32 count)
