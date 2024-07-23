@@ -1070,6 +1070,7 @@ DMS_DECLARE unsigned char dms_check_page_ownership(dms_context_t *dms_ctx, dms_l
 DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
 DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 DMS_DECLARE void dms_fsync_logfile(void);
+DMS_DECLARE void dms_set_elapsed_switch(unsigned char elapsed_switch);
 
 #ifdef __cplusplus
 }
