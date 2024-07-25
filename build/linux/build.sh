@@ -9,6 +9,7 @@ set -e
 export GIT_SSL_NO_VERIFY=true
 export PYTHON3_HOME=${PYTHON3_HOME}
 export PYTHON_INCLUDE_DIR=${PYTHON3_HOME}
+export CMAKE_OPT=""
 
 BUILD_DIR=$(cd "$(dirname $0)"; pwd)
 DMS_DIR=$(cd ../../; pwd)
@@ -17,6 +18,10 @@ TMP_DIR="${BUILD_DIR}/tmp"
 PLATFORM_DIR="${DMS_DIR}/platform"
 CBB_DIR="${PLATFORM_DIR}/CBB"
 DMS_MES_DIR=${CBB_DIR}/src/cm_mes
+
+############  commit id  ############
+source $BUILD_DIR/function.sh
+func_prepare_git_msg
 
 ############  pkg  ############
 source $BUILD_DIR/get_OS_Version.sh
@@ -29,6 +34,7 @@ PACKAGE_HOME="${OUTPUT_DIR}/"
 
 use_ss_cbb=0
 dms_test=0
+support_hot_patch=0
 
 function func_pkg_symbol()
 {
@@ -113,6 +119,7 @@ function func_making_package()
 function build_clean() {
     [ -d "${OUTPUT_DIR}" ] && rm -rf ${OUTPUT_DIR}/*
     [ -d "${TMP_DIR}" ] && rm -rf ${TMP_DIR}/*
+    [ -d "${HOME}/code/DMS/library" ] && rm -rf ${HOME}/code/DMS/library/*
     echo "-- clean dms up --"
     [ -f "${CBB_DIR}/build.sh" ] && sh "${CBB_DIR}"/build.sh clean
     echo "-- clean cbb up --"
@@ -148,7 +155,8 @@ function build_test()
 {
     cd ${DMS_DIR}/
     export BUILD_MODE=Debug
-    cmake . -DCMAKE_BUILD_TYPE=Debug -D DMS_TEST=ON -B ${TMP_DIR}
+    CMAKE_OPT="$CMAKE_OPT -D DMS_TEST=ON"
+    cmake . -DCMAKE_BUILD_TYPE=Debug ${CMAKE_OPT} -B ${TMP_DIR}
     cd "${TMP_DIR}"/
     make -j8
 
@@ -172,7 +180,6 @@ function build_debug()
 {
     openGauss_flag=$1
     cd ${DMS_DIR}/
-    CMAKE_OPT=""
     if [ ${openGauss_flag} -eq 1 ];then
         CMAKE_OPT="$CMAKE_OPT -DOPENGAUSS=yes"
     fi
@@ -190,7 +197,7 @@ function build_debug()
 
 function build_release()
 {
-  openGauss_flag=$1
+    openGauss_flag=$1
     cd ${DMS_DIR}/
     CMAKE_OPT=""
     if [ ${openGauss_flag} -eq 1 ];then
@@ -402,6 +409,10 @@ function build_all()
         build_source_prepare $build_mode
     fi
   
+    if [[ ${support_hot_patch} == 1 ]]; then
+        source $BUILD_DIR/compile_hotpatch.sh
+    fi
+
     if [[ -z "${build_mode}" ]]; then
         build_mode='Debug'
     fi
@@ -520,7 +531,7 @@ function build_usage() {
 function main() {
     arg1=$1
     arg_num=$#
-    arg_list=($1 $2 $3)
+    arg_list=($1 $2 $3 $4)
     opengauss_flag=0
     for((i=1;i<=$arg_num;i++));
     do
@@ -537,6 +548,9 @@ function main() {
             elif [ x"${str}" == x"test" ];then
                 dms_test=1
                 echo "Build DMS with test"
+            elif [ x"${str}" == x"SUPPORT_HOT_PATCH" ];then
+                support_hot_patch=1
+                echo "Build DMS with hotpatch"
             fi
         fi
     done

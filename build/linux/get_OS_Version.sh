@@ -45,9 +45,6 @@ elif [[ -f ${KYLIN_VERSION_PATH} ]]; then
 elif [[ -f ${NEOKYLIN_VERSION_PATH} ]]; then
     OS_SUFFIX=KYLINREDHAT
     OS_VERSION=kylin_${OS_ARCH}
-elif [[ -f ${OPENEULER_VERSION_PATH} ]]; then
-    OS_SUFFIX=OPENEULER
-    OS_VERSION=openEuler_${OS_ARCH}
 elif [[ -f ${EULER_VERSION_PATH} ]]; then
     if [[ -n $(cat ${EULER_VERSION_PATH} | grep '2.0 (SP3)') ]]; then
         OS_SUFFIX=EULER20SP3
@@ -103,6 +100,9 @@ elif [[ -f ${REDHAT_VERSION_PATH} ]]; then
         echo "Unsupported centos System"
         exit 1
     fi
+elif [[ -f ${OPENEULER_VERSION_PATH} ]]; then
+    OS_SUFFIX=OPENEULER
+    OS_VERSION=openEuler_${OS_ARCH}
 else
     echo "Unsupported OS System"
     exit 1
