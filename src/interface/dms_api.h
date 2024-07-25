@@ -995,6 +995,7 @@ typedef int (*dms_az_failover_promote_resetlog)(void *db_handle);
 typedef int (*dms_az_failover_promote_phase2)(void *db_handle);
 typedef int (*dms_check_shutdown_consistency)(void *db_handle, instance_list_t *old_remove);
 typedef int (*dms_check_db_readwrite)(void *db_handle);
+typedef unsigned int (*dms_check_is_maintain)()
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1182,6 +1183,7 @@ typedef struct st_dms_callback {
     dms_get_alock_wait_info get_alock_wait_info;
     dms_check_shutdown_consistency check_shutdown_consistency;
     dms_check_db_readwrite check_db_readwrite;
+    dms_check_is_maintain check_is_maintain;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
