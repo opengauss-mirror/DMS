@@ -302,7 +302,7 @@ tips:
  [REFORM_ASSIST_LIST_OWNER]       -->[in_recovery=false,validate lsn]
  [REFORM_ASSIST_LIST_NORMAL_COPY] -->[in_recovery=false,validate lsn] --> [REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO]
  [REFORM_ASSIST_LIST_EDP_COPY]    -->[in_recovery=false,validate lsn]
- [REFORM_ASSIST_LIST_EDP]         -->[in_recovery_true]
+ [REFORM_ASSIST_LIST_EDP]         -->[in_recovery=true]
  [DRC not exists]                 -->[in_recovery=true] --> [LIST_NONE]
 
  tips:
@@ -324,7 +324,7 @@ tips:
  1. If DRC is in REFORM_ASSIST_LIST_NONE, its page will be recover later.
  2. If DRC is in REFORM_ASSIST_LIST_NORMAL_COPY, it is not mentioned in redo, and need not to do recover or flush.
  3. If DRC is in REFORM_ASSIST_LIST_NORMAL_COPY_WITH_REDO, it is mentioned in redo, need to do force flush to disk.
- 4. If DRC is in REFORM_ASSIST_LIST_EDP_COPY, need not to do recover, build should flush to disk.
+ 4. If DRC is in REFORM_ASSIST_LIST_EDP_COPY, need not to do recover, but should flush to disk.
  5. If DRC is in REFORM_ASSIST_LIST_OWNER, the page will be flushed or has been flushed.
 */
 
