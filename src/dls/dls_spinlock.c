@@ -156,7 +156,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     if (latch_stat->stat != LATCH_STATUS_IDLE || lock_res->releasing) {
         LOG_DEBUG_INF("[DLS] try add spinlock(%s), lockmode(%u) is locked",
             cm_display_lockid(&dlock->drid), (uint32)latch_stat->lock_mode);
-        return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
+        return ERRNO_DMS_DLS_TRY_LOCK_FAILED;
     }
 
     drc_lock_local_resx(lock_res, NULL, NULL);
@@ -164,7 +164,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
         drc_unlock_local_resx(lock_res);
         LOG_DEBUG_INF("[DLS] try add spinlock(%s), lockmode(%u) is locked",
             cm_display_lockid(&dlock->drid), (uint32)latch_stat->lock_mode);
-        return ERRNO_DMS_DLS_TRY_RELEASE_LOCK_FAILED;
+        return ERRNO_DMS_DLS_TRY_LOCK_FAILED;
     }
 
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
