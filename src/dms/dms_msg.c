@@ -174,7 +174,8 @@ static inline void dms_handle_invld_ack_msg(dms_process_context_t *ctx, mes_msg_
 static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64 invld_insts,
     uint64 ruid, uint32 timeout_ms, uint64 *succ_insts)
 {
-    mes_msg_list_t responses = { 0 };
+    mes_msg_list_t responses;
+    responses.count = 0;
 
     int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, succ_insts, &responses);
 #ifndef OPENGAUSS
@@ -1853,7 +1854,8 @@ int dms_send_request_buf_info(dms_context_t *dms_ctx, dv_drc_buf_info *drc_info)
     uint64 succ_inst = 0;
     mfc_broadcast(inst_list, (void*)&req, &succ_inst);
 
-    mes_msg_list_t recv_msg = {0};
+    mes_msg_list_t recv_msg;
+    recv_msg.count = 0;
     int32 ret = mfc_get_broadcast_res_with_msg(req.head.ruid, DMS_MSG_SLEEP_TIME, succ_inst, &recv_msg);
     DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
     if (ret != DMS_SUCCESS) {

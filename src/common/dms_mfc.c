@@ -495,7 +495,8 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
         return DMS_SUCCESS;
     }
 
-    mes_msg_list_t responses = { 0 };
+    mes_msg_list_t responses;
+    responses.count = 0;
     int ret = DMS_SUCCESS;
     uint64 recv_succ_insts = 0;
 
@@ -530,7 +531,8 @@ int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint
         return DMS_SUCCESS;
     }
     int ret = DMS_SUCCESS;
-    mes_msg_list_t responses = { 0 };
+    mes_msg_list_t responses;
+    responses.count = 0;
 
     if (DMS_MFC_OFF) {
         ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
