@@ -1069,11 +1069,11 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
             break;
         }
 
-        if ((ret = init_lock_res_ctx(dms_profile)) != DMS_SUCCESS) {
+        if ((ret = init_alock_res_ctx(dms_profile)) != DMS_SUCCESS) {
             break;
         }
 
-        if ((ret = init_alock_res_ctx(dms_profile)) != DMS_SUCCESS) {
+        if ((ret = init_lock_res_ctx(dms_profile)) != DMS_SUCCESS) {
             break;
         }
 

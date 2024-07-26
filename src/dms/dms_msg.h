@@ -54,18 +54,18 @@ typedef struct st_dms_ask_res_req {
     dms_message_head_t head;
     union {
         struct {
-            uint8  inst_id;
-            uint8  curr_mode;
-            uint8  req_mode;
-            uint8  is_try;
-            uint8  intercept_type;
-            uint8  is_upgrade;
-            uint16 sess_id;
-            uint64 ruid;
-            uint32 srsn;
-            date_t req_time;
-            uint32 req_proto_ver;
-            dms_session_e sess_type;
+            uint8   inst_id;            /* the instance that the request comes from */
+            uint8   curr_mode;          /* current holding lock mode in request instance */
+            uint8   req_mode;           /* the expected lock mode that request instance wants */
+            uint8   is_try;             /* if is try request */
+            uint8   intercept_type;
+            uint8   is_upgrade;         /* used for table lock upgrade */
+            uint16  sess_id;            /* the session id that the request comes from */
+            uint64  ruid;               /* request packet ruid */
+            uint32  srsn;
+            date_t  req_time;
+            uint32  req_proto_ver;
+            dms_session_e sess_type;    /* session type */
         };
         drc_request_info_t drc_reg_info;
     };
@@ -167,20 +167,20 @@ typedef struct st_dms_res_req_info {
 
 typedef struct st_dms_cancel_request_res {
     dms_message_head_t head;
-        union {
+    union {
         struct {
-            uint8  inst_id;
-            uint8  curr_mode;
-            uint8  req_mode;
-            uint8  is_try;
-            uint8  intercept_type;
-            uint8  is_upgrade;
-            uint16 sess_id;
-            uint64 ruid;
-            uint32 srsn;
-            date_t req_time;
-            uint32 req_proto_ver;
-            dms_session_e sess_type;
+            uint8   inst_id;            /* the instance that the request comes from */
+            uint8   curr_mode;          /* current holding lock mode in request instance */
+            uint8   req_mode;           /* the expected lock mode that request instance wants */
+            uint8   is_try;             /* if is try request */
+            uint8   intercept_type;
+            uint8   is_upgrade;         /* used for table lock upgrade */
+            uint16  sess_id;            /* the session id that the request comes from */
+            uint64  ruid;               /* request packet ruid */
+            uint32  srsn;
+            date_t  req_time;
+            uint32  req_proto_ver;
+            dms_session_e sess_type;    /* session type */
         };
         drc_request_info_t drc_reg_info;
     };
@@ -188,7 +188,7 @@ typedef struct st_dms_cancel_request_res {
     uint8  res_type;
     uint8  unused;
     char resid[DMS_RESID_SIZE];
-}dms_cancel_request_res_t;
+} dms_cancel_request_res_t;
 
 typedef struct st_dms_confirm_cvt_req {
     dms_message_head_t head;
@@ -318,62 +318,63 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
     }
 }
 
-#define CM_CHK_RESPONSE_SIZE_(msg, len, has_ack, release_msg)                                   \
-    do {                                                                                        \
-        if ((msg)->head->cmd == MSG_ACK_ERROR) {                                                \
-            cm_print_error_msg((msg)->buffer);                                                  \
-            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (msg)->buffer + sizeof(msg_error_t));     \
-            (release_msg) ? mfc_release_response(msg) : (void)0;                                \
-            return ERRNO_DMS_COMMON_MSG_ACK;                                                    \
-        }                                                                                       \
-        if ((msg)->head->size < (len)) {                                                        \
-            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                            \
-                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));            \
-            if (has_ack) {                                                                      \
-                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
-            }                                                                                   \
-            (release_msg) ? mfc_release_response(msg) : (void)0;                                \
-            return ERRNO_DMS_MES_INVALID_MSG;                                                   \
-        }                                                                                       \
+#define CM_CHK_RESPONSE_SIZE_(msg, len, has_ack, release_msg)                                                   \
+    do {                                                                                                        \
+        if ((msg)->head->cmd == MSG_ACK_ERROR) {                                                                \
+            cm_print_error_msg((msg)->buffer);                                                                  \
+            DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, (msg)->buffer + sizeof(msg_error_t));                     \
+            (release_msg) ? mfc_release_response(msg) : (void)0;                                                \
+            return ERRNO_DMS_COMMON_MSG_ACK;                                                                    \
+        }                                                                                                       \
+        if ((msg)->head->size < (len)) {                                                                        \
+            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u", (uint32)(msg)->head->cmd,                  \
+                (uint32)(msg)->head->size, (uint32)(len));                                                      \
+            if (has_ack) {                                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");                  \
+            }                                                                                                   \
+            (release_msg) ? mfc_release_response(msg) : (void)0;                                                \
+            return ERRNO_DMS_MES_INVALID_MSG;                                                                   \
+        }                                                                                                       \
     } while (0)
 
 #define CM_CHK_RESPONSE_SIZE(msg, len, has_ack) CM_CHK_RESPONSE_SIZE_((msg), (len), (has_ack), (CM_TRUE))
 #define CM_CHK_RESPONSE_SIZE2(msg, len, has_ack) CM_CHK_RESPONSE_SIZE_((msg), (len), (has_ack), (CM_FALSE))
 
-#define CM_CHK_PROC_MSG_SIZE(msg, len, has_ack)                                                 \
-    do {                                                                                        \
-        if ((msg)->head->size < (len)) {                                                        \
-            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                            \
-                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));            \
-            if (has_ack) {                                                                      \
-                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
-            }                                                                                   \
-            return ERRNO_DMS_MES_INVALID_MSG;                                                   \
-        }                                                                                       \
+#define CM_CHK_PROC_MSG_SIZE(msg, len, has_ack)                                                                 \
+    do {                                                                                                        \
+        if ((msg)->head->size < (len)) {                                                                        \
+            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                                            \
+                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));                            \
+            if (has_ack) {                                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");                  \
+            }                                                                                                   \
+            return ERRNO_DMS_MES_INVALID_MSG;                                                                   \
+        }                                                                                                       \
     } while (0)
 
-#define CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, len, has_ack)                                          \
-    do {                                                                                        \
-        if ((msg)->head->size < (len)) {                                                        \
-            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                            \
-                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));            \
-            if (has_ack) {                                                                      \
-                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
-            }                                                                                   \
-            return;                                                                             \
-        }                                                                                       \
+/* do not release processed message */
+#define CM_CHK_PROC_MSG_SIZE_NO_ERR(msg, len, has_ack)                                                          \
+    do {                                                                                                        \
+        if ((msg)->head->size < (len)) {                                                                        \
+            LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u",                                            \
+                (uint32)(msg)->head->cmd, (uint32)(msg)->head->size, (uint32)(len));                            \
+            if (has_ack) {                                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");                  \
+            }                                                                                                   \
+            return;                                                                                             \
+        }                                                                                                       \
     } while (0)
 
-#define CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(msg, res_type, has_ack)                             \
-do {                                                                                            \
-        if ((res_type) != DRC_RES_PAGE_TYPE && (res_type) != DRC_RES_LOCK_TYPE &&               \
-            (res_type) != DRC_RES_GLOBAL_XA_TYPE && (res_type) != DRC_RES_ALOCK_TYPE) {         \
-            LOG_DEBUG_ERR("recv invalid msg, res_type:%u", res_type);                           \
-            if (has_ack) {                                                                      \
-                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");  \
-            }                                                                                   \
-            return;                                                                             \
-        }                                                                                       \
+#define CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(msg, res_type, has_ack)                                             \
+    do {                                                                                                        \
+        if ((res_type) != DRC_RES_PAGE_TYPE && (res_type) != DRC_RES_LOCK_TYPE &&                               \
+            (res_type) != DRC_RES_GLOBAL_XA_TYPE && (res_type) != DRC_RES_ALOCK_TYPE) {                         \
+            LOG_DEBUG_ERR("recv invalid msg, res_type:%u", res_type);                                           \
+            if (has_ack) {                                                                                      \
+                cm_send_error_msg((msg)->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");                  \
+            }                                                                                                   \
+            return;                                                                                             \
+        }                                                                                                       \
     } while (0)
 
 #define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \

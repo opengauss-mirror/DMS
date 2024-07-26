@@ -147,7 +147,7 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
         LOG_DEBUG_FUNC_FAIL;
         return ret;
     }
-    part = &ctx->global_lock_res.res_parts[migrate_task->part_id];
+    part = &ctx->global_alock_res.res_parts[migrate_task->part_id];
     drc_release_by_part(part, DRC_RES_ALOCK_TYPE);
 
     ret = dms_reform_req_migrate_res(migrate_task, DRC_RES_GLOBAL_XA_TYPE, handle, sess_id);

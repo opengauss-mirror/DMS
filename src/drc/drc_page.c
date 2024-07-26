@@ -311,7 +311,7 @@ int drc_get_no_owner_id(void *db_handle, drc_head_t *drc, uint8 *owner_id)
     uint64 disk_lsn = 0;
     if (g_dms.callback.disk_lsn(db_handle, drc_page->data, &disk_lsn) != DMS_SUCCESS) { // page id is invalid
         LOG_DEBUG_INF("[%s][drc_get_no_owner_id]fail to get disk lsn", cm_display_resid(DRC_DATA(drc), drc->type));
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_GET_DISK_LSN_FAILED, cm_display_pageid(DRC_DATA(drc)));
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_GET_DISK_LSN_FAILED, cm_display_resid(DRC_DATA(drc), drc->type));
         return ERRNO_DMS_DCS_GET_DISK_LSN_FAILED;
     }
 

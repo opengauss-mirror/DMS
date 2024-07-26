@@ -74,7 +74,7 @@ typedef struct st_drc_request_info {
     uint8   req_mode;           /* the expected lock mode that request instance wants */
     uint8   is_try;             /* if is try request */
     uint8   intercept_type;
-    uint8   is_upgrade;
+    uint8   is_upgrade;         /* used for table lock upgrade */
     uint16  sess_id;            /* the session id that the request comes from */
     uint64  ruid;               /* request packet ruid */
     uint32  srsn;
@@ -341,7 +341,7 @@ typedef struct st_claim_info {
     dms_lock_mode_t req_mode;
     char    resid[DMS_RESID_SIZE];
     dms_session_e sess_type;
-    uint32 srsn;
+    uint32  srsn;
 } claim_info_t;
 
 typedef struct st_edp_info {
@@ -358,18 +358,18 @@ typedef struct st_res_id {
 } res_id_t;
 
 typedef struct st_drc_global_xid_res {
-    bilist_node_t    node;               /* used for link drc_global_xa_res_t in free list or bucket list, must be first */
+    bilist_node_t    node;               /* used for link drc_xa_res_t in free list or bucket list, must be first */
     uint8            owner_id;           /* node the xa trans rm in */
     uint8            undo_set_id;        /* undo set the xa trans save in */
     bool8            in_recovery;        /* in recovery or not */
     uint16           part_id;            /* which partition id that current xa trans belongs to */
-    bilist_node_t    part_node;          /* used for link drc_global_xa_res_t that belongs to the same partition id */
+    bilist_node_t    part_node;          /* used for link drc_xa_res_t that belongs to the same partition id */
     drc_global_xid_t xid;
 } drc_global_xa_res_t;
 
 typedef struct st_drc_xa_res_msg {
     uint8            owner_id;           /* owner */
-    uint8            undo_set_id;        /* undo set tha xa trans save in */
+    uint8            undo_set_id;        /* undo set the xa trans save in */
     drc_global_xid_t xa_xid;
 } drc_xa_res_msg_t;
 
