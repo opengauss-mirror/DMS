@@ -91,7 +91,8 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
 static int dcs_recv_and_handle_broadcast_msg(dms_context_t *dms_ctx, uint32 timeout, uint64 ruid, uint64 expect_inst)
 {
     int ret;
-    mes_msg_list_t recv_msg = {0};
+    mes_msg_list_t recv_msg;
+    recv_msg.count = 0;
 
     ret = mfc_get_broadcast_res_with_msg(ruid, timeout, expect_inst, &recv_msg);
     if (ret == DMS_SUCCESS) {
@@ -129,7 +130,8 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
     if (!dms_broad_info->handle_recv_msg) {
         ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, dms_broad_info->timeout, all_inst, &succ_inst);
     } else {
-        mes_msg_list_t recv_msg = { 0 };
+        mes_msg_list_t recv_msg;
+        recv_msg.count = 0;
         ret = mfc_get_broadcast_res_with_msg(head.ruid, dms_broad_info->timeout, succ_inst, &recv_msg);
         if (ret == DMS_SUCCESS) {
             LOG_DEBUG_INF("Succeed to receive broadcast ack of all nodes");
