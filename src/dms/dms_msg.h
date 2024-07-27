@@ -42,6 +42,9 @@ extern "C" {
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
 #define DMS_MSG_CONFIRM_TIMES   (10)
 
+#define DMS_EVENT_MONITOR_TIMEOUT  (20 * MICROSECS_PER_SECOND) /* 20s */
+#define DMS_EVENT_MONITOR_INTERVAL (10 * MICROSECS_PER_SECOND) /* 10s */
+
 /* biggest: pcr page ack: head + ack + page */
 #define DMS_MESSAGE_BUFFER_SIZE (uint32)(SIZE_K(32) + 64)
 

@@ -27,6 +27,7 @@
 #include "dms_reform_proc.h"
 #include "dms_reform_judge.h"
 #include "cm_timer.h"
+#include "dms_dynamic_trace.h"
 
 void dms_reform_health_set_running(void)
 {
@@ -260,7 +261,8 @@ static void dms_reform_health_check(void)
 
 void dms_reform_health_thread(thread_t *thread)
 {
-    cm_set_thread_name("reform_health");
+    dms_set_is_reform_thrd(CM_TRUE);
+    cm_set_thread_name(DMS_REFORM_HEALTH_THRD_NAME);
     health_info_t *health_info = DMS_HEALTH_INFO;
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
 #ifdef OPENGAUSS

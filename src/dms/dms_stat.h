@@ -51,7 +51,6 @@ typedef struct st_session_stat {
     uint64 stat[DMS_STAT_COUNT];
     uint64 wait_time[DMS_EVT_COUNT];
     uint64 wait_count[DMS_EVT_COUNT];
-
     session_wait_t wait[DMS_STAT_MAX_LEVEL];
     uint32 level;
 } session_stat_t;
@@ -60,6 +59,8 @@ typedef struct st_dms_stat {
     bool32 time_stat_enabled;
     uint32 sess_cnt;
     session_stat_t *sess_stats;
+    uint32 sess_iterator;
+    bool8 inited;
 } dms_stat_t;
 
 extern dms_stat_t g_dms_stat;

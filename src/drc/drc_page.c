@@ -37,8 +37,8 @@ static inline bool32 chk_conflict_with_x_lock(char *resid, uint8 type, drc_reque
 {
     if (req1->req_mode == DMS_LOCK_EXCLUSIVE &&
         req2->curr_mode == DMS_LOCK_SHARE && req2->req_mode == DMS_LOCK_EXCLUSIVE) {
-        LOG_DEBUG_INF("[DRC][%s] conflicted with other, [req1:inst_id=%u, sid=%u, ruid=%llu, "
-            "req_mode=%u, curr_mode=%u], [req2:inst_id=%u, sid=%u, ruid=%llu, req_mode=%u, curr_mode=%u]",
+        LOG_DEBUG_INF("[DRC][%s]:req conflict, [req1:id=%u, sid=%u, ruid=%llu, "
+            "rmode=%u, cmode=%u], [req2:id=%u, sid=%u, ruid=%llu, rmode=%u, cmode=%u]",
             cm_display_resid(resid, type), (uint32)req1->inst_id, (uint32)req1->sess_id, req1->ruid,
             (uint32)req1->req_mode, (uint32)req1->curr_mode, (uint32)req2->inst_id, (uint32)req2->sess_id,
             req2->ruid, (uint32)req2->req_mode, (uint32)req2->curr_mode);
@@ -373,6 +373,9 @@ static void drc_try_prepare_confirm_cvt(drc_head_t *drc)
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%d sid:%d ruid:%llu req_mode:%d] prepare confirm",
         cm_display_resid(DRC_DATA(drc), drc->type), cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid,
         cvt_req->req_mode);
+    LOG_DYNAMIC_TRACE("[DRC][%s]prep confirm cvt id=%d sid:%d ruid:%llu rmode:%d",
+        cm_display_resid(DRC_DATA(drc), drc->type), cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid,
+        cvt_req->req_mode);
     (void)cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id);
 }
 
@@ -484,6 +487,7 @@ int32 drc_request_page_owner(dms_process_context_t *ctx, char* resid, uint16 len
     if (drc->is_recycling) {
         drc_leave(drc);
         LOG_DEBUG_WAR("[DMS][%s]buf res is recycling", cm_display_resid(resid, res_type));
+        LOG_DYNAMIC_TRACE("[%s]is recycling", cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_IS_RECYCLING;
     }
     ret = drc_request_page_owner_internal(ctx, resid, res_type, req_info, result, drc);

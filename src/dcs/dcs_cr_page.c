@@ -30,6 +30,7 @@
 #include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "dms_stat.h"
+#include "dms_dynamic_trace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -426,6 +427,11 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
 
     dms_wait_event_t evt = for_heap ? DMS_EVT_PCR_REQ_HEAP_PAGE : DMS_EVT_PCR_REQ_BTREE_PAGE;
 
+    dms_dyn_trc_begin(dms_ctx->sess_id, evt);
+    LOG_DYNAMIC_TRACE("[%s]cr_type %u qscn %llu qssn %u srcid %u ssid %u dstid %u",
+        cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
+        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
+
     for (;;) {
         dms_begin_stat(dms_ctx->sess_id, evt, CM_TRUE);
         DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_CR_PAGE, MSG_REQ_CR_PAGE);
@@ -446,6 +452,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
             break;
         }
 
+        dms_dyn_trc_end(dms_ctx->sess_id);
         dms_end_stat(dms_ctx->sess_id);
 
         ret = dcs_pcr_process_message(dms_ctx, dms_cr, &message);
@@ -461,6 +468,10 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
         (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
 
     cm_sleep(DMS_MSG_RETRY_TIME);
+    LOG_DYNAMIC_TRACE("[%s]failed retry qscn %llu qssn %u srcid %u ssid %u dstid %u",
+        cm_display_pageid(request->pageid), request->query_scn, request->ssn,
+        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
+    dms_dyn_trc_end(dms_ctx->sess_id);
 
     return DMS_SUCCESS;
 }

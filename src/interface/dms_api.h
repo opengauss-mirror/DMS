@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           161
+#define DMS_LOCAL_VERSION           162
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -615,6 +615,8 @@ typedef enum en_dms_wait_event {
     DMS_EVT_DCS_REQ_XA_IN_USE,
     DMS_EVT_DCS_REQ_END_XA,
     DMS_EVT_REQ_CKPT,
+    DMS_EVT_PROC_GENERIC_REQ,
+    DMS_EVT_PROC_REFORM_REQ,
 
 // add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
@@ -1248,6 +1250,8 @@ typedef struct st_dms_profile {
     unsigned char enable_mes_task_threadpool;
     unsigned int mes_task_worker_max_cnt;
     unsigned int max_alive_time_for_abnormal_status;
+    unsigned char enable_dyn_trace;
+    unsigned char enable_reform_trace;
 } dms_profile_t;
 
 typedef struct st_logger_param {

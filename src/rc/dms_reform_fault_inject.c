@@ -101,7 +101,7 @@ static void dms_reform_fault_inject_thread(thread_t *thread)
     PRTS_RETVOID_IFERR(sprintf_s(ini_path, CM_MAX_FILE_NAME_LEN, "%s/cfg/dms_rfi.ini", gsdb_home));
 #endif
 
-    cm_set_thread_name("reform_fault_inject");
+    cm_set_thread_name(DMS_REFORM_FI_THRD_NAME);
     LOG_RUN_INF("[DMS FAULT INJECT]dms_reform_fault_inject_thread start");
 
     while (!thread->closed) {
