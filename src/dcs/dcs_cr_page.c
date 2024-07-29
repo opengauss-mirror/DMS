@@ -420,15 +420,9 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
     int ret;
     dms_message_t message;
 
-    LOG_DEBUG_INF("[PCR][%s][request cr page] cr_type %u query_scn %llu query_ssn %u "
-        "src_inst %u src_sid %u dst_inst %u",
-        cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
-        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
-
     dms_wait_event_t evt = for_heap ? DMS_EVT_PCR_REQ_HEAP_PAGE : DMS_EVT_PCR_REQ_BTREE_PAGE;
-
     dms_dyn_trc_begin(dms_ctx->sess_id, evt);
-    LOG_DYNAMIC_TRACE("[%s]cr_type %u qscn %llu qssn %u srcid %u ssid %u dstid %u",
+    LOG_DYN_TRC_INF("[RCRP][%s]cr_type %u qscn %llu qssn %u srcid %u ssid %u dstid %u",
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
         (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
 
@@ -462,15 +456,11 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
 
     /* error occurs, we want to retry in DB layer, so return success to DB, should judge status in state machine */
     dms_cr->status = DMS_CR_STATUS_DB_NOT_READY;
-    LOG_DEBUG_INF("[PCR][%s][request cr page failed] cr_type %u query_scn %llu query_ssn %u "
-        "src_inst %u src_sid %u dst_inst %u",
-        cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
+    LOG_DYN_TRC_WAR("[RCRP][%s]qscn=%llu qssn=%u srcid=%u ssid=%u dstid=%u, failed retry",
+        cm_display_pageid(request->pageid), request->query_scn, request->ssn,
         (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
 
     cm_sleep(DMS_MSG_RETRY_TIME);
-    LOG_DYNAMIC_TRACE("[%s]failed retry qscn %llu qssn %u srcid %u ssid %u dstid %u",
-        cm_display_pageid(request->pageid), request->query_scn, request->ssn,
-        (uint32)dms_ctx->inst_id, (uint32)dms_ctx->sess_id, (uint32)dest_id);
     dms_dyn_trc_end(dms_ctx->sess_id);
 
     return DMS_SUCCESS;

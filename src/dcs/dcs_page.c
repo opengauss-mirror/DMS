@@ -110,9 +110,7 @@ int32 dcs_handle_prepare_need_load(dms_context_t *dms_ctx, dms_message_t *msg, d
     }
 
     dcs_set_ctrl4granted(dms_ctx, ctrl, *granted_mode);
-    LOG_DEBUG_INF("[DCS][%s][dcs_handle_prepare_need_load] lock_mode=%u",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)ctrl->lock_mode);
-    LOG_DYNAMIC_TRACE("[HNL][%s]need load lmode=%u",
+    LOG_DYN_TRC_INF("[HNL][%s]lmode=%u",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)ctrl->lock_mode);
     return DMS_SUCCESS;
 }
@@ -335,23 +333,16 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     }
 
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        LOG_DEBUG_ERR("[DCS][%s][%s]:send failed, dest_id=%d, dest_sid=%d, mode=%u, \
-            ctrl_lock_mode=%d, ctrl_is_edp=%d, page_lsn=%llu, page_scn=%llu, edp_map=%llu",
-            cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack->head.cmd),
-            page_ack->head.dst_inst, page_ack->head.dst_sid, req_info->req_mode,
-            ctrl->lock_mode, ctrl->is_edp, page_ack->lsn, page_ack->scn, page_ack->edp_map);
+        LOG_DYN_TRC_ERR("[SAP][%s]dstid=%d dsid=%d mode=%u lmode=%d isedp=%d plsn=%llu pscn=%llu edpmap=%llu",
+            cm_display_pageid(req_info->resid), page_ack->head.dst_inst, page_ack->head.dst_sid,
+            req_info->req_mode, ctrl->lock_mode, ctrl->is_edp, page_ack->lsn, page_ack->scn, page_ack->edp_map);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, page_ack->head.cmd, page_ack->head.dst_inst);
         dms_dyn_trc_end(ctx->sess_id);
         dms_end_stat(ctx->sess_id);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
 
-    LOG_DEBUG_INF("[DCS][%s][%s]:send ok, dest_id=%d, dest_sid=%d, req_mode=%u, ctrl_lock_mode=%d,"
-        "ctrl_is_edp=%d, global_lsn=%llu, global_scn=%llu, page_lsn=%llu, edp_map=%llu, flags=%u, msg_size=%d",
-        cm_display_pageid(req_info->resid), dms_get_mescmd_msg(page_ack->head.cmd), page_ack->head.dst_inst,
-        page_ack->head.dst_sid, req_info->req_mode, ctrl->lock_mode, ctrl->is_edp, page_ack->lsn,
-        page_ack->scn, g_dms.callback.get_page_lsn(ctrl), page_ack->edp_map, page_ack->head.flags, page_ack->head.size);
-    LOG_DYNAMIC_TRACE("[SAP][%s]sent dstid=%d dsid=%d rmode=%u cmode=%d is_edp=%d glsn=%llu gscn=%llu plsn=%llu"
+    LOG_DYN_TRC_INF("[SAP][%s]sent dstid=%d dsid=%d rmode=%u cmode=%d is_edp=%d glsn=%llu gscn=%llu plsn=%llu"
         "edp_map=%llu flags=%u size=%d", cm_display_pageid(req_info->resid), page_ack->head.dst_inst,
         page_ack->head.dst_sid, req_info->req_mode, ctrl->lock_mode, ctrl->is_edp, page_ack->lsn,
         page_ack->scn, g_dms.callback.get_page_lsn(ctrl), page_ack->edp_map, page_ack->head.flags,
@@ -817,8 +808,7 @@ static int dcs_release_owner_r(dms_context_t *dms_ctx, uint8 master_id, unsigned
     msg_rls_owner_ack_t *ack = (msg_rls_owner_ack_t *)msg.buffer;
     *released = ack->released;
 
-    LOG_DEBUG_INF("[DCS][%s][release owner result]: released=%d", cm_display_pageid(dms_ctx->resid), (*released));
-    LOG_DYNAMIC_TRACE("[ROR][%s]released=%d", cm_display_pageid(dms_ctx->resid), (*released));
+    LOG_DYN_TRC_INF("[ROR][%s]released=%d", cm_display_pageid(dms_ctx->resid), (*released));
     mfc_release_response(&msg);
     return DMS_SUCCESS;
 }
