@@ -342,6 +342,54 @@ DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_re
     cmd_stat_result->is_valid = CM_TRUE;
 }
 
+int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_info_t *mes_worker_msg_stats_result)
+{
+    if (!g_dms.dms_init_finish || worker_id >= MES_MAX_TASK_NUM) {
+        return DMS_ERROR;
+    }
+    mes_worker_info_t mes_worker_info;
+    if (mes_get_worker_info(worker_id, &mes_worker_info) != DMS_SUCCESS) {
+        return DMS_ERROR;
+    }
+
+    mes_worker_msg_stats_result->is_active = mes_worker_info.is_active;
+    mes_worker_msg_stats_result->tid = mes_worker_info.tid;
+    mes_worker_msg_stats_result->priority = mes_worker_info.priority;
+    mes_worker_msg_stats_result->get_msgitem_time = mes_worker_info.get_msgitem_time;
+    mes_worker_msg_stats_result->msg_ruid = mes_worker_info.msg_ruid;
+    mes_worker_msg_stats_result->msg_src_inst = mes_worker_info.msg_src_inst;
+    MEMS_RETURN_IFERR(memcpy_sp(&mes_worker_msg_stats_result->msg_info, sizeof(mes_worker_msg_stats_result->msg_info),
+        mes_worker_info.data, sizeof(mes_worker_msg_stats_result->msg_info)));
+
+    if (mes_worker_msg_stats_result->msg_info.cmd < MSG_REQ_END) {
+        errno_t ret = strcpy_s(mes_worker_msg_stats_result->msg_cmd_desc, DMS_CMD_DESC_LEN,
+            g_dms.processors[mes_worker_msg_stats_result->msg_info.cmd].name);
+        if (ret != EOK) {
+            LOG_DEBUG_ERR("[DMS]strcpy_s error");
+            return DMS_ERROR;
+        }
+    }
+    return DMS_SUCCESS;
+}
+
+int dms_get_task_worker_priority_stat(unsigned int priority_id,
+    mes_task_priority_stats_info_t *mes_task_priority_stats_result)
+{
+    if (!g_dms.dms_init_finish || priority_id >= MES_PRIORITY_CEIL) {
+        return DMS_ERROR;
+    }
+
+    mes_task_priority_info_t mes_worker_priority_info;
+    if (mes_get_worker_priority_info(priority_id, &mes_worker_priority_info) != DMS_SUCCESS) {
+        return DMS_ERROR;
+    }
+    mes_task_priority_stats_result->priority = mes_worker_priority_info.priority;
+    mes_task_priority_stats_result->worker_num = mes_worker_priority_info.worker_num;
+    mes_task_priority_stats_result->finished_msgitem_num = mes_worker_priority_info.finished_msgitem_num;
+    mes_task_priority_stats_result->inqueue_msgitem_num = mes_worker_priority_info.inqueue_msgitem_num;
+    return DMS_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif
