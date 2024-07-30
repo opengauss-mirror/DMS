@@ -708,6 +708,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_drc_access();
     dms_reform_judgement_standby_sync();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
+    dms_reform_judgement_stop_server();
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_page_access();
     /* stop lrpl must after page access and before txn_deposit */
@@ -727,6 +728,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_rollback_start(inst_lists);
     dms_reform_judgement_wait_ckpt();
     dms_reform_judgement_start_lrpl();
+    dms_reform_judgement_resume_server();
     dms_reform_judgement_done();
 }
 

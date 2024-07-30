@@ -172,8 +172,19 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     CM_CHK_PROC_MSG_SIZE(msg, (uint32)sizeof(dms_ask_res_ack_t), CM_FALSE);
     dms_ask_res_ack_t *ack = (dms_ask_res_ack_t *)(msg->buffer);
 
+    uint32 node_data_size = 0;
+#ifndef OPENGAUSS
+    uint32 node_data_len = 0;
+    uint64 *node_data = NULL;
+    if (ack->node_cnt != 0) {
+        node_data_len = DMS_STANDBY_GET_NODE_DATA_LEN(ack->node_cnt);
+        node_data_size = node_data_len * (uint32)sizeof(uint64);
+        node_data = (uint64 *)(msg->buffer + sizeof(dms_ask_res_ack_t));
+    }
+#endif
+
     if (ack->head.cmd == MSG_ACK_PAGE_READY && !(ack->head.flags & MSG_FLAG_NO_PAGE)) {
-        CM_CHK_PROC_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + g_dms.page_size), CM_FALSE);
+        CM_CHK_PROC_MSG_SIZE(msg, (uint32)(sizeof(dms_ask_res_ack_t) + node_data_size + g_dms.page_size), CM_FALSE);
 #ifdef OPENGAUSS
         ctrl->seg_fileno = ack->seg_fileno;
         ctrl->seg_blockno = ack->seg_blockno;
@@ -185,8 +196,8 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
             g_dms.callback.verify_page(ctrl, msg->buffer + sizeof(dms_ask_res_ack_t));
         }
 #endif
-        int ret = memcpy_s(g_dms.callback.get_page(ctrl), g_dms.page_size, msg->buffer + sizeof(dms_ask_res_ack_t),
-            g_dms.page_size);
+        int ret = memcpy_s(g_dms.callback.get_page(ctrl), g_dms.page_size,
+            msg->buffer + sizeof(dms_ask_res_ack_t) + node_data_size, g_dms.page_size);
         DMS_SECUREC_CHECK(ret);
 
 #ifndef OPENGAUSS
@@ -210,9 +221,9 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     if (ack->scn != 0) {
         g_dms.callback.update_global_scn(dms_ctx->db_handle, ack->scn);
     }
-    if (ack->node_lfn != 0) {
-        g_dms.callback.update_node_lfn(dms_ctx->db_handle, ack->node_lfn, ack->head.src_inst);
-    }
+
+    g_dms.callback.update_node_lfn(dms_ctx->db_handle, ack->node_id, ack->node_lfn, node_data,
+        node_data_len);
 #endif
 
     ctrl->lock_mode = mode;
@@ -323,11 +334,16 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     if (page_ack->head.flags & MSG_FLAG_NO_PAGE) {
         ret = mfc_send_data(&page_ack->head);
     } else {
+        uint32 node_data_size = 0;
 #ifndef OPENGAUSS
         page_ack->enable_cks = (bool8)g_dms.callback.get_enable_checksum(ctx->db_handle);
         page_ack->checksum = (uint16)g_dms.callback.calc_page_checksum(ctx->db_handle, ctrl, g_dms.page_size);
+        if (page_ack->node_cnt != 0) {
+            node_data_size = DMS_STANDBY_GET_NODE_DATA_LEN(page_ack->node_cnt) * (uint32)sizeof(uint64);
+        }
 #endif
-        ret = mfc_send_data3(&page_ack->head, sizeof(dms_ask_res_ack_t), (void*)g_dms.callback.get_page(ctrl));
+        ret = mfc_send_data3(&page_ack->head, sizeof(dms_ask_res_ack_t) + node_data_size,
+            (void*)g_dms.callback.get_page(ctrl));
     }
 
     if (ret == DMS_SUCCESS) {
@@ -365,30 +381,45 @@ int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
 static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl, dms_res_req_info_t *req_info,
     uint32 cmd)
 {
-    dms_ask_res_ack_t page_ack = { 0 };
-    dms_init_ack_head2(&page_ack.head, cmd, 0, req_info->owner_id,
+    dms_ask_res_ack_wrapper page_ack_wrapper = { 0 };
+    dms_ask_res_ack_t *page_ack = &page_ack_wrapper.res_ack;
+    dms_init_ack_head2(&page_ack->head, cmd, 0, req_info->owner_id,
         req_info->req_id, (uint16)ctx->sess_id, req_info->req_sid, req_info->req_proto_ver);
-    page_ack.head.ruid = req_info->req_ruid;
+    page_ack->head.ruid = req_info->req_ruid;
+
+    uint32 node_data_size = 0;
+#ifndef OPENGAUSS
+    uint32 node_data_len = 0;
+    unsigned int db_role;
+    g_dms.callback.get_db_role(ctx->db_handle, &db_role);
+    if (db_role != DMS_DB_ROLE_PRIMARY) {
+        page_ack->node_cnt = g_dms.inst_cnt;
+        node_data_len = DMS_STANDBY_GET_NODE_DATA_LEN(page_ack->node_cnt);
+        node_data_size = node_data_len * (uint32)sizeof(uint64);
+    } else {
+        page_ack->node_cnt = 0;
+    }
+#endif
 
     if (req_info->curr_mode == DMS_LOCK_SHARE && req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
         // page will not be sent with ack
-        page_ack.head.flags |= MSG_FLAG_NO_PAGE;
-        page_ack.head.size = (uint16)sizeof(dms_ask_res_ack_t);
+        page_ack->head.flags |= MSG_FLAG_NO_PAGE;
+        page_ack->head.size = (uint16)sizeof(dms_ask_res_ack_t) + node_data_size;
     } else {
-        page_ack.head.size = (uint16)(g_dms.page_size + sizeof(dms_ask_res_ack_t));
+        page_ack->head.size = (uint16)(g_dms.page_size + sizeof(dms_ask_res_ack_t)) + node_data_size;
     }
 
 #ifdef OPENGAUSS
-    page_ack.seg_fileno = ctrl->seg_fileno;
-    page_ack.seg_blockno = ctrl->seg_blockno;
-    page_ack.need_check_pincount = ctrl->need_check_pincount;
-    page_ack.lsn_on_disk = ctrl->lsn_on_disk;
+    page_ack->seg_fileno = ctrl->seg_fileno;
+    page_ack->seg_blockno = ctrl->seg_blockno;
+    page_ack->need_check_pincount = ctrl->need_check_pincount;
+    page_ack->lsn_on_disk = ctrl->lsn_on_disk;
 #endif
-    page_ack.lsn = 0;
+    page_ack->lsn = 0;
 #ifndef OPENGAUSS
-    page_ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
+    page_ack->scn = g_dms.callback.get_global_scn(ctx->db_handle);
 #endif
-    page_ack.edp_map = 0;
+    page_ack->edp_map = 0;
     if (g_dms.callback.page_is_dirty(ctrl)) {
 #ifdef OPENGAUSS
         unsigned long long int page_lsn = g_dms.callback.get_page_lsn(ctrl);
@@ -398,11 +429,13 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
         * if current page's redo log hasn't been flushed to disk, we need to flush
         * the redo log first, and transfer the max lsn inside current log batch to next owner instance.
         */
-        unsigned long long flushed_lfn = g_dms.callback.get_global_flushed_lfn(ctx->db_handle);
+        g_dms.callback.get_global_flushed_lfn(ctx->db_handle, &page_ack->node_id, &page_ack->node_lfn,
+            &page_ack_wrapper.data[0], node_data_len);
+        unsigned long long flushed_lfn = page_ack->node_lfn;
         unsigned long long page_lfn = g_dms.callback.get_page_lfn(ctrl);
-        if (flushed_lfn < page_lfn) {
+        if (flushed_lfn < page_lfn && db_role == DMS_DB_ROLE_PRIMARY) {
             dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE_FLUSHLOG, CM_TRUE);
-            int ret = g_dms.callback.log_conditional_flush(ctx->db_handle, page_lfn, &page_ack.lsn);
+            int ret = g_dms.callback.log_conditional_flush(ctx->db_handle, page_lfn, &page_ack->lsn);
             if (ret != DMS_SUCCESS) {
                 LOG_DEBUG_ERR("[DCS][%s][transfer owner]flush failed: dest_id=%d, dest_sid=%d, dest_ruid=%llu, mode=%u",
                     cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid, req_info->req_ruid,
@@ -416,25 +449,26 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     }
 
 #ifndef OPENGAUSS
-    page_ack.node_lfn = g_dms.callback.get_global_flushed_lfn(ctx->db_handle);
+    g_dms.callback.get_global_flushed_lfn(ctx->db_handle, &page_ack->node_id, &page_ack->node_lfn,
+        &page_ack_wrapper.data[0], node_data_len);
 #endif
 
     // it will transfer owner, so need to set EDP map
     if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
-        page_ack.edp_map = ctrl->edp_map;
+        page_ack->edp_map = ctrl->edp_map;
         if (g_dms.callback.page_is_dirty(ctrl)) {
-            page_ack.edp_map = page_ack.edp_map | (1ULL << g_dms.inst_id);
+            page_ack->edp_map = page_ack->edp_map | (1ULL << g_dms.inst_id);
         }
     } else {
-        page_ack.edp_map = 0;
+        page_ack->edp_map = 0;
     }
 
     if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
         if (g_dms.callback.page_is_dirty(ctrl)) {
-            page_ack.head.flags |= MSG_FLAG_DIRTY_PAGE;
+            page_ack->head.flags |= MSG_FLAG_DIRTY_PAGE;
         }
         if (ctrl->edp_map != 0) {
-            page_ack.head.flags |= MSG_FLAG_REMOTE_DIRTY_PAGE;
+            page_ack->head.flags |= MSG_FLAG_REMOTE_DIRTY_PAGE;
         }
 
         LOG_DEBUG_INF("[DCS][%s][transfer owner]: dest_id=%d, dest_sid=%d, dest_ruid=%llu, mode=%u",
@@ -443,7 +477,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     } else {
         // send share copy, multiple share owners are supported on master
         // owner doesn't need to maintain any info. Just send page.
-        page_ack.head.flags |= MSG_FLAG_SHARED_PAGE;
+        page_ack->head.flags |= MSG_FLAG_SHARED_PAGE;
 
         LOG_DEBUG_INF("[DCS][%s][transfer share copy]: dest_id=%d, dest_sid=%d, dest_ruid=%llu, mode=%u",
             cm_display_pageid(req_info->resid), req_info->req_id, req_info->req_sid, req_info->req_ruid,
@@ -451,13 +485,13 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     }
 
 #ifndef OPENGAUSS
-    if (page_ack.lsn == 0) {
+    if (page_ack->lsn == 0) {
         /* page is swapped out or page's redo log has been flushed */
-        page_ack.lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
+        page_ack->lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
     }
 #endif
 
-    return dcs_send_ack_page(ctx, ctrl, req_info, &page_ack);
+    return dcs_send_ack_page(ctx, ctrl, req_info, page_ack);
 }
 
 static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_info_t *req)

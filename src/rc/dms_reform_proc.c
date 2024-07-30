@@ -1062,6 +1062,42 @@ static int dms_reform_standby_set_online_list(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_stop_server(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (share_info->list_rollback.inst_id_count != 0) {
+        g_dms.callback.standby_stop_server(g_dms.reform_ctx.handle_normal);
+    }
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_resume_server_for_reformer(void)
+{
+    int ret = DMS_SUCCESS;
+    if (DMS_IS_SHARE_REFORMER) {
+        ret = g_dms.callback.standby_resume_server(g_dms.reform_ctx.handle_normal);
+    }
+    if (ret == DMS_SUCCESS) {
+        dms_reform_next_step();
+        LOG_RUN_FUNC_SUCCESS;
+    }
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_resume_server_for_partner(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    if (DMS_IS_SHARE_PARTNER) {
+        g_dms.callback.standby_resume_server(g_dms.reform_ctx.handle_normal);
+    }
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_start_lrpl(void)
 {
     LOG_RUN_FUNC_ENTER;
@@ -1820,6 +1856,11 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_STANDBY_RELOAD_NODE_CTRL] = { "RELOAD_NODE_CTRL", dms_reform_standby_reload_node_ctrl,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST] = { "STANDBY_SET_ONLINE_LIST", dms_reform_standby_set_online_list,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_STOP_SERVER] = { "STOP_SERVER", dms_reform_stop_server, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RESUME_SERVER_FOR_REFORMER] = { "RESUME_SERVER_REFORMER", dms_reform_resume_server_for_reformer,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_RESUME_SERVER_FOR_PARTNER] = { "RESUME_SERVER_PARTNER", dms_reform_resume_server_for_partner,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_START_LRPL] = { "START_LRPL", dms_reform_start_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },

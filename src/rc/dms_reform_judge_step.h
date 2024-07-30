@@ -84,6 +84,8 @@ void dms_reform_judgement_wait_ckpt(void);
 void dms_reform_judgement_file_unblocked(void);
 void dms_reform_judgement_xa_access(void);
 void dms_reform_judgement_standby_sync(void);
+void dms_reform_judgement_stop_server(void);
+void dms_reform_judgement_resume_server(void);
 void dms_reform_judgement_start_lrpl(void);
 void dms_reform_judgement_stop_lrpl(void);
 void dms_reform_judgement_rollback_for_az_standby(instance_list_t *inst_lists);
