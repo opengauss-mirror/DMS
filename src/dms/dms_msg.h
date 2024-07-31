@@ -45,6 +45,8 @@ extern "C" {
 #define DMS_EVENT_MONITOR_TIMEOUT  (20 * MICROSECS_PER_SECOND) /* 20s */
 #define DMS_EVENT_MONITOR_INTERVAL (10 * MICROSECS_PER_SECOND) /* 10s */
 
+#define DMS_STANDBY_GET_NODE_DATA_LEN(node_cnt)  ((node_cnt) + 1)  /* data 0: timestamp, other: node lfn */
+
 /* biggest: pcr page ack: head + ack + page */
 #define DMS_MESSAGE_BUFFER_SIZE (uint32)(SIZE_K(32) + 64)
 
@@ -108,9 +110,16 @@ typedef struct st_dms_ask_res_ack {
     uint8 unused;
     uint16 checksum;
 #ifndef OPENGAUSS
+    uint8 node_id;
+    uint8 node_cnt;
     uint64 node_lfn;
 #endif
 } dms_ask_res_ack_t;
+
+typedef struct st_dms_ask_res_ack_wrapper {
+    dms_ask_res_ack_t res_ack;
+    uint64 data[DMS_MAX_INSTANCES + 1]; /* index 0: timestamp, other: node_lfn */
+} dms_ask_res_ack_wrapper;
 
 typedef struct st_dms_claim_owner_req {
     dms_message_head_t head;

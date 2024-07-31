@@ -712,6 +712,20 @@ void dms_reform_judgement_standby_sync(void)
     dms_reform_add_step(DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST);
 }
 
+void dms_reform_judgement_stop_server(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_STOP_SERVER);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+}
+
+void dms_reform_judgement_resume_server(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_RESUME_SERVER_FOR_REFORMER);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_RESUME_SERVER_FOR_PARTNER);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+}
+
 void dms_reform_judgement_start_lrpl(void)
 {
     dms_reform_add_step(DMS_REFORM_STEP_START_LRPL);
