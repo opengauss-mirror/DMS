@@ -159,20 +159,15 @@ static unsigned char dms_dyn_trc_no_logs()
 
 static int dms_dyn_trc_init_trace_cb(dms_profile_t *dms_profile)
 {
-    log_param_t *log_param = cm_log_param_instance();
     if (dms_profile->enable_dyn_trace) {
-        log_param->dyn_trace = (usr_cb_log_trace_t)dms_dynamic_trace_fmt_cache;
-        log_param->dyn_trc_set_flag = (usr_cb_dyn_trc_set_flag_t)dms_dyn_trc_set_dump_flag;
-        if (!dms_profile->enable_reform_trace) {
-            log_param->dyn_trc_trace_logs = (usr_cb_dyn_trc_log_t)dms_dyn_trc_no_logs;
+        if (dms_profile->enable_reform_trace) {
+            cm_register_dyn_trc_cbs(dms_dynamic_trace_fmt_cache, dms_dyn_trc_set_dump_flag, dms_dyn_trc_trace_reform);
         } else {
-            log_param->dyn_trc_trace_logs = (usr_cb_dyn_trc_log_t)dms_dyn_trc_trace_reform;
+            cm_register_dyn_trc_cbs(dms_dynamic_trace_fmt_cache, dms_dyn_trc_set_dump_flag, dms_dyn_trc_no_logs);
         }
     } else {
         dms_profile->enable_reform_trace = CM_FALSE;
-        log_param->dyn_trace = NULL;
-        log_param->dyn_trc_set_flag = NULL;
-        log_param->dyn_trc_trace_logs = NULL;
+        cm_register_dyn_trc_cbs(NULL, NULL, NULL);
     }
     
     return DMS_SUCCESS;

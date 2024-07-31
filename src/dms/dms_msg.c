@@ -359,11 +359,7 @@ void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_
         return;
     }
 
-    LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, lsn=%llu",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(request.head.cmd),
-        (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
-        (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
-    LOG_DYNAMIC_TRACE("[CLO][%s]sent srcid=%u ssid=%u dstid=%u dsid=%u has_edp=%u lsn=%llu",
+    LOG_DYN_TRC_INF("[CLO][%s]sent srcid=%u ssid=%u dstid=%u dsid=%u has_edp=%u lsn=%llu",
         cm_display_resid(dms_ctx->resid, dms_ctx->type),
         (uint32)request.head.src_inst, (uint32)request.head.src_sid, (uint32)request.head.dst_inst,
         (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
@@ -521,11 +517,7 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
         return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
     dms_message_head_t *ack_dms_head = get_dms_head(&msg);
-    LOG_DEBUG_INF("[DMS][%s][%s]:src_id=%u, src_sid=%u, dst_id=%u, dst_sid =%u, flag=%u, ruid=%llu",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(ack_dms_head->cmd),
-        (uint32)msg.head->src_inst, (uint32)msg.head->src_sid, (uint32)msg.head->dst_inst,
-        (uint32)msg.head->dst_sid, (uint32)msg.head->flags, msg.head->ruid);
-    LOG_DYNAMIC_TRACE("[AMR ACK][%s]srcid=%u ssid=%u dstid=%u dsid =%u flag=%u ruid=%llu",
+    LOG_DYN_TRC_INF("[AMR ACK][%s]srcid=%u ssid=%u dstid=%u dsid =%u flag=%u ruid=%llu",
         cm_display_resid(dms_ctx->resid, dms_ctx->type),
         (uint32)msg.head->src_inst, (uint32)msg.head->src_sid, (uint32)msg.head->dst_inst,
         (uint32)msg.head->dst_sid, (uint32)msg.head->flags, msg.head->ruid);
@@ -622,7 +614,8 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     drc_req_owner_result_t result;
     mes_prepare_request(&dms_ctx->ctx_ruid); /* need to prepare for acutal sending */
 
-    LOG_DEBUG_INF("[DMS][%s][ask master local]: src_id=%u, req_mode=%u, curr_mode=%u, prep_ruid=%llu",
+    dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY);
+    LOG_DYN_TRC_INF("[AML][%s]srcid=%u rmode=%u cmode=%u pruid=%llu",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)req_mode,
         (uint32)curr_mode, dms_ctx->ctx_ruid);
 
@@ -630,11 +623,6 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     dms_build_req_info_local(dms_ctx, curr_mode, req_mode, &req_info);
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY, CM_TRUE);
-
-    dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY);
-    LOG_DYNAMIC_TRACE("[AML][%s]srcid=%u rmode=%u cmode=%u pruid=%llu",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)req_mode,
-        (uint32)curr_mode, dms_ctx->ctx_ruid);
 
     int32 ret = drc_request_page_owner(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len, dms_ctx->type, &req_info,
         &result);
@@ -646,9 +634,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
     }
 
     if (result.invld_insts != 0) {
-        LOG_DEBUG_INF("[DMS][%s]invld sharers:%llu",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
-        LOG_DYNAMIC_TRACE("[AML][%s]invld sharers:%llu",
+        LOG_DYN_TRC_INF("[AML][%s]invld sharers:%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
         int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
         ret = dms_invalidate_share_copy_with_timeout(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
@@ -661,9 +647,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
         }
     }
 
-    LOG_DEBUG_INF("[DMS][%s][ask master local]result type=%u",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), result.type);
-    LOG_DYNAMIC_TRACE("[AML][%s]result type=%u",
+    LOG_DYN_TRC_INF("[AML][%s]result type=%u",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), result.type);
 
     // dms_stat ends in sub-func for different scenarios
@@ -711,7 +695,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     int ret1 = mfc_send_data(&req.head);
     if (ret1 == DMS_SUCCESS) {
         dms_ctx->ctx_ruid = req.head.ruid;
-        LOG_DYNAMIC_TRACE("[AMR][%s]srcid=%u dstid=%u rmode=%u cmode=%u pruid=%llu",
+        LOG_DYN_TRC_INF("[AMR][%s]srcid=%u dstid=%u rmode=%u cmode=%u pruid=%llu",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)master_id,
             (uint32)req_mode, (uint32)curr_mode, dms_ctx->ctx_ruid);
         return DMS_SUCCESS;

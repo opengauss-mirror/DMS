@@ -373,9 +373,6 @@ static void drc_try_prepare_confirm_cvt(drc_head_t *drc)
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%d sid:%d ruid:%llu req_mode:%d] prepare confirm",
         cm_display_resid(DRC_DATA(drc), drc->type), cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid,
         cvt_req->req_mode);
-    LOG_DYNAMIC_TRACE("[DRC][%s]prep confirm cvt id=%d sid:%d ruid:%llu rmode:%d",
-        cm_display_resid(DRC_DATA(drc), drc->type), cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid,
-        cvt_req->req_mode);
     (void)cm_chan_try_send(DRC_RES_CTX->chan, (void *)&res_id);
 }
 
@@ -486,8 +483,7 @@ int32 drc_request_page_owner(dms_process_context_t *ctx, char* resid, uint16 len
     }
     if (drc->is_recycling) {
         drc_leave(drc);
-        LOG_DEBUG_WAR("[DMS][%s]buf res is recycling", cm_display_resid(resid, res_type));
-        LOG_DYNAMIC_TRACE("[%s]is recycling", cm_display_resid(resid, res_type));
+        LOG_DYN_TRC_WAR("[RPO][%s]is recycling", cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_IS_RECYCLING;
     }
     ret = drc_request_page_owner_internal(ctx, resid, res_type, req_info, result, drc);
