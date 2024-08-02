@@ -397,7 +397,7 @@ DMS_DECLARE int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, u
 * @return DMS_SUCCESS - success;otherwise: failed
 */
 DMS_DECLARE int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
-    unsigned long long *success_inst, unsigned long long *ruid);
+    unsigned long long lsn, unsigned long long *success_inst, unsigned long long *ruid);
 
 /*
 * @brief wait boc ack from other instances.

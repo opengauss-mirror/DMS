@@ -200,6 +200,7 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg
         return;
     }
     g_dms.callback.update_global_scn(process_ctx->db_handle, boc_req->commit_scn);
+    g_dms.callback.update_global_lsn(process_ctx->db_handle, boc_req->lsn);
     (void)cm_atomic_set((atomic_t *)&(g_dms.min_scn[boc_req->inst_id]), (int64)boc_req->min_scn);
     DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BOC, MSG_ACK_BOC);
     cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BOC, DMS_SUCCESS);
@@ -245,7 +246,7 @@ int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int t
 }
 
 int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned long long min_scn,
-    unsigned long long *success_inst, unsigned long long *ruid)
+    unsigned long long lsn, unsigned long long *success_inst, unsigned long long *ruid)
 {
     dms_reset_error();
     dcs_boc_req_t boc_req;
@@ -256,6 +257,7 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
     boc_req.commit_scn = commit_scn;
     boc_req.min_scn = min_scn;
     boc_req.inst_id = dms_ctx->inst_id;
+    boc_req.lsn = lsn;
 
     uint64 all_inst = reform_info->bitmap_connect;
     uint64 inval_insts = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
