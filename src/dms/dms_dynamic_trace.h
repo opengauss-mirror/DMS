@@ -21,8 +21,8 @@
  *
  * -------------------------------------------------------------------------
  */
-#ifndef DMS_DYNAMIC_TRACE_H
-#define DMS_DYNAMIC_TRACE_H
+#ifndef __DMS_DYNAMIC_TRACE_H__
+#define __DMS_DYNAMIC_TRACE_H__
 
 #include "cm_types.h"
 #include "cm_defs.h"
@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_EVT_MAX_LEVEL 5
 #define DMS_MAX_DYN_TRACE_SIZE SIZE_K(2)
 #define DMS_DYN_TRACE_HEADER_SZ 128
-#define DMS_SID_IS_VALID(sid) (sid < g_dms_dyn_trc.sess_cnt)
+#define DMS_SID_IS_VALID(sid) (sid >= 0 && sid < g_dms_dyn_trc.sess_cnt)
 
 typedef struct st_dms_event_trc {
     bool32 is_waiting;
@@ -68,8 +68,8 @@ extern dms_dyn_trc_t g_dms_dyn_trc;
 
 void dms_set_is_reform_thrd(bool32 is_rfm);
 char* dms_get_event_desc(dms_wait_event_t event);
-void dms_set_tls_sid(uint32 sid);
-uint32 dms_get_tls_sid();
+void dms_set_tls_sid(int32 sid);
+int32 dms_get_tls_sid();
 
 int dms_init_dynamic_trace(dms_profile_t *dms_profile);
 void dms_uninit_dynamic_trace();
@@ -110,4 +110,4 @@ static inline void dms_dynamic_trace_reset(dms_sess_dyn_trc_t* sess_dyn_trc)
 }
 #endif
 
-#endif /* DMS_DYNAMIC_TRACE_H */
+#endif /* __DMS_DYNAMIC_TRACE_H__ */

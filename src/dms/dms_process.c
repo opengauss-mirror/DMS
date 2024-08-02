@@ -333,19 +333,21 @@ static bool32 dms_msg_skip_gcv_check(unsigned int cmd)
     return CM_FALSE;
 }
 
-static void dms_lock_instance_s(unsigned char cmd)
+static void dms_lock_instance_s(unsigned char cmd, uint16 sess_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     if (!dms_msg_skip_gcv_check(cmd)) {
         cm_latch_s(&reform_info->instance_lock, 0, CM_FALSE, NULL);
+        LOG_DEBUG_INF("locked instance lock S, sid=%u", sess_id);
     }
 }
 
-static void dms_unlock_instance_s(unsigned char cmd)
+static void dms_unlock_instance_s(unsigned char cmd, uint16 sess_id)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     if (!dms_msg_skip_gcv_check(cmd)) {
         cm_unlatch(&reform_info->instance_lock, NULL);
+        LOG_DEBUG_INF("unlocked instance lock S, sid=%u", sess_id);
     }
 }
 
@@ -464,7 +466,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
     bool32 enable_proc = CM_TRUE;
 #endif
 
-    dms_lock_instance_s(head->cmd);
+    dms_lock_instance_s(head->cmd, ctx->sess_id);
     bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || \
         dms_msg_skip_gcv_check(head->cmd);
     if (!enable_proc || !gcv_approved) {
@@ -473,7 +475,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid,
             (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        dms_unlock_instance_s(head->cmd);
+        dms_unlock_instance_s(head->cmd, ctx->sess_id);
         return;
     }
 
@@ -507,7 +509,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         dms_dyn_trc_end(ctx->sess_id);
     }
 
-    dms_unlock_instance_s(head->cmd);
+    dms_unlock_instance_s(head->cmd, ctx->sess_id);
 }
 
 // add function
@@ -1139,6 +1141,8 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
     return ret;
 }
 
+static int32 init_single_logger(log_param_t *log_param, log_type_t log_id);
+
 #ifndef OPENGAUSS
 static void dms_init_log(dms_profile_t *dms_profile)
 {
@@ -1275,6 +1279,7 @@ int32 dms_init_logger(logger_param_t *param_def)
 #endif
 
     log_param->log_instance_startup = (bool32)CM_TRUE;
+
 #ifdef OPENGAUSS
     if (log_param->log_level >= DEBUG_LOG_LEVEL) {
         cm_recovery_log_file(LOG_DEBUG);

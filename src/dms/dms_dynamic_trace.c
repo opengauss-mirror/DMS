@@ -48,12 +48,12 @@ static inline bool32 dms_is_reform_thread()
     return is_reform_thrd > 0;
 }
 
-void dms_set_tls_sid(uint32 sid)
+void dms_set_tls_sid(int32 sid)
 {
     tls_sid = sid;
 }
 
-uint32 dms_get_tls_sid()
+int32 dms_get_tls_sid()
 {
     return tls_sid;
 }
@@ -254,10 +254,10 @@ void dms_uninit_dynamic_trace()
 void dms_dyn_trc_begin(uint32 sid, dms_wait_event_t event)
 {
     DMS_DYN_TRC_RETURN_IF_UNINITED();
-    uint32 curr_sid = dms_get_tls_sid();
-    if (sid != curr_sid) {
+    int32 curr_sid = dms_get_tls_sid();
+    if (curr_sid == -1 || sid != (int32)curr_sid) {
         LOG_RUN_INF("[DMS][TRC]: thread binds new session, sid=%u", sid);
-        dms_set_tls_sid(sid);
+        dms_set_tls_sid((int32)sid);
     }
 
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
@@ -313,7 +313,7 @@ void dms_dyn_trc_end(uint32 sid)
 
 void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32 buf_size)
 {
-    uint32 sid = dms_get_tls_sid();
+    int32 sid = dms_get_tls_sid();
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
 
     if (dms_is_reform_thread()) {
@@ -343,7 +343,7 @@ static void dms_cache_trace_log_head(char *buf, uint32 buf_size, dms_log_level_t
     date_text.len = 0;
     int len;
     int tz;
-    uint32 curr_sid = dms_get_tls_sid();
+    int32 curr_sid = dms_get_tls_sid();
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + curr_sid;
     bool is_reform_proc_log =
         (curr_sid != CM_INVALID_ID32 && sess_trc->wait[0].event == DMS_EVT_PROC_REFORM_REQ);
@@ -403,7 +403,7 @@ void dms_dynamic_trace_fmt_cache(int log_type, int log_level, const char *code_f
 
 DMS_DECLARE unsigned char dms_dyn_trc_is_tracing()
 {
-    uint32 sid = dms_get_tls_sid();
+    int32 sid = dms_get_tls_sid();
     if (!dms_dyn_trc_inited() || !DMS_SID_IS_VALID(sid)) {
         return CM_FALSE;
     }
@@ -415,7 +415,7 @@ DMS_DECLARE unsigned char dms_dyn_trc_is_tracing()
 DMS_DECLARE void dms_dyn_trc_set_dump_flag(bool8 has_err)
 {
     DMS_DYN_TRC_RETURN_IF_UNINITED();
-    uint32 sid = dms_get_tls_sid();
+    int32 sid = dms_get_tls_sid();
     dms_sess_dyn_trc_t *sess_trc = NULL;
     if (DMS_SID_IS_VALID(sid) && g_dms_dyn_trc.sess_dyn_trc) {
         sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;

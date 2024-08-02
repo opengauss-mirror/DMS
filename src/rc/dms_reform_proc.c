@@ -1690,13 +1690,16 @@ static int dms_reform_lock_instance(void)
     uint32 sess_pid = g_dms.reform_ctx.sess_proc;
 
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance, gcv:%d", DMS_GLOBAL_CLUSTER_VER);
+    latch_t *latch = &reform_info->instance_lock;
+
+    LOG_RUN_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance, gcv:%d", DMS_GLOBAL_CLUSTER_VER);
     dms_reform_mark_locking(CM_TRUE);
 
-    if (cm_latch_timed_x(&reform_info->instance_lock, sess_pid, ticks, NULL) == CM_FALSE) {
+    if (cm_latch_timed_x(latch, sess_pid, ticks, NULL) == CM_FALSE) {
         curr_time = cm_clock_monotonic_now();
-        LOG_RUN_ERR("[DMS REFORM]dms_reform_lock_instance timeout error, time:%llu, inst:%d exits now",
-            curr_time - begin_time, g_dms.inst_id);
+        LOG_RUN_ERR("[DMS REFORM][GCV PUSH]lock timeout error, curr holder sid=%hu, moded=%hu, "
+            "shared count=%hu, time:%llu, inst:%d exits now", latch->sid, latch->stat,
+            latch->shared_count, curr_time - begin_time, g_dms.inst_id);
 
 #ifdef _DEBUG
         cm_panic(0);
@@ -1705,7 +1708,7 @@ static int dms_reform_lock_instance(void)
 #endif
     }
 
-    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
+    LOG_RUN_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
     dms_reform_mark_locking(CM_FALSE);
 
     LOG_RUN_FUNC_SUCCESS;
@@ -1725,7 +1728,7 @@ static int dms_reform_push_gcv_and_unlock(void)
     g_dms.cluster_ver++;
 
     cm_unlatch(&reform_info->instance_lock, NULL);
-    LOG_DEBUG_INF("[DMS REFORM][GCV PUSH]GCV++:%u, inst_id:%u; lock_instance unlock",
+    LOG_RUN_INF("[DMS REFORM][GCV PUSH]GCV++:%u, inst_id:%u; lock_instance unlock",
         DMS_GLOBAL_CLUSTER_VER, g_dms.inst_id);
 
     LOG_RUN_FUNC_SUCCESS;
