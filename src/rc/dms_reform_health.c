@@ -224,7 +224,7 @@ static void dms_reform_health_handle_fail(void)
     dms_reform_handle_fail_in_special_scenario();
 #else
     uint64 time_now = (uint64)g_timer()->now;
-    if (time_now - reform_info->proc_time > MAX_ALIVE_TIME_FOR_ABNORMAL_STATUS * MICROSECS_PER_SECOND) {
+    if (time_now - reform_info->proc_time > MAX_ALIVE_TIME_FOR_ABNORMAL_STATUS * MICROSECS_PER_MILLISEC) {
         LOG_RUN_ERR("[DMS REFORM]dms_reform_proc is inactive for %d seconds, exit", MAX_ALIVE_TIME_FOR_ABNORMAL_STATUS);
         cm_exit(0);
     } else if (!reform_info->reform_fail) {
