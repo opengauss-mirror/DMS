@@ -917,7 +917,6 @@ static void drc_recycle_buf_res_part_stat(void)
         MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, buf_num));
     }
     LOG_DEBUG_INF(buf_log);
-        drc_recycle_buf_res_part_stat();
 }
 
 static void drc_recycle_buf_res_start(void)
