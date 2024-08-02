@@ -1720,9 +1720,9 @@ static void dms_event_trace_monitor(void)
                     "[DMS DYNAMIC TRACE]HANG SESSION DETECTED, sid=%d, evt=%s:\n",
                     sid, dms_get_event_desc(sess_trc->wait[0].event));
                 CM_ASSERT(len > 0);
+                sess_trc->trc_buf[sess_trc->trc_len++] = '\n';
                 LOG_DMS_EVENT_TRACE(buf, len);
                 LOG_DMS_EVENT_TRACE(sess_trc->trc_buf, sess_trc->trc_len);
-                LOG_DMS_EVENT_TRACE("\n", 1);
             }
         }
     }
@@ -1734,14 +1734,14 @@ void dms_smon_entry(thread_t *thread)
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
     res_id_t res_id;
-    date_t begin = g_timer()->now;
+    date_t begin = cm_clock_monotonic_now();
     date_t end;
 
     DRC_RES_CTX->smon_handle = g_dms.callback.get_db_handle(&DRC_RES_CTX->smon_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(DRC_RES_CTX->smon_handle != NULL, "alloc db handle failed");
     
     while (!thread->closed) {
-        end = g_timer()->now;
+        end = cm_clock_monotonic_now();
         if ((end - begin) >= DMS_EVENT_MONITOR_INTERVAL) {
             begin = end;
             dms_event_trace_monitor();
