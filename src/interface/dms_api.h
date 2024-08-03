@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,7 +35,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           170
+#define DMS_LOCAL_VERSION           167
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -65,11 +66,6 @@ extern "C" {
 // The values of the following two macros must be same with (GS_MAX_XA_BASE16_GTRID_LEN GS_MAX_XA_BASE16_BQUAL_LEN)
 #define DMS_MAX_XA_BASE16_GTRID_LEN    (128)
 #define DMS_MAX_XA_BASE16_BQUAL_LEN    (128)
-
-#define DB_FI_ENTRY_BEGIN        10000
-#define DB_FI_ENTRY_COUNT        1024
-#define FI_ENTRY_END (DB_FI_ENTRY_BEGIN + DB_FI_ENTRY_COUNT)
-#define MAX_FI_ENTRY_COUNT       2000
 
 #define MAX_DMS_THREAD_NUM       512
 
@@ -810,8 +806,6 @@ typedef struct st_dms_msg_stats {
     dms_stat_by_cmd_t stat_cmd[DMS_STAT_CMD_COUNT];
 } dms_msg_stats_t;
 
-typedef struct dms_fi_entry dms_fi_entry;
-typedef int(*dms_fi_callback_func)(const dms_fi_entry *entry, va_list args);
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
@@ -1214,12 +1208,6 @@ typedef struct st_dms_instance_net_addr {
     unsigned char reserved[1];
 } dms_instance_net_addr_t;
 
-typedef struct dms_fi_config {
-    unsigned int entries[MAX_FI_ENTRY_COUNT];
-    unsigned int count;
-    unsigned int fault_value;
-} dms_fi_config_t;
-
 typedef struct st_dms_profile {
     unsigned int inst_id;
     unsigned long long inst_map;
@@ -1330,20 +1318,10 @@ typedef enum en_reform_callback_stat {
     REFORM_CALLBACK_STAT_COUNT
 } reform_callback_stat_e;
 
-typedef enum e_dms_fi_type {
-    DMS_FI_TYPE_BEGIN = 0,
-    DMS_FI_TYPE_PACKET_LOSS = DMS_FI_TYPE_BEGIN,
-    DMS_FI_TYPE_NET_LATENCY,
-    DMS_FI_TYPE_CPU_LATENCY,
-    DMS_FI_TYPE_PROCESS_FAULT,
-    DMS_FI_TYPE_CUSTOM_FAULT,
-    DMS_FI_TYPE_END,
-} dms_fi_type_e;
-
 typedef enum en_db_call_dms_trigger_fi_point_name {
-    // call in db, trigger in dms, point range[10800, DB_FI_ENTRY_END]
+    // call in db, trigger in dms, point range[10800, 11024]
     DB_FI_CHANGE_STATUS_AFTER_TRANSFER_PAGE = 10800,
-    DB_FI_ENTRY_END = FI_ENTRY_END
+    DB_FI_ENTRY_END = 11024, // which should be <= DDES_FI_ENTRY_COUNT
 } db_call_dms_trigger_fi_point_name;
 
 typedef enum en_dms_call_db_trigger_fi_point_name {
@@ -1351,13 +1329,6 @@ typedef enum en_dms_call_db_trigger_fi_point_name {
     DMS_FI_TRIGGER_IN_DB_ENTRY_BEGIN = 800,
     DMS_FI_ENTRY_END
 } dms_call_db_trigger_fi_point_name;
-
-struct dms_fi_entry {
-    int pointId;
-    unsigned int faultFlags;
-    int calledCount;
-    dms_fi_callback_func func;
-};
 
 typedef struct st_dms_tlock_info {
     dms_drid_t resid;

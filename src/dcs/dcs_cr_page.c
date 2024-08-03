@@ -56,7 +56,7 @@ static int dcs_send_pcr_ack(dms_process_context_t *ctx, msg_pcr_request_t *reque
         (uint32)msg.head.src_sid, (uint32)msg.head.dst_inst,
         (uint32)msg.head.dst_sid, (uint32)msg.force_cvt);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_CR_PAGE, MSG_ACK_CR_PAGE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_CR_PAGE, MSG_ACK_CR_PAGE);
     if (fb_mark == NULL) {
         ret = mfc_send_data3(&msg.head, sizeof(msg_pcr_ack_t), page);
     } else {
@@ -105,7 +105,7 @@ static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *requ
         cm_display_pageid(request->pageid), cm_display_xid(wxid), (uint32)msg.head.src_inst,
         (uint32)msg.head.src_sid, (uint32)msg.head.dst_inst, (uint32)msg.head.dst_sid);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_TXN_WAIT, MSG_ACK_TXN_WAIT);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_TXN_WAIT, MSG_ACK_TXN_WAIT);
     int ret = mfc_send_data(&msg.head);
     if (ret != CM_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.cmd, msg.head.dst_inst);
@@ -428,7 +428,7 @@ static int dcs_request_cr_page(dms_context_t *dms_ctx, dms_cr_t *dms_cr, uint8 d
 
     for (;;) {
         dms_begin_stat(dms_ctx->sess_id, evt, CM_TRUE);
-        DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_CR_PAGE, MSG_REQ_CR_PAGE);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_CR_PAGE, MSG_REQ_CR_PAGE);
         if (dms_cr->fb_mark == NULL) {
             ret = mfc_send_data3(&request->head, head_size, dms_cr->page);
         } else {
@@ -528,7 +528,7 @@ static void dcs_send_already_owner(dms_process_context_t *ctx, dms_message_t *ms
 {
     dms_already_owner_ack_t ack;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
     dms_init_ack_head(msg->head, &ack.head, MSG_ACK_ALREADY_OWNER, sizeof(dms_already_owner_ack_t), ctx->sess_id);
 #ifndef OPENGAUSS
     ack.scn = (ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(ctx->db_handle) : 0;
@@ -541,7 +541,7 @@ static void dcs_send_grant_owner(dms_process_context_t *ctx, dms_message_t *msg)
 {
     dms_ask_res_ack_ld_t ack;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
     dms_init_ack_head(msg->head, &ack.head, MSG_ACK_GRANT_OWNER, sizeof(dms_ask_res_ack_ld_t), ctx->sess_id);
 #ifndef OPENGAUSS
     ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
@@ -564,7 +564,7 @@ static void dcs_route_pcr_request_owner(dms_process_context_t *ctx, msg_pcr_requ
     request->head.dst_sid = CM_INVALID_ID16;
     request->head.ruid = ruid;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_OWNER_FOR_CR_PAGE, MSG_REQ_ASK_OWNER_FOR_CR_PAGE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_OWNER_FOR_CR_PAGE, MSG_REQ_ASK_OWNER_FOR_CR_PAGE);
     /* askowner wouldn't be sending req as ack to src_inst as outer func has judget */
     (void)mfc_forward_request(&request->head);
 }
@@ -598,7 +598,7 @@ static int dcs_pcr_reroute_request(const dms_process_context_t *ctx, msg_pcr_req
         cm_display_pageid(request->pageid), (uint32)request->cr_type, request->query_scn, request->ssn,
         (uint32)request->head.src_inst, (uint32)request->head.src_sid, (uint32)master_id, (uint64)request->head.ruid);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_MASTER_FOR_CR_PAGE, MSG_REQ_ASK_MASTER_FOR_CR_PAGE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_MASTER_FOR_CR_PAGE, MSG_REQ_ASK_MASTER_FOR_CR_PAGE);
     if (master_id == request->head.src_inst) {
         ret = mfc_send_response(&request->head);
     } else {
@@ -793,7 +793,7 @@ static int dcs_send_check_visible_ack(dms_process_context_t *ctx, msg_cr_check_t
         cm_display_rowid(check->rowid), (uint32)is_found, (uint32)ctx->inst_id, ctx->sess_id,
         (uint32)check->head.src_inst, (uint32)check->head.src_sid);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_CHECK_VISIBLE, MSG_ACK_CHECK_VISIBLE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_CHECK_VISIBLE, MSG_ACK_CHECK_VISIBLE);
     int ret = mfc_send_data(&msg.head);
     if (ret != CM_SUCCESS) {
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, msg.head.cmd, msg.head.dst_inst);
@@ -1057,7 +1057,7 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
 
     for (;;) {
         dms_begin_stat(dms_ctx->sess_id, DMS_EVT_PCR_CHECK_CURR_VISIBLE, CM_TRUE);
-        DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_CHECK_VISIBLE, MSG_REQ_CHECK_VISIBLE);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_CHECK_VISIBLE, MSG_REQ_CHECK_VISIBLE);
         if (mfc_send_data3(&check.head, sizeof(msg_cr_check_t), dms_cr->page) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;

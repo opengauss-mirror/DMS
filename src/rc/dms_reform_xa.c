@@ -212,7 +212,7 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
         req_rebuild->head.size = DMS_REFORM_MSG_MAX_LENGTH;
     }
     
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_XA_REBUILD, MSG_REQ_XA_REBUILD);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_XA_REBUILD, MSG_REQ_XA_REBUILD);
     return dms_reform_rebuild_append_xid(req_rebuild, xid, master_id, undo_set_id);
 }
 

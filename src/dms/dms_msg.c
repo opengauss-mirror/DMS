@@ -46,7 +46,7 @@ void cm_send_error_msg(dms_message_head_t *head, int32 err_code, char *err_info)
         CM_INVALID_ID32);
     msg_error.code = err_code;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ERROR, MSG_ACK_ERROR);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ERROR, MSG_ACK_ERROR);
     if (mfc_send_data3(&msg_error.head, sizeof(msg_error_t), err_info) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("send error msg to instance %d failed.", head->src_inst);
     }
@@ -96,7 +96,7 @@ void dms_send_error_ack(dms_process_context_t *ctx, uint8 dst_inst, uint32 dst_s
     msg_error.code      = code;
     msg_error.head.ruid  = dst_ruid;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ERROR, MSG_ACK_ERROR);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ERROR, MSG_ACK_ERROR);
     if (strlen(errmsg) == 0) {
         msg_error.head.size = (uint16)sizeof(msg_error_t);
         ret = mfc_send_data(&msg_error.head);
@@ -147,7 +147,7 @@ static uint64 dms_send_invalidate_req(dms_process_context_t *ctx, char *resid, u
         return 0;
     }
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_INVALIDATE_SHARE_COPY, MSG_REQ_INVALIDATE_SHARE_COPY);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_INVALIDATE_SHARE_COPY, MSG_REQ_INVALIDATE_SHARE_COPY);
     mfc_broadcast(invld_insts, (void *)&req, &succ_insts);
 
     LOG_DEBUG_INF("[DMS][%s]:send ok invld_insts=%llu, succ_insts=%llu",
@@ -210,7 +210,7 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_INVALID_OWNER, MSG_REQ_INVALID_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_INVALID_OWNER, MSG_REQ_INVALID_OWNER);
     dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVLDT_SHARE_COPY_REQ, CM_TRUE);
     int32 ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
@@ -352,7 +352,7 @@ void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_
         return;
     }
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_CLAIM_OWNER, MSG_REQ_CLAIM_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_CLAIM_OWNER, MSG_REQ_CLAIM_OWNER);
     ret = mfc_send_data_async(&request.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, has_edp=%u, lsn=%llu",
@@ -694,7 +694,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id,
         (uint32)master_id, (uint32)req_mode, (uint32)curr_mode);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_MASTER_FOR_PAGE, MSG_REQ_ASK_MASTER_FOR_PAGE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_MASTER_FOR_PAGE, MSG_REQ_ASK_MASTER_FOR_PAGE);
     int ret1 = mfc_send_data(&req.head);
     if (ret1 == DMS_SUCCESS) {
         dms_ctx->ctx_ruid = req.head.ruid;
@@ -751,7 +751,7 @@ static int32 dms_send_ask_res_owner_id_req(dms_context_t *dms_ctx, uint8 master_
     LOG_DYN_TRC_INF("[AOI][%s]srcid=%u dstid=%u",
         cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_ctx->inst_id, (uint32)master_id);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_RES_OWNER_ID, MSG_REQ_ASK_RES_OWNER_ID);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_RES_OWNER_ID, MSG_REQ_ASK_RES_OWNER_ID);
     ret = mfc_send_data(&req.head);
     *ruid = req.head.ruid;
     return ret;
@@ -852,7 +852,7 @@ static void dms_send_requester_already_owner(dms_process_context_t *ctx, dms_ask
     ack.scn = (ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(ctx->db_handle) : 0;
 #endif
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]send failed, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
             cm_display_resid(req->resid, req->res_type), dms_get_mescmd_msg(req->head.cmd),
@@ -894,7 +894,7 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
         }
 
         req.head.ruid  = req_info->req_ruid; /* forward ruid to owner */
-        DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_OWNER_FOR_PAGE, MSG_REQ_ASK_OWNER_FOR_PAGE);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_ASK_OWNER_FOR_PAGE, MSG_REQ_ASK_OWNER_FOR_PAGE);
         ret = mfc_forward_request(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS][%s][%s] send failed: dst_id=%u, dst_sid=%u, mode=%u",
@@ -921,7 +921,7 @@ static int dms_notify_owner_for_res_r(dms_process_context_t *ctx, dms_res_req_in
     ack.scn = (ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(ctx->db_handle) : 0;
 #endif
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
     ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: failed, dst_id=%u, dst_sid=%u, mode=%u",
@@ -1113,7 +1113,7 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *ctx, dms_message_t *receiv
         (uint32)req.head.src_sid);
 
     ack.owner_id = owner_id;
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ASK_RES_OWNER_ID, MSG_ACK_ASK_RES_OWNER_ID);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ASK_RES_OWNER_ID, MSG_ACK_ASK_RES_OWNER_ID);
     if (mfc_send_data(&ack.head) == DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: finished, dst_id=%u, dst_sid=%u",
         cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
@@ -1224,10 +1224,10 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
     uint32 ack_cmd;
     if (req.invld_owner) {
         ack_cmd = MSG_ACK_INVLD_OWNER;
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_INVLD_OWNER, MSG_ACK_INVLD_OWNER);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_INVLD_OWNER, MSG_ACK_INVLD_OWNER);
     } else {
         ack_cmd = MSG_ACK_INVLDT_SHARE_COPY;
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_INVLDT_SHARE_COPY, MSG_ACK_INVLDT_SHARE_COPY);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_INVLDT_SHARE_COPY, MSG_ACK_INVLDT_SHARE_COPY);
     }
     dms_invld_ack_t ack;
     dms_init_ack_head(&req.head, &ack.common_ack.head, ack_cmd, sizeof(dms_invld_ack_t), proc_ctx->sess_id);
@@ -1300,7 +1300,7 @@ static int32 dms_notify_already_owner(dms_process_context_t *ctx, cvt_info_t *cv
     ack.scn = (ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(ctx->db_handle) : 0;
 #endif
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]send failed, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
             cm_display_resid(cvt_info->resid, cvt_info->res_type), dms_get_mescmd_msg(ack.head.cmd),
@@ -1556,7 +1556,7 @@ static int32 dms_smon_send_confirm_req(res_id_t *res_id, drc_request_info_t *cvt
     errno_t err = memcpy_s(req.resid, DMS_RESID_SIZE, res_id->data, res_id->len);
     DMS_SECUREC_CHECK(err);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_CONFIRM_CVT, MSG_REQ_CONFIRM_CVT);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_CONFIRM_CVT, MSG_REQ_CONFIRM_CVT);
     int ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS]dms_smon_send_confirm_req send error, dst_id: %d", cvt_req->inst_id);
@@ -2138,6 +2138,21 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
     }
 
     return DMS_SUCCESS;
+}
+
+void drc_recycle_buf_res_notify_db(uint32 sess_id)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    dms_message_head_t req = { 0 };
+    DMS_INIT_MESSAGE_HEAD(&req, MSG_REQ_RECYCLE, 0, (uint8)g_dms.inst_id, 0, sess_id, CM_INVALID_ID16);
+    req.size = (uint16)sizeof(dms_message_head_t);
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        if (bitmap64_exist(&reform_info->bitmap_connect, i)) {
+            req.dst_inst = i;
+            DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_RECYCLE, MSG_REQ_RECYCLE);
+            (void)mfc_send_data_async(&req);
+        }
+    }
 }
 
 int dms_req_opengauss_immediate_ckpt(dms_context_t *dms_ctx, unsigned long long *redo_lsn)
