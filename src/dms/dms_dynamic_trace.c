@@ -180,12 +180,6 @@ static int dms_dyn_trc_init_logger(dms_profile_t *dms_profile)
     dms_reset_error();
     errno_t ret;
     log_param_t *log_param = cm_log_param_instance();
-    ret = memset_s(log_param, sizeof(log_param_t), 0, sizeof(log_param_t));
-    if (ret != EOK) {
-        DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
-        return ERRNO_DMS_INIT_LOG_FAILED;
-    }
-
     log_param->log_backup_file_count = DMS_LOG_BACKUP_FILE_COUNT;
     log_param->audit_backup_file_count = DMS_LOG_BACKUP_FILE_COUNT;
     log_param->max_log_file_size = DMS_MAX_LOG_FILE_SIZE;
@@ -271,7 +265,8 @@ void dms_dyn_trc_begin(uint32 sid, dms_wait_event_t event)
     sess_trc->wait[curr_level].is_waiting = CM_TRUE;
     sess_trc->wait[curr_level].event = event;
     char *evt_desc = dms_get_event_desc(event);
-    LOG_DEBUG_INF("[DMS][TRC %u-%u]%s", sid, curr_level, evt_desc);
+    (void)cm_gettimeofday(&sess_trc->wait[curr_level].begin_tv);
+    LOG_DYN_TRC_INF("[DMS][TRC %u-%u]%s", sid, curr_level, evt_desc);
 }
 
 void dms_dyn_trc_end_ex(uint32 sid, dms_wait_event_t event)
@@ -280,7 +275,7 @@ void dms_dyn_trc_end_ex(uint32 sid, dms_wait_event_t event)
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
 
     uint32 curr_level = --sess_trc->level;
-    LOG_DEBUG_INF("[DMS][TRC EVT %u-%u]END", sid, curr_level);
+    LOG_DYN_TRC_INF("[DMS][TRC EVT %u-%u]END", sid, curr_level);
 
     timeval_t tv_end;
     if (g_dms_dyn_trc.dyn_trc_enabled) {
