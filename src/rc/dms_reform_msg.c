@@ -654,7 +654,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
         return DMS_SUCCESS;
     }
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_MGRT_MASTER_DATA, MES_REQ_MGRT_MASTER_DATA);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_MGRT_MASTER_DATA, MES_REQ_MGRT_MASTER_DATA);
     req->head.size = (uint16)offset;
     ret = dms_reform_send_data(&req->head, sess_id);
     if (ret != CM_SUCCESS) {

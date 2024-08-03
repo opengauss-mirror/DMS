@@ -767,7 +767,7 @@ static int dms_reform_rollback_prepare(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_rollback = &share_info->list_rollback;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ROLLBACK_PREPARE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ROLLBACK_PREPARE);
 
     LOG_RUN_FUNC_ENTER;
     if (DMS_IS_SHARE_PARTNER || list_rollback->inst_id_count == 0) {

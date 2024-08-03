@@ -501,7 +501,7 @@ static int32 dcs_owner_send_granted_ack(dms_process_context_t *ctx, dms_res_req_
     ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
 #endif
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
     int32 ret = mfc_send_data(&ack.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DCS][%s]send failed, src_inst=%u, src_sid=%u, dst_inst=%u, dst_sid=%u, req_mode=%u",
@@ -566,11 +566,11 @@ int dcs_owner_transfer_page(dms_process_context_t *ctx, dms_res_req_info_t *req_
     }
 
     dcs_change_page_status(ctx, ctrl, req_info);
-    FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(DB_FI_CHANGE_STATUS_AFTER_TRANSFER_PAGE,
-        cm_sleep(g_fi_type_map[DMS_FI_TYPE_CUSTOM_FAULT].config->fault_value));
+    DDES_FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(DB_FI_CHANGE_STATUS_AFTER_TRANSFER_PAGE,
+        cm_sleep(ddes_fi_get_entry_value(DDES_FI_TYPE_CUSTOM_FAULT)));
     ret = dcs_owner_transfer_page_ack(ctx, ctrl, req_info, MSG_ACK_PAGE_READY);
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_PAGE_READY, MSG_ACK_PAGE_READY);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_PAGE_READY, MSG_ACK_PAGE_READY);
     g_dms.callback.leave_local_page(ctx->db_handle, ctrl);
     return ret;
 }
@@ -621,7 +621,7 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
 #endif
         ack.master_grant = CM_TRUE;
 
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_GRANT_OWNER, MSG_ACK_GRANT_OWNER);
         ret = mfc_send_data(&ack.head);
     } else if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
         // asker is already owner, just notify requester(owner) page_req is ready
@@ -631,14 +631,14 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
 #ifndef OPENGAUSS
         ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
 #endif
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ALREADY_OWNER, MSG_ACK_ALREADY_OWNER);
         ret = mfc_send_data(&ack.head);
     } else {
         msg_ack_owner_id_t ack;
         dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_PAGE_OWNER_ID,
             sizeof(msg_ack_owner_id_t), ctx->sess_id);
         ack.owner_id = result.curr_owner_id;
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_PAGE_OWNER_ID, MSG_ACK_PAGE_OWNER_ID);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_PAGE_OWNER_ID, MSG_ACK_PAGE_OWNER_ID);
         ret = mfc_send_data(&ack.head);
     }
 
@@ -707,8 +707,7 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     }
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_TRY, CM_TRUE);
-    dms_dyn_trc_begin(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_TRY);
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID);
     ret = mfc_send_data(&page_req.head);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         dms_end_stat(dms_ctx->sess_id);
@@ -806,7 +805,7 @@ static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id, uint6
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_RELEASE_OWNER, MSG_REQ_RELEASE_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_RELEASE_OWNER, MSG_REQ_RELEASE_OWNER);
     int32 ret = mfc_send_data(&req.head);
     *ruid = req.head.ruid;
     if (ret != DMS_SUCCESS) {
@@ -888,7 +887,7 @@ static int dcs_send_rls_owner_ack(dms_process_context_t *ctx, msg_rls_owner_req_
     msg_rls_owner_ack_t ack;
     dms_init_ack_head(&req->head, &ack.head, MSG_ACK_RELEASE_PAGE_OWNER, sizeof(msg_rls_owner_ack_t), ctx->inst_id);
     ack.released = released;
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_RELEASE_PAGE_OWNER, MSG_ACK_RELEASE_PAGE_OWNER);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_RELEASE_PAGE_OWNER, MSG_ACK_RELEASE_PAGE_OWNER);
     int ret = mfc_send_data(&ack.head);
     LOG_DEBUG_INF("[DCS][%s][proc release owner req]: src_id=%d, src_sid=%d, owner_lsn=%llu, owner_scn=%llu, "
         "ruid=%llu, released =%d", cm_display_pageid(req->pageid), req->head.src_inst, req->head.src_sid,

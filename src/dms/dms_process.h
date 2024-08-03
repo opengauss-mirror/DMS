@@ -74,7 +74,7 @@ typedef struct st_dms_instance {
     uint32 max_wait_time;
     atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
     uint32 max_alive_time_for_abnormal_status;
-    dms_fi_context_t fi_ctx;
+    ddes_fi_context_t fi_ctx;
     dms_msg_stats_t msg_stats[DMS_CM_MAX_SESSIONS];
     dms_driver_ping_info_t dms_driver_ping_info;
 } dms_instance_t;
