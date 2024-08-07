@@ -814,7 +814,10 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
     bool8 release = drc_can_release((drc_page_t *)drc, inst_id);
     if (drc->owner == inst_id && release) {
         drc_shift_to_tail(drc);
+    } else if (!release) {
+        drc_try_prepare_confirm_cvt(drc);
     }
+    
     drc_leave(drc);
     return release;
 }
