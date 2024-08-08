@@ -52,9 +52,8 @@ void dms_proc_ask_xa_inuse(dms_process_context_t *process_ctx, dms_message_t *re
 int32 dms_request_xa_owner(dms_context_t *dms_ctx, uint8 *owner_id);
 int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 undo_set_id, uint32 *result_code);
 int32 dms_request_delete_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint32 *result_code);
-int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, uint64 scn, bool8 is_commit, int32 *return_code);
-int32 dms_request_xa_inuse(dms_context_t *dms_ctx, uint8 owner_id, bool8 *inuse);
-
+int32 dms_request_end_xa(dms_context_t *dms_ctx, uint8 owner_id, uint64 flags, uint64 scn, bool8 is_commit,
+    int32 *return_code);
 #ifdef __cplusplus
 }
 #endif

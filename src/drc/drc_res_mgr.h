@@ -29,21 +29,25 @@
 #include "dms_process.h"
 #include "dms_cm.h"
 #include "cm_hash.h"
+#include "cm_thread_pool.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define DRC_RES_NORMAL              0
-#define DRC_RES_ALLOC               1   // if alloc or not when drc not exists
+#define DRC_ALLOC                   1   // if alloc or not when drc not exists
 #define DRC_RES_CHECK_ACCESS        2   // handle_reform & handle_proc should not to check access
 #define DRC_RES_CHECK_MASTER        4   // if recheck master id or not
 #define DRC_RES_RELEASE             8   // if for release, no need wait recovery finish
-#define DRC_CHECK_BIZ_SESSION  16
+#define DRC_CHECK_BIZ_SESSION       16
+#define DRC_RES_CHECK_OLD_MASTER    32
 
 #define DMS_RES_MAP_INIT_PARAM 2
 #define DMS_GET_DRC_INFO_COUNT 100
 #define DMS_GET_DRC_INFO_SLEEP_TIME 100
+
+#define DMS_XA_SIZE             sizeof(drc_global_xid_t)
 
 typedef struct st_drc_recycle_obj {
     drc_global_res_map_t *global_drc_res;
@@ -96,12 +100,60 @@ void drc_leave(drc_head_t *drc, uint8 options);
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master);
 void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
 void drc_recycle_thread(thread_t *thread);
+bool8 drc_recycle_part_check(uint16 part_id);
 void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, drc_part_list_t *part);
 void drc_recycle_buf_res_set_running(void);
 void drc_recycle_buf_res_set_pause(void);
 void drc_enter_buf_res_set_blocked(void);
 void drc_enter_buf_res_set_unblocked(void);
 void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *bucket);
+int32 drc_get_page_old_master_id(char *pageid, unsigned char *master_id);
+bool8 drc_cmp_part_info(void);
+void drm_release_drc(char *data, uint16 len, uint8 type, uint8 options);
+void drm_thread_set_pause(void);
+void drm_thread_set_running(void);
+int drm_thread_init(void);
+void drm_thread_deinit(void);
+void drm_trigger(void);
+
+typedef struct st_drm_migrate_page {
+    char                resid[DMS_PAGEID_SIZE];
+    uint8               owner;
+    uint8               lock_mode;
+    uint8               last_edp;
+    uint8               unused;
+    uint64              copy_insts;
+    uint64              last_edp_lsn;
+    uint64              edp_map;
+    uint64              seq;
+    drc_cvt_item_t      converting;
+} drm_migrate_page_t;
+
+typedef struct st_drm_migrate_lock {
+    char                resid[DMS_DRID_SIZE];
+    uint8               owner;
+    uint8               lock_mode;
+    uint16              unused;
+    uint64              copy_insts;
+    drc_cvt_item_t      converting;
+} drm_migrate_lock_t;
+
+typedef struct st_drm_migrate_alock {
+    char                resid[DMS_ALOCKID_SIZE];
+    uint8               owner;
+    uint8               lock_mode;
+    uint16              unused;
+    uint64              copy_insts;
+    drc_cvt_item_t      converting;
+} drm_migrate_alock_t;
+
+typedef struct st_drm_migrate_xa {
+    char                resid[DMS_XA_SIZE];
+    uint8               owner;
+    uint8               unused[3];
+} drm_migrate_xa_t;
+
+#define DRM_SLEEP_TIME      10
 
 #ifdef __cplusplus
 }

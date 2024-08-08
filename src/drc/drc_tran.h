@@ -48,6 +48,7 @@ int32 drc_enqueue_txn(void *db_handle, uint64 *xid, uint8 inst_id, dms_txn_info_
 bool8 drc_local_txn_wait(uint64 *xid);
 void drc_local_txn_recycle(uint64 *xid);
 void drc_local_txn_awake(uint64 *xid);
+uint16 drc_get_xa_partid(drc_global_xid_t *xid);
 
 #ifdef __cplusplus
 }

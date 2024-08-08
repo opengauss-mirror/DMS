@@ -151,6 +151,10 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_AZ_FAILOVER, dms_reform_proc_req_az_failover, CM_TRUE, CM_FALSE,  "dms az failover" },
     { MSG_REQ_CHECK_OWNERSHIP, dms_proc_check_page_ownership, CM_TRUE, CM_FALSE,  "check page ownership" },
     { MSG_REQ_REPAIR_NEW, dms_reform_proc_repair, CM_TRUE, CM_TRUE, "repair new" },
+    { MSG_REQ_DRC_MIGRATE,            dms_proc_drc_migrate,               CM_TRUE, CM_FALSE, "drc migrate" },
+    { MSG_REQ_DRC_RELEASE,            dms_proc_drc_release,               CM_TRUE, CM_FALSE, "drc release" },
+    { MSG_REQ_DRM,                    dms_proc_drm,                       CM_TRUE, CM_FALSE, "drm" },
+    { MSG_REQ_DRM_FINISH,             dms_proc_drm_finish,                CM_TRUE, CM_FALSE, "drm finish" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -209,6 +213,8 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack immediate ckpt request" },
     { MSG_ACK_SMON_ALOCK_BY_DRID,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack smon deadlock alock drid" },
     { MSG_ACK_CHECK_OWNERSHIP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack check page ownership" },
+    { MSG_ACK_DRC_MIGRATE,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack drc migrate" },
+    { MSG_ACK_DRM_FINISH,                   dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack drm finish" },
 };
 
 static bool32 dms_cmd_is_reform(uint32 cmd)
@@ -266,8 +272,8 @@ static bool32 dms_same_txn(char *res, const char *res_id, uint32 len)
 
 static bool32 dms_same_global_xid(char *res, const char *res_id, uint32 len)
 {
-    drc_global_xa_res_t *xa_res = (drc_global_xa_res_t *)res;
-    drc_global_xid_t *global_xid1 = &xa_res->xid;
+    drc_xa_t *drc_xa = (drc_xa_t *)res;
+    drc_global_xid_t *global_xid1 = &drc_xa->xid;
     drc_global_xid_t *global_xid2 = (drc_global_xid_t *)res_id;
     if (global_xid1->fmt_id != global_xid2->fmt_id) {
         return CM_FALSE;
@@ -1067,7 +1073,7 @@ static int32 init_xa_res_ctx(dms_profile_t *dms_profile)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 res_num = dms_profile->max_session_cnt;
     int32 ret = dms_global_res_init(&ctx->global_xa_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_XA, res_num,
-        sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
+        sizeof(drc_xa_t), dms_same_global_xid, dms_xa_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global xid resource pool init fail, return error:%d", ret);
         return ret;
@@ -1133,6 +1139,13 @@ static int32 init_drc_smon_ctx(void)
     ret = cm_create_thread(drc_recycle_thread, 0, NULL, &ctx->smon_recycle_thread);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DRC]fail to create smon recycle thread");
+        DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
+        return ERRNO_DMS_COMMON_CBB_FAILED;
+    }
+
+    ret = drm_thread_init();
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]fail to create drm thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -1651,7 +1664,7 @@ int dms_create_global_xa_res(dms_context_t *dms_ctx, uint8 owner_id, uint8 undo_
 
     if (master_id == dms_ctx->inst_id) {
         *remote_result = DMS_SUCCESS;
-        ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, global_xid, owner_id, undo_set_id, CM_TRUE);
+        ret = drc_xa_create(dms_ctx->db_handle, DMS_SESSION_NORMAL, dms_ctx->sess_id, global_xid, owner_id);
         if (ret == ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS && ignore_exist) {
             return DMS_SUCCESS;
         } else {
@@ -1681,7 +1694,7 @@ int dms_delete_global_xa_res(dms_context_t *dms_ctx, uint32 *remote_result)
 
     if (master_id == dms_ctx->inst_id) {
         *remote_result = DMS_SUCCESS;
-        return drc_delete_xa_res(global_xid, CM_TRUE);
+        return drc_xa_delete(global_xid);
     }
     
     return dms_request_delete_xa_res(dms_ctx, master_id, remote_result);
@@ -1747,7 +1760,7 @@ int dms_calc_mem_usage(dms_profile_t *dms_profile, uint64 *total_mem)
             dms_calc_res_map_mem(DRC_DEFAULT_LLOCK_RES_NUM, sizeof(drc_local_lock_res_t), DMS_MAX_INSTANCES);
         // xa res
         *total_mem +=
-            dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_global_xa_res_t), DMS_MAX_INSTANCES);
+            dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_xa_t), DMS_MAX_INSTANCES);
         // local txn res
         *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
         // global txn res

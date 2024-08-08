@@ -1098,6 +1098,7 @@ static void dms_reform_end(void)
     // health check should pause before clear share info
     dms_reform_health_set_pause();
     dms_reform_proc_set_pause();
+    drm_thread_set_running();
     dms_reform_instance_lock_reset();
 
 #ifdef OPENGAUSS

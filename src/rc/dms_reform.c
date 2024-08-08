@@ -33,11 +33,12 @@
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_fault_inject.h"
+#include "drc_res_mgr.h"
 #ifndef WIN32
 #include "config.h"
+#else
+#define  DEF_DMS_VERSION    "dms.dll develop for windows"
 #endif
-
-
 
 bool8 dms_dst_id_is_self(uint8 dst_id)
 {
@@ -158,6 +159,7 @@ void dms_reform_set_start(void)
     dms_reform_proc_stat_clear_current();
     dms_reform_health_set_running();
     dms_reform_proc_set_running();
+    drm_thread_set_pause();
     dms_rebuild_assist_list_init();
 #ifndef OPENGAUSS
     if (share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_FAILOVER &&
@@ -251,6 +253,9 @@ static void dms_reform_init_for_maintain(void)
             inst_part->last = i;
         }
     }
+
+    dms_reform_part_copy_inner(part_mngr->old_inst_part_tbl, part_mngr->inst_part_tbl,
+        part_mngr->old_part_map, part_mngr->part_map);
 }
 
 void dms_reform_db_handle_deinit(void)

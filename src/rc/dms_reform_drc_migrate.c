@@ -24,59 +24,56 @@
 
 #include "dms_reform_proc.h"
 #include "dms_reform_msg.h"
-#include "drc_res_mgr.h"
-#include "dms_error.h"
 #include "drc_page.h"
-#include "dms_reform_judge.h"
-#include "dcs_page.h"
-#include "dms_reform_health.h"
-#include "cm_timer.h"
-#include "dms_reform_proc_parallel.h"
-#include "dms_reform_proc_stat.h"
-#include "dms_reform_xa.h"
-#include "dms_reform_fault_inject.h"
-
-static void dms_reform_part_info_print_single(int inst_id, char *buffer)
-{
-    drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
-    drc_inst_part_t *inst_part = &part_mngr->inst_part_tbl[inst_id];
-    char temp_desc[DMS_TEMP_DESC_LEN] = { 0 };
-    errno_t err;
-
-    if (inst_part->count == 0) {
-        return;
-    }
-
-    err = sprintf_s(temp_desc, DMS_TEMP_DESC_LEN, " [%d:%d]", inst_id, (int32)inst_part->count);
-    DMS_SECUREC_CHECK_SS(err);
-    err = strcat_s(buffer, DMS_INFO_DESC_LEN, temp_desc);
-    DMS_SECUREC_CHECK(err);
-}
 
 static void dms_reform_part_info_print(void)
 {
+    drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
+    drc_part_t *part = &part_mngr->part_map[0];
+    uint8 master = part->inst_id;
+    uint16 part_id = 0;
+    errno_t err;
     char buffer[DMS_INFO_DESC_LEN] = { 0 };
+    char part_buffer[DMS_TEMP_DESC_LEN] = { 0 };
 
-    for (int i = 0; i < DMS_MAX_INSTANCES; i++) {
-        dms_reform_part_info_print_single(i, buffer);
+    for (int i = 1; i < DRC_MAX_PART_NUM; i++) {
+        part = &part_mngr->part_map[i];
+        if (part->inst_id == master) {
+            continue;
+        }
+        err = sprintf_s(part_buffer, DMS_TEMP_DESC_LEN, "[%d,%d]:inst%d", part_id, i - 1, master);
+        DMS_SECUREC_CHECK_SS(err);
+        err = strcat_s(buffer, DMS_INFO_DESC_LEN, part_buffer);
+        DMS_SECUREC_CHECK(err);
+        part_id = i;
+        master = part->inst_id;
     }
+    err = sprintf_s(part_buffer, DMS_TEMP_DESC_LEN, "[%d,%d]:inst%d", part_id, DRC_MAX_PART_NUM - 1, master);
+    DMS_SECUREC_CHECK_SS(err);
+    err = strcat_s(buffer, DMS_INFO_DESC_LEN, part_buffer);
+    DMS_SECUREC_CHECK(err);
 
-    LOG_RUN_INF("[DMS REFORM]instance part info: %s", buffer);
+    LOG_RUN_INF("[DMS REFORM]part info: %s", buffer);
 }
 
-static void dms_reform_remaster_inner(void)
+void dms_reform_remaster_inner(void)
 {
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
-    remaster_info_t *remaster_info = DMS_REMASTER_INFO;
+    remaster_info_t *new_master_info = DMS_REMASTER_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    remaster_info_t *old_master_info = DMS_OLD_MASTER_INFO;
 
     dms_reform_part_info_print();
-    uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
-    errno_t err = memcpy_s(part_mngr->inst_part_tbl, size, remaster_info->inst_part_tbl, size);
-    DMS_SECUREC_CHECK(err);
-
-    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
-    err = memcpy_s(part_mngr->part_map, size, remaster_info->part_map, size);
-    DMS_SECUREC_CHECK(err);
+    dms_reform_part_copy_inner(part_mngr->inst_part_tbl, new_master_info->inst_part_tbl,
+        part_mngr->part_map, new_master_info->part_map);
+    if (share_info->drm_trigger) {
+        dms_reform_part_copy_inner(part_mngr->old_inst_part_tbl, old_master_info->inst_part_tbl,
+            part_mngr->old_part_map, old_master_info->part_map);
+        drm_trigger();
+    } else {
+        dms_reform_part_copy_inner(part_mngr->old_inst_part_tbl, new_master_info->inst_part_tbl,
+            part_mngr->old_part_map, new_master_info->part_map);
+    }
     dms_reform_part_info_print();
 }
 
@@ -149,14 +146,6 @@ int dms_reform_migrate_inner(migrate_task_t *migrate_task, void *handle, uint32 
     }
     part = &ctx->global_alock_res.res_parts[migrate_task->part_id];
     drc_release_by_part(part, DRC_RES_ALOCK_TYPE);
-
-    ret = dms_reform_req_migrate_res(migrate_task, DRC_RES_GLOBAL_XA_TYPE, handle, sess_id);
-    if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_FUNC_FAIL;
-        return ret;
-    }
-    part = &ctx->global_xa_res.res_parts[migrate_task->part_id];
-    drc_release_xa_by_part(part);
 
     return DMS_SUCCESS;
 }

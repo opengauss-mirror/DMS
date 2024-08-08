@@ -247,6 +247,10 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_SMON_ALOCK_BY_DRID, "req smon deadlock advisory lock", "", "dms" },
     { MSG_REQ_CHECK_OWNERSHIP, "req check page ownership", "", "dms" },
     { MSG_REQ_REPAIR_NEW, "req repair new", "", "dms" },
+    { MSG_REQ_DRC_MIGRATE, "drm req", "", "dms" },
+    { MSG_REQ_DRC_RELEASE, "drm release", "", "dms" },
+    { MSG_REQ_DRM, "drm", "", "dms" },
+    { MSG_REQ_DRM_FINISH, "drm finish", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },
@@ -301,6 +305,8 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_ACK_SMON_ALOCK_BY_DRID, "ack smon deadlock alock by drid", "", "dms" },
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT, "ack immediate ckpt request", "", "dms" },
     { MSG_ACK_CHECK_OWNERSHIP, "ack check page ownership", "", "dms" },
+    { MSG_ACK_DRC_MIGRATE, "drm ack", "", "dms" },
+    { MSG_ACK_DRM_FINISH, "drm finish ack", "", "dms" },
 };
 
 /* g_wait_cmd_desc size */

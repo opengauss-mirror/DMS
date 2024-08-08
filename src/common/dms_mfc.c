@@ -170,8 +170,17 @@ int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *bod
     return ret;
 }
 
+int32 mfc_send_data2_async(dms_message_head_t *head, uint32 head_size, const void *body, uint32 len)
+{
+    DDES_FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
+    uint64 start_stat_time = dms_cm_get_time_usec();
+    int ret = mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head), DMS_TWO, head, head_size, body, len);
+    dms_consume_with_time(head->cmd, start_stat_time, ret);
+    return ret;
+}
+
 /* 3-BODY ASYNC MESSAGE, with 1st body as user-customized head. */
-int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+int32 mfc_send_data3_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
     DDES_FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));

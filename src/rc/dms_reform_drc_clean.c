@@ -37,6 +37,9 @@ int dms_reform_full_clean(void)
     dms_global_res_reinit(&ctx->global_xa_res);
 #endif
 
+    // For rolling upgrade compatibility. We should update old part map before rebuild
+    // Other, during rebuild step, it may be erroneously discovered that there is an old master
+    dms_reform_remaster_inner();
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
