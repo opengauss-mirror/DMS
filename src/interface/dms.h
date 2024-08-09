@@ -1059,6 +1059,9 @@ DMS_DECLARE int dms_get_task_worker_msg_stat(unsigned int worker_id,
 DMS_DECLARE int dms_get_task_worker_priority_stat(unsigned int priority_id,
     mes_task_priority_stats_info_t *mes_task_priority_stats_result);
 
+DMS_DECLARE int dms_collect_mem_usage_stat();
+
+DMS_DECLARE int dms_get_mem_usage_stat_row(unsigned int mem_id, mem_info_stat_t *mem_stat_row_result);
 
 #ifdef __cplusplus
 }
