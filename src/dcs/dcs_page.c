@@ -442,6 +442,9 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
 #ifndef OPENGAUSS
     g_dms.callback.get_global_flushed_lfn(ctx->db_handle, &page_ack->node_id, &page_ack->node_lfn,
         &page_ack_wrapper.data[0], node_data_len);
+    dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT, CM_TRUE);
+    g_dms.callback.lsnd_wait(ctx->db_handle, page_ack->node_lfn);
+    dms_end_stat(ctx->sess_id);
 #endif
 
     // it will transfer owner, so need to set EDP map
