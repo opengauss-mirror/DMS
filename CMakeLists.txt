@@ -74,11 +74,13 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -ldl -pthread -Wl,-z,noexecstack -Wl,-z,r
 add_compile_options(-fno-common)
 add_compile_options(-Wtrampolines)
 add_compile_options(-freg-struct-return)
-add_compile_options(-pipe)
 add_compile_options(-Wl,-Bsymbolic)
 add_compile_options(-rdynamic)
 add_compile_options(-Wall)
 add_compile_options(-Werror)
+if (NOT HOT_PATCH_SPEC)
+add_compile_options(-pipe)
+endif ()
 
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 message(STATUS "ENABLE_GCOV = ${ENABLE_GCOV}")
@@ -160,6 +162,9 @@ set(LZ4_PATH                    "${CMAKE_CURRENT_SOURCE_DIR}/library/lz4/lib/")
 ## output path
 set (LIBRARY_OUTPUT_PATH        ${CMAKE_CURRENT_SOURCE_DIR}/output/lib)
 set (EXECUTABLE_OUTPUT_PATH     ${CMAKE_CURRENT_SOURCE_DIR}/output/bin)
+
+## hotpatch
+include(hotpatch.cmake)
 
 ## add source
 link_directories(${LIBRARY_OUTPUT_PATH} ${SECUREC_LIB_PATH} ${OPENSSL_LIB_PATH} ${ZLIB_PATH} ${LZ4_PATH} ${CBB_LIB_PATH})
