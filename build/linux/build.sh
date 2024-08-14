@@ -34,6 +34,7 @@ PACKAGE_HOME="${OUTPUT_DIR}/"
 
 use_ss_cbb=0
 dms_test=0
+dms_cov=0
 support_hot_patch=0
 
 function func_pkg_symbol()
@@ -143,7 +144,11 @@ function build_test_coverage()
 {
     cd ${DMS_DIR}/
     export BUILD_MODE=Debug
-    cmake . -DCMAKE_BUILD_TYPE=Debug -D DMS_TEST=ON -D ENABLE_GCOV=ON -D UT_TEST=ON -B ${TMP_DIR}
+    if [[ ${dms_cov} == 1 ]]; then
+        cmake . -DCMAKE_BUILD_TYPE=Debug -D DMS_TEST=ON -D ENABLE_GCOV=ON -D UT_TEST=OFF -B ${TMP_DIR}
+    else
+        cmake . -DCMAKE_BUILD_TYPE=Debug -D DMS_TEST=ON -D ENABLE_GCOV=ON -D UT_TEST=ON -B ${TMP_DIR}
+    fi
     cd "${TMP_DIR}"/
     make -j8
 
@@ -548,6 +553,9 @@ function main() {
             elif [ x"${str}" == x"test" ];then
                 dms_test=1
                 echo "Build DMS with test"
+            elif [ x"${str}" == x"DMS_COV" ];then
+                dms_cov=1
+                echo "Build DMS with dms_cov"
             elif [ x"${str}" == x"SUPPORT_HOT_PATCH" ];then
                 support_hot_patch=1
                 echo "Build DMS with hotpatch"
