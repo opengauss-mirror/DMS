@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           166
+#define DMS_LOCAL_VERSION           167
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -447,6 +447,7 @@ typedef struct st_dms_buf_ctrl
     volatile unsigned char release_conflict;
     volatile unsigned char is_reform_visit;
     volatile unsigned char unused;
+    unsigned long long edp_lsn;
     unsigned long long edp_scn;          // set when become edp, lastest scn when page becomes edp
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
