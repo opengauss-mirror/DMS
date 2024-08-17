@@ -604,7 +604,7 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
         profile->buffer_pool_attr[i].pool_count = DMS_BUFFER_POOL_NUM;
         profile->buffer_pool_attr[i].queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
 
-        // 128 buffer pool
+        // 256 buffer pool
         profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
             (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
         profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
@@ -612,7 +612,7 @@ void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t
             profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
         }
 
-        // 256 buffer pool
+        // 512 buffer pool
         pool_idx++;
         profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
             (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
