@@ -27,18 +27,11 @@
 #include "dms_api.h"
 #include "dms_msg.h"
 #include "dms_msg_command.h"
+#include "ddes_fault_injection.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct st_fi_context {
-    dms_fi_config_t ss_fi_packet_loss;
-    dms_fi_config_t ss_fi_net_latency;
-    dms_fi_config_t ss_fi_cpu_latency;
-    dms_fi_config_t ss_fi_process_fault;
-    dms_fi_config_t ss_fi_custom_fault;
-} dms_fi_context_t;
 
 typedef enum en_dms_fi_point_name {
     // CALL and TRIGGER both in DMS
@@ -113,92 +106,8 @@ typedef enum en_dms_fi_point_name {
     DMS_FI_ROLLBACK_PREPARE = 66,
 } dms_fi_point_name_e;
 
-#if defined _DEBUG
-
-#define DMS_FI_PROB_NEVER       0
-#define DMS_FI_PROB_ALWAYS      100
-#define FI_NORMAL_FLAG          0
-#define FI_PACKET_LOSS_FLAG     1
-#define FI_NET_LATENCY_FLAG     2
-#define FI_CPU_LATENCY_FLAG     4
-#define FI_PROCESS_FAULT_FLAG   8
-#define FI_CUSTOM_FAULT_FLAG    0x10
-#define FI_TYPE_NUM_MAX         5
-
-typedef struct st_fi_type_map {
-    int fi_type;
-    unsigned int fi_flag;
-    dms_fi_config_t *config;
-} dms_fi_type_mapping_t;
-
-
-extern dms_fi_type_mapping_t g_fi_type_map[];
-
-dms_fi_entry *dms_fi_get_entry(unsigned int fi_entry);
-int dms_fi_get_tls_trigger();
-void dms_fi_set_tls_trigger(int val);
-int dms_fi_get_tls_trigger_custom();
-void dms_fi_set_tls_trigger_custom(int val);
-void fault_injection_call(unsigned int point, ...);
-bool8 dms_fi_entry_custom_valid(unsigned int point);
-
-#define FAULT_INJECTION_ACTIVATE(point, flag)         \
-    do {                                               \
-        dms_fi_entry *entry = dms_fi_get_entry(point); \
-        if (entry != NULL) {                           \
-            entry->faultFlags |= flag;                 \
-            entry->pointId = point;                    \
-        }                                              \
-    } while (0)
-
-
-#define FAULT_INJECTION_INACTIVE(point, flag)       \
-    do {                                               \
-        dms_fi_entry *entry = dms_fi_get_entry(point); \
-        if (entry != NULL) {                           \
-            entry->faultFlags &= (~flag);              \
-        }                                              \
-    } while (0)
-
-#define FAULT_INJECTION_ACTION_TRIGGER(action)         \
-    do {                                               \
-        if (dms_fi_get_tls_trigger() == CM_TRUE) {     \
-            dms_fi_set_tls_trigger(CM_FALSE);          \
-            LOG_DEBUG_INF("[DMS_FI] fi action happens at %s", __FUNCTION__);  \
-            action;                                    \
-        }                                              \
-    } while (0)
-
-#define FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(point, action)                                  \
-    do {                                                                                      \
-        if (dms_fi_entry_custom_valid(point) && dms_fi_get_tls_trigger_custom() == CM_TRUE) { \
-            dms_fi_set_tls_trigger_custom(CM_FALSE);                                   \
-            LOG_DEBUG_INF("[DMS_FI] fi cust action happens at %s", __FUNCTION__);      \
-            action;                                                                    \
-        }                                                                              \
-    } while (0)
-
-#define DMS_FAULT_INJECTION_CALL(point, ...)                \
-    do {                                                \
-        dms_fi_entry *entry = dms_fi_get_entry(point);  \
-        if (entry != NULL && entry->faultFlags) {       \
-            fault_injection_call(point, ##__VA_ARGS__); \
-        }                                               \
-    } while (0)
-
-#else
-
-
-#define FAULT_INJECTION_ACTIVATE(point, flag)
-#define FAULT_INJECTION_INACTIVE(point, flag)
-#define FAULT_INJECTION_ACTION_TRIGGER(action)
-#define FAULT_INJECTION_ACTION_TRIGGER_CUSTOM(point, action)
-#define DMS_FAULT_INJECTION_CALL(point, ...)
-
-#endif
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif // FAULT_INJECTION_H
+#endif  // FAULT_INJECTION_H

@@ -547,7 +547,7 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
         .data = data, .len = len, .output_msg = output_msg, .output_msg_len = &output_msg_len};
     int32 ret = g_dms.callback.process_broadcast(ctx->db_handle, &broad_ctx);
     if (output_msg_len != 0) {
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST_WITH_MSG, MSG_ACK_BROADCAST_WITH_MSG);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST_WITH_MSG, MSG_ACK_BROADCAST_WITH_MSG);
         dms_init_ack_head2(ack_head, MSG_ACK_BROADCAST_WITH_MSG, 0, receive_msg->head->dst_inst,
             receive_msg->head->src_inst, (uint16)ctx->sess_id, receive_msg->head->src_sid,
             receive_msg->head->msg_proto_ver);
@@ -557,7 +557,7 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
             LOG_DEBUG_ERR("send result msg to instance %d failed.", receive_msg->head->src_inst);
         }
     } else {
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST,MSG_ACK_BROADCAST);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST, MSG_ACK_BROADCAST);
         cm_ack_result_msg(ctx, receive_msg, MSG_ACK_BROADCAST, ret);
     }
     g_dms.callback.mem_free(ctx->db_handle, ack_head);
