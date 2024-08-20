@@ -318,14 +318,14 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
 {
     dms_message_head_t *head = (dms_message_head_t*)msg_data;
     if (head->size < sizeof(msg_error_t)) {
-        LOG_DEBUG_ERR("invalid error msg, please check.");
+        LOG_DYN_TRC_ERR("invlid err msg size=%u", head->size);
     } else if (head->size == sizeof(msg_error_t)) {
         msg_error_t *error_msg = (msg_error_t *)msg_data;
-        LOG_DEBUG_ERR("errno code: %d, error msg is null, please check.", error_msg->code);
+        LOG_DYN_TRC_ERR("errcode=%d err=null", error_msg->code);
     } else {
         msg_error_t *error_msg = (msg_error_t *)msg_data;
         char *message = (char*)error_msg + sizeof(msg_error_t);
-        LOG_DEBUG_ERR("errno code: %d, errno info:%s", error_msg->code, message);
+        LOG_DYN_TRC_ERR("errcode=%d errmsg=%s", error_msg->code, message);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, message);
     }
 }

@@ -183,7 +183,7 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
 void *dms_malloc(size_t size);
 void dms_free(void *ptr);
-void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32 buf_size);
+void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32, bool8 is_head);
 
 #define DMS_FREE_PROT_PTR(pointer) \
     do {                           \
