@@ -84,18 +84,18 @@ typedef struct st_dms_instance {
 #define DMS_PRIORITY_COMPRESS_LEVEL 0
 #define DMS_BUFFER_POOL_NUM (3)
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)
-#define DMS_FIRST_BUFFER_LENGTH (128)
-#define DMS_SECOND_BUFFER_LENGTH (256)
+#define DMS_FIRST_BUFFER_LENGTH (256)
+#define DMS_SECOND_BUFFER_LENGTH (512)
 #define DMS_THIRD_BUFFER_LENGTH (SIZE_K(32) + 256)
+#define DMS_FIRST_BUFFER_RATIO (0.25)
+#define DMS_SECOND_BUFFER_RATIO (0.25)
+#define DMS_THIRDLY_BUFFER_RATIO (0.5)
+
 #define DMS_CKPT_NOTIFY_TASK_RATIO (1.0f / 32)
 #define DMS_CLEAN_EDP_TASK_RATIO (1.0f / 32)
 #define DMS_DERIVED_TASK_RATIO (1.0f / 8)
 #define DMS_TXN_INFO_TASK_RATIO (1.0f / 16)
 #define DMS_RECV_WORK_THREAD_RATIO (1.0f / 4)
-#define DMS_FIRST_BUFFER_RATIO (1.0f / 4)
-#define DMS_SECOND_BUFFER_RATIO (1.0f / 4)
-#define DMS_THIRDLY_BUFFER_RATIO (1.0f / 2)
-#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
 
 #define DMS_WORK_THREAD_COUNT       (dms_profile->enable_mes_task_threadpool == CM_TRUE ? \
     dms_profile->mes_task_worker_max_cnt : dms_profile->work_thread_cnt)
@@ -146,6 +146,8 @@ typedef struct st_dms_instance {
 #define DMS_DEFAULT_MSG_NUM_CEILING 5
 #define DMS_DEFAULT_MSG_NUM_FLOOR 0
 #define DEFAULT_TIME_FOR_ABNORMAL_STATUS 10
+
+#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
 
 #define DMS_LOG_BACKUP_FILE_COUNT   (10)
 #define DMS_MAX_LOG_FILE_SIZE       ((uint64)SIZE_M(1024) * 1)
