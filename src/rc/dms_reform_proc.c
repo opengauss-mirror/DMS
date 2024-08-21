@@ -470,6 +470,22 @@ static int dms_reform_az_switch_demote_phase1(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_az_switch_demote_change_role(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_switchover_demote_change_role(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_az_switch_demote_approve(void)
 {
     int ret = DMS_SUCCESS;
@@ -1032,10 +1048,7 @@ static int dms_reform_standby_update_remove_node_ctrl(void)
 static int dms_reform_standby_stop_thread(void)
 {
     LOG_DEBUG_INF("[DMS REFORM] dms_reform_standby_stop_thread enter");
-    share_info_t *share_info = DMS_SHARE_INFO;
-
-    int ret = g_dms.callback.standby_stop_thread(g_dms.reform_ctx.handle_normal, share_info->bitmap_online,
-        share_info->reformer_id);
+    int ret = g_dms.callback.standby_stop_thread(g_dms.reform_ctx.handle_normal);
     if (ret == DMS_SUCCESS) {
         dms_reform_next_step();
         LOG_RUN_FUNC_SUCCESS;
@@ -1056,7 +1069,19 @@ static int dms_reform_standby_set_online_list(void)
 {
     LOG_RUN_FUNC_ENTER;
     share_info_t *share_info = DMS_SHARE_INFO;
-    g_dms.callback.set_online_list(g_dms.reform_ctx.handle_normal, share_info->bitmap_online);
+    g_dms.callback.set_online_list(g_dms.reform_ctx.handle_normal, share_info->bitmap_online, share_info->reformer_id);
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_reformer_update_node_ctrl(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (DMS_IS_SHARE_REFORMER) {
+        g_dms.callback.az_switchover_demote_update_node_ctrl(g_dms.reform_ctx.handle_normal, share_info->bitmap_online);
+    }
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;
@@ -1869,6 +1894,10 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1,
         NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_UPDATE_NODE_CTRL] = { "AZ_SWITCH_DEMOTE_UPDATE_CTRL",
+        dms_reform_reformer_update_node_ctrl, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_CHANGE_ROLE] = { "AZ_SWITCH_DEMOTE_CHANGE_ROLE",
+        dms_reform_az_switch_demote_change_role, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE] = { "AZ_SWITCH_DEMOTE_APPROVE", dms_reform_az_switch_demote_approve,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2] = { "AZ_SWITCH_DEMOTE_PHASE2", dms_reform_az_switch_demote_phase2,

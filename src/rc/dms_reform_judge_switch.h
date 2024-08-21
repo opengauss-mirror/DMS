@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 void dms_reform_judgement_az_demote_phase1(instance_list_t *inst_lists);
+void dms_reform_judgement_az_demote_change_role(instance_list_t *inst_lists);
 void dms_reform_judgement_az_demote_approve(instance_list_t *inst_lists);
 void dms_reform_judgement_az_demote_phase2(instance_list_t *inst_lists);
 void dms_reform_judgement_az_promote_phase1(void);
