@@ -625,7 +625,7 @@ int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
         return ret;
     }
     if (drc == NULL) {
-        LOG_DEBUG_ERR("[DCS][%s][drc_claim_page_owner]: drc is NULL",
+        LOG_DYN_TRC_ERR("[DCO][%s]drc is NULL",
             cm_display_resid(claim_info->resid, claim_info->res_type));
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_NOT_FOUND, cm_display_resid(claim_info->resid, claim_info->res_type));
         return ERRNO_DMS_DRC_PAGE_NOT_FOUND;

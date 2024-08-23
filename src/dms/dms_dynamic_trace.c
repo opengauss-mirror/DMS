@@ -256,6 +256,7 @@ void dms_dyn_trc_begin(uint32 sid, dms_wait_event_t event)
 
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
     uint32 curr_level = sess_trc->level++;
+    CM_ASSERT(sess_trc->level <= DMS_EVT_MAX_LEVEL);
     if (sess_trc->level > DMS_STAT_MAX_LEVEL) {
         LOG_RUN_WAR("[DMS][TRC]: stat level > upper limit, sid %u, currlevel %u",
             sid, curr_level);
@@ -266,7 +267,9 @@ void dms_dyn_trc_begin(uint32 sid, dms_wait_event_t event)
     sess_trc->wait[curr_level].event = event;
     char *evt_desc = dms_get_event_desc(event);
     (void)cm_gettimeofday(&sess_trc->wait[curr_level].begin_tv);
-    LOG_DYN_TRC_INF("[DMS][TRC %u-%u]%s", sid, curr_level, evt_desc);
+    if (event != DMS_EVT_PROC_REFORM_REQ) {
+        LOG_DYN_TRC_INF("[DMS][TRC %u-%u]%s", sid, curr_level, evt_desc);
+    }
 }
 
 void dms_dyn_trc_end_ex(uint32 sid, dms_wait_event_t event)
@@ -275,7 +278,9 @@ void dms_dyn_trc_end_ex(uint32 sid, dms_wait_event_t event)
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
 
     uint32 curr_level = --sess_trc->level;
-    LOG_DYN_TRC_INF("[DMS][TRC EVT %u-%u]END", sid, curr_level);
+    if (event != DMS_EVT_PROC_REFORM_REQ) {
+        LOG_DYN_TRC_INF("[DMS][TRC EVT %u-%u]END", sid, curr_level);
+    }
 
     timeval_t tv_end;
     if (g_dms_dyn_trc.dyn_trc_enabled) {
@@ -296,7 +301,9 @@ void dms_dyn_trc_end(uint32 sid)
     if (sess_trc->level == 0) {
         LOG_RUN_ERR("[DMS][dms_dyn_trc_end]: stat level is already meet the low limit, sid %u", sid);
         return;
-    } else if (sess_trc->level > DMS_STAT_MAX_LEVEL) {
+    }
+    CM_ASSERT(sess_trc->level <= DMS_EVT_MAX_LEVEL);
+    if (sess_trc->level > DMS_STAT_MAX_LEVEL) {
         uint32 curr_level = --sess_trc->level;
         LOG_RUN_WAR("[DMS][dms_dyn_trc_end]: stat level exceeds the upper limit, sid %u, current level %u",
             sid, curr_level);
@@ -306,13 +313,18 @@ void dms_dyn_trc_end(uint32 sid)
     dms_dyn_trc_end_ex(sid, sess_trc->wait[sess_trc->level - 1].event);
 }
 
-void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32 buf_size)
+void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32 buf_size, bool8 is_head)
 {
     int32 sid = dms_get_tls_sid();
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
 
     if (dms_is_reform_thread()) {
-        LOG_DMS_REFORM_TRACE(buf_text, buf_size);
+        MEMS_RETVOID_IFERR(strncat_s(sess_trc->trc_buf, DMS_MAX_DYN_TRACE_SIZE, buf_text, buf_size));
+        sess_trc->trc_len += buf_size;
+        if (!is_head) {
+            LOG_DMS_REFORM_TRACE(buf_text, buf_size);
+            dms_dynamic_trace_reset(sess_trc);
+        }
         return;
     }
 
@@ -357,7 +369,7 @@ static void dms_cache_trace_log_head(char *buf, uint32 buf_size, dms_log_level_t
             CM_THROW_ERROR(ERR_SYSTEM_CALL, len);
             return;
         }
-        dms_dynamic_trace_cache_inner(log_level, buf, len);
+        dms_dynamic_trace_cache_inner(log_level, buf, len, CM_TRUE);
     } else {
         /* "yyyy-mm-dd" and cm_get_current_thread_id is ommitted for space and perf reasons */
         cm_str2text("hh24:mi:ss.ff3", &fmt_text);
@@ -365,7 +377,7 @@ static void dms_cache_trace_log_head(char *buf, uint32 buf_size, dms_log_level_t
         date_text.str[date_text.len] = '>';
         date_text.len++;
 
-        dms_dynamic_trace_cache_inner(log_level, date_text.str, date_text.len);
+        dms_dynamic_trace_cache_inner(log_level, date_text.str, date_text.len, CM_TRUE);
     }
 }
 
@@ -391,7 +403,7 @@ void dms_dynamic_trace_fmt_cache(int log_type, int log_level, const char *code_f
         LOG_RUN_ERR("dms_dynamic_trace_fmt_cache failed to build trc log content");
     } else {
         log_body[len] = '\n';
-        dms_dynamic_trace_cache_inner(log_level, log_body, len + 1);
+        dms_dynamic_trace_cache_inner(log_level, log_body, len + 1, CM_FALSE);
     }
     va_end(args);
 }
@@ -427,7 +439,7 @@ DMS_DECLARE unsigned char dms_dyn_trc_trace_reform(void)
 DMS_DECLARE void dms_dynamic_trace_cache(unsigned int log_level, char *buf_text, unsigned int buf_size)
 {
     DMS_DYN_TRC_RETURN_IF_INVLD_SESS();
-    dms_dynamic_trace_cache_inner((dms_log_level_t)log_level, buf_text, buf_size);
+    dms_dynamic_trace_cache_inner((dms_log_level_t)log_level, buf_text, buf_size, CM_FALSE);
 }
 
 /* DB side trace iterator for bbox dump */
