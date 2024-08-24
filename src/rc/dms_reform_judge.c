@@ -901,6 +901,7 @@ static void dms_reform_judgement_az_switchover_demote(instance_list_t *inst_list
     dms_reform_judgement_prepare();
     dms_reform_judgement_start();
     dms_reform_judgement_az_demote_phase1(inst_lists);
+    dms_reform_judgement_az_demote_change_role(inst_lists);
     dms_reform_judgement_az_demote_approve(inst_lists);
     dms_reform_judgement_az_demote_phase2(inst_lists);
     dms_reform_judgement_drc_inaccess();
@@ -908,7 +909,6 @@ static void dms_reform_judgement_az_switchover_demote(instance_list_t *inst_list
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_migrate(inst_lists);
     dms_reform_judgement_drc_access();
-    dms_reform_judgement_standby_sync();
     dms_reform_judgement_page_access();
     dms_reform_judgement_recovery(inst_lists);
     dms_reform_judgement_update_scn();

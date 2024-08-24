@@ -35,7 +35,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           167
+#define DMS_LOCAL_VERSION           168
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -975,15 +975,17 @@ typedef void (*dms_set_current_point)(void *db_handle);
 typedef void (*dms_get_db_role)(void *db_handle, unsigned int *role);
 typedef void (*dms_check_lrpl_takeover)(void *db_handle, unsigned int *need_takeover);
 typedef void (*dms_reset_link)(void *db_handle);
-typedef void (*dms_set_online_list)(void *db_handle, unsigned long long online_list);
+typedef void (*dms_set_online_list)(void *db_handle, unsigned long long online_list, unsigned int reformer_id);
 typedef int (*dms_standby_update_remove_node_ctrl)(void *db_handle, unsigned long long online_list);
-typedef int (*dms_standby_stop_thread)(void *db_handle, unsigned long long online_list, unsigned int reformer_id);
+typedef int (*dms_standby_stop_thread)(void *db_handle);
 typedef int (*dms_standby_reload_node_ctrl)(void *db_handle);
 typedef int (*dms_standby_stop_server)(void *db_handle);
 typedef int (*dms_standby_resume_server)(void *db_handle);
 typedef int (*dms_start_lrpl)(void *db_handle, int is_reformer);
 typedef int (*dms_stop_lrpl)(void *db_handle, int is_reformer);
 typedef int (*dms_az_switchover_demote_phase1)(void *db_handle);
+typedef int (*dms_az_switchover_demote_update_node_ctrl)(void *db_handle, unsigned long long online_list);
+typedef int (*dms_az_switchover_demote_change_role)(void *db_handle);
 typedef int (*dms_az_switchover_demote_approve)(void *db_handle);
 typedef int (*dms_az_switchover_demote_phase2)(void *db_handle);
 typedef int (*dms_az_switchover_promote_phase1)(void *db_handle);
@@ -1178,6 +1180,8 @@ typedef struct st_dms_callback {
 
     // for az switchover and az failover
     dms_az_switchover_demote_phase1 az_switchover_demote_phase1;
+    dms_az_switchover_demote_update_node_ctrl az_switchover_demote_update_node_ctrl;
+    dms_az_switchover_demote_change_role az_switchover_demote_change_role;
     dms_az_switchover_demote_approve az_switchover_demote_approve;
     dms_az_switchover_demote_phase2 az_switchover_demote_phase2;
     dms_az_switchover_promote_phase1 az_switchover_promote_phase1;
