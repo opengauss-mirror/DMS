@@ -26,9 +26,9 @@
 #include <stdlib.h>
 #include "securec.h"
 #include "dms_error.h"
-#include "dcs_page.h"
 #include "drc_page.h"
 #include "dms_reform_proc_parallel.h"
+
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;
 
@@ -289,7 +289,7 @@ drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, ui
     return &res_map->buckets[hash_val % res_map->bucket_num];
 }
 
-static void drc_init(drc_head_t *drc, char* resid, uint16 len, uint8 res_type)
+static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
 {
     // init drc_head
     drc->type = res_type;
@@ -343,8 +343,7 @@ void drc_remove_from_part_list(drc_head_t *drc)
     cm_spin_unlock(&part->lock);
 }
 
-static drc_head_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
-    drc_res_bucket_t *bucket)
+drc_head_t *drc_create(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type, drc_res_bucket_t *bucket)
 {
     drc_head_t *drc = (drc_head_t *)drc_res_pool_alloc_item(pool);
     if (drc == NULL) {
@@ -368,7 +367,7 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
-drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
+drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;
@@ -387,7 +386,7 @@ drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 optio
         return NULL;
     }
 
-    drc = drc_create_buf_res(&res_map->res_pool, resid, len, res_type, bucket);
+    drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
     if (SECUREC_UNLIKELY(drc == NULL)) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
@@ -398,60 +397,79 @@ drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 optio
     return drc;
 }
 
-static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
+int drc_latch(char *resid, uint8 res_type, uint8 options)
 {
-    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
-    uint8 master_id = CM_INVALID_ID8;
+    if (!(options & DRC_RES_CHECK_ACCESS)) {
+        return DMS_SUCCESS;
+    }
 
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     if (!cm_latch_timed_s(&res_map->res_latch, 1, CM_FALSE, NULL)) {
-        LOG_DEBUG_WAR("[%s][drc_buf_res_latch]fail to latch s", cm_display_resid(resid, res_type));
+        LOG_DEBUG_WAR("[%s][drc_latch]fail to latch s", cm_display_resid(resid, res_type));
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
-    }
-
-    if (options & DRC_RES_CHECK_ACCESS) {
-        if (res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_INACCESS) {
-            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]drc is inaccessible", cm_display_resid(resid, res_type));
-            cm_unlatch(&res_map->res_latch, NULL);
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
-        if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
-            res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
-            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
-            cm_unlatch(&res_map->res_latch, NULL);
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
-
-        if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
-            res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
-            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
-            cm_unlatch(&res_map->res_latch, NULL);
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
-    }
-
-    if (options & DRC_RES_CHECK_MASTER) {
-        (void)drc_get_master_id(resid, res_type, &master_id);
-        if (dms_dst_id_is_self(master_id)) {
-            return DMS_SUCCESS;
-        }
-
-        LOG_DEBUG_WAR("[%s][drc_buf_res_latch]master is changed to %d", cm_display_resid(resid, res_type), master_id);
-        cm_unlatch(&res_map->res_latch, NULL);
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
-        return ERRNO_DMS_DRC_INVALID;
     }
 
     return DMS_SUCCESS;
 }
 
-void drc_buf_res_unlatch(uint8 res_type)
+void drc_unlatch(uint8 res_type, uint8 options)
 {
+    if (!(options & DRC_RES_CHECK_ACCESS)) {
+        return;
+    }
+
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     cm_unlatch(&res_map->res_latch, NULL);
+}
+
+int drc_enter_check_access(char *resid, uint8 res_type, uint8 options)
+{
+    if (!(options & DRC_RES_CHECK_ACCESS)) {
+        return DMS_SUCCESS;
+    }
+
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
+    if (res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_INACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]drc is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
+        res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
+        res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    return DMS_SUCCESS;
+}
+
+int drc_enter_check_master(char *resid, uint8 res_type, uint8 options)
+{
+    if (!(options & DRC_RES_CHECK_MASTER)) {
+        return DMS_SUCCESS;
+    }
+
+    uint8 master_id = CM_INVALID_ID8;
+    int ret = drc_get_master_id(resid, res_type, &master_id);
+    DMS_RETURN_IF_ERROR(ret);
+
+    if (dms_dst_id_is_self(master_id)) {
+        return DMS_SUCCESS;
+    }
+
+    LOG_DEBUG_WAR("[%s][drc_enter_check_master]master is %d", cm_display_resid(resid, res_type), master_id);
+    DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
+    return ERRNO_DMS_DRC_INVALID;
 }
 
 void drc_enter_buf_res_set_blocked(void)
@@ -480,30 +498,47 @@ void drc_enter_buf_res_set_unblocked(void)
     cm_unlatch(&alock_res_map->res_latch, NULL);
 }
 
-int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc)
+int drc_enter_check(char *resid, uint8 res_type, uint8 options)
 {
-    int ret = drc_buf_res_latch(resid, res_type, options);
+    int ret = drc_latch(resid, res_type, options);
+    DMS_RETURN_IF_ERROR(ret);
+
+    ret = drc_enter_check_access(resid, res_type, options);
     if (ret != DMS_SUCCESS) {
+        drc_unlatch(res_type, options);
         return ret;
     }
 
-    drc_head_t *temp_drc = drc_get_buf_res(resid, len, res_type, options);
-    if (temp_drc == NULL) {
-        drc_buf_res_unlatch(res_type);
-        *drc = NULL;
-        return DMS_SUCCESS;
+    ret = drc_enter_check_master(resid, res_type, options);
+    if (ret != DMS_SUCCESS) {
+        drc_unlatch(res_type, options);
+        return ret;
     }
 
-    cm_spin_lock(&temp_drc->lock, NULL);
-    *drc = temp_drc;
     return DMS_SUCCESS;
 }
 
-void drc_leave(drc_head_t *drc)
+int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc)
 {
+    int ret = drc_enter_check(resid, res_type, options);
+    DMS_RETURN_IF_ERROR(ret);
+
+    *drc = drc_find_or_create(resid, len, res_type, options);
+    if ((*drc) == NULL) {
+        drc_unlatch(res_type, options);
+        return DMS_SUCCESS;
+    }
+
+    cm_spin_lock(&(*drc)->lock, NULL);
+    return DMS_SUCCESS;
+}
+
+void drc_leave(drc_head_t *drc, uint8 options)
+{
+    uint8 res_type = drc->type;
     drc_dec_ref_count(drc);
     cm_spin_unlock(&drc->lock);
-    drc_buf_res_unlatch(drc->type);
+    drc_unlatch(res_type, options);
 }
 
 /*
@@ -601,7 +636,7 @@ int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[D
     if (drc_page->head.owner == CM_INVALID_ID8) {
         *id = CM_INVALID_ID8;
         ret = drc_get_no_owner_id(db_handle, (drc_head_t *)drc_page, id);
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         return ret;
     }
 
@@ -611,7 +646,7 @@ int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[D
     }
 
     *id = drc_page->head.owner;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -630,7 +665,7 @@ int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_sess
     }
 
     if (drc_page->head.owner == CM_INVALID_ID8) {
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         *id = CM_INVALID_ID8;
         return DMS_SUCCESS;
     }
@@ -641,7 +676,7 @@ int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_sess
     }
 
     *id = drc_page->head.owner;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -758,14 +793,14 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_t
 * @brief userd by server to obtain DRC entry from DMS
 * @[in] tag: Uniquely identify a page
 * @[out] is_found: is_found = 0 means that there are no requested buffer in the buffer pool of the cluster currently
-* @[out] drc_info: Save the DRC information of the current page, 
+* @[out] drc_info: Save the DRC information of the current page,
 *        including page related information in Standby which held the COPY
 */
 int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
 {
     drc_page_t *drc_page = NULL;
-    int32 ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL,
-        (drc_head_t **)&drc_page);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
+    int32 ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
     if (ret != DMS_SUCCESS) {
         drc_info = NULL;
         return ret;
@@ -787,7 +822,7 @@ int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
     drc_info->part_id = drc_page->head.part_id;
     drc_info->recovery_skip = drc_page->need_flush;
     drc_info->type = drc_page->head.type;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
 
     ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
     if (drc_info->copy_insts != 0 ||
@@ -916,7 +951,7 @@ static void drc_recycle_buf_res_part_stat(void)
         PRTS_RETVOID_IFERR(sprintf_s(buf_num, CM_BUFLEN_32, " %u", part->list.count));
         MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, buf_num));
     }
-    LOG_DEBUG_INF(buf_log);
+    LOG_DEBUG_WAR(buf_log);
 }
 
 static void drc_recycle_buf_res_start(void)

@@ -668,7 +668,7 @@ static int dms_ask_res_owner_id_l(dms_context_t *dms_ctx, unsigned char *owner_i
         return DMS_SUCCESS;
     }
     *owner_id = drc->owner;
-    drc_leave(drc);
+    drc_leave(drc, options);
     return DMS_SUCCESS;
 }
 
