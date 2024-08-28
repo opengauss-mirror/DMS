@@ -34,7 +34,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           166
+#define DMS_LOCAL_VERSION           170
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -467,9 +467,12 @@ typedef struct st_dms_buf_ctrl
 } dms_buf_ctrl_t;
 
 typedef struct st_dms_ctrl_info {
-    dms_buf_ctrl_t      ctrl;
+    char                pageid[DMS_PAGEID_SIZE];
     unsigned long long  lsn;
     unsigned char       is_dirty;
+    unsigned char       is_edp;
+    unsigned char       lock_mode;
+    unsigned char       in_rcy;
 } dms_ctrl_info_t;
 
 typedef enum en_dms_page_latch_mode {

@@ -692,7 +692,7 @@ static int dms_reform_migrate_add_buf_res(dms_process_context_t *process_ctx, dr
         drc_page->last_edp_lsn = res_msg->lsn;
         drc_page->edp_map = res_msg->edp_map;
     }
-    drc_leave(drc);
+    drc_leave(drc, options);
     return DMS_SUCCESS;
 }
 
@@ -781,7 +781,7 @@ int dms_reform_req_page_rebuild_parallel(msg_command_t cmd, dms_context_t *dms_c
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)parallel->data[master_id];
-    uint32 append_size = (uint32)(DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t));
+    uint32 append_size = sizeof(dms_ctrl_info_t);
     int ret = DMS_SUCCESS;
 
     // if NULL, init req_rebuild
@@ -806,13 +806,9 @@ int dms_reform_req_page_rebuild_parallel(msg_command_t cmd, dms_context_t *dms_c
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
     }
 
-    ret = memcpy_s((uint8 *)req_rebuild + req_rebuild->offset, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
+    ret = memcpy_s((uint8 *)req_rebuild + req_rebuild->offset, append_size, ctrl_info, append_size);
     DMS_SECUREC_CHECK(ret);
-    req_rebuild->offset += DMS_PAGEID_SIZE;
-
-    *(dms_ctrl_info_t *)((uint8 *)req_rebuild + req_rebuild->offset) = *ctrl_info;
-    req_rebuild->offset += (uint32)sizeof(dms_ctrl_info_t);
-
+    req_rebuild->offset += append_size;
     return DMS_SUCCESS;
 }
 
@@ -821,7 +817,7 @@ int dms_reform_req_page_rebuild(msg_command_t cmd, dms_context_t *dms_ctx, dms_c
 {
     rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
     dms_reform_req_rebuild_t *req_rebuild = (dms_reform_req_rebuild_t *)rebuild_info->rebuild_data[master_id];
-    uint32 append_size = (uint32)(DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t));
+    uint32 append_size = sizeof(dms_ctrl_info_t);
     int ret = DMS_SUCCESS;
 
     // if NULL, init req_rebuild
@@ -846,13 +842,9 @@ int dms_reform_req_page_rebuild(msg_command_t cmd, dms_context_t *dms_ctx, dms_c
         req_rebuild->offset = (uint32)sizeof(dms_reform_req_rebuild_t);
     }
 
-    ret = memcpy_s((uint8 *)req_rebuild + req_rebuild->offset, DMS_PAGEID_SIZE, dms_ctx->resid, DMS_PAGEID_SIZE);
+    ret = memcpy_s((uint8 *)req_rebuild + req_rebuild->offset, append_size, ctrl_info, append_size);
     DMS_SECUREC_CHECK(ret);
-    req_rebuild->offset += DMS_PAGEID_SIZE;
-
-    *(dms_ctrl_info_t *)((uint8 *)req_rebuild + req_rebuild->offset) = *ctrl_info;
-    req_rebuild->offset += (uint32)sizeof(dms_ctrl_info_t);
-
+    req_rebuild->offset += append_size;
     return DMS_SUCCESS;
 }
 
@@ -884,22 +876,17 @@ void dms_reform_proc_req_page_rebuild(dms_process_context_t *ctx, dms_message_t 
 
     uint8 inst_id = req_rebuild->head.src_inst;
     uint32 offset = (uint32)sizeof(dms_reform_req_rebuild_t);
-    uint32 unit_len = DMS_PAGEID_SIZE + sizeof(dms_ctrl_info_t);
-    char pageid[DMS_PAGEID_SIZE];
+    uint32 unit_len = sizeof(dms_ctrl_info_t);
     dms_ctrl_info_t *ctrl_info = NULL;
     int ret;
 
     while (offset + unit_len <= req_rebuild->offset) {
-        ret = memcpy_s(pageid, DMS_PAGEID_SIZE, (uint8 *)req_rebuild + offset, DMS_PAGEID_SIZE);
-        DMS_SECUREC_CHECK(ret);
-        offset += DMS_PAGEID_SIZE;
-
         ctrl_info = (dms_ctrl_info_t *)((uint8 *)req_rebuild + offset);
-        offset += sizeof(dms_ctrl_info_t);
+        offset += unit_len;
 
-        ret = dms_reform_proc_page_rebuild(pageid, ctrl_info, inst_id);
+        ret = dms_reform_proc_page_rebuild(ctrl_info, inst_id);
         if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("[DRC][%s]dms_reform_proc_page_rebuild", cm_display_pageid(pageid));
+            LOG_RUN_ERR("[DRC][%s]dms_reform_proc_page_rebuild", cm_display_pageid(ctrl_info->pageid));
             break;
         }
     }
