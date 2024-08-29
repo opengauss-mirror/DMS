@@ -100,7 +100,7 @@ static inline void dms_dynamic_trace_reset(dms_sess_dyn_trc_t* sess_dyn_trc)
 
 #define DMS_DYN_TRC_RETURN_IF_INVLD_SESS()                              \
     do {                                                                \
-        if (!dms_dyn_trc_is_tracing() && !dms_is_reform_thread()) {     \
+        if (!dms_dyn_trc_is_tracing()) {                                \
             return;                                                     \
         }                                                               \
     } while (0)
