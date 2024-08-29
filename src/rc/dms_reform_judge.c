@@ -1707,6 +1707,8 @@ static void dms_reform_judgement_mes_init(void)
 
 void dms_reform_judgement_thread(thread_t *thread)
 {
+    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
+    dms_set_tls_sid(reform_ctx->sess_judge);
     cm_set_thread_name(DMS_REFORM_JUDG_THRD_NAME);
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
