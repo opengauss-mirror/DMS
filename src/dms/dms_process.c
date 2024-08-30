@@ -902,6 +902,12 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
     return DMS_SUCCESS;
 }
 
+static unsigned short dms_get_msg_cmd(char *buff)
+{
+    dms_message_head_t *dms_head = (dms_message_head_t *)buff;
+    return (unsigned short)(dms_head->cmd);
+}
+
 int dms_init_mes(dms_profile_t *dms_profile)
 {
     int ret;
@@ -916,6 +922,7 @@ int dms_init_mes(dms_profile_t *dms_profile)
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
+    mes_set_app_cmd_cb(dms_get_msg_cmd);
     // save g_cbb_mes address
     g_dms.mes_ptr = mes_get_global_inst();
 
