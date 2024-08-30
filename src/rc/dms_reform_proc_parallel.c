@@ -59,6 +59,7 @@ static void dms_reform_parallel_thread(thread_t *thread)
     PRTS_RETVOID_IFERR(sprintf_s(thread_name, CM_MAX_THREAD_NAME_LEN, "reform_para_%d", parallel->index));
     cm_set_thread_name(thread_name);
     dms_set_is_reform_thrd(CM_TRUE);
+    dms_set_tls_sid(parallel->sess_id);
 
     dms_reform_proc_stat_bind_proc_parallel(parallel->index);
     LOG_RUN_INF("[DMS REFORM]%s thread started", thread_name);

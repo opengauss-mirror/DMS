@@ -1994,6 +1994,7 @@ void dms_reform_proc_thread(thread_t *thread)
 #endif
 
     dms_reform_proc_stat_bind_proc();
+    dms_set_tls_sid(reform_ctx->sess_proc);
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc thread started");
     while (!thread->closed) {
         if (reform_info->thread_status == DMS_THREAD_STATUS_RUNNING) {

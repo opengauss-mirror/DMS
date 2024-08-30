@@ -274,8 +274,11 @@ void dms_dyn_trc_begin(uint32 sid, dms_wait_event_t event)
 
 void dms_dyn_trc_end_ex(uint32 sid, dms_wait_event_t event)
 {
-    DMS_DYN_TRC_RETURN_IF_INVLD_SESS();
+    DMS_DYN_TRC_RETURN_IF_UNINITED();
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
+    if (sess_trc->level == 0) {
+        return;
+    }
 
     uint32 curr_level = --sess_trc->level;
     if (event != DMS_EVT_PROC_REFORM_REQ) {
@@ -295,17 +298,15 @@ void dms_dyn_trc_end_ex(uint32 sid, dms_wait_event_t event)
 
 void dms_dyn_trc_end(uint32 sid)
 {
-    DMS_DYN_TRC_RETURN_IF_INVLD_SESS();
+    DMS_DYN_TRC_RETURN_IF_UNINITED();
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
-
     if (sess_trc->level == 0) {
-        LOG_RUN_ERR("[DMS][dms_dyn_trc_end]: stat level is already meet the low limit, sid %u", sid);
         return;
     }
     CM_ASSERT(sess_trc->level <= DMS_EVT_MAX_LEVEL);
     if (sess_trc->level > DMS_STAT_MAX_LEVEL) {
         uint32 curr_level = --sess_trc->level;
-        LOG_RUN_WAR("[DMS][dms_dyn_trc_end]: stat level exceeds the upper limit, sid %u, current level %u",
+        LOG_RUN_WAR("[DMS][TRC]level exceeds limit, sid=%u level=%u",
             sid, curr_level);
         return;
     }
@@ -413,6 +414,10 @@ DMS_DECLARE unsigned char dms_dyn_trc_is_tracing()
     int32 sid = dms_get_tls_sid();
     if (!dms_dyn_trc_inited() || !DMS_SID_IS_VALID(sid)) {
         return CM_FALSE;
+    }
+
+    if (dms_is_reform_thread() && g_dms_dyn_trc.reform_trc_enabled) {
+        return CM_TRUE;
     }
 
     dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;

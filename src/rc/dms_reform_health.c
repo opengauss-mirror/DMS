@@ -268,6 +268,7 @@ void dms_reform_health_thread(thread_t *thread)
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
+    dms_set_tls_sid(reform_ctx->sess_health);
     LOG_RUN_INF("[DMS REFORM]dms_reform_health thread started");
     while (!thread->closed) {
         if (health_info->thread_status == DMS_THREAD_STATUS_IDLE ||
