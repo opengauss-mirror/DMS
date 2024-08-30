@@ -71,6 +71,9 @@ void dms_reform_judgement_az_promote_phase1(void)
     if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FULL_CLEAN)) {
         return;
     }
+
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PREPARE);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE1);
     share_info->promote_id = (uint8)g_dms.inst_id;
