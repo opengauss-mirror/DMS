@@ -353,11 +353,11 @@ static int drc_get_page_no_owner(dms_process_context_t *ctx, drc_req_owner_resul
     return DMS_SUCCESS;
 }
 
-static void drc_try_prepare_confirm_cvt(drc_head_t *drc)
+static void drc_try_confirm_cvt(drc_head_t *drc)
 {
     drc_request_info_t *cvt_req = &drc->converting.req_info;
 
-    if (!if_cvt_need_confirm(&drc->converting) || cvt_req->inst_id == CM_INVALID_ID8) {
+    if (cvt_req->inst_id == CM_INVALID_ID8 || !if_cvt_need_confirm(&drc->converting)) {
         return;
     }
 
@@ -408,7 +408,7 @@ static int drc_set_req_result(dms_process_context_t *ctx, drc_req_owner_result_t
     } else {
         result->type = DRC_REQ_OWNER_WAITING;
         result->curr_owner_id = CM_INVALID_ID8;
-        drc_try_prepare_confirm_cvt(drc);
+        drc_try_confirm_cvt(drc);
     }
     return DMS_SUCCESS;
 }
@@ -451,7 +451,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     bool32 can_cvt = CM_FALSE;
     int32 ret = drc_enq_req_item(ctx, drc, req_info, &can_cvt);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        drc_try_prepare_confirm_cvt(drc);
+        drc_try_confirm_cvt(drc);
         return ret;
     }
 
@@ -815,7 +815,7 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
     if (drc->owner == inst_id && release) {
         drc_shift_to_tail(drc);
     } else if (!release) {
-        drc_try_prepare_confirm_cvt(drc);
+        drc_try_confirm_cvt(drc);
     }
     
     drc_leave(drc);
@@ -1077,6 +1077,7 @@ bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_
     // owner has been transferred, but claim message has not been processed
     if (curr_mode == DMS_LOCK_NULL && drc->converting.req_info.inst_id != CM_INVALID_ID8 &&
         drc->converting.req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
+        drc_try_confirm_cvt(drc);
         drc_leave(drc);
         return CM_FALSE;
     }
