@@ -36,7 +36,7 @@ extern "C" {
 void dms_reform_proc_thread(thread_t *thread);
 int dms_reform_rebuild_buf_res(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
 int dms_reform_proc_lock_rebuild(void *resid, uint8 len, uint8 type, uint8 lock_mode, uint8 src_inst);
-int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id);
+int dms_reform_proc_page_rebuild(dms_ctrl_info_t *ctrl_info, uint8 inst_id);
 bool32 dms_reform_version_same(version_info_t *v1, version_info_t *v2);
 void dms_reform_next_step(void);
 void dms_reform_migrate_collect_local_task(migrate_info_t *local_migrate_info);

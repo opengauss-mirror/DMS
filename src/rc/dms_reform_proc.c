@@ -231,7 +231,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
             (int)drc->owner);
     }
 
-    drc_leave(drc);
+    drc_leave(drc, options);
 }
 #endif
 

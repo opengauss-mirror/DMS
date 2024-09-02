@@ -74,7 +74,7 @@ void drc_shift_to_head(drc_head_t *drc);
 void drc_release_convert_q(bilist_t *convert_q);
 void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
 int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc);
-void drc_leave(drc_head_t *drc);
+void drc_leave(drc_head_t *drc, uint8 options);
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master);
 void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
 void drc_recycle_buf_res_thread(thread_t *thread);
