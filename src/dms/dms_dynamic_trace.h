@@ -33,9 +33,9 @@
 extern "C" {
 #endif
 
-#define DMS_EVT_MAX_LEVEL 5
+#define DMS_EVT_MAX_LEVEL 10
 #define DMS_MAX_DYN_TRACE_SIZE SIZE_K(2)
-#define DMS_DYN_TRACE_HEADER_SZ 128
+#define DMS_DYN_TRACE_HEADER_SZ 256
 #define DMS_SID_IS_VALID(sid) (sid >= 0 && sid < g_dms_dyn_trc.sess_cnt)
 
 typedef struct st_dms_event_trc {
@@ -81,7 +81,7 @@ void dms_dynamic_trace_fmt_cache(int log_type, int log_level, const char *code_f
 
 static inline bool8 dms_dyn_trc_inited()
 {
-    return g_dms_dyn_trc.inited && g_dms_dyn_trc.sess_dyn_trc;
+    return g_dms_dyn_trc.inited && g_dms_dyn_trc.sess_dyn_trc && g_dms_dyn_trc.dyn_trc_enabled;
 }
 
 static inline void dms_dynamic_trace_reset(dms_sess_dyn_trc_t* sess_dyn_trc)

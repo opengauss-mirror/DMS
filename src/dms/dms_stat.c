@@ -51,8 +51,7 @@ void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
     stat->wait[curr_level].usecs = 0;
     stat->wait[curr_level].pre_spin_usecs = cm_total_spin_usecs();
     stat->wait[curr_level].immediate = immediate;
-    char *evt_desc = dms_get_event_desc(event);
-    LOG_DEBUG_INF("[DMS][EVT %u-%u]%s", sid, curr_level, evt_desc);
+    LOG_DEBUG_INF("[DMS][EVT %u-%u]", sid, curr_level);
 
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
