@@ -618,6 +618,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_REQ_CKPT,
     DMS_EVT_PROC_GENERIC_REQ,
     DMS_EVT_PROC_REFORM_REQ,
+    DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT,
 
 // add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
@@ -899,6 +900,7 @@ typedef void (*dms_log_output)(dms_log_id_t log_type, dms_log_level_t log_level,
     unsigned int code_line_num, const char *module_name, const char *format, ...);
 typedef int (*dms_log_flush)(void *db_handle, unsigned long long *lsn);
 typedef int (*dms_log_conditional_flush)(void *db_handle, unsigned long long lfn, unsigned long long *lsn);
+typedef void (*dms_lsnd_wait)(void *db_handle,  unsigned long long lfn);
 typedef int(*dms_process_edp)(void *db_handle, dms_edp_info_t *pages, unsigned int count);
 typedef void (*dms_clean_ctrl_edp)(void *db_handle, dms_buf_ctrl_t *dms_ctrl);
 typedef char *(*dms_display_pageid)(char *display_buf, unsigned int count, char *pageid);
@@ -1105,6 +1107,7 @@ typedef struct st_dms_callback {
     dms_log_output log_output;
     dms_log_flush log_flush;
     dms_log_conditional_flush log_conditional_flush;
+    dms_lsnd_wait lsnd_wait;
     dms_process_edp ckpt_edp;
     dms_process_edp clean_edp;
     dms_ckpt_session ckpt_session;
