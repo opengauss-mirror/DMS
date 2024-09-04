@@ -35,6 +35,17 @@ void dms_reform_judgement_az_demote_phase1(instance_list_t *inst_lists)
     share_info->demote_id = (uint8)g_dms.inst_id;
 }
 
+void dms_reform_judgement_az_demote_change_role(instance_list_t *inst_lists)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_UPDATE_NODE_CTRL);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST);
+
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_CHANGE_ROLE);
+}
+
 void dms_reform_judgement_az_demote_approve(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;

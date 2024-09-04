@@ -175,6 +175,8 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_STOP_LRPL,                      // for Gauss100, stop log replay
 
     DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1,        // for Gauss100, AZ SWITCHOVER primary to standby
+    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_UPDATE_NODE_CTRL,
+    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_CHANGE_ROLE,
     DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE,       // for Gauss100, AZ SWITCHOVER primary to standby
     DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2,        // for Gauss100, AZ SWITCHOVER primary to standby
     DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE1,              // for Gauss100, AZ SWITCHOVER standby to primary
