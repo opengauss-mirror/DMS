@@ -1083,7 +1083,7 @@ static int32 init_drc_smon_ctx(void)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
 
-    ret = cm_create_thread(drc_recycle_buf_res_thread, 0, NULL, &ctx->smon_recycle_thread);
+    ret = cm_create_thread(drc_recycle_thread, 0, NULL, &ctx->smon_recycle_thread);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DRC]fail to create smon recycle thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);

@@ -489,6 +489,7 @@ typedef struct st_parallel_thread {
     void                *handle;
     uint32              sess_id;
     uint32              index;
+    void                *argument;
     int                 res_num;                            // assigned resource num
     resource_id_t       res_id[DMS_PARALLEL_MAX_RESOURCE];  // assigned resource id
     void                *data[DMS_MAX_INSTANCES];           // if need send message in parallel proc
