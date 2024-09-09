@@ -189,9 +189,11 @@ static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64
 int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id)
 {
-    cm_panic(type == DRC_RES_PAGE_TYPE);
     if (ctx->inst_id == owner_id) {
-        return g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_TRUE);
+        if (type == DRC_RES_PAGE_TYPE) {
+            return g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_TRUE);
+        }
+        return dls_invld_lock_ownership(ctx->db_handle, resid, type, DMS_LOCK_EXCLUSIVE, CM_FALSE);
     }
     dms_invld_req_t req;
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_INVALID_OWNER, 0, ctx->inst_id, owner_id, ctx->sess_id, CM_INVALID_ID16);

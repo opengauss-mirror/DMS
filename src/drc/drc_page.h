@@ -52,8 +52,6 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
 void drc_convert_page_owner(drc_head_t *drc, claim_info_t* claim_info, cvt_info_t* cvt_info);
 bool8 drc_cancel_converting(drc_head_t *drc, drc_request_info_t *req, cvt_info_t* cvt_info);
 bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id);
-bool8 drc_chk_4_recycle(char *resid, uint16 len);
-bool8 drc_recycle(dms_process_context_t *ctx, drc_head_t *drc);
 void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type);
 bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_mode);
 int drc_get_no_owner_id(void *db_handle, drc_head_t *drc, uint8 *owner_id);
