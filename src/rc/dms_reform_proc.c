@@ -486,6 +486,22 @@ static int dms_reform_az_switch_demote_phase1(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_az_switch_demote_stop_ckpt(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_switchover_demote_stop_ckpt(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_az_switch_demote_change_role(void)
 {
     int ret = DMS_SUCCESS;
@@ -1910,6 +1926,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1,
         NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_STOP_CKPT] = { "AZ_SWITCH_DEMOTE_STOP_CKPT",
+        dms_reform_az_switch_demote_stop_ckpt, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_UPDATE_NODE_CTRL] = { "AZ_SWITCH_DEMOTE_UPDATE_CTRL",
         dms_reform_reformer_update_node_ctrl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_CHANGE_ROLE] = { "AZ_SWITCH_DEMOTE_CHANGE_ROLE",
