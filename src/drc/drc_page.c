@@ -716,50 +716,6 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
     drc_leave(drc, options);
 }
 
-void drc_release(drc_head_t *drc, drc_res_map_t *buf_map, drc_res_bucket_t *bucket)
-{
-    // remove convert_q
-    drc_release_convert_q(&drc->convert_q);
-
-    // remove drc from part list
-    drc_remove_from_part_list(drc);
-
-    // remove drc from hash bucket
-    drc_res_map_del_res(buf_map, bucket, DRC_DATA(drc), drc->len);
-
-    // free drc to resource pool, to be reused later
-    drc_res_pool_free_item(&buf_map->res_pool, (char*)drc);
-    drc->is_using = CM_FALSE;
-}
-
-bool8 drc_chk_4_recycle(char *resid, uint16 len)
-{
-    drc_head_t *drc = NULL;
-    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
-    if (drc_enter(resid, len, DRC_RES_PAGE_TYPE, options, &drc) != DMS_SUCCESS) {
-        return CM_FALSE;
-    }
-
-    // DRC not exists, no need to recycle
-    if (drc == NULL) {
-        return CM_FALSE;
-    }
-
-    drc_page_t *drc_page = (drc_page_t *)drc;
-    if (drc->is_recycling ||
-        drc->converting.req_info.inst_id != CM_INVALID_ID8 ||
-        drc_page->edp_map != 0 ||
-        drc_page->need_flush ||
-        drc_page->need_recover) {
-        drc_leave(drc, options);
-        return CM_FALSE;
-    }
-
-    drc->is_recycling = CM_TRUE;
-    drc_leave(drc, options);
-    return CM_TRUE;
-}
-
 bool8 drc_can_release(drc_page_t *drc_page, uint8 inst_id)
 {
     if (drc_page->head.is_recycling) { // recycling > release
@@ -820,40 +776,6 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
     
     drc_leave(drc, options);
     return release;
-}
-
-bool8 drc_recycle(dms_process_context_t *ctx, drc_head_t *drc)
-{
-    int32 ret = DMS_SUCCESS;
-    if (drc->copy_insts > 0) {
-        ret = dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, DRC_RES_PAGE_TYPE,
-            drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE);
-        if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
-                cm_display_resid(DRC_DATA(drc), drc->type), drc->copy_insts);
-            return CM_FALSE;
-        }
-    }
-    if (drc->owner != CM_INVALID_ID8) {
-        ret = dms_invalidate_ownership(ctx, DRC_DATA(drc), drc->len, DRC_RES_PAGE_TYPE,
-            DMS_SESSION_NORMAL, drc->owner);
-        if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_WAR("[DRC recycle][%s]fail to release owner: %d",
-                cm_display_resid(DRC_DATA(drc), drc->type), drc->owner);
-            return CM_FALSE;
-        }
-    }
-
-    drc_res_bucket_t* bucket = drc_res_map_get_bucket(DRC_BUF_RES_MAP, DRC_DATA(drc), drc->len);
-    cm_spin_lock(&bucket->lock, NULL);
-    while (drc->ref_count > 0) {
-        cm_spin_unlock(&bucket->lock);
-        cm_sleep(1);
-        cm_spin_lock(&bucket->lock, NULL);
-    }
-    drc_release(drc, DRC_BUF_RES_MAP, bucket);
-    cm_spin_unlock(&bucket->lock);
-    return CM_TRUE;
 }
 
 void drc_release_by_part(drc_part_list_t *part, uint8 type)
