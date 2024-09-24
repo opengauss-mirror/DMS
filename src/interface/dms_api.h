@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           179
+#define DMS_LOCAL_VERSION           171
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -261,10 +261,12 @@ typedef struct st_dms_cr_assist_t {
 
 typedef struct st_dms_drlock {
     dms_drid_t      drid;
+    void           *handle;
 } dms_drlock_t;
 
 typedef struct st_dms_drlatch {
-    dms_drid_t   drid;
+    dms_drid_t      drid;
+    void           *handle;
 } dms_drlatch_t;
 
 typedef struct st_dms_xid_ctx {

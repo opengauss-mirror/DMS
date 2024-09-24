@@ -312,7 +312,7 @@ DMS_DECLARE unsigned char dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_
 * @param lock_mode - request lock mode.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode);
+DMS_DECLARE unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drid_t *drid, dms_lock_mode_t lock_mode);
 
 /*
 * @brief distributed table shared latch acquire timeout method.
@@ -322,7 +322,7 @@ DMS_DECLARE unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drlatc
 * @param wait_ticks - timeout ticks.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_latch_table_timed(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode,
+DMS_DECLARE unsigned char dms_latch_table_timed(dms_context_t *dms_ctx, dms_drid_t *drid, dms_lock_mode_t lock_mode,
     unsigned int wait_ticks);
 
 /*
@@ -332,7 +332,7 @@ DMS_DECLARE unsigned char dms_latch_table_timed(dms_context_t *dms_ctx, dms_drla
 * @param lock_mode - request lock mode.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_latch_table(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, dms_lock_mode_t lock_mode);
+DMS_DECLARE unsigned char dms_latch_table(dms_context_t *dms_ctx, dms_drid_t *drid, dms_lock_mode_t lock_mode);
 
 /*
 * @brief distributed latch release method.
