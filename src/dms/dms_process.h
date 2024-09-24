@@ -79,11 +79,18 @@ typedef struct st_dms_instance {
     dms_driver_ping_info_t dms_driver_ping_info;
 } dms_instance_t;
 
+typedef enum en_dms_msg_buffer_number {
+    DMS_MSG_BUFFER_NO_0 = 0,
+    DMS_MSG_BUFFER_NO_1,
+    DMS_MSG_BUFFER_NO_2,
+    DMS_MSG_BUFFER_NO_CEIL
+} dms_msg_buffer_number_e;
+
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
 
 #define DMS_PRIORITY_COMPRESS_LEVEL 0
-#define DMS_BUFFER_POOL_NUM (3)
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)
+#define DMS_MSG_BUFFER_QUEUE_NUM_PRIO_6 (16)
 #define DMS_FIRST_BUFFER_LENGTH (256)
 #define DMS_SECOND_BUFFER_LENGTH (512)
 #define DMS_THIRD_BUFFER_LENGTH (SIZE_K(32) + 256)

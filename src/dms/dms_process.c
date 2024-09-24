@@ -596,39 +596,44 @@ static void dms_deinit_proc_ctx(void)
     DMS_FREE_PROT_PTR(g_dms.proc_ctx);
 }
 
-void dms_set_mes_buffer_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
+void dms_set_mes_message_pool(unsigned long long recv_msg_buf_size, mes_profile_t *profile)
 {
-    for (int i = MES_PRIORITY_ZERO; i < DMS_CURR_PRIORITY_COUNT; i++) {
-        uint32 pool_idx = 0;
+    mes_msg_pool_attr_t *mpa = &profile->msg_pool_attr;
+    mpa->total_size = recv_msg_buf_size;
+    mpa->enable_inst_dimension = CM_FALSE;
+    mpa->buf_pool_count = DMS_MSG_BUFFER_NO_CEIL;
 
-        profile->buffer_pool_attr[i].pool_count = DMS_BUFFER_POOL_NUM;
-        profile->buffer_pool_attr[i].queue_count = DMS_MSG_BUFFER_QUEUE_NUM;
+    mes_msg_buffer_pool_attr_t *buffer_pool_attr;
+    // buf0
+    buffer_pool_attr = &mpa->buf_pool_attr[DMS_MSG_BUFFER_NO_0];
+    buffer_pool_attr->buf_size = DMS_FIRST_BUFFER_LENGTH;
+    buffer_pool_attr->proportion = DMS_FIRST_BUFFER_RATIO;
 
-        // 256 buffer pool
-        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
-            (uint32)(recv_msg_buf_size * DMS_FIRST_BUFFER_RATIO) / DMS_FIRST_BUFFER_LENGTH;
-        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_FIRST_BUFFER_LENGTH;
-        if (i != MES_PRIORITY_SIX) {
-            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
+    // buf1
+    buffer_pool_attr = &mpa->buf_pool_attr[DMS_MSG_BUFFER_NO_1];
+    buffer_pool_attr->buf_size = DMS_SECOND_BUFFER_LENGTH;
+    buffer_pool_attr->proportion = DMS_SECOND_BUFFER_RATIO;
+
+    // buf2
+    buffer_pool_attr = &mpa->buf_pool_attr[DMS_MSG_BUFFER_NO_2];
+    buffer_pool_attr->buf_size = DMS_THIRD_BUFFER_LENGTH;
+    buffer_pool_attr->proportion = DMS_THIRDLY_BUFFER_RATIO;
+
+    for (int buf_pool_no = 0; buf_pool_no < mpa->buf_pool_count; buf_pool_no++) {
+        buffer_pool_attr = &mpa->buf_pool_attr[buf_pool_no];
+        buffer_pool_attr->shared_pool_attr.queue_num = DMS_MSG_BUFFER_QUEUE_NUM;
+        for (int prio = 0; prio < DMS_CURR_PRIORITY_COUNT; prio++) {
+            if (prio == MES_PRIORITY_SIX) {
+                buffer_pool_attr->priority_pool_attr[MES_PRIORITY_SIX].queue_num =
+                    DMS_MSG_BUFFER_QUEUE_NUM_PRIO_6;
+            } else {
+                buffer_pool_attr->priority_pool_attr[prio].queue_num = DMS_MSG_BUFFER_QUEUE_NUM;
+            }
         }
+    }
 
-        // 512 buffer pool
-        pool_idx++;
-        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
-            (uint32)(recv_msg_buf_size * DMS_SECOND_BUFFER_RATIO) / DMS_SECOND_BUFFER_LENGTH;
-        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_SECOND_BUFFER_LENGTH;
-        if (i != MES_PRIORITY_SIX) {
-            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
-        }
-
-        // 32k buffer pool
-        pool_idx++;
-        profile->buffer_pool_attr[i].buf_attr[pool_idx].count =
-            (uint32)(recv_msg_buf_size * DMS_THIRDLY_BUFFER_RATIO) / DMS_THIRD_BUFFER_LENGTH;
-        profile->buffer_pool_attr[i].buf_attr[pool_idx].size = DMS_THIRD_BUFFER_LENGTH;
-        if (i != MES_PRIORITY_SIX) {
-            profile->buffer_pool_attr[i].buf_attr[pool_idx].count /= DMS_CURR_PRIORITY_COUNT;
-        }
+    for (int prio = 0; prio < DMS_CURR_PRIORITY_COUNT; prio++) {
+        mpa->max_buf_size[prio] = mpa->buf_pool_attr[DMS_MSG_BUFFER_NO_2].buf_size;
     }
 }
 
@@ -860,13 +865,13 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
     DMS_SECUREC_CHECK(err);
 
     dms_init_mes_compress(mes_profile);
-    dms_set_mes_buffer_pool(dms_profile->recv_msg_buf_size, mes_profile);
     dms_set_task_worker_num(dms_profile, mes_profile);
 
     if (dms_profile->enable_mes_task_threadpool) {
         mes_profile->tpool_attr.enable_threadpool = CM_TRUE;
         dms_set_mes_task_threadpool_attr(dms_profile, mes_profile);
     }
+    dms_set_mes_message_pool(dms_profile->recv_msg_buf_size, mes_profile);
     LOG_RUN_INF("[DMS] dms_set_mes_profile end");
     return DMS_SUCCESS;
 }
