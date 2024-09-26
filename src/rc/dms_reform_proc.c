@@ -148,17 +148,14 @@ static int dms_reform_reconnect_inner(void)
 static int dms_reform_disconnect(void)
 {
     LOG_RUN_FUNC_ENTER;
-    // Add mes_channel_entry dynamically is not allowed in openGauss, so can not destroy mes_channel_entry here
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
-#ifndef OPENGAUSS
 
     dms_reform_proc_stat_start(DRPS_DISCONNECT_GET_LOCK);
     cm_spin_lock(&reform_info->mes_lock, NULL);
     dms_reform_proc_stat_end(DRPS_DISCONNECT_GET_LOCK);
     bitmap64_minus(&reform_info->bitmap_mes, share_info->bitmap_disconnect);
     cm_spin_unlock(&reform_info->mes_lock);
-#endif
     reform_info->bitmap_connect = share_info->bitmap_online;
     reform_info->bitmap_in = share_info->bitmap_in;
 
