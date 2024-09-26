@@ -216,7 +216,6 @@ static void dms_reform_modify_list(void)
 #endif
 }
 
-#ifndef OPENGAUSS
 static int dms_reform_connect(instance_list_t *list_online)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -240,7 +239,6 @@ static int dms_reform_connect(instance_list_t *list_online)
 
     return DMS_SUCCESS;
 }
-#endif
 
 static int dms_reform_get_list_stable(void)
 {
@@ -1636,14 +1634,12 @@ static void dms_reform_judgement_reformer(void)
 
     dms_reform_modify_list();
 
-    // mes_channel_entry has been created in mes_init, add mes_channel_entry dynamically is not allowed in openGauss
-#ifndef OPENGAUSS
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_CONNECT);
     if (dms_reform_connect(&share_info->list_online) != DMS_SUCCESS) {
         dms_reform_judgement_stat_desc("fail to connect");
         return;
     }
-#endif
+
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_ONLINE_STATUS);
     if (dms_reform_get_online_status(&share_info->list_online, health_info->online_status, health_info->online_times,
         health_info->online_rw_status, reform_ctx->sess_judge) != DMS_SUCCESS) {
@@ -1681,12 +1677,9 @@ static void dms_reform_judgement_partner(void)
     return;
 #endif
 
-    // mes_channel_entry has been created in mes_init, add mes_channel_entry dynamically is not allowed in openGauss
-#ifndef OPENGAUSS
     if (dms_reform_connect(&list_online) != DMS_SUCCESS) {
         return;
     }
-#endif
 }
 
 static void dms_reform_judgement_mes_init(void)
