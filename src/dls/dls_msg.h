@@ -90,6 +90,16 @@ static inline void dms_reset_drid(dms_drid_t *drid)
     DMS_SECUREC_CHECK(err);
 }
 
+static inline drc_local_lock_res_t *dls_get_local_resx(void **handle, dms_drid_t *drid)
+{
+    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)(*handle);
+    if (SECUREC_UNLIKELY(lock_res == NULL)) {
+        lock_res = drc_get_local_resx(drid);
+        *handle = (void*)lock_res;
+    }
+    return lock_res;
+}
+
 #ifdef __cplusplus
 }
 #endif

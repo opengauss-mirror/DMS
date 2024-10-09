@@ -84,10 +84,7 @@ void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
 
     LOG_DEBUG_INF("[DLS] entry spinlock(%s)", cm_display_lockid(&dlock->drid));
 
-    if (SECUREC_UNLIKELY(dlock->handle == NULL)) {
-        dlock->handle = drc_get_local_resx(&dlock->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlock->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlock->handle, &dlock->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
@@ -125,7 +122,7 @@ void dms_spin_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     }
 
     LOG_DEBUG_INF("[DLS] release spinlock(%s)", cm_display_lockid(&dlock->drid));
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlock->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlock->handle, &dlock->drid);
     drc_lock_local_resx(lock_res, NULL, NULL);
     lock_res->latch_stat.stat = LATCH_STATUS_IDLE;
     drc_unlock_local_resx(lock_res);
@@ -151,10 +148,7 @@ static int32 dls_do_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     }
     
     LOG_DEBUG_INF("[DLS] try add spinlock(%s),", cm_display_lockid(&dlock->drid));
-    if (SECUREC_UNLIKELY(dlock->handle == NULL)) {
-        dlock->handle = drc_get_local_resx(&dlock->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlock->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlock->handle, &dlock->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
@@ -248,10 +242,7 @@ void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     cm_panic_log(dlock->drid.type == DMS_DR_TYPE_SHARED_INNODE, "[DLS](%s)lock type %d is invalid",
         cm_display_lockid(&dlock->drid), dlock->drid.type);
 
-    if (SECUREC_UNLIKELY(dlock->handle == NULL)) {
-        dlock->handle = drc_get_local_resx(&dlock->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlock->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlock->handle, &dlock->drid);
     CM_ASSERT(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
@@ -303,7 +294,7 @@ void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock)
     cm_panic_log(dlock->drid.type == DMS_DR_TYPE_SHARED_INNODE, "[DLS](%s)lock type %d is invalid",
         cm_display_lockid(&dlock->drid), dlock->drid.type);
 
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlock->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlock->handle, &dlock->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
     
