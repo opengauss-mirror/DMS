@@ -174,10 +174,7 @@ void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is
 #endif
 
     latch_statis_t *stat = dms_ctx->stat;
-    if (SECUREC_UNLIKELY(dlatch->handle == NULL)) {
-        dlatch->handle = drc_get_local_resx(&dlatch->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlatch->handle, &dlatch->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
     
@@ -237,10 +234,7 @@ bool8 dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 
     uint32 ticks = 0;
     latch_statis_t *stat = dms_ctx->stat;
-    if (SECUREC_UNLIKELY(dlatch->handle == NULL)) {
-        dlatch->handle = drc_get_local_resx(&dlatch->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlatch->handle, &dlatch->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
@@ -426,10 +420,7 @@ void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 #endif
 
     latch_statis_t *stat = dms_ctx->stat;
-    if (SECUREC_UNLIKELY(dlatch->handle == NULL)) {
-        dlatch->handle = drc_get_local_resx(&dlatch->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlatch->handle, &dlatch->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
@@ -491,10 +482,7 @@ bool8 dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned 
 
     uint32 ticks = 0;
     latch_statis_t *stat = dms_ctx->stat;
-    if (SECUREC_UNLIKELY(dlatch->handle == NULL)) {
-        dlatch->handle = drc_get_local_resx(&dlatch->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlatch->handle, &dlatch->drid);
     cm_panic(lock_res != NULL);
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
@@ -559,7 +547,7 @@ void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
     }
 
     latch_statis_t *stat = dms_ctx->stat;
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlatch->handle, &dlatch->drid);
     cm_panic(lock_res != NULL);
 #ifdef OPENGAUSS
     CM_ASSERT(DLS_LATCH_IS_OWNER(lock_res->latch_stat.lock_mode));
@@ -611,10 +599,7 @@ static int32 dms_try_latch_idle2s(dms_context_t *dms_ctx, drc_local_lock_res_t *
 
 static int32 dls_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch)
 {
-    if (SECUREC_UNLIKELY(dlatch->handle == NULL)) {
-        dlatch->handle = drc_get_local_resx(&dlatch->drid);
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    drc_local_lock_res_t *lock_res = dls_get_local_resx(&dlatch->handle, &dlatch->drid);
     cm_panic(lock_res != NULL);
 
     drc_lock_local_resx(lock_res, NULL, NULL);
