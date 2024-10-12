@@ -38,6 +38,8 @@ void dms_reform_judgement_az_demote_phase1(instance_list_t *inst_lists)
 void dms_reform_judgement_az_demote_change_role(instance_list_t *inst_lists)
 {
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_STOP_CKPT);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_UPDATE_NODE_CTRL);
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST);
