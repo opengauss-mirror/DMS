@@ -1031,12 +1031,13 @@ void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *o
     drc_shift_to_head(drc);
 }
 
-static void drc_recycle_drc_part_stat(drc_global_res_map_t *obj_res_map, char *obj_name)
+static void drc_recycle_drc_part_stat(drc_global_res_map_t *obj_res_map, drc_res_pool_t *pool, char *name)
 {
     drc_part_list_t *part = NULL;
     char buf_log[CM_BUFLEN_1K] = { 0 };
     char buf_num[CM_BUFLEN_32] = { 0 };
-    PRTS_RETVOID_IFERR(sprintf_s(buf_log, CM_BUFLEN_1K, "[DRC %s recycle]every part drc count:", obj_name));
+    LOG_DEBUG_INF("[DRC %s recycle]end, total: %u, used: %u", name, pool->item_num, pool->used_num);
+    PRTS_RETVOID_IFERR(sprintf_s(buf_log, CM_BUFLEN_1K, "[DRC %s recycle]every part drc count:", name));
     for (uint8 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
         part = &obj_res_map->res_parts[part_id];
         PRTS_RETVOID_IFERR(sprintf_s(buf_num, CM_BUFLEN_32, " %u", part->list.count));
@@ -1059,35 +1060,43 @@ void drc_recycle_buf_res_set_running(void)
     LOG_RUN_INF("[DRC recycle]running");
 }
 
-static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, char *obj_name)
+static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t *obj)
 {
-    drc_res_pool_t *pool = &obj_res_map->res_map.res_pool;
+    drc_global_res_map_t *global_drc_res = obj->global_drc_res;
+    drc_res_pool_t *pool = &global_drc_res->res_map.res_pool;
     // check if need to recycle
     if (pool->can_extend || pool->used_num < pool->item_num * DRC_RECYCLE_THRESHOLD) {
+        if (obj->has_recycled) {
+            obj->has_recycled = CM_FALSE;
+            drc_recycle_drc_part_stat(global_drc_res, pool, obj->name);
+        }
         return CM_FALSE;
+    }
+    if (!obj->has_recycled) {
+        obj->has_recycled = CM_TRUE;
+        LOG_DEBUG_INF("[DRC %s recycle]start, extend: %u, total: %u, used: %u",
+            obj->name, pool->extend_num, pool->item_num, pool->used_num);
     }
     cm_spin_lock(&DRC_RES_CTX->smon_recycle_lock, NULL);
     // parallel recycling
     if (DMS_REFORM_INFO->parallel_enable &&
-        dms_proc_parallel(DMS_PROC_PARALLEL_RECYCLE_DRC_RES, (void*)obj_res_map) == DMS_SUCCESS) {
+        dms_proc_parallel(DMS_PROC_PARALLEL_RECYCLE_DRC_RES, (void*)global_drc_res) == DMS_SUCCESS) {
         cm_spin_unlock(&DRC_RES_CTX->smon_recycle_lock);
-        drc_recycle_drc_part_stat(obj_res_map, obj_name);
         return CM_TRUE;
     }
     // serial recycling
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
-        drc_part_list_t *part = &obj_res_map->res_parts[part_id];
-        drc_recycle_drc_by_part(ctx, obj_res_map, part);
+        drc_part_list_t *part = &global_drc_res->res_parts[part_id];
+        drc_recycle_drc_by_part(ctx, global_drc_res, part);
     }
     cm_spin_unlock(&DRC_RES_CTX->smon_recycle_lock);
-    drc_recycle_drc_part_stat(obj_res_map, obj_name);
     return CM_TRUE;
 }
 
 static drc_recycle_obj_t recycle_objs[] = {
-    { &g_drc_res_ctx.global_buf_res,   "BUF RES"   },
-    { &g_drc_res_ctx.global_lock_res,  "LOCK RES"  },
-    { &g_drc_res_ctx.global_alock_res, "ALOCK RES" },
+    { &g_drc_res_ctx.global_buf_res,   "BUF RES",   CM_FALSE },
+    { &g_drc_res_ctx.global_lock_res,  "LOCK RES",  CM_FALSE },
+    { &g_drc_res_ctx.global_alock_res, "ALOCK RES", CM_FALSE },
 };
 
 static inline bool8 drc_do_recycle_task(dms_process_context_t *ctx)
@@ -1095,7 +1104,7 @@ static inline bool8 drc_do_recycle_task(dms_process_context_t *ctx)
     uint8 recycle_obj_count = 0;
     uint8 obj_count = ELEMENT_COUNT(recycle_objs);
     for (uint8 i = 0; i < obj_count; i++) {
-        if (drc_recycle_internal(ctx, recycle_objs[i].obj_res_map, recycle_objs[i].obj_name)) {
+        if (drc_recycle_internal(ctx, &recycle_objs[i])) {
             recycle_obj_count++;
         }
     }

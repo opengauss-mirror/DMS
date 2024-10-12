@@ -46,8 +46,9 @@ extern "C" {
 #define DMS_GET_DRC_INFO_SLEEP_TIME 10
 
 typedef struct st_drc_recycle_obj {
-    drc_global_res_map_t *obj_res_map;
-    char *obj_name;    
+    drc_global_res_map_t *global_drc_res;
+    char *name;
+    bool8 has_recycled;
 } drc_recycle_obj_t;
 
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
