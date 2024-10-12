@@ -1027,6 +1027,11 @@ DMS_DECLARE int dms_convert_error_to_event(unsigned int dms_error, unsigned int 
 DMS_DECLARE int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event);
 DMS_DECLARE int dms_end_sess_wait(unsigned int sid, unsigned int dms_event);
 DMS_DECLARE void dms_update_inst_cnt(unsigned int inst_cnt, unsigned long long int inst_map);
+DMS_DECLARE void dms_get_session_event(unsigned int sid, dms_wait_event_t event_type, unsigned long long *event_cnt,
+    unsigned long long *event_time);
+DMS_DECLARE void dms_get_session_stat_wait_attr(unsigned int sid, dms_wait_event_t event, unsigned int *is_waiting);
+DMS_DECLARE void dms_get_version_info(dms_version_info_t* version_stats);
+
 #ifdef __cplusplus
 }
 #endif
