@@ -62,7 +62,7 @@ static inline int32 chk_convertq_4_conflict_reverse(drc_head_t *drc, drc_request
 static int32 chk_if_valid_retry_request(drc_head_t *drc, drc_request_info_t *new_req, drc_request_info_t *old_req,
     drc_lock_item_t *next)
 {
-    if (new_req->req_time <= old_req->req_time) {
+    if (new_req->req_time < old_req->req_time) {
         LOG_DEBUG_INF("[DRC][%s] invalid request, [new:inst_id=%d, sid=%d, ruid=%llu, req_mode=%d, "
             "curr_mode=%d, req_time=%lld], [old:inst_id=%d, sid=%d, ruid=%llu, req_mode=%d, curr_mode=%d, "
             "req_time=%lld]", cm_display_resid(DRC_DATA(drc), drc->type), new_req->inst_id, new_req->sess_id,
@@ -122,7 +122,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         next = (drc_lock_item_t*)next->node.next;
         // upgrade req will be add to head, so we delete it here
         if (curr->req_info.inst_id == req->inst_id) {
-            if (req->req_time <= curr->req_info.req_time) {
+            if (req->req_time < curr->req_info.req_time) {
                 DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
                 return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
             }
@@ -145,7 +145,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
     drc_cvt_item_t *converting = &drc->converting;
 
     if (req->inst_id == converting->req_info.inst_id) {
-        if (req->req_time <= converting->req_info.req_time) {
+        if (req->req_time < converting->req_info.req_time) {
             DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
             return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
         }
