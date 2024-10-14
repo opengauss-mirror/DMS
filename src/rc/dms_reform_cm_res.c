@@ -71,10 +71,6 @@ static void dms_reform_cm_simulation_init()
 
 static void dms_reform_cm_simulation_thread(thread_t *thread)
 {
-#ifdef OPENGAUSS
-    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
-#endif
-
     char *cm_config_path = getenv(CM_CONFIG_PATH);
     char cm_config_realpath[CM_MAX_PATH_LEN];
     if (cm_config_path == NULL) {
@@ -91,6 +87,10 @@ static void dms_reform_cm_simulation_thread(thread_t *thread)
     cm_set_thread_name("cm_simulation");
     LOG_RUN_INF("[DMS REFORM][cm_simulation]dms_reform_cm_simulation thread started");
     dms_reform_cm_simulation_init();
+
+#ifdef OPENGAUSS
+    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
+#endif
 
     while (!thread->closed) {
         cm_spin_lock(&g_cm_simulation.lock, NULL);
