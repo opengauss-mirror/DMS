@@ -450,6 +450,7 @@ typedef struct st_dms_buf_ctrl
     unsigned long long edp_map;             // records edp instance
     long long last_ckpt_time; // last time when local edp page is added to group.
     volatile unsigned int lock_ss_read; // concurrency control for rebuild/confirm
+    unsigned long long seq; // for dms page swap message-sequence
 #ifdef OPENGAUSS
     int buf_id;
     unsigned int state;
@@ -853,14 +854,15 @@ typedef unsigned long long(*dms_get_global_lsn)(void *db_handle);
 typedef void(*dms_get_global_flushed_lfn)(void *db_handle, unsigned char *node_id, unsigned long long *node_lfn,
     unsigned long long *node_data, unsigned int len);
 typedef int(*dms_read_local_page4transfer)(void *db_handle, char pageid[DMS_PAGEID_SIZE],
-    dms_lock_mode_t mode, dms_buf_ctrl_t **buf_ctrl);
+    dms_lock_mode_t mode, dms_buf_ctrl_t **buf_ctrl, unsigned long long seq);
 typedef int(*dms_try_read_local_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE],
     dms_lock_mode_t mode, dms_buf_ctrl_t **buf_ctrl);
 typedef unsigned char(*dms_page_is_dirty)(dms_buf_ctrl_t *buf_ctrl);
 typedef void(*dms_leave_local_page)(void *db_handle, dms_buf_ctrl_t *buf_ctrl);
 typedef void(*dms_get_pageid)(dms_buf_ctrl_t *buf_ctrl, char **pageid, unsigned int *size);
 typedef char *(*dms_get_page)(dms_buf_ctrl_t *buf_ctrl);
-typedef int (*dms_invalidate_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE], unsigned char invld_owner);
+typedef int (*dms_invalidate_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE], unsigned char invld_owner,
+    unsigned long long seq);
 typedef void *(*dms_get_db_handle)(unsigned int *db_handle_index, dms_session_type_e session_type);
 typedef void (*dms_release_db_handle)(void *db_handle);
 typedef char *(*dms_get_wxid_from_cr_cursor)(void *cr_cursor);
