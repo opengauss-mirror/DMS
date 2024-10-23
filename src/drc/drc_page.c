@@ -438,6 +438,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
 {
     if (drc->type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
+        result->seq = drc_page->seq;
         if (req_info->sess_type == DMS_SESSION_NORMAL && drc_page->need_recover) {
             LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
             DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
@@ -508,6 +509,15 @@ static void drc_remove_edp_map(drc_page_t *drc_page, uint8 inst_id)
     }
 }
 
+uint64 try_get_drc_page_seq(drc_head_t *drc)
+{
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *page_drc = (drc_page_t *)drc;
+        return page_drc->seq;
+    }
+    return 0;
+}
+
 void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info)
 {
     drc_request_info_t *req_info = &drc->converting.req_info;
@@ -522,6 +532,7 @@ void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info)
     cvt_info->is_try = req_info->is_try;
     cvt_info->sess_type = req_info->sess_type;
     cvt_info->req_proto_ver = req_info->req_proto_ver;
+    cvt_info->seq = try_get_drc_page_seq(drc);
 
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
     CM_ASSERT(cvt_info->req_id < DMS_MAX_INSTANCES);

@@ -124,6 +124,7 @@ typedef struct st_drc_page {
     bool8               need_flush : 1;
     bool8               unused1 : 6;
     uint8               unused2;
+    uint64              seq;
 } drc_page_t;
 
 typedef struct st_drc_lock {
@@ -310,6 +311,7 @@ typedef struct st_drc_req_owner_result {
     drc_req_owner_result_type_t type;
     uint8 curr_owner_id;
     uint64 invld_insts;  // share copies to be invalidated.
+    uint64 seq; // message version
 } drc_req_owner_result_t;
 
 typedef struct st_cvt_info {
@@ -328,6 +330,7 @@ typedef struct st_cvt_info {
     dms_session_e sess_type;
     drc_req_owner_result_type_t type;
     uint32 req_proto_ver;
+    uint64 seq;
 } cvt_info_t;
 
 typedef struct st_claim_info {

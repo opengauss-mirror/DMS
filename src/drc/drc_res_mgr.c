@@ -306,6 +306,7 @@ static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
     if (res_type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
         drc_page->last_edp = CM_INVALID_ID8;
+        drc_page->seq = 0;
     }
 }
 
@@ -518,6 +519,14 @@ int drc_enter_check(char *resid, uint8 res_type, uint8 options)
     return DMS_SUCCESS;
 }
 
+void try_drc_page_inc_seq(drc_head_t *drc)
+{
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *page_drc = (drc_page_t *)drc;
+        page_drc->seq++;
+    }
+}
+
 int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc)
 {
     int ret = drc_enter_check(resid, res_type, options);
@@ -530,6 +539,7 @@ int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t
     }
 
     cm_spin_lock(&(*drc)->lock, NULL);
+    try_drc_page_inc_seq(*drc);
     return DMS_SUCCESS;
 }
 
@@ -910,17 +920,17 @@ void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *
     drc->is_using = CM_FALSE;
 }
 
-static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *global_res, drc_head_t *drc)
+static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *global_res, drc_head_t *drc, uint64 seq)
 {
     if (drc->copy_insts > 0 && dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, drc->type,
-        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE) != DMS_SUCCESS) {
+        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq) != DMS_SUCCESS) {
         LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
             cm_display_resid(DRC_DATA(drc), drc->type), drc->copy_insts);
         return CM_FALSE;
     }
     
     if (drc->owner != CM_INVALID_ID8 && dms_invalidate_ownership(ctx, DRC_DATA(drc), drc->len,
-        drc->type, DMS_SESSION_NORMAL, drc->owner) != DMS_SUCCESS) {
+        drc->type, DMS_SESSION_NORMAL, drc->owner, seq) != DMS_SUCCESS) {
         LOG_DEBUG_WAR("[DRC recycle][%s]fail to release owner: %d",
             cm_display_resid(DRC_DATA(drc), drc->type), drc->owner);
         return CM_FALSE;
@@ -938,7 +948,7 @@ static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *globa
     return CM_TRUE;
 }
 
-static bool8 drc_chk_4_recycle(drc_head_t *drc)
+static bool8 drc_chk_4_recycle(drc_head_t *drc, uint64 *seq)
 {
     cm_spin_lock(&drc->lock, NULL);
     if (drc->converting.req_info.inst_id != CM_INVALID_ID8) {
@@ -948,6 +958,7 @@ static bool8 drc_chk_4_recycle(drc_head_t *drc)
 
     if (drc->type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
+        *seq = drc_page->seq;
         if (drc_page->edp_map != 0 || drc_page->need_flush || drc_page->need_recover) {
             cm_spin_unlock(&drc->lock);
             return CM_FALSE;
@@ -969,12 +980,13 @@ void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *o
     }    
     drc_head_t *drc = (drc_head_t *)BILIST_NODE_OF(drc_head_t, node, part_node);
     // check
-    if (!drc_chk_4_recycle(drc)) {
+    uint64 seq = 0;
+    if (!drc_chk_4_recycle(drc, &seq)) {
         drc_shift_to_head(drc);
         return;
     }
     // recycle
-    if (drc_recycle(ctx, obj_res_map, drc)) {
+    if (drc_recycle(ctx, obj_res_map, drc, seq)) {
         return;
     }
     // reset flag and move to head if recycling failed
