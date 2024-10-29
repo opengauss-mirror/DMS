@@ -77,6 +77,7 @@ typedef struct st_dms_instance {
     ddes_fi_context_t fi_ctx;
     dms_msg_stats_t msg_stats[DMS_CM_MAX_SESSIONS];
     dms_driver_ping_info_t dms_driver_ping_info;
+    memory_context_t *drc_mem_context;
 } dms_instance_t;
 
 typedef enum en_dms_msg_buffer_number {
@@ -200,6 +201,14 @@ void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, ui
             dms_free(pointer);     \
             (pointer) = NULL;      \
         }                          \
+    } while (0)
+
+#define DMS_FREE_CONTEXT_PTR(pointer) \
+    do {                              \
+        if ((pointer) != NULL) {      \
+            ddes_free(pointer);       \
+            (pointer) = NULL;         \
+        }                             \
     } while (0)
 
 static inline void dms_get_one_thread(thread_set_t *thread_set, thread_t *thread,

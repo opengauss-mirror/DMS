@@ -939,8 +939,7 @@ static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
 static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    uint32 res_num_calc = (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
-    uint32 res_num = (uint32)MAX(res_num_calc, SIZE_M(1));
+    uint32 res_num = (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
     int ret = dms_global_res_init(&ctx->global_buf_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_PAGE, res_num,
         sizeof(drc_page_t), dms_same_page, dms_res_hash);
     if (ret != DMS_SUCCESS) {
@@ -964,7 +963,7 @@ static bool32 dms_same_global_alock(char *drc, const char *resid, uint32 len)
 static int32 init_alock_res_ctx(const dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    uint32 alock_num = DRC_DEFAULT_LOCK_RES_NUM;
+    uint32 alock_num = DRC_DEFAULT_ALOCK_RES_NUM;
     int ret = dms_global_res_init(&ctx->global_alock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_ALOCK, alock_num,
         sizeof(drc_alock_t), dms_same_global_alock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
@@ -1004,13 +1003,13 @@ static int32 init_lock_res_ctx(dms_profile_t *dms_profile)
     int ret;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ret = dms_global_res_init(&ctx->global_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK,
-        DRC_DEFAULT_LOCK_RES_NUM, sizeof(drc_lock_t), dms_same_global_lock, dms_res_hash);
+        DRC_DEFAULT_GLOCK_RES_NUM, sizeof(drc_lock_t), dms_same_global_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global lock resource pool init fail,return error:%d", ret);
         return ret;
     }
 
-    ret = drc_res_map_init(&ctx->local_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LOCK_RES_NUM,
+    ret = drc_res_map_init(&ctx->local_lock_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_LOCK, DRC_DEFAULT_LLOCK_RES_NUM,
         sizeof(drc_local_lock_res_t), dms_same_local_lock, dms_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]local lock resource pool init fail,return error:%d", ret);
@@ -1098,6 +1097,17 @@ static int32 init_drc_smon_ctx(void)
     return DMS_SUCCESS;
 }
 
+static int init_drc_mem_context(dms_profile_t *dms_profile)
+{
+    g_dms.drc_mem_context = NULL;
+    uint64 size = (dms_profile->drc_buf_size == 0 ? CM_INVALID_ID64 : dms_profile->drc_buf_size);
+    g_dms.drc_mem_context = ddes_memory_context_create(NULL, size, "drc_mem_context");
+    if (g_dms.drc_mem_context == NULL) {
+        return DMS_ERROR;
+    }
+    return DMS_SUCCESS;
+}
+
 int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
 {
     int ret;
@@ -1105,6 +1115,12 @@ int dms_init_drc_res_ctx(dms_profile_t *dms_profile)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     ret = memset_s(ctx, sizeof(drc_res_ctx_t), 0, sizeof(drc_res_ctx_t));
     DMS_SECUREC_CHECK(ret);
+
+    ret = init_drc_mem_context(dms_profile);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_ERR("[DRC]init_drc_mem_context failed");
+        return ret;
+    }
 
     do {
         if ((ret = init_common_res_ctx(dms_profile)) != DMS_SUCCESS) {
@@ -1762,4 +1778,17 @@ void dms_get_dms_thread(thread_set_t *thread_set)
     dms_get_reform_thread(thread_set, dms_thread_name_format);
     dms_get_smon_thread(thread_set, dms_thread_name_format);
     dms_get_reform_parallel_thread(thread_set, dms_thread_name_format);
+}
+
+int dms_update_connext_url(unsigned int inst_cnt, dms_instance_net_addr_t *inst_net_addr)
+{
+    mes_addr_t mes_inst_net_addr[DMS_MAX_INSTANCES];
+    error_t err = memcpy_s(mes_inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, inst_net_addr,
+        sizeof(mes_addr_t) * DMS_MAX_INSTANCES);
+    DMS_SECUREC_CHECK(err);
+    if (mes_update_instance(inst_cnt, mes_inst_net_addr) != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS] update conect url failed.");
+        return DMS_ERROR;
+    }
+    return DMS_SUCCESS;
 }
