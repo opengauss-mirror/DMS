@@ -35,7 +35,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           171
+#define DMS_LOCAL_VERSION           172
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1266,6 +1266,7 @@ typedef struct st_dms_profile {
     unsigned int max_alive_time_for_abnormal_status;
     unsigned char enable_dyn_trace;
     unsigned char enable_reform_trace;
+    unsigned long long drc_buf_size;
 } dms_profile_t;
 
 typedef struct st_logger_param {

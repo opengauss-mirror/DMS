@@ -106,7 +106,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
     }
 
     sz = (uint64)res_size * ((uint64)res_num);
-    pool->addr[0] = (char *)dms_malloc(sz);
+    pool->addr[0] = (char *)ddes_alloc(g_dms.drc_mem_context, sz);
     if (pool->addr[0] == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -157,7 +157,7 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
 {
     cm_panic(pool->addr[pool->extend_num] == NULL);
     uint64 sz = (uint64)pool->extend_step * (uint64)pool->item_size;
-    pool->addr[pool->extend_num] = (char *)dms_malloc(sz);
+    pool->addr[pool->extend_num] = (char *)ddes_alloc(g_dms.drc_mem_context, sz);
     if (pool->addr[pool->extend_num] == NULL) {
         pool->can_extend = CM_FALSE;
         return CM_FALSE;
@@ -167,7 +167,9 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
     pool->item_num += pool->extend_step;
     pool->each_pool_size[pool->extend_num] = pool->extend_step;
     pool->extend_num++;
-    pool->can_extend = (pool->extend_num < pool->max_extend_num);
+    if (g_dms.drc_mem_context->mem_max_size == CM_INVALID_ID64) {
+        pool->can_extend = (pool->extend_num < pool->max_extend_num);
+    }
     return CM_TRUE;
 }
 
@@ -181,7 +183,7 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
 
     for (uint32 i = 0; i < pool->extend_num; i++) {
         if (pool->addr[i] != NULL) {
-            DMS_FREE_PROT_PTR(pool->addr[i]);
+            DMS_FREE_CONTEXT_PTR(pool->addr[i]);
         }
     }
 
@@ -200,10 +202,17 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
 char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
 {
     cm_spin_lock(&pool->lock, NULL);
-    if (cm_bilist_empty(&pool->free_list) &&
-        (pool->extend_num >= pool->max_extend_num || !drc_res_pool_extend(pool))) {
-        cm_spin_unlock(&pool->lock);
-        return NULL;
+    if (g_dms.drc_mem_context->mem_max_size == CM_INVALID_ID64) {
+        if (cm_bilist_empty(&pool->free_list) &&
+            (pool->extend_num >= pool->max_extend_num || !drc_res_pool_extend(pool))) {
+            cm_spin_unlock(&pool->lock);
+            return NULL;
+        }
+    } else {
+        if (cm_bilist_empty(&pool->free_list) && (!drc_res_pool_extend(pool))) {
+            cm_spin_unlock(&pool->lock);
+            return NULL;
+        }
     }
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
     pool->used_num++;
@@ -233,7 +242,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
 
     res_map->bucket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
     bucket_size = (uint64)(res_map->bucket_num * sizeof(drc_res_bucket_t));
-    res_map->buckets = (drc_res_bucket_t*)dms_malloc(bucket_size);
+    res_map->buckets = (drc_res_bucket_t*)ddes_alloc(g_dms.drc_mem_context, bucket_size);
     if (res_map->buckets == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -242,7 +251,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
     drc_init_over2g_buffer(res_map->buckets, 0, bucket_size);
     ret = drc_res_pool_init(&res_map->res_pool, max_extend_num, item_size, item_num);
     if (ret != DMS_SUCCESS) {
-        DMS_FREE_PROT_PTR(res_map->buckets);
+        DMS_FREE_CONTEXT_PTR(res_map->buckets);
         return ret;
     }
 
@@ -269,7 +278,7 @@ void drc_res_map_destroy(drc_res_map_t* res_map)
 {
     drc_res_pool_destroy(&res_map->res_pool);
     if (res_map->buckets != NULL) {
-        DMS_FREE_PROT_PTR(res_map->buckets);
+        DMS_FREE_CONTEXT_PTR(res_map->buckets);
     }
 
     res_map->buckets = NULL;
@@ -594,6 +603,11 @@ void drc_res_map_del_res(drc_res_map_t* res_map, drc_res_bucket_t* bucket, char*
     return;
 }
 
+static void uninit_drc_mem_context()
+{
+    ddes_memory_context_destroy(g_dms.drc_mem_context);
+}
+
 void drc_destroy(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -627,6 +641,7 @@ void drc_destroy(void)
         cm_chan_free(ctx->chan);
         ctx->chan = NULL;
     }
+    uninit_drc_mem_context();
 }
 
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id)
