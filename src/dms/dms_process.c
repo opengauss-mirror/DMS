@@ -351,21 +351,47 @@ static void dms_unlock_instance_s(unsigned char cmd, uint16 sess_id)
     }
 }
 
-void *dms_malloc(size_t size)
+void *dms_malloc(memory_context_t *context, size_t size)
 {
-    if (g_dms.callback.dms_malloc_prot == NULL) {
-        return malloc(size);
+    size_t alloc_size = size + sizeof(dms_buffer_header_t);
+    char *buffer = NULL;
+    dms_malloc_fun_type_t type;
+    if (context == NULL) {
+        if (g_dms.callback.dms_malloc_prot == NULL) {
+            buffer = (char *)malloc(alloc_size);
+            type = MALLOC_TYPE_OS;
+        } else {
+            buffer = (char *)g_dms.callback.dms_malloc_prot(alloc_size);
+            type = MALLOC_TYPE_REGIST;
+        }
     } else {
-        return g_dms.callback.dms_malloc_prot(size);
+        buffer = (char *)ddes_alloc(context, alloc_size);
+        type = MALLOC_TYPE_CONTEXT;
     }
+    if (buffer == NULL) {
+        return NULL;
+    }
+    dms_buffer_header_t *head = (dms_buffer_header_t *)(buffer);
+    head->type = type;
+    return (void *)((char *)buffer + sizeof(dms_buffer_header_t));
 }
 
 void dms_free(void *ptr)
 {
-    if (g_dms.callback.dms_free_prot == NULL) {
-        CM_FREE_PTR(ptr);
-    } else {
-        g_dms.callback.dms_free_prot(ptr);
+    dms_buffer_header_t *head = (dms_buffer_header_t *)((char *)(ptr) - sizeof(dms_buffer_header_t));
+    switch (head->type) {
+        case MALLOC_TYPE_OS:
+            CM_FREE_PTR(head);
+            break;
+        case MALLOC_TYPE_REGIST:
+            g_dms.callback.dms_free_prot(head);
+            break;
+        case MALLOC_TYPE_CONTEXT:
+            ddes_free(head);
+            break;
+        default:
+            CM_ASSERT(CM_FALSE);
+            return;
     }
 }
 
@@ -565,7 +591,7 @@ static int dms_init_proc_ctx(dms_profile_t *dms_profile)
     }
 
     dms_process_context_t *proc_ctx =
-        (dms_process_context_t *)dms_malloc(sizeof(dms_process_context_t) * total_ctx_cnt);
+        (dms_process_context_t *)dms_malloc(NULL, sizeof(dms_process_context_t) * total_ctx_cnt);
     if (proc_ctx == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -1101,7 +1127,12 @@ static int init_drc_mem_context(dms_profile_t *dms_profile)
 {
     g_dms.drc_mem_context = NULL;
     uint64 size = (dms_profile->drc_buf_size == 0 ? CM_INVALID_ID64 : dms_profile->drc_buf_size);
-    g_dms.drc_mem_context = ddes_memory_context_create(NULL, size, "drc_mem_context");
+    cm_memory_allocator_t memory_allocator = {
+        .malloc_proc = (g_dms.callback.dms_malloc_prot == NULL ? malloc : g_dms.callback.dms_malloc_prot),
+        .free_proc = (g_dms.callback.dms_free_prot == NULL ? free : g_dms.callback.dms_free_prot)
+    };
+
+    g_dms.drc_mem_context = ddes_memory_context_create(NULL, size, "drc_mem_context", &memory_allocator);
     if (g_dms.drc_mem_context == NULL) {
         return DMS_ERROR;
     }
@@ -1270,7 +1301,7 @@ int32 dms_init_logger(logger_param_t *param_def)
 #else
     log_param->log_compressed = CM_TRUE;
 #endif
-    log_param->log_compress_buf = dms_malloc(CM_LOG_COMPRESS_BUFSIZE);
+    log_param->log_compress_buf = dms_malloc(NULL, CM_LOG_COMPRESS_BUFSIZE);
     if (log_param->log_compress_buf == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_INIT_LOG_FAILED);
         return ERRNO_DMS_INIT_LOG_FAILED;
@@ -1335,7 +1366,7 @@ static int dms_init_stat(dms_profile_t *dms_profile)
     g_dms_stat.sess_iterator = 0;
 
     size_t size = g_dms_stat.sess_cnt * sizeof(session_stat_t);
-    g_dms_stat.sess_stats = (session_stat_t *)dms_malloc(size);
+    g_dms_stat.sess_stats = (session_stat_t *)dms_malloc(NULL, size);
 
     if (g_dms_stat.sess_stats == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
