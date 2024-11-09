@@ -216,7 +216,7 @@ int dms_init_dynamic_trace(dms_profile_t *dms_profile)
     g_dms_dyn_trc.sess_iterator = 0;
     size_t size = g_dms_dyn_trc.sess_cnt * sizeof(dms_sess_dyn_trc_t);
 
-    g_dms_dyn_trc.sess_dyn_trc = (dms_sess_dyn_trc_t *)dms_malloc(size);
+    g_dms_dyn_trc.sess_dyn_trc = (dms_sess_dyn_trc_t *)dms_malloc(NULL, size);
     if (g_dms_dyn_trc.sess_dyn_trc == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
