@@ -810,29 +810,49 @@ int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
 {
     drc_page_t *drc_page = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
-    int32 ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
-    if (ret != DMS_SUCCESS) {
-        drc_info = NULL;
-        return ret;
+
+    uint32 count = 0;
+    int32 ret;
+    while (count < DMS_GET_DRC_INFO_COUNT) {
+        ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
+        if (ret != DMS_SUCCESS) {
+            drc_info = NULL;
+            return ret;
+        }
+        if (drc_page == NULL) {
+            *is_found = 0;
+            return DMS_SUCCESS;
+        }
+        if (drc_page->head.owner != CM_INVALID_ID8) {
+            *is_found = 1;
+            drc_info->claimed_owner = drc_page->head.owner;
+            drc_info->copy_insts = drc_page->head.copy_insts;
+            drc_info->copy_promote = 0;
+            drc_info->edp_map = drc_page->edp_map;
+            drc_info->in_recovery = drc_page->need_recover;
+            drc_info->last_edp = drc_page->last_edp;
+            drc_info->len = drc_page->head.len;
+            drc_info->lock_mode = drc_page->head.lock_mode;
+            drc_info->lsn = drc_page->last_edp_lsn;
+            drc_info->part_id = drc_page->head.part_id;
+            drc_info->recovery_skip = drc_page->need_flush;
+            drc_info->type = drc_page->head.type;
+            drc_leave((drc_head_t *)drc_page, options);
+            break;
+        }
+        drc_leave((drc_head_t *)drc_page, options);
+        cm_sleep(DMS_GET_DRC_INFO_SLEEP_TIME);
+        count++;
     }
-    if (drc_page == NULL) {
-        *is_found = 0;
-        return DMS_SUCCESS;
+
+    if (count == DMS_GET_DRC_INFO_COUNT) {
+        LOG_DEBUG_WAR("[DRC][%s] get drc info timeout", cm_display_resid(drc_info->data, drc_page->head.type));
+        return DMS_ERROR;
     }
-    *is_found = 1;
-    drc_info->claimed_owner = drc_page->head.owner;
-    drc_info->copy_insts = drc_page->head.copy_insts;
-    drc_info->copy_promote = 0;
-    drc_info->edp_map = drc_page->edp_map;
-    drc_info->in_recovery = drc_page->need_recover;
-    drc_info->last_edp = drc_page->last_edp;
-    drc_info->len = drc_page->head.len;
-    drc_info->lock_mode = drc_page->head.lock_mode;
-    drc_info->lsn = drc_page->last_edp_lsn;
-    drc_info->part_id = drc_page->head.part_id;
-    drc_info->recovery_skip = drc_page->need_flush;
-    drc_info->type = drc_page->head.type;
-    drc_leave((drc_head_t *)drc_page, options);
+
+    LOG_DEBUG_INF("[DRC][%s] get drc info: claimed_owner = %d, copy_insts = %llu, master_id = %d",
+        cm_display_resid(drc_info->data, drc_page->head.type), drc_info->claimed_owner, drc_info->copy_insts,
+        drc_info->master_id);
 
     ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
     if (drc_info->copy_insts != 0 ||
