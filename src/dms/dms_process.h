@@ -161,8 +161,21 @@ typedef enum en_dms_msg_buffer_number {
 #define DMS_MAX_LOG_FILE_SIZE       ((uint64)SIZE_M(1024) * 1)
 #define DMS_MAX_DYN_TRC_WARN_BUF    "DMS_MAX_DYN_TRACE_SIZE reached:"
 #define DMS_MAX_DYN_TRC_WARN_SZ     31
+#define DMS_MALLOC_ALIGN_OFFSET     16
 
 extern dms_instance_t g_dms;
+
+typedef enum en_dms_malloc_fun_type {
+    MALLOC_TYPE_OS = 0,
+    MALLOC_TYPE_REGIST = 1,
+    MALLOC_TYPE_CONTEXT = 2,
+    MALLOC_TYPE_CEIL
+} dms_malloc_fun_type_t;
+
+typedef struct st_dms_buffer_header {
+    dms_malloc_fun_type_t type;
+    char padding[DMS_MALLOC_ALIGN_OFFSET - sizeof(dms_malloc_fun_type_t)];
+} dms_buffer_header_t;
 
 static inline void dms_proc_msg_ack(dms_process_context_t *process_ctx, dms_message_t *msg)
 {
@@ -191,7 +204,7 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
 
 unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
-void *dms_malloc(size_t size);
+void *dms_malloc(memory_context_t *context, size_t size);
 void dms_free(void *ptr);
 void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32, bool8 is_head);
 
@@ -201,14 +214,6 @@ void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, ui
             dms_free(pointer);     \
             (pointer) = NULL;      \
         }                          \
-    } while (0)
-
-#define DMS_FREE_CONTEXT_PTR(pointer) \
-    do {                              \
-        if ((pointer) != NULL) {      \
-            ddes_free(pointer);       \
-            (pointer) = NULL;         \
-        }                             \
     } while (0)
 
 static inline void dms_get_one_thread(thread_set_t *thread_set, thread_t *thread,
