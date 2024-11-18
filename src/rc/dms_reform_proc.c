@@ -282,7 +282,7 @@ static int dms_reform_df_recovery_inner(void)
 static int dms_reform_space_reload_inner(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
-    return g_dms.callback.space_reload(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
+    return g_dms.callback.space_reload(g_dms.reform_ctx.handle_normal, share_info->bitmap_in);
 }
 
 static void dms_reform_recovery_set_flag_by_part_inner(drc_page_t *drc_page)
