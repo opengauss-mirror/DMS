@@ -801,6 +801,160 @@ int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t 
     }
 }
 
+typedef struct st_dms_ctrl_wrapper {
+    dms_buf_ctrl_t *ctrl;
+    unsigned long long ruid;
+    uint8 master_id;
+    uint8 owner_id;
+    int32 result;
+} dms_ctrl_wrapper_t;
+
+static int32 dcs_try_get_page_owner_id_batch(dms_context_t *dms_ctx,
+    dms_ctrl_wrapper_t *ctrl_wraps, uint32 req_count, dms_lock_mode_t req_mode)
+{
+    char *pageid = NULL;
+    uint32 pageid_sz;
+    int ret;
+
+    for (uint32 i = 0; i < req_count; i++) {
+        dms_buf_ctrl_t *ctrl = ctrl_wraps[i].ctrl;
+        dms_ask_res_req_t page_req = { 0 };
+        DMS_INIT_MESSAGE_HEAD(&page_req.head, MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID,
+            0, dms_ctx->inst_id, ctrl_wraps[i].master_id, dms_ctx->sess_id, CM_INVALID_ID16);
+        
+        page_req.head.size = (uint16)sizeof(dms_ask_res_req_t);
+        page_req.req_mode  = req_mode;
+        page_req.curr_mode = ctrl->lock_mode;
+        page_req.is_try = dms_ctx->is_try;
+        page_req.inst_id = dms_ctx->inst_id;
+        page_req.is_upgrade = dms_ctx->is_upgrade;
+        page_req.sess_id = dms_ctx->sess_id;
+        page_req.req_time = g_timer()->now;
+        page_req.len = DMS_PAGEID_SIZE;
+        page_req.sess_type = dms_ctx->sess_type;
+        page_req.intercept_type = dms_ctx->intercept_type;
+        page_req.req_proto_ver = page_req.head.msg_proto_ver;
+        page_req.srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
+    #ifndef OPENGAUSS
+        page_req.scn = (dms_ctx->db_handle != NULL) ? g_dms.callback.get_global_scn(dms_ctx->db_handle) : 0;
+    #endif
+        g_dms.callback.get_pageid(ctrl, &pageid, &pageid_sz);
+        if (memcpy_sp(page_req.resid, DMS_PAGEID_SIZE, pageid, pageid_sz) != EOK) {
+            continue;
+        }
+
+        dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_TRY, CM_TRUE);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID,
+            MSG_REQ_TRY_ASK_MASTER_FOR_PAGE_OWNER_ID);
+        ret = mfc_send_data(&page_req.head);
+        dms_end_stat(dms_ctx->sess_id);
+        if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
+            LOG_DEBUG_ERR(
+                "[DCS][%s][try ask master for page owner id]: "
+                "failed to send msg, src_id=%d, dest_id=%d",
+                cm_display_pageid(page_req.resid), page_req.head.src_inst,
+                page_req.head.src_sid, page_req.head.dst_inst);
+        }
+        ctrl_wraps[i].result = ret;
+        ctrl_wraps[i].ruid = page_req.head.ruid;
+    }
+
+    for (uint32 i = 0; i < req_count; i++) {
+        dms_buf_ctrl_t *ctrl = ctrl_wraps[i].ctrl;
+        dms_message_t msg;
+        if (ctrl_wraps[i].result != DMS_SUCCESS) {
+            continue;
+        }
+
+        ret = mfc_get_response(ctrl_wraps[i].ruid, &msg, DMS_WAIT_MAX_TIME);
+        ctrl_wraps[i].result = ret;
+        if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
+            char resid[DMS_PAGEID_SIZE] = { 0 };
+            g_dms.callback.get_pageid(ctrl, &pageid, &pageid_sz);
+            if (memcpy_sp(resid, DMS_PAGEID_SIZE, pageid, pageid_sz) == EOK) {
+                LOG_DEBUG_ERR("[DCS][%s][try ask master for page owner id]: "
+                    "ack timeout, src_id=%d, src_sid=%d, dest_id=%d, ret=%d",
+                    cm_display_pageid(resid), dms_ctx->inst_id, dms_ctx->sess_id,
+                    ctrl_wraps[i].master_id, ret);
+            }
+            continue;
+        }
+
+        g_dms.callback.get_pageid(ctrl, &pageid, &pageid_sz);
+        if (memcpy_sp(dms_ctx->resid, DMS_PAGEID_SIZE, pageid, pageid_sz) != EOK) {
+            ctrl_wraps[i].result = DMS_ERROR;
+            mfc_release_response(&msg);
+            continue;
+        }
+
+        dms_message_head_t *ack_dms_head = get_dms_head(&msg);
+        if (ack_dms_head->cmd == MSG_ACK_GRANT_OWNER) {
+            ctrl_wraps[i].owner_id = (uint8)dms_ctxs->inst_id;
+            ret = dcs_handle_ack_need_load(dms_ctx, ctrl,
+                ctrl_wraps[i].master_id, &msg, req_mode, ack_dms_head->seq);
+        } else if (ack_dms_head->cmd == MSG_ACK_ALREADY_OWNER) {
+            ctrl_wraps[i].owner_id = (uint8)dms_ctxs->inst_id;
+            ret = dcs_handle_ack_already_owner(dms_ctx, ctrl,
+                ctrl_wraps[i].master_id, &msg, req_mode, ack_dms_head->seq);
+        } else if (ack_dms_head->cmd == MSG_ACK_PAGE_OWNER_ID) {
+            ctrl_wraps[i].owner_id = (uint8)(*(uint32 *)DMS_MESSAGE_BODY(&msg));
+            ret = DMS_SUCCESS;
+        } else {
+            ctrl_wraps[i].owner_id = CM_INVALID_ID8;
+            ret = ERRNO_DMS_COMMON_MSG_ACK;
+        }
+
+        ctrl_wraps[i].result = ret;
+        mfc_release_response(&msg);
+    }
+
+    return DMS_SUCCESS;
+}
+
+int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
+    dms_buf_ctrl_t **ctrls, unsigned int req_count, dms_lock_mode_t req_mode)
+{
+    dms_reset_error();
+    char resid[DMS_PAGEID_SIZE] = { 0 };
+
+    int ret;
+    dms_ctrl_wrapper_t *ctrl_wraps = (dms_ctrl_wrapper_t *)g_dms.callback.mem_alloc(
+        dms_ctx->db_handle, sizeof(dms_ctrl_wrapper_t) * req_count);
+    if (ctrl_wraps == NULL) {
+        LOG_DEBUG_ERR("[DCS][try ask master for page owner id batch] failed to allocate memory");
+        return DMS_ERROR;
+    }
+    
+    for (uint32 i = 0; i < req_count; i++) {
+        cm_spin_lock(&ctrls[i]->lock_ss_read, NULL);
+        ctrls[i]->is_reform_visit = CM_FALSE;
+        cm_spin_unlock(&ctrls[i]->lock_ss_read);
+
+        ctrl_wraps[i].ctrl = ctrls[i];
+        char *pageid = NULL;
+        uint32 pageid_sz;
+        g_dms.callback.get_pageid(ctrls[i], &pageid, &pageid_sz);
+        if (memcpy_sp(resid, DMS_PAGEID_SIZE, pageid, pageid_sz) != EOK) {
+            g_dms.callback.mem_free(dms_ctx->db_handle, ctrl_wraps);
+            return DMS_ERROR;
+        }
+        ret = drc_get_page_master_id(resid, &ctrl_wraps[i].master_id);
+        if (ret != DMS_SUCCESS) {
+            g_dms.callback.mem_free(dms_ctx->db_handle, ctrl_wraps);
+            return ret;
+        }
+
+        ctrl_wraps[i].owner_id = CM_INVALID_ID8;
+        ctrl_wraps[i].ruid = 0;
+        ctrl_wraps[i].result = DMS_ERROR;
+    }
+
+    dcs_try_get_page_owner_id_batch(dms_ctx, ctrl_wraps, req_count, req_mode);
+    g_dms.callback.mem_free(dms_ctx->db_handle, ctrl_wraps);
+    LOG_DEBUG_INF("[DCS][try ask master for page owner id batch] success");
+    return DMS_SUCCESS;
+}
+
 static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id, uint64 *ruid)
 {
     msg_rls_owner_req_t req;
