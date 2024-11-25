@@ -170,6 +170,8 @@ DMS_DECLARE int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_
 */
 DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
     dms_lock_mode_t req_mode, unsigned char *owner_id);
+DMS_DECLARE int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
+    dms_buf_ctrl_t **ctrls, unsigned int req_count, dms_lock_mode_t req_mode);
 
 /*
 * @brief init distributed spin lock.
