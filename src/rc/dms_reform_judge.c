@@ -702,6 +702,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_repair();
     dms_reform_judgement_dw_recovery(inst_lists);
+    dms_reform_judgement_df_recovery();
     dms_reform_judgement_reset_user();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_standby_sync();
