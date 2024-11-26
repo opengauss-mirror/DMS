@@ -855,7 +855,7 @@ static int32 dcs_try_get_page_owner_id_batch(dms_context_t *dms_ctx,
         if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
             LOG_DEBUG_ERR(
                 "[DCS][%s][try ask master for page owner id]: "
-                "failed to send msg, src_id=%d, dest_id=%d",
+                "failed to send msg, src_id=%d, src_sid=%d ,dest_id=%d",
                 cm_display_pageid(page_req.resid), page_req.head.src_inst,
                 page_req.head.src_sid, page_req.head.dst_inst);
         }
@@ -893,11 +893,11 @@ static int32 dcs_try_get_page_owner_id_batch(dms_context_t *dms_ctx,
 
         dms_message_head_t *ack_dms_head = get_dms_head(&msg);
         if (ack_dms_head->cmd == MSG_ACK_GRANT_OWNER) {
-            ctrl_wraps[i].owner_id = (uint8)dms_ctxs->inst_id;
+            ctrl_wraps[i].owner_id = (uint8)dms_ctx->inst_id;
             ret = dcs_handle_ack_need_load(dms_ctx, ctrl,
                 ctrl_wraps[i].master_id, &msg, req_mode, ack_dms_head->seq);
         } else if (ack_dms_head->cmd == MSG_ACK_ALREADY_OWNER) {
-            ctrl_wraps[i].owner_id = (uint8)dms_ctxs->inst_id;
+            ctrl_wraps[i].owner_id = (uint8)dms_ctx->inst_id;
             ret = dcs_handle_ack_already_owner(dms_ctx, ctrl,
                 ctrl_wraps[i].master_id, &msg, req_mode, ack_dms_head->seq);
         } else if (ack_dms_head->cmd == MSG_ACK_PAGE_OWNER_ID) {
