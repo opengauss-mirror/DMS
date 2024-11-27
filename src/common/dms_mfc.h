@@ -156,13 +156,8 @@ static inline void mfc_release_response(dms_message_t *msg)
     mes_release_msg(&mes_msg);
     msg->buffer = NULL;
 }
-#define mfc_get_stat_send_count mes_get_stat_send_count
-#define mfc_get_stat_recv_count mes_get_stat_recv_count
-#define mfc_get_stat_occupy_buf mes_get_stat_occupy_buf
-#define mfc_get_elapsed_switch mes_get_elapsed_switch
+
 #define mfc_set_elapsed_switch mes_set_elapsed_switch
-#define mfc_get_elapsed_time mes_get_elapsed_time
-#define mfc_get_elapsed_count mes_get_elapsed_count
 #define mfc_register_decrypt_pwd mes_register_decrypt_pwd
 
 #ifdef __cplusplus
