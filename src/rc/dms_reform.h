@@ -173,6 +173,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_RESUME_SERVER_FOR_PARTNER,
     DMS_REFORM_STEP_START_LRPL,                     // for Gauss100, start log replay
     DMS_REFORM_STEP_STOP_LRPL,                      // for Gauss100, stop log replay
+    DMS_REFORM_STEP_CALIBRATE_LOG_FILE,
 
     DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1,        // for Gauss100, AZ SWITCHOVER primary to standby
     DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_STOP_CKPT,

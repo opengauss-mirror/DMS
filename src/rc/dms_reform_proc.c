@@ -1170,6 +1170,15 @@ static int dms_reform_stop_lrpl(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_calibrate_log_file(void)
+{
+    LOG_RUN_FUNC_ENTER;
+    g_dms.callback.calibrate_log_file(g_dms.reform_ctx.handle_normal);
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_done(void)
 {
     int ret = DMS_SUCCESS;
@@ -1921,6 +1930,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_START_LRPL] = { "START_LRPL", dms_reform_start_lrpl, NULL, CM_FALSE },
     [DMS_REFORM_STEP_STOP_LRPL] = { "STOP_LRPL", dms_reform_stop_lrpl, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_CALIBRATE_LOG_FILE] = { "CALIBRATE_LOG_FILE", dms_reform_calibrate_log_file, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1] = { "AZ_SWITCH_DEMOTE_PHASE1", dms_reform_az_switch_demote_phase1,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_STOP_CKPT] = { "AZ_SWITCH_DEMOTE_STOP_CKPT",

@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           173
+#define DMS_LOCAL_VERSION           174
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -989,6 +989,7 @@ typedef int (*dms_standby_stop_server)(void *db_handle);
 typedef int (*dms_standby_resume_server)(void *db_handle);
 typedef int (*dms_start_lrpl)(void *db_handle, int is_reformer);
 typedef int (*dms_stop_lrpl)(void *db_handle, int is_reformer);
+typedef int (*dms_calibrate_log_file)(void *db_handle);
 typedef int (*dms_az_switchover_demote_phase1)(void *db_handle);
 typedef int (*dms_az_switchover_demote_stop_ckpt)(void *db_handle);
 typedef int (*dms_az_switchover_demote_update_node_ctrl)(void *db_handle, unsigned long long online_list);
@@ -1185,6 +1186,7 @@ typedef struct st_dms_callback {
     dms_standby_resume_server standby_resume_server;
     dms_start_lrpl start_lrpl;
     dms_stop_lrpl stop_lrpl;
+    dms_calibrate_log_file calibrate_log_file;
 
     // for az switchover and az failover
     dms_az_switchover_demote_phase1 az_switchover_demote_phase1;
