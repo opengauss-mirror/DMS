@@ -88,6 +88,7 @@ void dms_reform_judgement_stop_server(void);
 void dms_reform_judgement_resume_server(void);
 void dms_reform_judgement_start_lrpl(void);
 void dms_reform_judgement_stop_lrpl(void);
+void dms_reform_judgement_calibrate_log_file(void);
 void dms_reform_judgement_rollback_for_az_standby(instance_list_t *inst_lists);
 void dms_reform_judgement_drc_validate(bool8 set_inaccess);
 

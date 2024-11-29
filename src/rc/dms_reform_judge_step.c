@@ -737,6 +737,13 @@ void dms_reform_judgement_stop_lrpl(void)
     dms_reform_add_step(DMS_REFORM_STEP_STOP_LRPL);
 }
 
+void dms_reform_judgement_calibrate_log_file(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_CALIBRATE_LOG_FILE);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+}
+
 void dms_reform_judgement_rollback_for_az_standby(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;

@@ -712,6 +712,7 @@ static void dms_reform_judgement_normal_standby(instance_list_t *inst_lists)
     dms_reform_judgement_page_access();
     /* stop lrpl must after page access and before txn_deposit */
     dms_reform_judgement_stop_lrpl();
+    dms_reform_judgement_calibrate_log_file();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
     dms_reform_judgement_file_blocked(inst_lists);
     dms_reform_judgement_space_reload();
