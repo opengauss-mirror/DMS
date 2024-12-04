@@ -1722,12 +1722,7 @@ static int dms_reform_lock_instance(void)
         LOG_RUN_ERR("[DMS REFORM][GCV PUSH]lock timeout error, curr holder sid=%hu, moded=%hu, "
             "shared count=%hu, time:%llu, inst:%d exits now", latch->sid, latch->stat,
             latch->shared_count, curr_time - begin_time, g_dms.inst_id);
-
-#ifdef _DEBUG
-        cm_panic(0);
-#else
         cm_exit(0);
-#endif
     }
 
     LOG_RUN_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");
