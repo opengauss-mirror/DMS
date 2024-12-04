@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           174
+#define DMS_LOCAL_VERSION           175
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -444,6 +444,7 @@ typedef union st_dms_buf_ctrl
         unsigned long long edp_map;             // records edp instance
         long long last_ckpt_time; // last time when local edp page is added to group.
         volatile unsigned int lock_ss_read; // concurrency control for rebuild/confirm and ss_buf_try_remote
+        volatile unsigned int lock_ss_ckpt_copy; // concurrency control for rebuild/ckpt_copy_item
         unsigned long long seq; // for dms page swap message-sequence
         void *buf_ctrl;
     #ifdef OPENGAUSS
@@ -1307,9 +1308,9 @@ typedef struct st_drc_local_lock_res_result {
 } drc_local_lock_res_result_t;
 
 typedef enum en_reform_callback_stat {
-    REFORM_CALLBACK_STAT_CKPT_LATCH = 0,
-    REFORM_CALLBACK_STAT_BUCKET_LOCK,
+    REFORM_CALLBACK_STAT_BUCKET_LOCK = 0,
     REFORM_CALLBACK_STAT_SS_READ_LOCK,
+    REFORM_CALLBACK_STAT_SS_CKPT_COPY_LOCK,
     REFORM_CALLBACK_STAT_REBUILD_TLOCK_REMOTE,
     REFORM_CALLBACK_STAT_GET_DISK_LSN,
     REFORM_CALLBACK_STAT_DRC_EXIST,
@@ -1404,6 +1405,24 @@ typedef struct st_mem_info_stat {
     unsigned long long used;
     double used_percentage;
 } mem_info_stat_t;
+
+typedef enum en_dms_param_index {
+    DMS_PARAM_SS_INTERCONNECT_URL = 0,
+    DMS_PARAM_SS_ELAPSED_SWITCH,
+#if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
+    DMS_PARAM_SS_FI_PACKET_LOSS_ENTRIES,
+    DMS_PARAM_SS_FI_NET_LATENCY_ENTRIES,
+    DMS_PARAM_SS_FI_CPU_LATENCY_ENTRIES,
+    DMS_PARAM_SS_FI_PROCESS_FAULT_ENTRIES,
+    DMS_PARAM_SS_FI_CUSTOM_FAULT_ENTRIES,
+    DMS_PARAM_SS_FI_PACKET_LOSS_PROB,
+    DMS_PARAM_SS_FI_NET_LATENCY_MS,
+    DMS_PARAM_SS_FI_CPU_LATENCY_MS,
+    DMS_PARAM_SS_FI_PROCESS_FAULT_PROB,
+    DMS_PARAM_SS_FI_CUSTOM_FAULT_PARAM,
+#endif
+    DMS_PARAM_SS_COUNT,
+} dms_param_index;
 
 #ifdef __cplusplus
 }

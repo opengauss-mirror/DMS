@@ -20,6 +20,7 @@ include_directories(${DMS_RC_PATH})
 include_directories(${DMS_INTERFACE_PATH})
 include_directories(${DMS_OCK_PATH})
 include_directories(${DMS_FI_PATH})
+include_directories(${DMS_PARAM_PATH})
 
 aux_source_directory(${DMS_COMMON_PATH} COMMON_SRC)
 aux_source_directory(${DMS_DCS_PATH} DCS_SRC)
@@ -29,8 +30,9 @@ aux_source_directory(${DMS_DMS_PATH} DMS_SRC)
 aux_source_directory(${DMS_RC_PATH} RC_SRC)
 aux_source_directory(${DMS_OCK_PATH} OCK_SRC)
 aux_source_directory(${DMS_FI_PATH} FI_SRC)
+aux_source_directory(${DMS_PARAM_PATH} PARAM_SRC)
 
-set(SRC_DMS_LIST ${COMMON_SRC} ${DCS_SRC} ${DLS_SRC} ${DRC_SRC} ${DMS_SRC} ${RC_SRC} ${OCK_SRC} ${FI_SRC})
+set(SRC_DMS_LIST ${COMMON_SRC} ${DCS_SRC} ${DLS_SRC} ${DRC_SRC} ${DMS_SRC} ${RC_SRC} ${OCK_SRC} ${FI_SRC} ${PARAM_SRC})
 
 add_library(dms SHARED ${SRC_DMS_LIST})
 

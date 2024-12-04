@@ -1361,11 +1361,6 @@ static inline uint32 dms_check_max_wait_time(uint32 time)
     return time < min ? min : (time > max ? max : time);
 }
 
-void dms_set_elapsed_switch(unsigned char elapsed_switch)
-{
-    mfc_set_elapsed_switch(elapsed_switch);
-}
-
 static int dms_init_stat(dms_profile_t *dms_profile)
 {
     g_dms_stat.time_stat_enabled = dms_profile->time_stat_enabled;
@@ -1511,9 +1506,9 @@ int dms_init(dms_profile_t *dms_profile)
     }
 
 #ifndef WIN32
-    char dms_version[DMS_VERSION_MAX_LEN];
-    dms_show_version(dms_version);
-    LOG_RUN_INF("[DMS]%s", dms_version);
+    char version[DMS_VERSION_MAX_LEN];
+    dms_show_version(version);
+    LOG_RUN_INF("[DMS]%s", version);
 #endif
     g_dms.dms_init_finish = CM_TRUE;
     return DMS_SUCCESS;
@@ -1816,17 +1811,4 @@ void dms_get_dms_thread(thread_set_t *thread_set)
     dms_get_reform_thread(thread_set, dms_thread_name_format);
     dms_get_smon_thread(thread_set, dms_thread_name_format);
     dms_get_reform_parallel_thread(thread_set, dms_thread_name_format);
-}
-
-int dms_update_connext_url(unsigned int inst_cnt, dms_instance_net_addr_t *inst_net_addr)
-{
-    mes_addr_t mes_inst_net_addr[DMS_MAX_INSTANCES];
-    error_t err = memcpy_s(mes_inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, inst_net_addr,
-        sizeof(mes_addr_t) * DMS_MAX_INSTANCES);
-    DMS_SECUREC_CHECK(err);
-    if (mes_update_instance(inst_cnt, mes_inst_net_addr) != CM_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS] update conect url failed.");
-        return DMS_ERROR;
-    }
-    return DMS_SUCCESS;
 }
