@@ -156,7 +156,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         }
         *can_cvt = CM_TRUE;
         converting->req_info   = *req;
-        converting->begin_time = g_timer()->now;
+        converting->begin_time = g_timer()->monotonic_now;
         return DMS_SUCCESS;
     }
 
@@ -182,7 +182,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         }
         *can_cvt = CM_TRUE;
         converting->req_info   = *req;
-        converting->begin_time = g_timer()->now;
+        converting->begin_time = g_timer()->monotonic_now;
     }
     return DMS_SUCCESS;
 }
@@ -205,7 +205,7 @@ static int32 drc_chk_conflict_4_normal(drc_head_t *drc, drc_request_info_t *req,
         }
         *can_cvt  = CM_TRUE;
         converting->req_info = *req;
-        converting->begin_time = g_timer()->now;
+        converting->begin_time = g_timer()->monotonic_now;
         return DMS_SUCCESS;
     }
 
@@ -247,7 +247,7 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_head_t *drc, drc_r
     if (drc->converting.req_info.inst_id == CM_INVALID_ID8) {
         cm_panic(drc->convert_q.count == 0);
         drc->converting.req_info = *req_info;
-        drc->converting.begin_time = g_timer()->now;
+        drc->converting.begin_time = g_timer()->monotonic_now;
         *converting = CM_TRUE;
         return DMS_SUCCESS;
     }
@@ -369,7 +369,7 @@ static void drc_try_confirm_cvt(drc_head_t *drc)
         LOG_DEBUG_ERR("[DRC]memcpy_s err: %d", ret);
         return;
     }
-    drc->converting.begin_time = g_timer()->now;
+    drc->converting.begin_time = g_timer()->monotonic_now;
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%d sid:%d ruid:%llu req_mode:%d] prepare confirm",
         cm_display_resid(DRC_DATA(drc), drc->type), cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid,
         cvt_req->req_mode);
@@ -620,7 +620,7 @@ void drc_convert_page_owner(drc_head_t* drc, claim_info_t* claim_info, cvt_info_
     /* assign next lock request to converting */
     drc_lock_item_t *next_lock_item = (drc_lock_item_t *)cm_bilist_pop_first(&drc->convert_q);
     drc->converting.req_info = next_lock_item->req_info;
-    drc->converting.begin_time = g_timer()->now;
+    drc->converting.begin_time = g_timer()->monotonic_now;
     drc_res_pool_free_item(&ctx->lock_item_pool, (char*)next_lock_item);
 
     /* get the detail converting information */
@@ -673,7 +673,7 @@ bool8 drc_cancel_converting(drc_head_t *drc, drc_request_info_t *req, cvt_info_t
             /* assign next lock request to converting */
             drc_lock_item_t *next_lock_item = (drc_lock_item_t *)cm_bilist_pop_first(&drc->convert_q);
             drc->converting.req_info = next_lock_item->req_info;
-            drc->converting.begin_time = g_timer()->now;
+            drc->converting.begin_time = g_timer()->monotonic_now;
             drc_res_pool_free_item(&DRC_RES_CTX->lock_item_pool, (char*)next_lock_item);
             /* get the detail converting information */
             drc_get_convert_info(drc, cvt_info);
