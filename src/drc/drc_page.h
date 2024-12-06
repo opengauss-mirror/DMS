@@ -37,7 +37,7 @@ extern "C" {
 
 static inline bool32 if_cvt_need_confirm(drc_cvt_item_t *converting)
 {
-    if (((g_timer()->now - converting->begin_time) / (int64)MICROSECS_PER_MILLISEC) > DMS_CVT_EXPIRE_TIME) {
+    if (((g_timer()->monotonic_now - converting->begin_time) / (int64)MICROSECS_PER_MILLISEC) > DMS_CVT_EXPIRE_TIME) {
         return CM_TRUE;
     }
     return CM_FALSE;

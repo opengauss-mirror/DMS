@@ -704,7 +704,7 @@ static int32 dcs_try_get_page_owner_r(dms_context_t *dms_ctx, dms_buf_ctrl_t *ct
     page_req.inst_id    = dms_ctx->inst_id;
     page_req.is_upgrade = dms_ctx->is_upgrade;
     page_req.sess_id    = dms_ctx->sess_id;
-    page_req.req_time   = g_timer()->now;
+    page_req.req_time   = g_timer()->monotonic_now;
     page_req.len        = DMS_PAGEID_SIZE;
     page_req.sess_type  = dms_ctx->sess_type;
     page_req.intercept_type = dms_ctx->intercept_type;
@@ -829,7 +829,7 @@ static int32 dcs_try_get_page_owner_id_batch(dms_context_t *dms_ctx,
         page_req.inst_id = dms_ctx->inst_id;
         page_req.is_upgrade = dms_ctx->is_upgrade;
         page_req.sess_id = dms_ctx->sess_id;
-        page_req.req_time = g_timer()->now;
+        page_req.req_time = (date_t)g_timer()->monotonic_now;
         page_req.len = DMS_PAGEID_SIZE;
         page_req.sess_type = dms_ctx->sess_type;
         page_req.intercept_type = dms_ctx->intercept_type;
