@@ -973,6 +973,9 @@ static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 res_num = (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
+#ifdef OPENGAUSS
+    res_num = (uint32)MAX(res_num, SIZE_M(1));
+#endif
     int ret = dms_global_res_init(&ctx->global_buf_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_PAGE, res_num,
         sizeof(drc_page_t), dms_same_page, dms_res_hash);
     if (ret != DMS_SUCCESS) {
