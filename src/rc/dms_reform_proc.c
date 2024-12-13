@@ -209,12 +209,12 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
              * no need to check connverting info.
              */
             if (ctrl->lock_mode != drc->lock_mode) {
-                cm_panic_log( req_info->req_mode == ctrl->lock_mode,
+                cm_panic_log(req_info->req_mode >= ctrl->lock_mode,
                     "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
                     cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode, req_info->req_mode);
             }
         } else {
-            cm_panic_log(drc->lock_mode == ctrl->lock_mode,"[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+            cm_panic_log(drc->lock_mode >= ctrl->lock_mode, "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
                 cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode);
         }
     } else {
