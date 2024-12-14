@@ -721,8 +721,11 @@ bool8 dms_reform_type_is(dms_reform_type_t type)
 
 void dms_show_version(char *version)
 {
-    int ret = strcpy_s(version, DMS_VERSION_MAX_LEN, (char *)DEF_DMS_VERSION);
-    DMS_SECUREC_CHECK(ret);
+    DMS_SECUREC_CHECK(strcpy_s(version, DMS_VERSION_MAX_LEN, (char *)DEF_DMS_VERSION));
+    DMS_SECUREC_CHECK(strcat_s(version, DMS_VERSION_MAX_LEN, "\n"));
+    char cbb_version[DMS_VERSION_MAX_LEN] = {0};
+    cm_show_version(cbb_version);
+    DMS_SECUREC_CHECK(strcat_s(version, DMS_VERSION_MAX_LEN, cbb_version));
 }
 
 int dms_reform_last_failed(void)

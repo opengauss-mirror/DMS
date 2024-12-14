@@ -1013,7 +1013,6 @@ DMS_DECLARE int dms_dynamic_trace_dump_iterator(char **sess_trc_buf, unsigned ch
 DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
 DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 DMS_DECLARE void dms_fsync_logfile(void);
-DMS_DECLARE void dms_set_elapsed_switch(unsigned char elapsed_switch);
 
 DMS_DECLARE int dms_get_task_worker_msg_stat(unsigned int worker_id,
     mes_worker_msg_stats_info_t *mes_worker_msg_stats_result);
@@ -1025,7 +1024,7 @@ DMS_DECLARE int dms_collect_mem_usage_stat();
 
 DMS_DECLARE int dms_get_mem_usage_stat_row(unsigned int mem_id, mem_info_stat_t *mem_stat_row_result);
 DMS_DECLARE int dms_get_online_inst(unsigned long long *online_node);
-DMS_DECLARE int dms_update_connext_url(unsigned int inst_cnt, dms_instance_net_addr_t *inst_net_addr);
+DMS_DECLARE int dms_update_param(unsigned int index, char *value);
 
 #ifdef __cplusplus
 }

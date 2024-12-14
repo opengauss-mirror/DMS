@@ -190,13 +190,3 @@ int dms_info(char *buf, unsigned int len, dms_info_id_e id)
             return DMS_SUCCESS;
     }
 }
-
-int dms_get_online_inst(unsigned long long *online_node)
-{
-    if (dms_reform_in_process()) {
-        *online_node = 0;
-        return DMS_ERROR;
-    }
-    *online_node = g_dms.reform_ctx.reform_info.bitmap_in;
-    return DMS_SUCCESS;
-}
