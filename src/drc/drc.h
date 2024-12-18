@@ -34,6 +34,7 @@
 #include "cm_thread.h"
 #include "cm_latch.h"
 #include "cm_date.h"
+#include "cm_list.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,11 +151,9 @@ typedef struct st_drc_res_pool {
     uint32      used_num;
     uint32      item_size;
     uint32      extend_step;
-    uint32      extend_num;
     uint32      max_extend_num;
-    char*       addr[DRC_RES_EXTEND_MAX_NUM];
-    bool32      can_extend;
-    uint64      each_pool_size[DRC_RES_EXTEND_MAX_NUM];
+    bool32      need_recycle;
+    ptlist_t    addr_list;
 } drc_res_pool_t;
 
 int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 max_extend_num, uint32 res_size, uint32 res_num);

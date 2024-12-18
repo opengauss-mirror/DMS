@@ -425,7 +425,11 @@ static inline drc_local_lock_res_t *pool_get_local_lock_by_id(drc_res_pool_t *re
 {
     uint64 addr_id = drc_id / res_pool->extend_step;
     uint64 offset = drc_id - addr_id * (uint64)(res_pool->extend_step);
-    return (drc_local_lock_res_t *)(res_pool->addr[addr_id] + offset * sizeof(drc_local_lock_res_t));
+    char *addr = (char *)cm_ptlist_get(&res_pool->addr_list, addr_id);
+    if (addr == NULL) {
+        return NULL;
+    }
+    return (drc_local_lock_res_t *)(addr + offset * sizeof(drc_local_lock_res_t));
 }
 
 static int dms_reform_rebuild_drc_by_local_lock(drc_local_lock_res_t *lock_res, uint8 thread_index)
@@ -465,6 +469,9 @@ int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num
 
     for (uint64 i = pool_begin; i < pool_end; ++i) {
         lock_res = pool_get_local_lock_by_id(res_pool, i);
+        if (lock_res == NULL) {
+            break;
+        }
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_LOCAL_RES);
         cm_spin_lock(&lock_res->modify_mode_lock, NULL);
         lock_res->is_reform_visit = CM_TRUE;
