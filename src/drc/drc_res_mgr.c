@@ -96,38 +96,33 @@ static inline void drc_add_items(drc_res_pool_t *pool, char *addr, uint32 res_si
 
 int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_size, uint32 res_num)
 {
-    uint64 sz;
     status_t ret = memset_s(pool, sizeof(drc_res_pool_t), 0, sizeof(drc_res_pool_t));
     DMS_SECUREC_CHECK(ret);
 
-    if (res_size <= sizeof(bilist_node_t)) {
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_RES_SIZE_TOO_SMALL, res_size);
-        return ERRNO_DMS_DRC_RES_SIZE_TOO_SMALL;
-    }
-
-    sz = (uint64)res_size * ((uint64)res_num);
-    pool->addr[0] = (char *)dms_malloc(g_dms.drc_mem_context, sz);
-    if (pool->addr[0] == NULL) {
+    uint64 sz = (uint64)res_size * ((uint64)res_num);
+    char *addr = (char *)dms_malloc(g_dms.drc_mem_context, sz);
+    if (addr == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
     }
-
-    drc_init_over2g_buffer(pool->addr[0], 0, sz);
+    cm_ptlist_init(&pool->addr_list);
+    if (cm_ptlist_add(&pool->addr_list, (pointer_t)addr) != DMS_SUCCESS) {
+        DMS_FREE_PROT_PTR(addr);
+        DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
+        return ERRNO_DMS_ALLOC_FAILED;
+    }
+    
+    drc_init_over2g_buffer(addr, 0, sz);
+    drc_add_items(pool, addr, res_size, res_num);
     cm_bilist_init(&pool->free_list);
     pool->item_num = res_num;
     pool->used_num = 0;
     pool->item_size = res_size;
     pool->lock = 0;
     pool->inited = CM_TRUE;
-    pool->can_extend = CM_TRUE;
+    pool->need_recycle = CM_FALSE;
     pool->extend_step = res_num;
-    pool->extend_num = 1;
     pool->max_extend_num = max_extend_num;
-    ret = memset_s(pool->each_pool_size, sizeof(pool->each_pool_size), 0, sizeof(pool->each_pool_size));
-    DMS_SECUREC_CHECK(ret);
-    pool->each_pool_size[0] = res_num;
-
-    drc_add_items(pool, pool->addr[0], res_size, res_num);
     return DMS_SUCCESS;
 }
 
@@ -137,13 +132,15 @@ void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_
         pool->used_num = 0;
         cm_bilist_init(&pool->free_list);
     }
-    for (uint32 i = 0; i < pool->extend_num; i++) {
-        uint64 total_count = pool->each_pool_size[i];
-        uint64 task_num = (total_count + thread_num - 1) / thread_num;
-        uint64 task_begin = thread_index * task_num;
-        uint64 task_end = MIN(task_begin + task_num, total_count);
+    uint64 total_count = pool->extend_step;
+    uint64 task_num = (total_count + thread_num - 1) / thread_num;
+    uint64 task_begin = thread_index * task_num;
+    uint64 task_end = MIN(task_begin + task_num, total_count);
+    
+    for (uint32 i = 0; i < pool->addr_list.count; i++) {
+        char *addr = (char *)cm_ptlist_get(&pool->addr_list, i);
         for (uint64 j = task_begin; j < task_end; j++) {
-            bilist_node_t *node = (bilist_node_t *)(pool->addr[i] + j * pool->item_size);
+            bilist_node_t *node = (bilist_node_t *)(addr + j * pool->item_size);
             cm_bilist_node_init(node);
             cm_bilist_add_tail(node, temp);
         }
@@ -155,64 +152,53 @@ void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_
  */
 static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
 {
-    cm_panic(pool->addr[pool->extend_num] == NULL);
     uint64 sz = (uint64)pool->extend_step * (uint64)pool->item_size;
-    pool->addr[pool->extend_num] = (char *)dms_malloc(g_dms.drc_mem_context, sz);
-    if (pool->addr[pool->extend_num] == NULL) {
-        pool->can_extend = CM_FALSE;
+    char *addr = (char *)dms_malloc(g_dms.drc_mem_context, sz);
+    if (addr == NULL) {
+        pool->need_recycle = CM_TRUE;
         return CM_FALSE;
     }
-    drc_init_over2g_buffer(pool->addr[pool->extend_num], 0, sz);
-    drc_add_items(pool, pool->addr[pool->extend_num], pool->item_size, pool->extend_step);
-    pool->item_num += pool->extend_step;
-    pool->each_pool_size[pool->extend_num] = pool->extend_step;
-    pool->extend_num++;
-    if (g_dms.drc_mem_context->mem_max_size == CM_INVALID_ID64) {
-        pool->can_extend = (pool->extend_num < pool->max_extend_num);
+    if (cm_ptlist_add(&pool->addr_list, (pointer_t)addr) != DMS_SUCCESS) {
+        DMS_FREE_PROT_PTR(addr);
+        pool->need_recycle = CM_TRUE;
+        return CM_FALSE;
     }
+    drc_init_over2g_buffer(addr, 0, sz);
+    drc_add_items(pool, addr, pool->item_size, pool->extend_step);
+    pool->item_num += pool->extend_step;
+    pool->need_recycle = pool->addr_list.count >= pool->max_extend_num;
     return CM_TRUE;
 }
 
 void drc_res_pool_destroy(drc_res_pool_t* pool)
 {
     cm_spin_lock(&pool->lock, NULL);
-
     if (!pool->inited) {
+        cm_spin_unlock(&pool->lock);
         return;
     }
 
-    for (uint32 i = 0; i < pool->extend_num; i++) {
-        if (pool->addr[i] != NULL) {
-            DMS_FREE_PROT_PTR(pool->addr[i]);
-        }
+    for (uint32 i = 0; i < pool->addr_list.count; i++) {
+        char *addr = (char *)cm_ptlist_get(&pool->addr_list, i);
+        DMS_FREE_PROT_PTR(addr);
     }
 
     cm_bilist_init(&pool->free_list);
+    cm_destroy_ptlist(&pool->addr_list);
     pool->item_num = 0;
     pool->used_num = 0;
     pool->item_size = 0;
     pool->extend_step = 0;
-    pool->extend_num = 0;
     pool->inited = CM_FALSE;
-    int ret = memset_s(pool->each_pool_size, sizeof(pool->each_pool_size), 0, sizeof(pool->each_pool_size));
-    DMS_SECUREC_CHECK(ret);
     cm_spin_unlock(&pool->lock);
 }
 
 char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
 {
     cm_spin_lock(&pool->lock, NULL);
-    if (g_dms.drc_mem_context->mem_max_size == CM_INVALID_ID64) {
-        if (cm_bilist_empty(&pool->free_list) &&
-            (pool->extend_num >= pool->max_extend_num || !drc_res_pool_extend(pool))) {
-            cm_spin_unlock(&pool->lock);
-            return NULL;
-        }
-    } else {
-        if (cm_bilist_empty(&pool->free_list) && (!drc_res_pool_extend(pool))) {
-            cm_spin_unlock(&pool->lock);
-            return NULL;
-        }
+    if (cm_bilist_empty(&pool->free_list) && !drc_res_pool_extend(pool)) {
+        cm_spin_unlock(&pool->lock);
+        return NULL;
     }
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
     pool->used_num++;
@@ -878,17 +864,6 @@ int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
     return ret;
 }
 
-static inline void find_pos_in_res_pool(uint32 *pool_index, uint32 *item_index_in_matched_pool, drc_res_pool_t *pool)
-{
-    for (uint32 i_extend_num = 0; i_extend_num < pool->max_extend_num; i_extend_num++) {
-        if (*item_index_in_matched_pool < pool->each_pool_size[i_extend_num]) {
-            *pool_index = i_extend_num;
-            break;
-        }
-        *item_index_in_matched_pool -= (uint32)pool->each_pool_size[i_extend_num];
-    }
-}
-
 static inline void fill_dv_drc_local_lock_result(drc_local_lock_res_result_t *drc_local_lock_res_result,
     drc_local_lock_res_t *drc_local_lock_res)
 {
@@ -920,19 +895,17 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
     }
 
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_res_pool_t *res_pool = &ctx->local_lock_res.res_pool;
+    drc_res_pool_t *pool = &ctx->local_lock_res.res_pool;
 
-    drc_local_lock_res_t *drc_local_lock_res = NULL;
-    uint32 pool_index = 0;
-    uint32 item_index_in_matched_pool = *vmid;
-    while (*vmid < res_pool->item_num) {
-        item_index_in_matched_pool = *vmid;
-        find_pos_in_res_pool(&pool_index, &item_index_in_matched_pool, res_pool);
-        drc_local_lock_res = (drc_local_lock_res_t*)(res_pool->addr[pool_index]
-            + item_index_in_matched_pool * sizeof(drc_local_lock_res_t));
+    while (*vmid < pool->item_num) {
+        drc_local_lock_res_t *lock_res = (drc_local_lock_res_t *)drc_pool_find_item(pool, *vmid);
+        if (lock_res == NULL) {
+            drc_local_lock_res_result->is_valid = CM_FALSE;
+            return;
+        }
         ++*vmid;
-        if (DLS_LATCH_IS_OWNER(drc_local_lock_res->latch_stat.lock_mode)) {
-            fill_dv_drc_local_lock_result(drc_local_lock_res_result, drc_local_lock_res);
+        if (DLS_LATCH_IS_OWNER(lock_res->latch_stat.lock_mode)) {
+            fill_dv_drc_local_lock_result(drc_local_lock_res_result, lock_res);
             return;
         }
     }
@@ -1060,12 +1033,23 @@ void drc_recycle_buf_res_set_running(void)
     LOG_RUN_INF("[DRC recycle]running");
 }
 
+static inline bool8 drc_chk_if_need_recycle(drc_res_pool_t *pool)
+{
+    bool8 need_recycle = pool->need_recycle;
+    if (g_dms.drc_mem_context != NULL) {
+        uint64 used, total;
+        ddes_memory_stat(g_dms.drc_mem_context, &used, &total);
+        need_recycle = (bool8)(used >= total * DRC_RECYCLE_THRESHOLD);
+    }
+    return (need_recycle && pool->used_num >= pool->item_num * DRC_RECYCLE_THRESHOLD);
+}
+
 static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t *obj)
 {
     drc_global_res_map_t *global_drc_res = obj->global_drc_res;
     drc_res_pool_t *pool = &global_drc_res->res_map.res_pool;
     // check if need to recycle
-    if (pool->can_extend || pool->used_num < pool->item_num * DRC_RECYCLE_THRESHOLD) {
+    if (!drc_chk_if_need_recycle(pool)) {
         if (obj->has_recycled) {
             obj->has_recycled = CM_FALSE;
             drc_recycle_drc_part_stat(global_drc_res, pool, obj->name);
@@ -1075,7 +1059,7 @@ static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t 
     if (!obj->has_recycled) {
         obj->has_recycled = CM_TRUE;
         LOG_DEBUG_INF("[DRC %s recycle]start, extend: %u, total: %u, used: %u",
-            obj->name, pool->extend_num, pool->item_num, pool->used_num);
+            obj->name, pool->addr_list.count, pool->item_num, pool->used_num);
     }
     cm_spin_lock(&DRC_RES_CTX->smon_recycle_lock, NULL);
     // parallel recycling

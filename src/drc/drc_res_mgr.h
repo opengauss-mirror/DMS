@@ -74,6 +74,17 @@ static inline void drc_dec_ref_count(drc_head_t *drc)
     (void)cm_atomic32_dec(&drc->ref_count);
 }
 
+static inline char *drc_pool_find_item(drc_res_pool_t *pool,  uint32 index)
+{
+    uint32 addr_idx = index / pool->extend_step;
+    uint32 offset   = index % pool->extend_step;
+    char *addr = (char *)cm_ptlist_get(&pool->addr_list, addr_idx);
+    if (addr == NULL) {
+        return NULL;
+    }
+    return (addr + offset * pool->item_size);
+}
+
 int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id);
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id);
 int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id);
