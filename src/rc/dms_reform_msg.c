@@ -1691,7 +1691,7 @@ static int dms_reform_proc_repair_inner(dms_process_context_t *process_ctx, repa
     int ret = DMS_SUCCESS;
     switch (item->action) {
         case DMS_REQ_FLUSH_COPY:
-            ret = g_dms.callback.flush_copy(process_ctx->db_handle, item->page_id);
+            ret = g_dms.callback.flush_copy(process_ctx->db_handle, item->page_id, CM_INVALID_ID8);
             break;
 
         default:

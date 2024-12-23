@@ -36,7 +36,7 @@ static int dms_reform_repair_new_item(uint8 thread_index, drc_page_t *drc_page, 
     } else {
         db_handle = parallel_info->parallel[thread_index].handle;
     }
-    return g_dms.callback.flush_copy(db_handle, drc_page->data);
+    return g_dms.callback.flush_copy(db_handle, drc_page->data, thread_index);
 #else
     repair_item_t item;
     uint8 dst = drc_page->head.owner;

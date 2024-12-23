@@ -60,7 +60,6 @@ void dms_reform_health_set_pause(void)
     }
 }
 
-#ifndef OPENGAUSS
 static void dms_reform_health_dyn_log(void)
 {
     health_info_t *health_info = DMS_HEALTH_INFO;
@@ -68,11 +67,16 @@ static void dms_reform_health_dyn_log(void)
     date_t time_now = cm_clock_monotonic_now();
     if (time_now - health_info->dyn_log_time >= DMS_REFORM_HEALTH_TRIGGER_DYN * MICROSECS_PER_SECOND) {
         LOG_RUN_INF("[DMS REFORM]health check trigger dyn log");
+#ifndef OPENGAUSS
         g_dms.callback.dyn_log(reform_ctx->handle_health, health_info->dyn_log_time);
+#else
+        uint8 step = reform_ctx->reform_info.current_step;
+        uint8 role = reform_ctx->reform_info.dms_role;
+        g_dms.callback.reform_check_opengauss(reform_ctx->handle_health, step, role, health_info->dyn_log_time);
+#endif
         health_info->dyn_log_time = cm_clock_monotonic_now();
     }
 }
-#endif
 
 static bool32 dms_reform_health_check_reformer(void)
 {
@@ -238,9 +242,7 @@ static void dms_reform_health_check(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
-#ifndef OPENGAUSS
     dms_reform_health_dyn_log();
-#endif
 
     // if has set reform fail, no need check again, just wait timeout and abort
     if (reform_info->reform_fail) {
