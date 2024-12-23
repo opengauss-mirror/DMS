@@ -190,17 +190,12 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
     return DMS_SUCCESS;
 }
 
-void dls_init_dms_ctx(dms_context_t *dms_ctx, void *resid, uint8 len, uint8 type, bool8 is_try)
-{
-    dms_ctx->len = len;
-    dms_ctx->type = type;
-    dms_ctx->is_try = is_try;
-    DMS_SECUREC_CHECK(memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, resid, len));
-}
-
 int32 dls_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, dms_lock_mode_t curr_mode,
     dms_lock_mode_t mode)
 {
+    if (!dms_drc_accessible(dms_ctx->type) && dms_ctx->sess_type == DMS_SESSION_NORMAL) {
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
     if (lock_res != NULL) {
         lock_res->is_reform_visit = CM_FALSE;
     }
@@ -218,5 +213,5 @@ int32 dls_try_request_lock(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_re
 
 void dls_cancel_request_lock(dms_context_t *dms_ctx)
 {
-    dms_cancel_request_res(dms_ctx);
+    dms_cancel_request_res(dms_ctx->resid, dms_ctx->len, dms_ctx->sess_id, dms_ctx->type);
 }
