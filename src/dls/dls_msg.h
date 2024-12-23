@@ -67,8 +67,6 @@ int32 dls_handle_lock_ready_ack(dms_context_t *dms_ctx,
 int32 dls_owner_transfer_lock(dms_process_context_t *proc_ctx, dms_res_req_info_t *req_info);
 void dls_cancel_request_lock(dms_context_t *dms_ctx);
 
-void dls_init_dms_ctx(dms_context_t *dms_ctx, void *resid, uint8 len, uint8 type, bool8 is_try);
-
 static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks, uint32 spin_step)
 {
 #ifndef WIN32
@@ -99,6 +97,45 @@ static inline drc_local_lock_res_t *dls_get_local_resx(void **handle, dms_drid_t
     }
     return lock_res;
 }
+
+static inline void dls_init_dms_ctx(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, uint32 sid,
+    bool8 is_try)
+{
+    (void)memset_s(dms_ctx, sizeof(dms_context_t), 0, sizeof(dms_context_t));
+    dms_ctx->sess_id        = sid;
+    dms_ctx->is_try         = is_try;
+    dms_ctx->inst_id        = g_dms.inst_id;
+    dms_ctx->len            = (size_t)DMS_DRID_SIZE;
+    dms_ctx->type           = DRC_RES_LOCK_TYPE;
+    dms_ctx->sess_type      = g_dms.callback.get_session_type(sid);
+    dms_ctx->intercept_type = g_dms.callback.get_intercept_type(sid);
+    DMS_SECUREC_CHECK(memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, (char*)&lock_res->resid, DMS_DRID_SIZE));
+}
+
+static inline void dls_init_dms_ctx_ext(dms_context_t *dms_ctx, void *resid, uint8 len, uint8 type, bool8 is_try)
+{
+    dms_ctx->len = len;
+    dms_ctx->type = type;
+    dms_ctx->is_try = is_try;
+    DMS_SECUREC_CHECK(memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, resid, len));
+}
+
+static inline void dms_wait4releasing(drc_local_lock_res_t *lock_res, spin_statis_t *stat,
+    spin_statis_instance_t *stat_instance, uint32 *count)
+{
+    while (lock_res->releasing) {
+        SPIN_STAT_INC(stat, spins);
+        (*count)++;
+        if ((*count) >= GS_SPIN_COUNT) {
+            cm_spin_sleep();
+            *count = 0;
+            SPIN_STAT_INC(stat_instance, wait_times);
+        }
+    }
+}
+
+#define DRID_FORMATE       "(%u/%u/%llu/%u/%u)"
+#define DRID_ELEMENT(drid) (uint32)(drid)->type,(uint32)(drid)->uid,(drid)->oid,(drid)->index,(drid)->part
 
 #ifdef __cplusplus
 }

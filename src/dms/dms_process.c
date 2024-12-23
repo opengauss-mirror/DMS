@@ -1410,6 +1410,7 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     if (g_dms.callback.dms_malloc_prot != NULL) {
         regist_cm_malloc_proc(g_dms.callback.dms_malloc_prot, g_dms.callback.dms_free_prot);
     }
+    cm_set_spin_sleep_time(dms_profile->spin_sleep_time_nsec);
     LOG_RUN_INF("[DMS] dms_set_global_dms end");
 }
 
