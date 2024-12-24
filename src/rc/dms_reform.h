@@ -188,6 +188,9 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG,   // for Gauss100, AZ FAILOVER standby to primary
     DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2,     // for Gauss100, AZ FAILOVER standby to primary
     DMS_REFORM_STEP_RELOAD_TXN,
+
+    DMS_REFORM_STEP_SYNC_NODE_LFN,
+
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
 
