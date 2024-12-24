@@ -117,7 +117,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
     cm_bilist_init(&pool->free_list);
     pool->item_num = res_num;
     pool->used_num = 0;
-    pool->item_size = res_size;
+    pool->item_size = (uint64)res_size;
     pool->lock = 0;
     pool->inited = CM_TRUE;
     pool->need_recycle = CM_FALSE;
@@ -152,7 +152,7 @@ void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_
  */
 static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
 {
-    uint64 sz = (uint64)pool->extend_step * (uint64)pool->item_size;
+    uint64 sz = pool->extend_step * pool->item_size;
     char *addr = (char *)dms_malloc(g_dms.drc_mem_context, sz);
     if (addr == NULL) {
         pool->need_recycle = CM_TRUE;

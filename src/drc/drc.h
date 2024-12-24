@@ -149,10 +149,10 @@ typedef struct st_drc_res_pool {
     bilist_t    free_list;
     uint32      item_num;
     uint32      used_num;
-    uint32      item_size;
     uint32      extend_step;
     uint32      max_extend_num;
     bool32      need_recycle;
+    uint64      item_size;
     ptlist_t    addr_list;
 } drc_res_pool_t;
 
