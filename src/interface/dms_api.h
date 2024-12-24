@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           171
+#define DMS_LOCAL_VERSION           172
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
