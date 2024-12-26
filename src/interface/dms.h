@@ -203,7 +203,7 @@ DMS_DECLARE void dms_init_spinlock2(dms_drlock_t *lock, dms_dr_type_t type, unsi
 * @param dlock - distributed resource lock identifier.
 * @return
 */
-DMS_DECLARE void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+DMS_DECLARE void dms_spin_lock(dms_drlock_t *dlock, unsigned int sid, void *dms_stat, void *inst_stat);
 
 /*
 * @brief distributed spin lock release method.
@@ -211,7 +211,7 @@ DMS_DECLARE void dms_spin_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
 * @param dlock - distributed resource lock identifier.
 * @return
 */
-DMS_DECLARE void dms_spin_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+DMS_DECLARE void dms_spin_unlock(dms_drlock_t *dlock);
 
 /*
 * @brief distributed shared spin lock acquire method.
@@ -220,7 +220,7 @@ DMS_DECLARE void dms_spin_unlock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
 * @param dlock - distributed resource lock identifier.
 * @return
 */
-DMS_DECLARE void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+DMS_DECLARE void dms_spin_lock_innode_s(dms_drlock_t *dlock, unsigned int sid);
 
 /*
 * @brief distributed shared spin lock release method.
@@ -229,7 +229,7 @@ DMS_DECLARE void dms_spin_lock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dl
 * @param dlock - distributed resource lock identifier.
 * @return
 */
-DMS_DECLARE void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+DMS_DECLARE void dms_spin_unlock_innode_s(dms_drlock_t *dlock);
 
 /*
 * @brief distributed spin lock try to acquire method.
@@ -237,7 +237,7 @@ DMS_DECLARE void dms_spin_unlock_innode_s(dms_context_t *dms_ctx, dms_drlock_t *
 * @param dlock - distributed resource lock identifier.
 * @return CM_TRUE acquire success; CM_FALSE acquire fail.
 */
-DMS_DECLARE unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock);
+DMS_DECLARE unsigned char dms_spin_try_lock(dms_drlock_t *dlock, unsigned int sid);
 
 /*
 * @brief distributed spin lock timeout acquire method.
@@ -246,7 +246,7 @@ DMS_DECLARE unsigned char dms_spin_try_lock(dms_context_t *dms_ctx, dms_drlock_t
 * @param timeout_ticks - timeout ticks.
 * @return CM_TRUE acquire success; CM_FALSE acquire fail.
 */
-DMS_DECLARE unsigned char dms_spin_timed_lock(dms_context_t *dms_ctx, dms_drlock_t *dlock, unsigned int timeout_ticks);
+DMS_DECLARE unsigned char dms_spin_timed_lock(dms_drlock_t *dlock, unsigned int sid, unsigned int timeout_ticks);
 
 /*
 * @brief init distributed latch.
@@ -280,7 +280,7 @@ DMS_DECLARE void dms_init_latch2(dms_drlatch_t *dlatch, dms_dr_type_t type, unsi
 * @param is_force - whether force to shared mode when contention with exclusive mode.
 * @return
 */
-DMS_DECLARE void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned char is_force);
+DMS_DECLARE void dms_latch_s(dms_drlatch_t *dlatch, unsigned int sid, unsigned char is_force, void *dms_stat);
 
 /*
 * @brief distributed latch shared acquire method.
@@ -288,7 +288,7 @@ DMS_DECLARE void dms_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsi
 * @param dlatch - distributed resource lock identifier.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE unsigned char dms_try_latch_s(dms_drlatch_t *dlatch, unsigned int sid);
 
 /*
 * @brief distributed latch shared acquire timeout method.
@@ -298,8 +298,8 @@ DMS_DECLARE unsigned char dms_try_latch_s(dms_context_t *dms_ctx, dms_drlatch_t 
 * @param is_force - whether force to shared mode when contention with exclusive mode.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_t *dlatch,
-    unsigned int wait_ticks, unsigned char is_force);
+DMS_DECLARE unsigned char dms_latch_timed_s(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wait_ticks,
+    unsigned char is_force, void *dms_stat);
 
 /*
 * @brief distributed latch exclusive acquire method.
@@ -308,7 +308,7 @@ DMS_DECLARE unsigned char dms_latch_timed_s(dms_context_t *dms_ctx, dms_drlatch_
 * @param sid - session id.
 * @return
 */
-DMS_DECLARE void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE void dms_latch_x(dms_drlatch_t *dlatch, unsigned int sid, void *dms_stat);
 
 /*
 * @brief distributed latch exclusive acquire timeout method.
@@ -318,7 +318,8 @@ DMS_DECLARE void dms_latch_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
 * @param is_force - whether force to shared mode when contention with exclusive mode.
 * @return CM_TRUE acquire success; CM_FALSE acquire failed.
 */
-DMS_DECLARE unsigned char dms_latch_timed_x(dms_context_t *dms_ctx, dms_drlatch_t *dlatch, unsigned int wait_ticks);
+DMS_DECLARE unsigned char dms_latch_timed_x(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wait_ticks,
+    void *dms_stat);
 
 /*
 * @brief distributed table shared latch acquire method.
@@ -355,7 +356,7 @@ DMS_DECLARE unsigned char dms_latch_table(dms_context_t *dms_ctx, dms_drid_t *dr
 * @param dlatch - distributed resource lock identifier.
 * @return
 */
-DMS_DECLARE void dms_unlatch(dms_context_t *dms_ctx, dms_drlatch_t *dlatch);
+DMS_DECLARE void dms_unlatch(dms_drlatch_t *dlatch, void *dms_stat);
 
 /*
 * @brief broadcast message to other instances.
