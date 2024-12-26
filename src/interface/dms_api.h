@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           175
+#define DMS_LOCAL_VERSION           176
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -980,6 +980,7 @@ typedef unsigned short (*dms_get_tlock_mode)(void *db_handle, char *resid);
 typedef void (*dms_set_current_point)(void *db_handle);
 
 typedef void (*dms_get_db_role)(void *db_handle, unsigned int *role);
+typedef int (*dms_sync_node_lfn)(void *db_handle, int reform_type, unsigned long long online_list);
 typedef void (*dms_check_lrpl_takeover)(void *db_handle, unsigned int *need_takeover);
 typedef void (*dms_reset_link)(void *db_handle);
 typedef void (*dms_set_online_list)(void *db_handle, unsigned long long online_list, unsigned int reformer_id);
@@ -1177,6 +1178,7 @@ typedef struct st_dms_callback {
     dms_update_node_lfn update_node_lfn;
 
     dms_get_db_role get_db_role;
+    dms_sync_node_lfn sync_node_lfn;
     dms_check_lrpl_takeover check_lrpl_takeover;
     dms_reset_link reset_link;
     dms_set_online_list set_online_list;

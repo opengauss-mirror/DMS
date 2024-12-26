@@ -917,6 +917,23 @@ static int dms_reform_reload_txn(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_sync_node_lfn(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    LOG_RUN_FUNC_ENTER;
+    int ret = g_dms.callback.sync_node_lfn(g_dms.reform_ctx.handle_normal, share_info->reform_type,
+        share_info->bitmap_online);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
 // set sync wait before done
 static int dms_reform_success(void)
 {
@@ -1951,6 +1968,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2] = { "AZ_FAILOVER_PROMOTE_PHASE2",
         dms_reform_az_failover_promote_phase2, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RELOAD_TXN] = { "RELOAD_TXN", dms_reform_reload_txn, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SYNC_NODE_LFN] = { "SYNC_NODE_LFN", dms_reform_sync_node_lfn, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)

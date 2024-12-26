@@ -273,6 +273,7 @@ drps_desc_t g_drps_desc_t[] = {
     {DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG,              DRPS_LEVEL_TOP,     "AZ_FAILOVER_PROMOTE_RESETLOG"},
     {DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2,                DRPS_LEVEL_TOP,     "AZ_FAILOVER_PROMOTE_PHASE2"},
     {DMS_REFORM_STEP_RELOAD_TXN,                                DRPS_LEVEL_TOP,     "RELOAD_TXN"},
+    {DMS_REFORM_STEP_SYNC_NODE_LFN,                             DRPS_LEVEL_TOP,     "SYNC_NODE_LFN"},
 };
 
 
