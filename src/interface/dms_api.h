@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           177
+#define DMS_LOCAL_VERSION           178
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1005,6 +1005,7 @@ typedef int (*dms_az_switchover_demote_approve)(void *db_handle);
 typedef int (*dms_az_switchover_demote_phase2)(void *db_handle);
 typedef int (*dms_az_switchover_promote_prepare)(void *db_handle);
 typedef int (*dms_az_switchover_promote_phase1)(void *db_handle);
+typedef int (*dms_az_switchover_promote_switch_log)(void *db_handle);
 typedef int (*dms_az_switchover_promote_phase2)(void *db_handle);
 typedef int (*dms_az_promote_success)(void *db_handle);
 typedef void (*dms_dyn_log)(void *db_handle, long long dyn_log_time);
@@ -1217,6 +1218,7 @@ typedef struct st_dms_callback {
     dms_az_switchover_demote_phase2 az_switchover_demote_phase2;
     dms_az_switchover_promote_prepare az_switchover_promote_prepare;
     dms_az_switchover_promote_phase1 az_switchover_promote_phase1;
+    dms_az_switchover_promote_switch_log az_switchover_promote_switch_log;
     dms_az_switchover_promote_phase2 az_switchover_promote_phase2;
     dms_az_promote_success az_promote_success;
     dms_az_failover_promote_phase1 az_failover_promote_phase1;
