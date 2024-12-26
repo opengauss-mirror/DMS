@@ -187,7 +187,7 @@ typedef enum en_reform_step {
     DMS_REFORM_STEP_RELOAD_TXN,
 
     DMS_REFORM_STEP_SYNC_NODE_LFN,
-
+    DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_SWITCH_LOG,   // for Gauss100, AZ SWITCHOVER standby to primary
     DMS_REFORM_STEP_COUNT
 } reform_step_t;
 
