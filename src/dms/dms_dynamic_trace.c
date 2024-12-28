@@ -180,10 +180,10 @@ static int dms_dyn_trc_init_logger(dms_profile_t *dms_profile)
     dms_reset_error();
     errno_t ret;
     log_param_t *log_param = cm_log_param_instance();
-    log_param->log_backup_file_count = DMS_LOG_BACKUP_FILE_COUNT;
-    log_param->audit_backup_file_count = DMS_LOG_BACKUP_FILE_COUNT;
-    log_param->max_log_file_size = DMS_MAX_LOG_FILE_SIZE;
-    log_param->max_audit_file_size = DMS_MAX_LOG_FILE_SIZE;
+    log_param->log_backup_file_count = dms_profile->log_backup_file_count;
+    log_param->audit_backup_file_count = dms_profile->log_backup_file_count;
+    log_param->max_log_file_size = dms_profile->log_max_file_size;
+    log_param->max_audit_file_size = dms_profile->log_max_file_size;
 
     const int file_perm = 600;
     const int path_perm = 700;

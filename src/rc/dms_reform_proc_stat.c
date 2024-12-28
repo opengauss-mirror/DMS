@@ -352,15 +352,6 @@ void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat)
     dms_reform_proc_stat_end(item);
 }
 
-void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat)
-{
-    if (callback_stat >= REFORM_CALLBACK_STAT_COUNT) {
-        return;
-    }
-    uint32 item = (uint32)g_callback_stat_map[callback_stat];
-    dms_reform_proc_stat_times(item);
-}
-
 static bool32 dms_reform_proc_desc_is_skip(uint32 cmd)
 {
     switch (cmd) {
