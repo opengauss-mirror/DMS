@@ -26,6 +26,7 @@
 dms_param_func g_dms_param_func[DMS_PARAM_SS_COUNT] = {
     [DMS_PARAM_SS_INTERCONNECT_URL] = dms_update_connect_url,
     [DMS_PARAM_SS_ELAPSED_SWITCH] = dms_update_elapsed_switch,
+    [DMS_PARAM_SS_DRC_MEM_MAX_SIZE] = dms_update_drc_mem_max_size,
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
     [DMS_PARAM_SS_FI_PACKET_LOSS_ENTRIES] = dms_update_fi_entries_pl,
     [DMS_PARAM_SS_FI_NET_LATENCY_ENTRIES] = dms_update_fi_entries_nl,
@@ -236,6 +237,18 @@ int dms_url_change_check(mes_addr_t *inst_net_addr, uint32 node_cnt)
 status_t dms_update_elapsed_switch(char *value)
 {
     mfc_set_elapsed_switch((bool32)value[0]);
+    return DMS_SUCCESS;
+}
+
+status_t dms_update_drc_mem_max_size(char *value)
+{
+    uint64 val = 0;
+    CM_RETURN_IFERR(cm_str2size(value, (int64 *)&val));
+    if (g_dms.drc_mem_context == NULL || val == 0) {
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "SS_DRC_MAX_MEM_SIZE change failed, drc_mem_context is not available");
+        return DMS_ERROR;
+    }
+    g_dms.drc_mem_context->mem_max_size = val;
     return DMS_SUCCESS;
 }
 

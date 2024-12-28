@@ -43,6 +43,7 @@ typedef status_t (*dms_param_func)(char *value);
 status_t dms_update_param(unsigned int index, char *value);
 status_t dms_update_connect_url(char *value);
 status_t dms_update_elapsed_switch(char *value);
+status_t dms_update_drc_mem_max_size(char *value);
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
 status_t dms_update_fi_entries_pl(char *value);
 status_t dms_update_fi_entries_nl(char *value);
