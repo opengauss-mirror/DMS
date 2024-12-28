@@ -586,6 +586,7 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
     dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_df_recovery();
     dms_reform_judgement_reset_user();
+    dms_reform_judgement_sync_node_lfn();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
@@ -659,6 +660,7 @@ static void dms_reform_judgement_old_remove(instance_list_t *inst_lists)
     dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_df_recovery();
     dms_reform_judgement_reset_user();
+    dms_reform_judgement_sync_node_lfn();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
     dms_reform_judgement_recovery(inst_lists);
