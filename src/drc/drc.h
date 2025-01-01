@@ -57,8 +57,7 @@ extern "C" {
 #define DRC_RECYCLE_THRESHOLD 0.9 /* hardcoded to 90% res pool usage */
 #define DRC_RECYCLE_ALLOC_COUNT 1.1
 #define DLS_LATCH_IS_OWNER(lock_mode) ((lock_mode) == DMS_LOCK_EXCLUSIVE || (lock_mode) == DMS_LOCK_SHARE)
-#define DLS_LATCH_IS_LOCKED(stat) \
-((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
+#define DLS_LATCH_IS_LOCKED(stat) ((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
 
 typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,

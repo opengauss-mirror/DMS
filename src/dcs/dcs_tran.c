@@ -941,7 +941,6 @@ int32 dms_request_create_xa_res(dms_context_t *dms_ctx, uint8 master_id, uint8 u
     req.head.size = (uint16)sizeof(dms_xa_res_req_t);
     req.oper_type = DMS_XA_OPER_CREATE;
     req.undo_set_id = undo_set_id;
-    req.check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
     errno_t ret = memcpy_sp(&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid, sizeof(drc_global_xid_t));
     if (ret != EOK) {
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_CREATE_XA_RES);
@@ -1004,7 +1003,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     }
 
     int32 ret = drc_create_xa_res(proc_ctx->db_handle, proc_ctx->sess_id, xid, req.head.src_inst, req.undo_set_id,
-        req.check_xa_drc);
+        CM_TRUE);
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_CREATE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
@@ -1093,7 +1092,7 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
         return;
     }
 
-    int32 ret = drc_delete_xa_res(xid, req.check_xa_drc);
+    int32 ret = drc_delete_xa_res(xid, CM_TRUE);
     dms_xa_res_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_DELETE_GLOBAL_XA_RES, sizeof(dms_xa_res_ack_t),
         proc_ctx->sess_id);
@@ -1124,7 +1123,7 @@ void dms_proc_ask_xa_owner(dms_process_context_t *ctx, dms_message_t *receive_ms
 
     uint8 owner_id = CM_INVALID_ID8;
     drc_global_xa_res_t *xa_res = NULL;
-    int32 ret = drc_enter_xa_res(xid, &xa_res, req.check_xa_drc);
+    int32 ret = drc_enter_xa_res(xid, &xa_res, CM_TRUE);
     if (ret != DMS_SUCCESS) {
         dms_send_error_ack(ctx, req.head.src_inst, req.head.src_sid, req.head.ruid, ret, req.head.msg_proto_ver);
         return;
@@ -1163,9 +1162,8 @@ static int32 dms_ask_xa_owner_local(dms_context_t *dms_ctx, uint8 *owner_id)
     drc_global_xid_t *global_xid = &dms_ctx->global_xid;
     drc_global_res_map_t *res_map = drc_get_global_res_map(DRC_RES_GLOBAL_XA_TYPE);
     drc_res_bucket_t *bucket = drc_res_map_get_bucket(&res_map->res_map, (char *)global_xid, sizeof(drc_global_xid_t));
-    bool32 check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
 
-    int32 ret = drc_enter_xa_res(global_xid, &xa_res, check_xa_drc);
+    int32 ret = drc_enter_xa_res(global_xid, &xa_res, CM_TRUE);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -1193,7 +1191,6 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
         CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_ask_xa_owner_req_t);
     req.sess_type = dms_ctx->sess_type;
-    req.check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
     errno_t err = memcpy_sp((char *)&req.xa_xid, sizeof(drc_global_xid_t), &dms_ctx->global_xid,
         sizeof(drc_global_xid_t));
     if (err != EOK) {
