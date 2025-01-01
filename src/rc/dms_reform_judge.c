@@ -1020,6 +1020,12 @@ static bool32 dms_reform_judgement_new_join_check(instance_list_t *inst_lists)
         return CM_FALSE;
     }
 
+    if (g_dms.callback.db_in_rollback(g_dms.reform_ctx.handle_judge)) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, db in rollback");
+        dms_reform_judgement_stat_cancel();
+        return CM_FALSE;
+    }
+
     return CM_TRUE;
 }
 

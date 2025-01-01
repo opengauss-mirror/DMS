@@ -909,6 +909,18 @@ static unsigned short dms_get_msg_cmd(char *buff)
     return (unsigned short)(dms_head->cmd);
 }
 
+int dms_mes_interrupt(void *arg, int wait_time)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    if (reform_info->is_locking) {
+        return CM_TRUE;
+    }
+    if (dms_reform_in_process() && wait_time >= MILLISECS_PER_SECOND) {
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
+
 int dms_init_mes(dms_profile_t *dms_profile)
 {
     int ret;
@@ -924,6 +936,7 @@ int dms_init_mes(dms_profile_t *dms_profile)
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
     mes_set_app_cmd_cb(dms_get_msg_cmd);
+    mes_register_interrupt(dms_mes_interrupt);
     // save g_cbb_mes address
     g_dms.mes_ptr = mes_get_global_inst();
 
@@ -1663,8 +1676,7 @@ int dms_create_global_xa_res(dms_context_t *dms_ctx, uint8 owner_id, uint8 undo_
 
     if (master_id == dms_ctx->inst_id) {
         *remote_result = DMS_SUCCESS;
-        bool32 check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
-        ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, global_xid, owner_id, undo_set_id, check_xa_drc);
+        ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, global_xid, owner_id, undo_set_id, CM_TRUE);
         if (ret == ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS && ignore_exist) {
             return DMS_SUCCESS;
         } else {
@@ -1694,8 +1706,7 @@ int dms_delete_global_xa_res(dms_context_t *dms_ctx, uint32 *remote_result)
 
     if (master_id == dms_ctx->inst_id) {
         *remote_result = DMS_SUCCESS;
-        bool32 check_xa_drc = (bool32)dms_is_recovery_session(dms_ctx->sess_id);
-        return drc_delete_xa_res(global_xid, check_xa_drc);
+        return drc_delete_xa_res(global_xid, CM_TRUE);
     }
     
     return dms_request_delete_xa_res(dms_ctx, master_id, remote_result);
