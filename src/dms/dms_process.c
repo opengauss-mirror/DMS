@@ -1141,8 +1141,8 @@ static int init_drc_mem_context(dms_profile_t *dms_profile)
         return DMS_SUCCESS;
     }
     cm_memory_allocator_t memory_allocator = {
-        .malloc_proc = (g_dms.callback.dms_malloc_prot == NULL ? malloc : g_dms.callback.dms_malloc_prot),
-        .free_proc = (g_dms.callback.dms_free_prot == NULL ? free : g_dms.callback.dms_free_prot)
+        .malloc_proc = (g_dms.callback.drc_malloc_prot == NULL ? malloc : g_dms.callback.drc_malloc_prot),
+        .free_proc = (g_dms.callback.drc_free_prot == NULL ? free : g_dms.callback.drc_free_prot)
     };
 
     g_dms.drc_mem_context =
@@ -1423,9 +1423,6 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
         dms_profile->max_alive_time_for_abnormal_status = DEFAULT_TIME_FOR_ABNORMAL_STATUS;
     }
     dms_init_cluster_proto_version();
-    if (g_dms.callback.dms_malloc_prot != NULL) {
-        regist_cm_malloc_proc(g_dms.callback.dms_malloc_prot, g_dms.callback.dms_free_prot);
-    }
     cm_set_spin_sleep_time(dms_profile->spin_sleep_time_nsec);
     LOG_RUN_INF("[DMS] dms_set_global_dms end");
 }
