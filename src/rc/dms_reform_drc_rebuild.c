@@ -421,17 +421,6 @@ int dms_reform_lock_res_need_rebuild(drc_local_lock_res_t *lock_res, unsigned in
     return DMS_SUCCESS;
 }
 
-static inline drc_local_lock_res_t *pool_get_local_lock_by_id(drc_res_pool_t *res_pool, uint64 drc_id)
-{
-    uint64 addr_id = drc_id / res_pool->extend_step;
-    uint64 offset = drc_id - addr_id * (uint64)(res_pool->extend_step);
-    char *addr = (char *)cm_ptlist_get(&res_pool->addr_list, addr_id);
-    if (addr == NULL) {
-        return NULL;
-    }
-    return (drc_local_lock_res_t *)(addr + offset * sizeof(drc_local_lock_res_t));
-}
-
 static int dms_reform_rebuild_drc_by_local_lock(drc_local_lock_res_t *lock_res, uint8 thread_index)
 {
     dms_reform_proc_stat_start(DRPS_DRC_REBUILD_LOCK_RES);
@@ -454,21 +443,20 @@ int dms_reform_rebuild_lock(uint32 sess_id, uint8 thread_index, uint8 thread_num
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_res_pool_t *res_pool = &ctx->local_lock_res.res_pool;
-    uint64 pool_begin = 0;
-    uint64 pool_end = res_pool->item_num;
+    uint32 item_begin = 0;
+    uint32 step = 1;
 
     // if parallel
     if (thread_index != CM_INVALID_ID8) {
-        uint32 pool_task_num = (res_pool->item_num + thread_num - 1) / thread_num; // round up
-        pool_begin = thread_index * pool_task_num;
-        pool_end = MIN(pool_begin + pool_task_num, res_pool->item_num);
+        item_begin = thread_index;
+        step = thread_num;
     }
 
     drc_local_lock_res_t *lock_res;
     bool32 need_rebuild = CM_FALSE;
 
-    for (uint64 i = pool_begin; i < pool_end; ++i) {
-        lock_res = pool_get_local_lock_by_id(res_pool, i);
+    for (uint32 i = item_begin; i < res_pool->item_hwm; i += step) {
+        lock_res = (drc_local_lock_res_t *)drc_pool_find_item(res_pool, i);
         if (lock_res == NULL) {
             break;
         }

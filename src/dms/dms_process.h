@@ -229,7 +229,7 @@ static inline void dms_get_one_thread(thread_set_t *thread_set, thread_t *thread
     thread_set->thread_count++;
 }
 
-void dms_global_res_reinit(drc_global_res_map_t *global_res, uint8 thread_index, uint8 thread_num, bilist_t *temp);
+void dms_global_res_reinit(drc_global_res_map_t *global_res);
 int dms_dyn_trc_init_logger_handle();
 
 #ifdef __cplusplus

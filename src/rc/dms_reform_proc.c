@@ -1669,17 +1669,33 @@ static int dms_reform_space_reload(void)
 static int dms_reform_drc_inaccess(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
+    share_info_t *share_info = DMS_SHARE_INFO;
 
-    if (!dms_reform_type_is(DMS_REFORM_TYPE_FOR_MAINTAIN)) {
-        drc_buf_res_set_inaccess(&ctx->global_lock_res);
-        drc_buf_res_set_inaccess(&ctx->global_alock_res);
-
-        if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_NORMAL)) {
+    switch (share_info->reform_type) {
+        case DMS_REFORM_TYPE_FOR_NEW_JOIN:
             drc_buf_res_set_inaccess(&ctx->global_xa_res);
-        }
-    }
+            if (!share_info->catalog_centralized) {
+                drc_buf_res_set_inaccess(&ctx->global_lock_res);
+                drc_buf_res_set_inaccess(&ctx->global_alock_res);
+                drc_buf_res_set_inaccess(&ctx->global_buf_res);
+            }
+            break;
 
-    drc_buf_res_set_inaccess(&ctx->global_buf_res);
+        case DMS_REFORM_TYPE_FOR_NORMAL:
+        case DMS_REFORM_TYPE_FOR_OLD_REMOVE:
+        case DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY:
+            drc_buf_res_set_inaccess(&ctx->global_xa_res);
+            drc_buf_res_set_inaccess(&ctx->global_lock_res);
+            drc_buf_res_set_inaccess(&ctx->global_alock_res);
+            drc_buf_res_set_inaccess(&ctx->global_buf_res);
+            break;
+
+        default:
+            drc_buf_res_set_inaccess(&ctx->global_lock_res);
+            drc_buf_res_set_inaccess(&ctx->global_alock_res);
+            drc_buf_res_set_inaccess(&ctx->global_buf_res);
+            break;
+    }
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
 
@@ -1874,7 +1890,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_START] = { "START", dms_reform_start, NULL, CM_FALSE },
     [DMS_REFORM_STEP_DISCONNECT] = { "DISCONN", dms_reform_disconnect, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RECONNECT] = { "RECONN", dms_reform_reconnect, dms_reform_reconnect_parallel, CM_FALSE },
-    [DMS_REFORM_STEP_FULL_CLEAN] = { "FULL_CLEAN", dms_reform_full_clean, dms_reform_full_clean_parallel, CM_TRUE },
+    [DMS_REFORM_STEP_FULL_CLEAN] = { "FULL_CLEAN", dms_reform_full_clean, NULL, CM_TRUE },
     [DMS_REFORM_STEP_MIGRATE] = { "MIGRATE", dms_reform_migrate, dms_reform_migrate_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REBUILD] = { "REBUILD", dms_reform_rebuild, dms_reform_rebuild_parallel, CM_FALSE },
     [DMS_REFORM_STEP_REMASTER] = { "REMASTER", dms_reform_remaster, NULL, CM_TRUE },
