@@ -917,7 +917,7 @@ void fill_dv_drc_buf_info(drc_head_t *drc, dv_drc_buf_info *res_buf_info)
 
 static void find_valid_drc_buf(drc_res_pool_t *pool, uint64 *index, dv_drc_buf_info *res_buf_info)
 {
-    while (*index < pool->item_num) {
+    while (*index < pool->item_hwm) {
         drc_head_t *drc_head = (drc_head_t *)drc_pool_find_item(pool, *index);
         if (drc_head == NULL) {
             res_buf_info->is_valid = CM_FALSE;

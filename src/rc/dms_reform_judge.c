@@ -612,9 +612,16 @@ static void dms_reform_judgement_normal(instance_list_t *inst_lists)
 
 static void dms_reform_judgement_new_join(instance_list_t *inst_lists)
 {
+    share_info_t *share_info = DMS_SHARE_INFO;
     dms_reform_judgement_prepare();
     dms_reform_judgement_reconnect(inst_lists);
     dms_reform_judgement_start();
+    dms_reform_judgement_drc_inaccess();
+    if (!share_info->catalog_centralized) {
+        dms_reform_judgement_lock_instance();
+        dms_reform_judgement_drc_clean(inst_lists);
+        dms_reform_judgement_rebuild(inst_lists);
+    }
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_sync_node_lfn();
@@ -1197,7 +1204,6 @@ static void dms_reform_judgement_reform_type(instance_list_t *list)
 #else
 static bool8 dms_reform_judgement_reform_type_optimize(instance_list_t *list)
 {
-    reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     share_info_t *share_info = DMS_SHARE_INFO;
 
     // there is only new_join and there is old_in
@@ -1214,11 +1220,7 @@ static bool8 dms_reform_judgement_reform_type_optimize(instance_list_t *list)
         list[INST_LIST_NEW_JOIN].inst_id_count == 0 &&
         list[INST_LIST_OLD_JOIN].inst_id_count == 0 &&
         list[INST_LIST_OLD_REMOVE].inst_id_count != 0) {
-        if (g_dms.callback.check_shutdown_consistency(reform_ctx->handle_judge, &list[INST_LIST_OLD_REMOVE])) {
-            share_info->reform_type = DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY;
-        } else {
-            share_info->reform_type = DMS_REFORM_TYPE_FOR_OLD_REMOVE;
-        }
+        share_info->reform_type = DMS_REFORM_TYPE_FOR_OLD_REMOVE;
         return CM_TRUE;
     }
 
@@ -1454,7 +1456,6 @@ static void dms_reform_judgement_before_proc(instance_list_t *inst_lists)
         case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
         case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
         case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
-        case DMS_REFORM_TYPE_FOR_NEW_JOIN:
             reform_info->has_ddl_2phase = CM_FALSE;
             break;
 
@@ -1466,6 +1467,7 @@ static void dms_reform_judgement_before_proc(instance_list_t *inst_lists)
             share_info->full_clean = CM_TRUE;
             break;
 
+        case DMS_REFORM_TYPE_FOR_NEW_JOIN:
         case DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY:
             reform_info->has_ddl_2phase = CM_FALSE;
             share_info->full_clean = CM_TRUE;

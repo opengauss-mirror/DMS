@@ -49,7 +49,6 @@ extern "C" {
 #define DRC_DEFAULT_ALOCK_RES_NUM (SIZE_K(10))
 #define DRC_RES_NODE_OF(type, node, field) ((type *)((char *)(node) - OFFSET_OF(type, field)))
 #define DRC_RES_EXTEND_MAX_NUM DMS_MAX_INSTANCES
-#define DRC_RES_EXTEND_TRY_TIMES 3
 #define DRC_SMON_QUEUE_SIZE 10000
 #define DRC_BUF_RES_MAP (&g_drc_res_ctx.global_buf_res.res_map)
 #define DRC_BUF_RES_POOL (&g_drc_res_ctx.global_buf_res.res_map.res_pool)
@@ -57,8 +56,6 @@ extern "C" {
 #define DRC_LOCK_RES_POOL (&g_drc_res_ctx.global_lock_res.res_map.res_pool)
 #define DRC_RECYCLE_THRESHOLD 0.9 /* hardcoded to 90% res pool usage */
 #define DRC_RECYCLE_ALLOC_COUNT 1.1
-#define DRC_RECYCLE_GREEDY_CNT 0 /* recycle as many as possible */
-#define DRC_RECYCLE_ONE_CNT 1
 #define DLS_LATCH_IS_OWNER(lock_mode) ((lock_mode) == DMS_LOCK_EXCLUSIVE || (lock_mode) == DMS_LOCK_SHARE)
 #define DLS_LATCH_IS_LOCKED(stat) \
 ((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
@@ -147,8 +144,9 @@ typedef struct st_drc_res_pool {
     spinlock_t  lock;
     bool32      inited;
     bilist_t    free_list;
-    uint32      item_num;
-    uint32      used_num;
+    uint32      item_num;       // total
+    uint32      item_hwm;       // has been alloc from buffer
+    uint32      used_num;       // item_hwm - num in free list
     uint32      extend_step;
     uint32      max_extend_num;
     bool32      need_recycle;
@@ -157,7 +155,7 @@ typedef struct st_drc_res_pool {
 } drc_res_pool_t;
 
 int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 max_extend_num, uint32 res_size, uint32 res_num);
-void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_num, bilist_t *temp);
+void drc_res_pool_reinit(drc_res_pool_t *pool);
 void drc_res_pool_destroy(drc_res_pool_t *pool);
 char *drc_res_pool_alloc_item(drc_res_pool_t *pool);
 void drc_res_pool_free_item(drc_res_pool_t *pool, char *res);
@@ -167,6 +165,7 @@ typedef uint32 (*res_hash_callback)(int32 res_type, char* resid, uint32 len);
 
 typedef struct st_drc_res_bucket {
     spinlock_t  lock;
+    uint32      bucket_version;
     bilist_t    bucket_list;
 } drc_res_bucket_t;
 
@@ -174,6 +173,7 @@ typedef struct st_drc_res_map {
     bool32      inited;
     int32       res_type;
     uint32      bucket_num;
+    uint32      bucket_version;
     drc_res_pool_t      res_pool;
     drc_res_bucket_t*   buckets;
     res_cmp_callback    res_cmp_func;
@@ -182,7 +182,7 @@ typedef struct st_drc_res_map {
 
 int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_type, uint32 item_num,
     uint32 item_size, res_cmp_callback res_cmp, res_hash_callback res_hash);
-void drc_res_map_reinit(drc_res_map_t *res_map, uint8 thread_index, uint8 thread_num, bilist_t *temp);
+void drc_res_map_reinit(drc_res_map_t *res_map);
 void drc_res_map_destroy(drc_res_map_t* res_map);
 drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, uint32 len);
 void drc_res_map_add_res(drc_res_bucket_t* bucket, char* res);

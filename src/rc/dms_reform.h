@@ -479,14 +479,6 @@ typedef union st_resource_id {
     };
 } resource_id_t;
 
-typedef struct st_full_clean_assist {
-    bilist_t            temp_convert_q;
-    bilist_t            temp_page;
-    bilist_t            temp_lock;
-    bilist_t            temp_alock;
-    bilist_t            temp_xa;
-} full_clean_assist_t;
-
 typedef struct st_parallel_thread {
     cm_sem_t            sem;
     thread_t            thread;
@@ -498,7 +490,6 @@ typedef struct st_parallel_thread {
     int                 res_num;                            // assigned resource num
     resource_id_t       res_id[DMS_PARALLEL_MAX_RESOURCE];  // assigned resource id
     void                *data[DMS_MAX_INSTANCES];           // if need send message in parallel proc
-    full_clean_assist_t full_clean_assist;
 } parallel_thread_t;
 
 typedef void(*dms_assign_proc)(void);

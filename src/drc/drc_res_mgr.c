@@ -85,15 +85,6 @@ static void drc_init_over2g_buffer(void* dest_addr, int c, size_t dest_size)
     return;
 }
 
-static inline void drc_add_items(drc_res_pool_t *pool, char *addr, uint32 res_size, uint32 res_num)
-{
-    bilist_node_t* curr_node = (bilist_node_t*)(addr);
-    for (uint32 i = 0; i < res_num; i++) {
-        cm_bilist_add_tail(curr_node, &pool->free_list);
-        curr_node = (bilist_node_t*)((char*)curr_node + res_size);
-    }
-}
-
 int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_size, uint32 res_num)
 {
     status_t ret = memset_s(pool, sizeof(drc_res_pool_t), 0, sizeof(drc_res_pool_t));
@@ -111,14 +102,13 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
     }
-    
-    drc_init_over2g_buffer(addr, 0, sz);
-    drc_add_items(pool, addr, res_size, res_num);
+
     cm_bilist_init(&pool->free_list);
+    GS_INIT_SPIN_LOCK(pool->lock);
     pool->item_num = res_num;
+    pool->item_hwm = 0;
     pool->used_num = 0;
     pool->item_size = (uint64)res_size;
-    pool->lock = 0;
     pool->inited = CM_TRUE;
     pool->need_recycle = CM_FALSE;
     pool->extend_step = res_num;
@@ -126,25 +116,14 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
     return DMS_SUCCESS;
 }
 
-void drc_res_pool_reinit(drc_res_pool_t *pool, uint8 thread_index, uint8 thread_num, bilist_t *temp)
+void drc_res_pool_reinit(drc_res_pool_t *pool)
 {
-    if (thread_index == 0) {
-        pool->used_num = 0;
-        cm_bilist_init(&pool->free_list);
-    }
-    uint64 total_count = pool->extend_step;
-    uint64 task_num = (total_count + thread_num - 1) / thread_num;
-    uint64 task_begin = thread_index * task_num;
-    uint64 task_end = MIN(task_begin + task_num, total_count);
-    
-    for (uint32 i = 0; i < pool->addr_list.count; i++) {
-        char *addr = (char *)cm_ptlist_get(&pool->addr_list, i);
-        for (uint64 j = task_begin; j < task_end; j++) {
-            bilist_node_t *node = (bilist_node_t *)(addr + j * pool->item_size);
-            cm_bilist_node_init(node);
-            cm_bilist_add_tail(node, temp);
-        }
-    }
+    cm_spin_lock(&pool->lock, NULL);
+    cm_bilist_init(&pool->free_list);
+    pool->item_hwm = 0;
+    pool->used_num = 0;
+    pool->need_recycle = CM_FALSE;
+    cm_spin_unlock(&pool->lock);
 }
 
 /*
@@ -163,8 +142,6 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
         pool->need_recycle = CM_TRUE;
         return CM_FALSE;
     }
-    drc_init_over2g_buffer(addr, 0, sz);
-    drc_add_items(pool, addr, pool->item_size, pool->extend_step);
     pool->item_num += pool->extend_step;
     pool->need_recycle = pool->addr_list.count >= pool->max_extend_num;
     return CM_TRUE;
@@ -193,14 +170,36 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
     cm_spin_unlock(&pool->lock);
 }
 
+char *drc_res_pool_alloc_item_inner(drc_res_pool_t *pool)
+{
+    // 1. try alloc item from free list
+    if (!cm_bilist_empty(&pool->free_list)) {
+        return (char *)cm_bilist_pop_first(&pool->free_list);
+    }
+
+    // 2. try extend buffer
+    if (pool->item_hwm == pool->item_num) {
+        if (!drc_res_pool_extend(pool)) {
+            return NULL;
+        }
+    }
+
+    // 3. alloc form buffer
+    CM_ASSERT(pool->item_hwm < pool->item_num);
+    char *addr = drc_pool_find_item(pool, pool->item_hwm);
+    CM_ASSERT(addr != NULL);
+    pool->item_hwm++;
+    return addr;
+}
+
 char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
 {
     cm_spin_lock(&pool->lock, NULL);
-    if (cm_bilist_empty(&pool->free_list) && !drc_res_pool_extend(pool)) {
+    char *item_addr = drc_res_pool_alloc_item_inner(pool);
+    if (item_addr == NULL) {
         cm_spin_unlock(&pool->lock);
         return NULL;
     }
-    char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
     pool->used_num++;
     cm_spin_unlock(&pool->lock);
     errno_t err = memset_s(item_addr, pool->item_size, 0, pool->item_size);
@@ -229,6 +228,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
     res_map->bucket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
     bucket_size = (uint64)(res_map->bucket_num * sizeof(drc_res_bucket_t));
     res_map->buckets = (drc_res_bucket_t*)dms_malloc(g_dms.drc_mem_context, bucket_size);
+
     if (res_map->buckets == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -241,6 +241,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
         return ret;
     }
 
+    res_map->bucket_version = 0;
     res_map->res_type = res_type;
     res_map->res_cmp_func = res_cmp;
     res_map->res_hash_func = res_hash;
@@ -249,15 +250,10 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
     return DMS_SUCCESS;
 }
 
-void drc_res_map_reinit(drc_res_map_t *res_map, uint8 thread_index, uint8 thread_num, bilist_t *temp)
+void drc_res_map_reinit(drc_res_map_t *res_map)
 {
-    uint64 total_count = res_map->bucket_num;
-    uint64 task_num = (total_count + thread_num - 1) / thread_num;
-    uint64 task_begin = thread_index * task_num;
-    uint64 task_end = MIN(task_begin + task_num, total_count);
-    uint64 bucket_size = (task_end - task_begin) * sizeof(drc_res_bucket_t);
-    drc_init_over2g_buffer(&res_map->buckets[task_begin], 0, bucket_size);
-    drc_res_pool_reinit(&res_map->res_pool, thread_index, thread_num, temp);
+    res_map->bucket_version++;
+    drc_res_pool_reinit(&res_map->res_pool);
 }
 
 void drc_res_map_destroy(drc_res_map_t* res_map)
@@ -562,6 +558,11 @@ void drc_res_map_add_res(drc_res_bucket_t* bucket, char* res)
  */
 char* drc_res_map_lookup(const drc_res_map_t* res_map, drc_res_bucket_t* res_bucket, char* resid, uint32 len)
 {
+    if (res_bucket->bucket_version != res_map->bucket_version) {
+        cm_bilist_init(&res_bucket->bucket_list);
+        res_bucket->bucket_version = res_map->bucket_version;
+    }
+
     bilist_node_t *iter_node = cm_bilist_head(&res_bucket->bucket_list);
 
     while (iter_node != NULL) {
@@ -897,7 +898,7 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_res_pool_t *pool = &ctx->local_lock_res.res_pool;
 
-    while (*vmid < pool->item_num) {
+    while (*vmid < pool->item_hwm) {
         drc_local_lock_res_t *lock_res = (drc_local_lock_res_t *)drc_pool_find_item(pool, *vmid);
         if (lock_res == NULL) {
             drc_local_lock_res_result->is_valid = CM_FALSE;

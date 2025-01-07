@@ -218,15 +218,6 @@ static int dms_reform_reconnect_parallel_proc(resource_id_t *res_id, parallel_th
     return mfc_add_instance_batch(&res_id->node_id, 1, CM_FALSE);
 }
 
-static int dms_reform_full_clean_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
-{
-    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
-    uint8 thread_index = (uint8)parallel->index;
-    uint8 thread_num = (uint8)parallel_info->parallel_num;
-    dms_reform_full_clean_reinit(thread_index, thread_num, &parallel->full_clean_assist);
-    return DMS_SUCCESS;
-}
-
 static int dms_reform_migrate_parallel_proc(resource_id_t *res_id, parallel_thread_t *parallel)
 {
     return dms_reform_migrate_inner(&res_id->migrate_task, parallel->handle, parallel->sess_id);
@@ -290,9 +281,6 @@ static int dms_reform_repair_parallel_proc(resource_id_t *res_id, parallel_threa
 dms_reform_parallel_t g_dms_reform_parallels[DMS_REFORM_PARALLEL_COUNT] = {
     [DMS_REFORM_PARALLEL_RECONNECT] = { "dms_reform_reconnect_parallel",
         dms_reform_parallel_assign_channels, dms_reform_reconnect_parallel_proc },
-
-    [DMS_REFORM_PARALLEL_FULL_CLEAN] = { "dms_reform_full_clean_parallel",
-        dms_reform_parallel_assign_thread, dms_reform_full_clean_parallel_proc },
 
     [DMS_REFORM_PARALLEL_MIGRATE] = { "dms_reform_migrate_parallel",
         dms_reform_parallel_assign_migrate_task, dms_reform_migrate_parallel_proc },
@@ -419,23 +407,6 @@ int dms_reform_reconnect_parallel(void)
     reform_info->bitmap_connect = share_info->bitmap_online;
     reform_info->bitmap_in = share_info->bitmap_in;
     return DMS_SUCCESS;
-}
-
-int dms_reform_full_clean_parallel(void)
-{
-    parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
-    for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
-        parallel_thread_t *parallel_thread = &parallel_info->parallel[i];
-        full_clean_assist_t *assist = &parallel_thread->full_clean_assist;
-        dms_reform_full_clean_init_assist(assist);
-    }
-    int ret = dms_reform_parallel(DMS_REFORM_PARALLEL_FULL_CLEAN);
-    for (uint32 i = 0; i < parallel_info->parallel_num; i++) {
-        parallel_thread_t *parallel_thread = &parallel_info->parallel[i];
-        full_clean_assist_t *assist = &parallel_thread->full_clean_assist;
-        dms_reform_full_clean_concat_free_list(assist);
-    }
-    return ret;
 }
 
 int dms_reform_migrate_parallel(void)
