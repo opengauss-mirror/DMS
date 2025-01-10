@@ -180,7 +180,7 @@ int dms_reform_migrate(void)
     for (uint8 i = 0; i < local_migrate_info.migrate_task_num; i++) {
         migrate_task = &local_migrate_info.migrate_task[i];
         ret = dms_reform_migrate_inner(migrate_task, reform_ctx->handle_proc, reform_ctx->sess_proc);
-        DMS_BREAK_IF_ERROR(ret);
+        DMS_BREAK_IF(ret != DMS_SUCCESS);
     }
     drc_enter_buf_res_set_unblocked();
     if (ret != DMS_SUCCESS) {

@@ -1720,7 +1720,7 @@ void dms_reform_proc_repair(dms_process_context_t *process_ctx, dms_message_t *r
         item = (repair_item_t *)((uint8 *)buffer + offset);
         offset += (uint32)sizeof(repair_item_t);
         ret = dms_reform_proc_repair_inner(process_ctx, item);
-        DMS_BREAK_IF_ERROR(ret);
+        DMS_BREAK_IF(ret != DMS_SUCCESS);
     }
 
     dms_reform_ack_common_t ack_common;

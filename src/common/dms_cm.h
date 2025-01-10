@@ -72,13 +72,21 @@ extern "C" {
         }                                                                 \
     }
 
-// break the loop if ret is not GS_SUCCESS
-#define DMS_BREAK_IF_ERROR(ret)         \
-    {                                   \
-        if ((ret) != CM_SUCCESS) {      \
-            break;                      \
-        }                               \
+// break the loop if con is true
+#define DMS_BREAK_IF(con) \
+    {                     \
+        if (con) {        \
+            break;        \
+        }                 \
     }
+
+#define DMS_CONTINUE_IF(con) \
+    {                        \
+        if (con) {           \
+            continue;        \
+        }                    \
+    }
+
 
 char *cm_display_pageid(char pageid[DMS_PAGEID_SIZE]);
 char *cm_display_xid(char xid[DMS_XID_SIZE]);
