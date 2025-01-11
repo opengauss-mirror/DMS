@@ -24,8 +24,7 @@
 
 #include "dms_reform_judge_step.h"
 #include "cm_timer.h"
-#include "dms_error.h"
-#include "dms_process.h"
+#include "drc_res_mgr.h"
 
 void dms_reform_judgement_prepare(void)
 {
@@ -94,7 +93,7 @@ void dms_reform_part_copy_inner(drc_inst_part_t *dst_tbl, drc_inst_part_t *src_t
     DMS_SECUREC_CHECK(err);
 
     size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
-    if (src_tbl == NULL) {
+    if (src_map == NULL) {
         err = memset_s(dst_map, size, 0, size);
     } else {
         err = memcpy_s(dst_map, size, src_map, size);

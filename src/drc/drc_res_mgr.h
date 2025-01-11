@@ -97,6 +97,7 @@ void drc_shift_to_head(drc_head_t *drc);
 void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
 int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc);
 void drc_leave(drc_head_t *drc, uint8 options);
+void drc_unlatch(uint8 res_type, uint8 options);
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master);
 void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
 void drc_recycle_thread(thread_t *thread);
@@ -108,13 +109,8 @@ void drc_enter_buf_res_set_blocked(void);
 void drc_enter_buf_res_set_unblocked(void);
 void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *bucket);
 int32 drc_get_page_old_master_id(char *pageid, unsigned char *master_id);
-bool8 drc_cmp_part_info(void);
-void drm_release_drc(char *data, uint16 len, uint8 type, uint8 options);
-void drm_thread_set_pause(void);
-void drm_thread_set_running(void);
-int drm_thread_init(void);
-void drm_thread_deinit(void);
-void drm_trigger(void);
+uint8 drc_get_deposit_id(uint8 instance_id);
+void drc_init_deposit_map(void);
 
 typedef struct st_drm_migrate_page {
     char                resid[DMS_PAGEID_SIZE];

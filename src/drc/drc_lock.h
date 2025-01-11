@@ -97,6 +97,47 @@ static inline bool8 drc_get_lock_resx_by_dlatch(dms_drlatch_t *dlatch, drc_local
     return ret;
 }
 
+// use BKDR hash algorithm, get the hash id
+static inline uint32 drc_resource_id_hash(char *id, uint32 len, uint32 range)
+{
+    uint32 seed = 131; // this is BKDR hash seed: 31 131 1313 13131 131313 etc..
+    uint32 hash = 0;
+    uint32 i;
+
+    for (i = 0; i < len; i++) {
+        hash = hash * seed + (*id++);
+    }
+
+    return (hash % range);
+}
+
+static inline uint16 drc_get_lock_partid(char *id, uint32 len, uint32 range)
+{
+    uint32 trunc_len = 0;
+#ifndef OPENGAUSS
+    if (DMS_DR_IS_TABLE_TYPE(((dms_drid_t *)id)->type)) {
+        // Ignoring part id is to hash the table and partition into the same part, accelerating table lcok rebuild.
+        trunc_len = (uint32)(sizeof(((dms_drid_t *)0)->parent) + sizeof(((dms_drid_t *)0)->part));
+    }
+#endif
+
+    return (uint16)drc_resource_id_hash(id, len - trunc_len, range);
+}
+
+static inline int32 drc_get_lock_master_id(void *lock_id, uint8 len, uint8 *master_id)
+{
+    uint32 part_id = drc_get_lock_partid((char *)lock_id, len, DRC_MAX_PART_NUM);
+    *master_id = DRC_PART_MASTER_ID(part_id);
+    return CM_SUCCESS;
+}
+
+static inline int32 drc_get_lock_old_master_id(void *lock_id, uint8 len, uint8 *master_id)
+{
+    uint32 part_id = drc_get_lock_partid((char *)lock_id, len, DRC_MAX_PART_NUM);
+    *master_id = DRC_PART_OLD_MASTER_ID(part_id);
+    return CM_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif

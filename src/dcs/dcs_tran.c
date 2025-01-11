@@ -1005,7 +1005,7 @@ void dms_proc_create_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_xa_res_req_t), CM_TRUE);
     dms_xa_res_req_t *req = (dms_xa_res_req_t *)receive_msg->buffer;
     drc_global_xid_t *xid = &req->xa_xid;
-    if (!dms_proc_check_xid_valid(xid)) {
+    if (req->oper_type != DMS_XA_OPER_CREATE || !dms_proc_check_xid_valid(xid)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa creation");
         return;
     }
@@ -1091,9 +1091,8 @@ void dms_proc_delete_xa_res(dms_process_context_t *proc_ctx, dms_message_t *rece
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_xa_res_req_t), CM_TRUE);
     dms_xa_res_req_t req = *(dms_xa_res_req_t *)receive_msg->buffer;
-
     drc_global_xid_t *xid = &req.xa_xid;
-    if (!dms_proc_check_xid_valid(xid)) {
+    if (req.oper_type != DMS_XA_OPER_DELETE || !dms_proc_check_xid_valid(xid)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_DRC_XA_RES_NOT_EXISTS, "invalid xid for xa deletion");
         return;
     }

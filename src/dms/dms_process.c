@@ -23,13 +23,11 @@
  */
 
 #include "dms_process.h"
-#include "dms_stat.h"
 #include "dcs_dc.h"
 #include "dcs_msg.h"
 #include "dcs_page.h"
 #include "dcs_cr_page.h"
 #include "dcs_tran.h"
-#include "dls_msg.h"
 #include "dms_error.h"
 #include "dms_msg.h"
 #include "dms_msg_command.h"
@@ -40,17 +38,13 @@
 #include "dcs_ckpt.h"
 #include "dcs_smon.h"
 #include "mes_metadata.h"
-#include "mes_interface.h"
 #include "cm_timer.h"
-#include "dms_reform.h"
-#include "dms_reform_msg.h"
 #include "scrlock_adapter.h"
-#include "cm_log.h"
 #include "dms_reform_xa.h"
-#include "fault_injection.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_alock.h"
 #include "dms_dynamic_trace.h"
+#include "dms_smon.h"
 
 #ifndef WIN32
 #include <sys/prctl.h>
@@ -301,6 +295,24 @@ static bool32 dms_same_global_xid(char *res, const char *res_id, uint32 len)
     }
 
     return CM_TRUE;
+}
+
+static uint32 dms_xa_res_hash(int32 res_type, char *resid, uint32 len)
+{
+    uint32 offset = 0;
+    drc_global_xid_t *xid = (drc_global_xid_t *)resid;
+    char buffer[DMS_MAX_XA_BASE16_GTRID_LEN + DMS_MAX_XA_BASE16_BQUAL_LEN + sizeof(uint64)] = { 0 };
+    char *xid_pointer = buffer;
+    *(uint64 *)xid_pointer = xid->fmt_id;
+    offset += sizeof(uint64);
+    int32 ret = memcpy_sp(xid_pointer + offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
+    DMS_SECUREC_CHECK(ret);
+    offset += xid->gtrid_len;
+    if (xid->bqual_len > 0) {
+        ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
+        DMS_SECUREC_CHECK(ret);
+    }
+    return cm_hash_bytes((uint8 *)buffer, offset, INFINITE_HASH_RANGE);
 }
 
 /* Reform-related messages are exempt from GCV check or instance lock. */
@@ -980,6 +992,20 @@ static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
     }
 
     return ret;
+}
+
+static bool32 dms_same_page(char *res, const char *resid, uint32 len)
+{
+    drc_page_t *drc_page = (drc_page_t *)res;
+    if (drc_page == NULL || resid == NULL || len == 0) {
+        cm_panic(0);
+    }
+    return memcmp(drc_page->data, resid, len) == 0 ? CM_TRUE : CM_FALSE;
+}
+
+static uint32 dms_res_hash(int32 res_type, char *resid, uint32 len)
+{
+    return cm_hash_bytes((uint8 *)resid, len, INFINITE_HASH_RANGE);
 }
 
 static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
