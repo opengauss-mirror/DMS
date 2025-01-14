@@ -467,6 +467,22 @@ static int dms_reform_az_switchover_promote_phase2(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_az_promote_success(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_promote_success(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_az_switch_demote_phase1(void)
 {
     int ret = DMS_SUCCESS;
@@ -1976,6 +1992,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE1] = { "AZ_SWITCH_PROMOTE_PHASE1", dms_reform_az_switchover_promote_phase1,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE2] = { "AZ_SWITCH_PROMOTE_PHASE2", dms_reform_az_switchover_promote_phase2,
+        NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_PROMOTE_SUCCESS] = { "AZ_PROMOTE_SUCCESS", dms_reform_az_promote_success,
         NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1] = { "AZ_FAILOVER_PROMOTE_PHASE1",
         dms_reform_az_failover_promote_phase1, NULL, CM_FALSE },
