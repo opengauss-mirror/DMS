@@ -934,6 +934,8 @@ void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *
 
 static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *global_res, drc_head_t *drc, uint64 seq)
 {
+    drc_res_ctx_t *res_ctx = DRC_RES_CTX;
+
     if (drc->copy_insts > 0 && dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, drc->type,
         drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq) != DMS_SUCCESS) {
         LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
@@ -952,6 +954,9 @@ static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *globa
     cm_spin_lock(&bucket->lock, NULL);
     while (drc->ref_count > 0) {
         cm_spin_unlock(&bucket->lock);
+        if (res_ctx->smon_recycle_pause) {
+            return CM_FALSE;
+        }
         cm_sleep(1);
         cm_spin_lock(&bucket->lock, NULL);
     }
@@ -1026,6 +1031,7 @@ static void drc_recycle_drc_part_stat(drc_global_res_map_t *obj_res_map, drc_res
 void drc_recycle_buf_res_set_pause(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
+    ctx->smon_recycle_pause = CM_TRUE;
     cm_spin_lock(&ctx->smon_recycle_lock, NULL);
     LOG_RUN_INF("[DRC recycle]pausing");
 }
@@ -1034,6 +1040,7 @@ void drc_recycle_buf_res_set_running(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     cm_spin_unlock(&ctx->smon_recycle_lock);
+    ctx->smon_recycle_pause = CM_FALSE;
     LOG_RUN_INF("[DRC recycle]running");
 }
 
@@ -1050,6 +1057,7 @@ static inline bool8 drc_chk_if_need_recycle(drc_res_pool_t *pool)
 
 static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t *obj)
 {
+    drc_res_ctx_t *res_ctx = DRC_RES_CTX;
     drc_global_res_map_t *global_drc_res = obj->global_drc_res;
     drc_res_pool_t *pool = &global_drc_res->res_map.res_pool;
     // check if need to recycle
@@ -1076,6 +1084,9 @@ static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t 
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
         drc_part_list_t *part = &global_drc_res->res_parts[part_id];
         drc_recycle_drc_by_part(ctx, global_drc_res, part);
+        if (res_ctx->smon_recycle_pause) {
+            break;
+        }
     }
     cm_spin_unlock(&DRC_RES_CTX->smon_recycle_lock);
     return CM_TRUE;
@@ -1087,13 +1098,17 @@ static drc_recycle_obj_t recycle_objs[] = {
     { &g_drc_res_ctx.global_alock_res, "ALOCK RES", CM_FALSE },
 };
 
-static inline bool8 drc_do_recycle_task(dms_process_context_t *ctx)
+static bool8 drc_do_recycle_task(dms_process_context_t *ctx)
 {
+    drc_res_ctx_t *res_ctx = DRC_RES_CTX;
     uint8 recycle_obj_count = 0;
     uint8 obj_count = ELEMENT_COUNT(recycle_objs);
     for (uint8 i = 0; i < obj_count; i++) {
         if (drc_recycle_internal(ctx, &recycle_objs[i])) {
             recycle_obj_count++;
+        }
+        if (res_ctx->smon_recycle_pause) {
+            break;
         }
     }
     return (recycle_obj_count > 0);
@@ -1118,7 +1133,7 @@ void drc_recycle_thread(thread_t *thread)
     
     LOG_RUN_INF("[DRC recycle]drc_recycle_thread start");
     while (!thread->closed) {
-        if (drc_do_recycle_task(&proc_ctx)) {
+        if (!ctx->smon_recycle_pause && drc_do_recycle_task(&proc_ctx)) {
             continue;
         }
         cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
