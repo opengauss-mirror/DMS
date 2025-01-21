@@ -51,6 +51,7 @@ typedef struct st_ock_scrlock_context {
 #define DMS_CM_MAX_SESSIONS 16320
 #define DMS_CS_TYPE_TCP (1)
 #define DMS_CS_TYPE_RDMA (7)
+#define DMS_CS_TYPE_UBC (8)
 
 typedef struct st_dms_instance {
     uint32 inst_id;

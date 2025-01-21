@@ -868,6 +868,8 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
         mes_profile->pipe_type = DMS_CS_TYPE_TCP;
     } else if (dms_profile->pipe_type == DMS_CONN_MODE_RDMA) {
         mes_profile->pipe_type = DMS_CS_TYPE_RDMA;
+    } else if (dms_profile->pipe_type == DMS_CONN_MODE_UBC) {
+        mes_profile->pipe_type = DMS_CS_TYPE_UBC;
     } else {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "dms_profile's pipe_type");
         return ERRNO_DMS_PARAM_INVALID;
