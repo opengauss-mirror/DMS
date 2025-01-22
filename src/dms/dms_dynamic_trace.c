@@ -233,8 +233,8 @@ int dms_init_dynamic_trace(dms_profile_t *dms_profile)
     char buf[DMS_DYN_TRACE_HEADER_SZ];
     (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", date, CM_MAX_TIME_STRLEN);
     int len = snprintf_s(buf, DMS_DYN_TRACE_HEADER_SZ, DMS_DYN_TRACE_HEADER_SZ - 1,
-        "\n%s>[DMS DYNAMIC TRACE]inited, reform trace=%d, overall trace=%d\n",
-            date, dms_profile->enable_reform_trace, dms_profile->enable_dyn_trace);
+        "\n%s>[DMS DYNAMIC TRACE]inited, reform trace=%hhu, overall trace=%hhu\n",
+        date, dms_profile->enable_reform_trace, dms_profile->enable_dyn_trace);
     LOG_DMS_EVENT_TRACE(buf, len);
     return DMS_SUCCESS;
 }
