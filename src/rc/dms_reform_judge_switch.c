@@ -97,6 +97,8 @@ void dms_reform_judgement_az_failover_promote_phase1(void)
     }
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1);
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
+    dms_reform_add_step(DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_SWITCH_LOG);
     share_info->promote_id = (uint8)g_dms.inst_id;
 }
 
