@@ -622,6 +622,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_PROC_GENERIC_REQ,
     DMS_EVT_PROC_REFORM_REQ,
     DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT,
+    DMS_EVT_DCS_INVALID_DRC_LSNDWAIT,
 
 // add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
@@ -843,16 +844,18 @@ typedef void(*dms_stats_buf)(void *db_handle, dms_buf_ctrl_t *dms_ctrl, dms_buf_
 typedef int(*dms_remove_buf_load_status)(dms_buf_ctrl_t *dms_ctrl, dms_buf_load_status_t dms_buf_load_status);
 typedef void(*dms_update_global_lsn)(void *db_handle, unsigned long long lamport_lsn);
 typedef void(*dms_update_global_scn)(void *db_handle, unsigned long long lamport_scn);
-typedef void(*dms_update_node_lfn)(void *db_handle, unsigned char node_id, unsigned long long node_lfn,
-    unsigned long long *node_data, unsigned int len);
+typedef void(*dms_update_node_lfn)(void *db_handle, unsigned char node_id, unsigned long long node_lfn);
+typedef void(*dms_update_node_lfns)(void *db_handle, unsigned long long *node_data, unsigned int len);
+typedef void(*dms_get_node_lfns)(void *db_handle, unsigned long long *node_lfn, unsigned int len);
+typedef void(*dms_update_replay_lfns)(void *db_handle, unsigned long long *node_data, unsigned int len);
+typedef void(*dms_get_replay_lfns)(void *db_handle, unsigned long long *node_data, unsigned int len);
 typedef void(*dms_update_page_lfn)(dms_buf_ctrl_t *dms_ctrl, unsigned long long lastest_lfn);
 typedef unsigned long long (*dms_get_page_lfn)(dms_buf_ctrl_t *dms_ctrl);
 typedef unsigned long long (*dms_get_page_scn)(dms_buf_ctrl_t *dms_ctrl);
 typedef unsigned long long(*dms_get_global_lfn)(void *db_handle);
 typedef unsigned long long(*dms_get_global_scn)(void *db_handle);
 typedef unsigned long long(*dms_get_global_lsn)(void *db_handle);
-typedef void(*dms_get_global_flushed_lfn)(void *db_handle, unsigned char *node_id, unsigned long long *node_lfn,
-    unsigned long long *node_data, unsigned int len);
+typedef void(*dms_get_global_flushed_lfn)(void *db_handle, unsigned char *node_id, unsigned long long *node_lfn);
 typedef int(*dms_read_local_page4transfer)(void *db_handle, char pageid[DMS_PAGEID_SIZE],
     dms_lock_mode_t mode, dms_buf_ctrl_t **dms_ctrl, unsigned long long seq);
 typedef int(*dms_try_read_local_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE],
@@ -862,7 +865,7 @@ typedef void(*dms_leave_local_page)(void *db_handle, dms_buf_ctrl_t *dms_ctrl);
 typedef void(*dms_get_pageid)(dms_buf_ctrl_t *dms_ctrl, char **pageid, unsigned int *size);
 typedef char *(*dms_get_page)(dms_buf_ctrl_t *dms_ctrl);
 typedef int (*dms_invalidate_page)(void *db_handle, char pageid[DMS_PAGEID_SIZE], unsigned char invld_owner,
-    unsigned long long seq);
+    unsigned long long seq, unsigned long long *page_lfn);
 typedef void *(*dms_get_db_handle)(unsigned int *db_handle_index, dms_session_type_e session_type);
 typedef void (*dms_release_db_handle)(void *db_handle);
 typedef char *(*dms_get_wxid_from_cr_cursor)(void *cr_cursor);
@@ -1186,6 +1189,10 @@ typedef struct st_dms_callback {
     dms_get_tlock_mode get_tlock_mode;
     dms_set_current_point set_current_point;
     dms_update_node_lfn update_node_lfn;
+    dms_update_node_lfns update_node_lfns;
+    dms_get_node_lfns get_node_lfns;
+    dms_update_replay_lfns update_replay_lfns;
+    dms_get_replay_lfns get_replay_lfns;
 
     dms_get_db_role get_db_role;
     dms_sync_node_lfn sync_node_lfn;

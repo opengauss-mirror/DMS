@@ -87,7 +87,13 @@ typedef struct st_dms_ask_res_ack_load {
     uint64 master_lsn;
     uint64 scn;
     bool8 master_grant;
+    uint8 node_count;
 } dms_ask_res_ack_ld_t;
+
+typedef struct st_dms_ask_res_ack_load_wrapper {
+    dms_ask_res_ack_ld_t ack;
+    uint64 node_lfn[DMS_MAX_INSTANCES];
+} dms_ask_res_ack_ld_wrapper_t;
 
 // msg for notifying instance is already resource owner
 typedef struct st_dms_already_owner_ack {
@@ -298,6 +304,7 @@ typedef struct st_dms_common_ack {
 typedef struct st_dms_invld_ack {
     dms_common_ack_t common_ack;
     uint64 scn;
+    uint64 lfn;
 } dms_invld_ack_t;
 
 typedef struct st_dms_chk_ownership_req {

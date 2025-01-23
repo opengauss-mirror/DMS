@@ -548,6 +548,7 @@ static void dcs_send_grant_owner(dms_process_context_t *ctx, dms_message_t *msg)
     ack.master_lsn = g_dms.callback.get_global_lsn(ctx->db_handle);
 #endif
     ack.master_grant = CM_TRUE;
+    ack.node_count = 0;
 
     (void)mfc_send_data(&ack.head);
 }
