@@ -184,10 +184,12 @@ char *drc_res_pool_alloc_item_inner(drc_res_pool_t *pool)
         }
     }
 
-    // 3. alloc form buffer
+    // 3. alloc form hwm
     CM_ASSERT(pool->item_hwm < pool->item_num);
     char *addr = drc_pool_find_item(pool, pool->item_hwm);
     CM_ASSERT(addr != NULL);
+    errno_t err = memset_s(addr, pool->item_size, 0, pool->item_size);
+    DMS_SECUREC_CHECK(err);
     pool->item_hwm++;
     return addr;
 }
@@ -202,8 +204,6 @@ char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
     }
     pool->used_num++;
     cm_spin_unlock(&pool->lock);
-    errno_t err = memset_s(item_addr, pool->item_size, 0, pool->item_size);
-    DMS_SECUREC_CHECK(err);
     return item_addr;
 }
 
@@ -282,6 +282,9 @@ drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, ui
 
 static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
 {
+    errno_t ret = memset_s(drc, sizeof(drc_head_t), 0, sizeof(drc_head_t));
+    DMS_SECUREC_CHECK(ret);
+
     // init drc_head
     drc->type = res_type;
     drc->owner = CM_INVALID_ID8;
@@ -290,7 +293,7 @@ static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
     init_drc_cvt_item(&drc->converting);
 
     // memory copy resid
-    errno_t ret = memcpy_s(DRC_DATA(drc), len, resid, len);
+    ret = memcpy_s(DRC_DATA(drc), len, resid, len);
     DMS_SECUREC_CHECK(ret);
 
     // init drc_page

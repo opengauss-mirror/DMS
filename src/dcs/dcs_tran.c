@@ -594,8 +594,16 @@ void dcs_proc_txn_wait_req(dms_process_context_t *process_ctx, dms_message_t *re
         ret = DMS_REMOTE_TXN_END;
         scn = txn_info.scn;
     } else {
-        drc_enqueue_txn(&xid, req_head->src_inst);
-        ret = DMS_REMOTE_TXN_WAIT;
+        if (drc_enqueue_txn(process_ctx->db_handle, &xid, req_head->src_inst, &txn_info) != DMS_SUCCESS) {
+            cm_send_error_msg(req_head, ERRNO_DMS_CALLBACK_GET_TXN_INFO, "get txn info failed");
+            return;
+        }
+        if (txn_info.status == DMS_XACT_END) {
+            ret = DMS_REMOTE_TXN_END;
+            scn = txn_info.scn;
+        } else {
+            ret = DMS_REMOTE_TXN_WAIT;
+        }
     }
 
     dms_init_ack_head2(&txn_wait_ack.head, MSG_ACK_AWAKE_TXN, 0, req_head->dst_inst,
