@@ -2021,6 +2021,7 @@ void dms_reform_proc_thread(thread_t *thread)
     g_dms.callback.dms_thread_init(CM_TRUE, (char **)&thread->reg_data);
 #endif
 
+    mes_block_sighup_signal();
     dms_reform_proc_stat_bind_proc();
     dms_set_tls_sid(reform_ctx->sess_proc);
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc thread started");

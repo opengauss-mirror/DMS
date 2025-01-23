@@ -64,6 +64,7 @@ static void dms_reform_parallel_thread(thread_t *thread)
 
     dms_reform_proc_stat_bind_proc_parallel(parallel->index);
     LOG_RUN_INF("[DMS REFORM]%s thread started", thread_name);
+    mes_block_sighup_signal();
     while (!thread->closed) {
         if (parallel->thread_status == DMS_THREAD_STATUS_IDLE ||
             parallel->thread_status == DMS_THREAD_STATUS_PAUSED) {

@@ -1106,6 +1106,7 @@ void drc_recycle_thread(thread_t *thread)
 
     ctx->smon_recycle_handle = g_dms.callback.get_db_handle(&ctx->smon_recycle_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(ctx->smon_recycle_handle != NULL, "alloc db handle failed");
+    mes_block_sighup_signal();
 
     proc_ctx.inst_id   = g_dms.inst_id;
     proc_ctx.sess_id   = ctx->smon_recycle_sid;

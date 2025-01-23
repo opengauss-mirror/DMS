@@ -1776,6 +1776,7 @@ void dms_smon_entry(thread_t *thread)
 
     DRC_RES_CTX->smon_handle = g_dms.callback.get_db_handle(&DRC_RES_CTX->smon_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(DRC_RES_CTX->smon_handle != NULL, "alloc db handle failed");
+    mes_block_sighup_signal();
     
     while (!thread->closed) {
         end = cm_clock_monotonic_now();
