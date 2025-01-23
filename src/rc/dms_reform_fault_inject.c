@@ -103,6 +103,7 @@ static void dms_reform_fault_inject_thread(thread_t *thread)
 
     cm_set_thread_name(DMS_REFORM_FI_THRD_NAME);
     LOG_RUN_INF("[DMS FAULT INJECT]dms_reform_fault_inject_thread start");
+    mes_block_sighup_signal();
 
     while (!thread->closed) {
         if (!cm_file_exist(ini_path)) {
