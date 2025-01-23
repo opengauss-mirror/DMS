@@ -433,6 +433,22 @@ static int dms_reform_az_switchover_promote_phase1(void)
     return DMS_SUCCESS;
 }
 
+static int dms_reform_az_switchover_promote_switch_log(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_switchover_promote_switch_log(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
 static int dms_reform_az_switchover_promote_phase2(void)
 {
     int ret = DMS_SUCCESS;
@@ -1999,6 +2015,8 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
         dms_reform_az_failover_promote_phase2, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RELOAD_TXN] = { "RELOAD_TXN", dms_reform_reload_txn, NULL, CM_FALSE },
     [DMS_REFORM_STEP_SYNC_NODE_LFN] = { "SYNC_NODE_LFN", dms_reform_sync_node_lfn, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_SWITCH_LOG] = { "AZ_SWITCH_PROMOTE_SWITCH_LOG",
+        dms_reform_az_switchover_promote_switch_log, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)
