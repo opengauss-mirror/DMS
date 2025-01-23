@@ -56,6 +56,7 @@ void dms_reformer_preempt_thread(thread_t *thread)
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 reform_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
+    mes_block_sighup_signal();
 
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
