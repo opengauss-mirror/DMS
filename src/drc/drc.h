@@ -93,7 +93,7 @@ typedef struct st_drc_lock_item {
 } drc_lock_item_t;
 
 typedef struct st_drc_cvt_item {
-    int64 begin_time;
+    uint64 begin_time;
     drc_request_info_t req_info;
 } drc_cvt_item_t;
 

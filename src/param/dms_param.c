@@ -175,7 +175,7 @@ status_t dms_update_fi_entry_value_cf(char *value)
 
 void dms_get_bitmap_inst(uint64 *bitmap, mes_addr_t *inst_net_addr, uint32 node_cnt)
 {
-    for (int i = 0; i < node_cnt; ++i) {
+    for (uint32 i = 0; i < node_cnt; ++i) {
         bitmap64_set(bitmap, inst_net_addr[i].inst_id);
     }
 }

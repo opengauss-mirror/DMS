@@ -1791,11 +1791,6 @@ void dms_smon_entry(thread_t *thread)
     }
 }
 
-void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
-{
-    /* pass */
-}
-
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
     /* pass */
