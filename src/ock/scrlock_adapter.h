@@ -33,7 +33,7 @@
  * @[in]param profile -  config value
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-unsigned char dms_scrlock_init(dms_profile_t *dms_profile);
+int dms_scrlock_init(dms_profile_t *dms_profile);
 
 /*
  * @brief scrlock reinit for failure recovery
