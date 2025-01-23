@@ -39,11 +39,12 @@ typedef struct st_drc_txn_res {
     cm_thread_cond_t cond;
     bool8 is_cond_inited;
     uint8 unused[3];
+    atomic32_t ref_count; // just maintained when local txn
 } drc_txn_res_t;
 
 drc_txn_res_t *drc_create_txn_res(uint64 *xid, dms_res_type_e res_type);
 void drc_release_txn_res(drc_txn_res_t *txn_res);
-void drc_enqueue_txn(uint64 *xid, uint8 inst_id);
+int32 drc_enqueue_txn(void *db_handle, uint64 *xid, uint8 inst_id, dms_txn_info_t *txn_info);
 bool8 drc_local_txn_wait(uint64 *xid);
 void drc_local_txn_recycle(uint64 *xid);
 void drc_local_txn_awake(uint64 *xid);

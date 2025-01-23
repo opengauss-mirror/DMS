@@ -50,6 +50,7 @@ static void init_txn_res(drc_txn_res_t *txn_res, const uint64 *xid, dms_res_type
     txn_res->res_type = res_type;
     txn_res->res_id = *xid;
     txn_res->inst_map = 0;
+    txn_res->ref_count = 0;
     /* note: DMS_RES_TYPE_IS_TXN resource doesn't need condition variable to awake someone */
     if (!txn_res->is_cond_inited && (res_type == DMS_RES_TYPE_IS_LOCAL_TXN)) {
         cm_init_cond(&txn_res->cond);
@@ -85,7 +86,7 @@ void drc_release_txn_res(drc_txn_res_t *txn_res)
     drc_res_pool_free_item(&res_map->res_pool, (char *)txn_res);
 }
 
-void drc_enqueue_txn(uint64 *xid, uint8 inst_id)
+int32 drc_enqueue_txn(void *db_handle, uint64 *xid, uint8 inst_id, dms_txn_info_t *txn_info)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_res_map_t *res_map = &ctx->txn_res_map;
@@ -94,17 +95,30 @@ void drc_enqueue_txn(uint64 *xid, uint8 inst_id)
 
     bucket = drc_res_map_get_bucket(res_map, (char *)xid, sizeof(uint64));
     cm_spin_lock(&bucket->lock, NULL);
+
+    int32 ret = g_dms.callback.get_txn_info(db_handle, *xid, CM_FALSE, txn_info);
+    if (ret != DMS_SUCCESS) {
+        cm_spin_unlock(&bucket->lock);
+        return ret;
+    }
+
+    if (txn_info->status == DMS_XACT_END) {
+        cm_spin_unlock(&bucket->lock);
+        return DMS_SUCCESS;
+    }
+
     txn_res = (drc_txn_res_t *)drc_res_map_lookup(res_map, bucket, (char *)xid, sizeof(uint64));
     if (txn_res == NULL) {
         txn_res = drc_create_txn_res(xid, DMS_RES_TYPE_IS_TXN);
         if (txn_res == NULL) {
             cm_spin_unlock(&bucket->lock);
-            return;
+            return DMS_SUCCESS;
         }
     }
 
     bitmap64_set(&txn_res->inst_map, inst_id);
     cm_spin_unlock(&bucket->lock);
+    return DMS_SUCCESS;
 }
 
 bool8 drc_local_txn_wait(uint64 *xid)
@@ -124,6 +138,7 @@ bool8 drc_local_txn_wait(uint64 *xid)
             return CM_FALSE;
         }
     }
+    (void)cm_atomic32_inc(&txn_res->ref_count);
     cm_spin_unlock(&bucket->lock);
 
     bool8 ret = (bool8)cm_wait_cond(&txn_res->cond, TX_WAIT_INTERVAL);
@@ -147,8 +162,13 @@ void drc_local_txn_recycle(uint64 *xid)
         cm_spin_unlock(&bucket->lock);
         return;
     }
-    drc_res_map_del_res(res_map, bucket, (char *)xid, sizeof(uint64));
-    drc_release_txn_res(txn_res);
+
+    cm_panic_log(txn_res->ref_count > 0, "xid(%llu) ref_count(%d) is invalid", *xid, txn_res->ref_count);
+    (void)cm_atomic32_inc(&txn_res->ref_count);
+    if (txn_res->ref_count == 0) {
+        drc_res_map_del_res(res_map, bucket, (char *)xid, sizeof(uint64));
+        drc_release_txn_res(txn_res);
+    }
     cm_spin_unlock(&bucket->lock);
 }
 
@@ -250,6 +270,7 @@ static int32 drc_new_xa_res(drc_global_res_map_t *xa_res_map, drc_global_xid_t *
     xa_res->node.prev = NULL;
     xa_res->owner_id = owner_id;
     xa_res->undo_set_id = undo_set_id;
+    xa_res->in_recovery = CM_FALSE;
     xa_res->part_id = CM_INVALID_ID8;
     xa_res->part_node.next = NULL;
     xa_res->part_node.prev = NULL;
