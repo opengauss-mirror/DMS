@@ -297,6 +297,7 @@ typedef struct st_drc_res_ctx {
     uint32                  smon_recycle_sid;
     void*                   smon_recycle_handle;
     spinlock_t              smon_recycle_lock;
+    bool32                  smon_recycle_pause;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;
