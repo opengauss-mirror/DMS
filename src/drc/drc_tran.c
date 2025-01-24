@@ -164,7 +164,7 @@ void drc_local_txn_recycle(uint64 *xid)
     }
 
     cm_panic_log(txn_res->ref_count > 0, "xid(%llu) ref_count(%d) is invalid", *xid, txn_res->ref_count);
-    (void)cm_atomic32_inc(&txn_res->ref_count);
+    (void)cm_atomic32_dec(&txn_res->ref_count);
     if (txn_res->ref_count == 0) {
         drc_res_map_del_res(res_map, bucket, (char *)xid, sizeof(uint64));
         drc_release_txn_res(txn_res);
