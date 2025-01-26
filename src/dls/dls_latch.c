@@ -72,23 +72,24 @@ static inline int32 dls_request_latch(drc_local_lock_res_t *lock_res, uint32 sid
 }
 
 static bool8 dls_request_latch_timed(drc_local_lock_res_t *lock_res, uint32 sid, dms_lock_mode_t req_mode,
-    uint32 timeout_ticks)
+    uint32 timeout_ticks, uint32 *ticks)
 {
-    uint32 wait_ticks = 0;
     uint32 spin_times = 0;
     dms_context_t dms_ctx;
 
+    int32 ret = DMS_SUCCESS;
     dls_init_dms_ctx(&dms_ctx, lock_res, sid, CM_FALSE);
     do {
-        if (dls_request_lock(&dms_ctx, lock_res, lock_res->latch_stat.lock_mode, req_mode) == DMS_SUCCESS) {
+        ret = dls_request_lock(&dms_ctx, lock_res, lock_res->latch_stat.lock_mode, req_mode);
+        if (ret == DMS_SUCCESS) {
             return CM_TRUE;
         }
 
-        if (SECUREC_UNLIKELY(wait_ticks >= timeout_ticks)) {
+        if (ret == ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER || SECUREC_UNLIKELY(*ticks >= timeout_ticks)) {
             return CM_FALSE;
         }
 
-        dls_sleep(&spin_times, &wait_ticks, DLS_SPIN_COUNT);
+        dls_sleep(&spin_times, ticks, DLS_SPIN_COUNT);
     } while (CM_TRUE);
 }
 
@@ -99,14 +100,15 @@ static inline void dms_latch_stat_wait_usecs(latch_statis_t *stat, uint64 ss_wai
     }
 }
 
-static bool8 dms_latch_timed_idle2s(drc_local_lock_res_t *lock_res, uint32 sid, uint32 wait_ticks, latch_statis_t *stat)
+static bool8 dms_latch_timed_idle2s(
+    drc_local_lock_res_t *lock_res, uint32 sid, uint32 wait_ticks, latch_statis_t *stat, uint32 *ticks)
 {
     CM_ASSERT(!DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat));
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
     if (latch_stat->lock_mode == DMS_LOCK_NULL) {
         STAT_RPC_BEGIN;
-        if (!dls_request_latch_timed(lock_res, sid, DMS_LOCK_SHARE, wait_ticks)) {
+        if (!dls_request_latch_timed(lock_res, sid, DMS_LOCK_SHARE, wait_ticks, ticks)) {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
             return CM_FALSE;
         }
@@ -276,9 +278,10 @@ bool8 dms_latch_timed_s(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wa
                 (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
 
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
-                ret = dms_latch_timed_idle2s(lock_res, sid, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0), stat);
+                ret = dms_latch_timed_idle2s(lock_res, sid, wait_ticks, stat, &ticks);
                 drc_unlock_local_resx(lock_res);
                 if (!ret) {
+                    DMS_CONTINUE_IF(wait_ticks > ticks);
                     dms_cancel_request_res((char*)&lock_res->resid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);
                 }
                 break;
@@ -294,9 +297,7 @@ bool8 dms_latch_timed_s(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wa
         if (LATCH_NEED_STAT(stat)) {
             stat->misses++;
         }
-        if (!dms_wait4_latch_s(lock_res, stat, wait_ticks, &ticks, is_force)) {
-            break;
-        }
+        DMS_BREAK_IF(!dms_wait4_latch_s(lock_res, stat, wait_ticks, &ticks, is_force));
     } while (CM_TRUE);
     LOG_DEBUG_INF("[DLS] add latch_timed_s finished, ret:%u", (uint32)ret);
     return ret;
@@ -348,17 +349,17 @@ static bool32 dls_latch_ix2x(drc_local_lock_res_t *lock_res, uint32 sid, latch_s
     return CM_FALSE;
 }
 
-static bool32 dls_latch_timed_ix2x(drc_local_lock_res_t *lock_res, uint32 sid, uint32 wait_ticks, latch_statis_t *stat)
+static bool32 dls_latch_timed_ix2x(
+    drc_local_lock_res_t *lock_res, uint32 sid, uint32 wait_ticks, latch_statis_t *stat, uint32 *ticks)
 {
     uint32 count = 0;
-    uint32 ticks = 0;
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
 
     if (LATCH_NEED_STAT(stat)) {
         stat->misses++;
     }
     while (latch_stat->shared_count > 0) {
-        if (ticks >= wait_ticks) {
+        if (*ticks >= wait_ticks) {
             return CM_FALSE;
         }
         count++;
@@ -366,7 +367,7 @@ static bool32 dls_latch_timed_ix2x(drc_local_lock_res_t *lock_res, uint32 sid, u
             SPIN_STAT_INC(stat, ix_sleeps);
             cm_spin_sleep();
             count = 0;
-            ticks++;
+            (*ticks)++;
         }
     }
 
@@ -384,7 +385,7 @@ static bool32 dls_latch_timed_ix2x(drc_local_lock_res_t *lock_res, uint32 sid, u
 
         STAT_RPC_BEGIN;
         // change lock_mode in func dls_modify_lock_mode, before claim owner
-        bool8 ret = dls_request_latch_timed(lock_res, sid, DMS_LOCK_EXCLUSIVE, wait_ticks - ticks);
+        bool8 ret = dls_request_latch_timed(lock_res, sid, DMS_LOCK_EXCLUSIVE, wait_ticks, ticks);
         if (ret) {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
             latch_stat->sid  = sid;
@@ -395,7 +396,6 @@ static bool32 dls_latch_timed_ix2x(drc_local_lock_res_t *lock_res, uint32 sid, u
         } else {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
             drc_unlock_local_resx(lock_res);
-            dms_cancel_request_res((char *)&lock_res->resid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);
             return CM_FALSE;
         }
     }
@@ -403,7 +403,8 @@ static bool32 dls_latch_timed_ix2x(drc_local_lock_res_t *lock_res, uint32 sid, u
     return CM_FALSE;
 }
 
-static bool8 dms_latch_timed_idle2x(drc_local_lock_res_t *lock_res, uint32 sid, uint32 wait_ticks, latch_statis_t *stat)
+static bool8 dms_latch_timed_idle2x(
+    drc_local_lock_res_t *lock_res, uint32 sid, uint32 wait_ticks, latch_statis_t *stat, uint32 *ticks)
 {
     CM_ASSERT(!DLS_LATCH_IS_LOCKED(lock_res->latch_stat.stat));
     drc_local_latch_t *latch_stat = &lock_res->latch_stat;
@@ -411,7 +412,7 @@ static bool8 dms_latch_timed_idle2x(drc_local_lock_res_t *lock_res, uint32 sid, 
     if (latch_stat->lock_mode != DMS_LOCK_EXCLUSIVE) {
         STAT_RPC_BEGIN;
         // change lock_mode in func dls_modify_lock_mode, before claim owner
-        if (!dls_request_latch_timed(lock_res, sid, DMS_LOCK_EXCLUSIVE, wait_ticks)) {
+        if (!dls_request_latch_timed(lock_res, sid, DMS_LOCK_EXCLUSIVE, wait_ticks, ticks)) {
             dms_latch_stat_wait_usecs(stat, STAT_RPC_WAIT_USECS);
             return CM_FALSE;
         }
@@ -543,9 +544,10 @@ bool8 dms_latch_timed_x(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wa
                 (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
 
             if (latch_stat->stat == LATCH_STATUS_IDLE) {
-                ret = dms_latch_timed_idle2x(lock_res, sid, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0), stat);
+                ret = dms_latch_timed_idle2x(lock_res, sid, wait_ticks, stat, &ticks);
                 drc_unlock_local_resx(lock_res);
                 if (!ret) {
+                    DMS_CONTINUE_IF(wait_ticks > ticks);
                     dms_cancel_request_res((char*)&lock_res->resid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);
                 }
                 break;
@@ -554,11 +556,13 @@ bool8 dms_latch_timed_x(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wa
                 CM_ASSERT(DLS_LATCH_IS_OWNER(latch_stat->lock_mode) && latch_stat->shared_count > 0);
                 latch_stat->stat = LATCH_STATUS_IX;
                 drc_unlock_local_resx(lock_res);
-                ret = dls_latch_timed_ix2x(lock_res, sid, ((wait_ticks > ticks) ? (wait_ticks - ticks) : 0), stat);
+                ret = dls_latch_timed_ix2x(lock_res, sid, wait_ticks, stat, &ticks);
                 if (!ret) {
                     drc_lock_local_resx(lock_res, NULL, (LATCH_NEED_STAT(stat)) ? &stat->spin_stat : NULL);
                     latch_stat->stat = latch_stat->shared_count > 0 ? LATCH_STATUS_S : LATCH_STATUS_IDLE;
                     drc_unlock_local_resx(lock_res);
+                    DMS_CONTINUE_IF(wait_ticks > ticks);
+                    dms_cancel_request_res((char *)&lock_res->resid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);
                 }
                 break;
             }
@@ -567,9 +571,7 @@ bool8 dms_latch_timed_x(dms_drlatch_t *dlatch, unsigned int sid, unsigned int wa
         if (LATCH_NEED_STAT(stat)) {
             stat->misses++;
         }
-        if (!dms_wait4_latch_x(lock_res, stat, wait_ticks, &ticks)) {
-            break;
-        }
+        DMS_BREAK_IF(!dms_wait4_latch_x(lock_res, stat, wait_ticks, &ticks));
     } while (CM_TRUE);
     return ret;
 }
