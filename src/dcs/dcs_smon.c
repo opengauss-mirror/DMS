@@ -717,19 +717,6 @@ int dms_send_req_msg_and_recv_ack(dms_context_t *dms_ctx, unsigned char dst_inst
     mfc_release_response(&recv_msg);
     return ret;
 }
-#pragma pack(4)
-typedef struct st_dms_smon_deadlock_alock_req {
-    dms_message_head_t head;
-    alockid_t          alockid;
-} dms_smon_deadlock_alock_req_t;
-
-typedef struct st_dms_smon_deadlock_alock_rsp {
-    dms_message_head_t head;
-    uint32 ret_code;
-    uint32 data_size;
-    char data[0];
-} dms_smon_deadlock_alock_rsp_t;
-#pragma pack()
 
 typedef struct st_dms_smon_alock_req_assist {
     alockid_t *alockid;

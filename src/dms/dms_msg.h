@@ -468,7 +468,6 @@ int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 
     uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint64 seq);
 int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
 void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *receive_msg);
-void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 dms_message_head_t* get_dms_head(dms_message_t *msg);
 bool8 dms_cmd_is_broadcast(uint32 cmd);
 bool8 dms_cmd_is_req(uint32 cmd);

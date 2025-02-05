@@ -213,7 +213,7 @@ static int scrlock_init(dms_profile_t *dms_profile)
     return DMS_SUCCESS;
 }
 
-unsigned char dms_scrlock_init(dms_profile_t *dms_profile)
+int dms_scrlock_init(dms_profile_t *dms_profile)
 {
     if (!g_dms.scrlock_ctx.enable) {
         return DMS_SUCCESS;
