@@ -765,10 +765,10 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_drc_validate(true); /* maintain drc inaccess as failover not finished */
-    dms_reform_judgement_drc_access();
     dms_reform_judgement_failover_promote_opengauss();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_repair();
+    dms_reform_judgement_drc_access();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
@@ -787,9 +787,9 @@ static void dms_reform_judgement_normal_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
-    dms_reform_judgement_drc_access();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_repair();
+    dms_reform_judgement_drc_access();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
