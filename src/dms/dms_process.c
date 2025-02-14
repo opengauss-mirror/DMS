@@ -911,10 +911,12 @@ static unsigned short dms_get_msg_cmd(char *buff)
 int dms_mes_interrupt(void *arg, int wait_time)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
+    share_info_t *share_info = DMS_SHARE_INFO;
     if (reform_info->is_locking) {
         return CM_TRUE;
     }
-    if (dms_reform_in_process() && wait_time >= MILLISECS_PER_SECOND) {
+    if (dms_reform_in_process() && wait_time >= MILLISECS_PER_SECOND &&
+        !REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
         return CM_TRUE;
     }
     return CM_FALSE;
