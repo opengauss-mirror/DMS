@@ -45,7 +45,7 @@ extern "C" {
 #define DRC_PART_MASTER_ID(part_id) (g_drc_res_ctx.part_mngr.part_map[(part_id)].inst_id)
 #define DRC_DEFAULT_LOCK_RES_NUM (SIZE_M(1))
 #define DRC_DEFAULT_GLOCK_RES_NUM (SIZE_K(100))
-#define DRC_DEFAULT_LLOCK_RES_NUM (SIZE_K(512))
+#define DRC_DEFAULT_LLOCK_RES_NUM (SIZE_K(100))
 #define DRC_DEFAULT_ALOCK_RES_NUM (SIZE_K(10))
 #define DRC_RES_NODE_OF(type, node, field) ((type *)((char *)(node) - OFFSET_OF(type, field)))
 #define DRC_RES_EXTEND_MAX_NUM DMS_MAX_INSTANCES

@@ -108,11 +108,6 @@ DMS_DECLARE void dms_uninit(void);
 DMS_DECLARE int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode);
 
 /*
- * @brief sleep if dms_request_page return error
- */
-DMS_DECLARE void dms_request_page_wait(void);
-
-/*
 * @brief forward to specified node to construct heap CR page.
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[in&out]param dms_cr -  Properties required to construct a consistent page.
@@ -160,16 +155,6 @@ DMS_DECLARE int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_in
 DMS_DECLARE int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id,
     unsigned char *is_empty_itl, unsigned char *is_found);
 
-/*
-* @brief try ask master for page owner id.
-* @[in]param dms_ctx -  Obtains the context information required by the page.
-* @[in]param dms_cr -  Properties required to construct a consistent page.
-* @[in]param req_mode -  lock mode.
-* @[out]param owner_id -  page owner id.
-* @return DMS_SUCCESS - success;otherwise: failed
-*/
-DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
-    dms_lock_mode_t req_mode, unsigned char *owner_id);
 DMS_DECLARE int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
     dms_buf_ctrl_t **ctrls, unsigned int req_count, dms_lock_mode_t req_mode);
 
@@ -589,13 +574,6 @@ DMS_DECLARE int dms_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uns
 DMS_DECLARE unsigned long long dms_get_min_scn(unsigned long long min_scn);
 
 /*
- * @brief set min scn
- * @[in]param min_scn - cluster min scn .
- * @return
- */
-DMS_DECLARE void dms_set_min_scn(unsigned char inst_id, unsigned long long min_scn);
-
-/*
  * @brief retrieve dms statistics of waiting events
  * @[in]param the type of waiting event
  * @[out]the count of the happenings of specified waiting event
@@ -807,7 +785,6 @@ DMS_DECLARE void dms_show_version(char *version);
 DMS_DECLARE int dms_reform_last_failed(void);
 
 DMS_DECLARE int dms_wait_reform_phase(unsigned char reform_phase);
-DMS_DECLARE int dms_wait_reform_finish(void);
 DMS_DECLARE void dms_set_reform_continue(void);
 
 DMS_DECLARE int dms_is_reformer(void);
@@ -832,6 +809,19 @@ DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
 * @[in]param log_level -  db log level.
 */
 DMS_DECLARE void dms_set_log_level(unsigned int log_level);
+
+/*
+* @brief set log size
+* @[in]param log_level -  db log size.
+*/
+void dms_set_log_file_size(unsigned long long log_size);
+
+/*
+* @brief set log count
+* @[in]param log_level -  db log count.
+*/
+void dms_set_log_file_count(unsigned int log_count);
+
 
 /*
  * @brief get latch owner id
@@ -923,7 +913,6 @@ DMS_DECLARE int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long lon
 
 DMS_DECLARE void dms_reform_proc_callback_stat_start(reform_callback_stat_e callback_stat);
 DMS_DECLARE void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat);
-DMS_DECLARE void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat);
 
 DMS_DECLARE int dms_reform_rebuild_send_rest(unsigned int sess_id, unsigned char thread_index);
 

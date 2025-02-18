@@ -416,23 +416,6 @@ int dms_wait_reform(unsigned int *has_offline)
     return CM_TRUE;
 }
 
-int dms_wait_reform_finish(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    while (!DMS_FIRST_REFORM_FINISH) {
-        if (reform_info->last_fail) {
-            if (DMS_FIRST_REFORM_FINISH) {
-                return CM_TRUE;
-            }
-            return CM_FALSE;
-        }
-        DMS_REFORM_SHORT_SLEEP;
-    }
-
-    g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_IN);
-    return CM_TRUE;
-}
-
 char *dms_reform_phase_desc(uint8 reform_phase)
 {
     switch (reform_phase) {
