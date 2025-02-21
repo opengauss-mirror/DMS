@@ -654,9 +654,9 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
     } else if (result.type == DRC_REQ_OWNER_ALREADY_OWNER) {
         // asker is already owner, just notify requester(owner) page_req is ready
         dms_already_owner_ack_t ack;
-        ack.head.seq = result.seq;
         dms_init_ack_head(&page_req.head, &ack.head, MSG_ACK_ALREADY_OWNER,
             sizeof(dms_already_owner_ack_t), ctx->sess_id);
+        ack.head.seq = result.seq;
 #ifndef OPENGAUSS
         ack.scn = g_dms.callback.get_global_scn(ctx->db_handle);
 #endif
