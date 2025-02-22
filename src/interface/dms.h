@@ -157,7 +157,7 @@ DMS_DECLARE int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_
 
 DMS_DECLARE int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
     dms_buf_ctrl_t **ctrls, unsigned int req_count, dms_lock_mode_t req_mode);
-
+DMS_DECLARE void dms_try_send_drc_create_msg(dms_context_t *dms_ctx, char *pageid);
 /*
 * @brief init distributed spin lock.
 * @param lock - distributed resource lock identifier.

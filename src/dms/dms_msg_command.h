@@ -105,6 +105,7 @@ typedef enum en_msg_command {
     MSG_REQ_DRC_RELEASE = 72,
     MSG_REQ_DRM = 73,
     MSG_REQ_DRM_FINISH = 74,
+    MSG_REQ_PRE_CRE_DRC = 75,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,

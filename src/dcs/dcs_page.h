@@ -56,6 +56,7 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint32 master_id, dms_message_t *msg, dms_lock_mode_t mode);
 int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     dms_res_req_info_t *req_info, dms_ask_res_ack_t *page_ack);
+void dms_proc_pre_cre_drc_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }
