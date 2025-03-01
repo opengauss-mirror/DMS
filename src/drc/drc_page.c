@@ -527,22 +527,14 @@ void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info)
 {
     drc_request_info_t *req_info = &drc->converting.req_info;
 
-    cvt_info->req_id = req_info->inst_id;
-    cvt_info->req_sid = req_info->sess_id;
-    cvt_info->req_ruid = req_info->ruid;
-    cvt_info->curr_mode = req_info->curr_mode;
-    cvt_info->req_mode = req_info->req_mode;
+    cvt_info->req_info = *req_info;
     cvt_info->res_type = drc->type;
     cvt_info->len = drc->len;
-    cvt_info->is_try = req_info->is_try;
-    cvt_info->sess_type = req_info->sess_type;
-    cvt_info->req_proto_ver = req_info->req_proto_ver;
+    cvt_info->owner_id = drc->owner;
     cvt_info->seq = try_get_drc_page_seq(drc);
 
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
     CM_ASSERT(cvt_info->req_id < DMS_MAX_INSTANCES);
-
-    cvt_info->owner_id = drc->owner;
 
     errno_t ret = memcpy_s(cvt_info->resid, DMS_RESID_SIZE, DRC_DATA(drc), drc->len);
     DMS_SECUREC_CHECK(ret);
