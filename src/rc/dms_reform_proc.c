@@ -1263,9 +1263,12 @@ static int dms_reform_done_check()
             return ret;
         }
     }
-#ifdef OPENGAUSS
-    g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
-#endif
+    
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (!REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
+        g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
+    }
+
     dms_reform_end();
     reform_info->last_fail = CM_FALSE;
     reform_info->first_reform_finish = CM_TRUE;
