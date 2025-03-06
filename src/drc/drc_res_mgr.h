@@ -43,7 +43,7 @@ extern "C" {
 
 #define DMS_RES_MAP_INIT_PARAM 2
 #define DMS_GET_DRC_INFO_COUNT 100
-#define DMS_GET_DRC_INFO_SLEEP_TIME 10
+#define DMS_GET_DRC_INFO_SLEEP_TIME 100
 
 typedef struct st_drc_recycle_obj {
     drc_global_res_map_t *global_drc_res;
