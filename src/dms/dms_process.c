@@ -1152,16 +1152,13 @@ static int32 init_drc_smon_ctx(void)
 static int init_drc_mem_context(dms_profile_t *dms_profile)
 {
     g_dms.drc_mem_context = NULL;
-    if (dms_profile->drc_buf_size == 0) {
-        return DMS_SUCCESS;
-    }
+    uint64 size = (dms_profile->drc_buf_size == 0 ? CM_INVALID_ID64 : dms_profile->drc_buf_size);
     cm_memory_allocator_t memory_allocator = {
         .malloc_proc = (g_dms.callback.drc_malloc_prot == NULL ? malloc : g_dms.callback.drc_malloc_prot),
         .free_proc = (g_dms.callback.drc_free_prot == NULL ? free : g_dms.callback.drc_free_prot)
     };
 
-    g_dms.drc_mem_context =
-        ddes_memory_context_create(NULL, dms_profile->drc_buf_size, "drc_mem_context", &memory_allocator);
+    g_dms.drc_mem_context = ddes_memory_context_create(NULL, size, "drc_mem_context", &memory_allocator);
     if (g_dms.drc_mem_context == NULL) {
         return DMS_ERROR;
     }
@@ -1758,31 +1755,23 @@ int dms_calc_mem_usage(dms_profile_t *dms_profile, uint64 *total_mem)
     *total_mem = (dms_profile->work_thread_cnt + dms_profile->channel_cnt) * sizeof(dms_process_context_t);
     // dms sess_stats
     *total_mem += (uint64)((dms_profile->work_thread_cnt + dms_profile->channel_cnt + dms_profile->max_session_cnt) * sizeof(session_stat_t));
-    if (g_dms.drc_mem_context == NULL) {
-        // common res
-        *total_mem += DMS_CM_MAX_SESSIONS * SESSION_MULTIPLES * sizeof(drc_lock_item_t) * DMS_MAX_INSTANCES;
-        // page res
-        uint32 page_res_num =
-            (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
-        *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_page_t), DMS_MAX_INSTANCES);
-        // global lock res
-        *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_GLOCK_RES_NUM, sizeof(drc_lock_t), DMS_MAX_INSTANCES);
-        // global alock res
-        *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_ALOCK_RES_NUM, sizeof(drc_alock_t), DMS_MAX_INSTANCES);
-        // local lock res
-        *total_mem +=
-            dms_calc_res_map_mem(DRC_DEFAULT_LLOCK_RES_NUM, sizeof(drc_local_lock_res_t), DMS_MAX_INSTANCES);
-        // xa res
-        *total_mem +=
-            dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_global_xa_res_t), DMS_MAX_INSTANCES);
-        // local txn res
-        *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
-        // global txn res
-        *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
-    } else {
-        *total_mem += g_dms.drc_mem_context->mem_max_size;
-    }
-
+    // common res
+    *total_mem += DMS_CM_MAX_SESSIONS * 2 * sizeof(drc_lock_item_t) * DMS_MAX_INSTANCES;
+    // page res
+    uint32 page_res_num = (uint32)MAX(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size, SIZE_M(1));
+    *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_page_t), DMS_MAX_INSTANCES);
+    // global lock res
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_GLOCK_RES_NUM, sizeof(drc_lock_t), DMS_MAX_INSTANCES);
+    // global alock res
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_ALOCK_RES_NUM, sizeof(drc_alock_t), DMS_MAX_INSTANCES);
+    // local lock res
+    *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_LLOCK_RES_NUM, sizeof(drc_local_lock_res_t), DMS_MAX_INSTANCES);
+    // xa res
+    *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_global_xa_res_t), DMS_MAX_INSTANCES);
+    // local txn res
+    *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
+    // global txn res
+    *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
     // dms smon ctx
     *total_mem += DRC_SMON_QUEUE_SIZE * sizeof(res_id_t) + sizeof(chan_t);
 
