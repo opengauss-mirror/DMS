@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           180
+#define DMS_LOCAL_VERSION           182
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1032,6 +1032,7 @@ typedef unsigned int (*dms_check_is_maintain)(void);
 typedef dms_session_e(*dms_get_session_type)(unsigned int sid);
 typedef unsigned char(*dms_get_intercept_type)(unsigned int sid);
 typedef unsigned char(*dms_db_in_rollback)(void *db_handle);
+typedef void (*dms_get_inst_cnt)(void *db_handle, unsigned int *inst_count, unsigned long long int *inst_map);
 typedef int (*dms_check_if_reform_session)(void *db_handle);
 
 typedef struct st_dms_callback {
@@ -1242,6 +1243,7 @@ typedef struct st_dms_callback {
     dms_get_session_type get_session_type;
     dms_get_intercept_type get_intercept_type;
     dms_db_in_rollback db_in_rollback;
+    dms_get_inst_cnt get_inst_cnt;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {

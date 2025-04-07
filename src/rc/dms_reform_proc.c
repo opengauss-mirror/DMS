@@ -37,6 +37,7 @@
 #include "dms_reform_xa.h"
 #include "dms_reform_fault_inject.h"
 #include "dms_dynamic_trace.h"
+#include "dms.h"
 
 static void dms_reform_set_next_step(uint8 step)
 {
@@ -72,6 +73,18 @@ static int dms_reform_db_prepare(void)
     int ret = g_dms.callback.db_prepare(g_dms.reform_ctx.handle_proc);
     if (ret != DMS_SUCCESS) {
         return ret;
+    }
+
+    if (g_dms.callback.get_inst_cnt != NULL) {
+        uint32 inst_cnt = g_dms.inst_cnt;
+        uint64 inst_map = g_dms.inst_map;
+        g_dms.callback.get_inst_cnt(g_dms.reform_ctx.handle_proc, &inst_cnt, &inst_map);
+        if (inst_cnt != g_dms.inst_cnt || inst_map != g_dms.inst_map) {
+            LOG_RUN_INF("[DMS REFORM] change dms inst_cnt from %u to %u, and inst_map from %llu to %llu",
+                g_dms.inst_cnt, inst_cnt, g_dms.inst_map, inst_map);
+            g_dms.inst_cnt = inst_cnt;
+            g_dms.inst_map = inst_map;
+        }
     }
 
     if (share_info->inst_bitmap[INST_LIST_NEW_JOIN] != 0) {
