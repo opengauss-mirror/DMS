@@ -1833,3 +1833,40 @@ void dms_get_dms_thread(thread_set_t *thread_set)
     dms_get_smon_thread(thread_set, dms_thread_name_format);
     dms_get_reform_parallel_thread(thread_set, dms_thread_name_format);
 }
+
+int dms_convert_error_to_event(unsigned int dms_error, unsigned int *dms_event)
+{
+    switch (dms_error) {
+        case ERRNO_DMS_DRC_IS_RECYCLING:
+            *dms_event = DMS_EVT_DRC_RECYCLE;
+            break;
+        case ERRNO_DMS_DRC_FROZEN:
+        case ERRNO_DMS_DRC_RECOVERY_PAGE:
+            *dms_event = DMS_EVT_DRC_FROZEN;
+            break;
+        case ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH:
+            *dms_event = DMS_EVT_DRC_ENQ_ITEM_NOT_ENOUGH;
+            break;
+        case ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER:
+            *dms_event = DMS_EVT_DRC_ENQ_ITEM_CONFLICT;
+            break;
+        case ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH:
+            *dms_event = DMS_EVT_DRC_NOT_ENOUGH;
+            break;
+        default:
+            *dms_event = DMS_EVT_IDLE_WAIT;
+            break;
+    }
+}
+
+int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event)
+{
+    dms_begin_stat(sid, dms_event, CM_TRUE);
+    return DMS_SUCCESS;
+}
+
+int dms_end_sess_wait(unsigned int sid, unsigned int dms_event)
+{
+    dms_end_stat_ex(sid, dms_event);
+    return DMS_SUCCESS;
+}

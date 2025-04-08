@@ -1144,10 +1144,43 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *ctx, dms_message_t *receiv
     return;
 }
 
+static int32 is_drc_frozen(dms_ask_res_req_t *req)
+{
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+
+    if (req->res_type == DRC_RES_PAGE_TYPE &&
+        ctx->global_buf_res.drc_accessible_stage < PAGE_ACCESS_STAGE_ALL_ACCESS &&
+        req->sess_type == DMS_SESSION_NORMAL) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req->resid, req->res_type),
+            (uint32)req->head.src_inst, (uint32)req->head.src_sid, req->head.ruid, (uint32)req->req_mode);
+        return DMS_ERROR;
+    }
+
+    if (req->res_type == DRC_RES_LOCK_TYPE &&
+        ctx->global_lock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
+        req->intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but lock access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req->resid, req->res_type),
+            (uint32)req->head.src_inst, (uint32)req->head.src_sid, req->head.ruid, (uint32)req->req_mode);
+        return DMS_ERROR;
+    }
+
+    if (req->res_type == DRC_RES_ALOCK_TYPE &&
+        ctx->global_alock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
+        req->intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but alock access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req->resid, req->res_type),
+            (uint32)req->head.src_inst, (uint32)req->head.src_sid, req->head.ruid, (uint32)req->req_mode);
+        return DMS_ERROR;
+    }
+
+    return DMS_SUCCESS;
+}
+
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE);
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
     dms_ask_res_req_t req = *(dms_ask_res_req_t *)(receive_msg->buffer);
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE ||
         req.curr_mode >= DMS_LOCK_MODE_MAX ||
@@ -1156,30 +1189,7 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *
         return;
     }
 
-    if (req.res_type == DRC_RES_PAGE_TYPE &&
-        ctx->global_buf_res.drc_accessible_stage < PAGE_ACCESS_STAGE_ALL_ACCESS &&
-        req.sess_type == DMS_SESSION_NORMAL) {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
-            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
-            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
-        return;
-    }
-
-    if (req.res_type == DRC_RES_LOCK_TYPE &&
-        ctx->global_lock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
-        req.intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but lock access is forbidden, req_id=%u, "
-            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
-            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
-        return;
-    }
-
-    if (req.res_type == DRC_RES_ALOCK_TYPE &&
-        ctx->global_alock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
-        req.intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but alock access is forbidden, req_id=%u, "
-            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
-            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
+    if (is_drc_frozen(&req) != DMS_SUCCESS) {
         return;
     }
 

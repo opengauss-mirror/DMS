@@ -340,6 +340,10 @@ static inline void drc_remove_from_part_list(drc_head_t *drc)
 
 drc_head_t *drc_create(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type, drc_res_bucket_t *bucket)
 {
+    DDES_FAULT_INJECTION_ACTION_TRIGGER_CUSTOM_ALWAYS(DMS_FI_DRC_NOT_ENOUGH, {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
+        return NULL; });
+
     drc_head_t *drc = (drc_head_t *)drc_res_pool_alloc_item(pool);
     if (drc == NULL) {
         LOG_DEBUG_WAR("[DRC][%s]drc create fail", cm_display_resid(resid, res_type));

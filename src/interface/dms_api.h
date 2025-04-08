@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           179
+#define DMS_LOCAL_VERSION           180
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -623,6 +623,11 @@ typedef enum en_dms_wait_event {
     DMS_EVT_PROC_REFORM_REQ,
     DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT,
     DMS_EVT_DCS_INVALID_DRC_LSNDWAIT,
+    DMS_EVT_DRC_RECYCLE,
+    DMS_EVT_DRC_NOT_ENOUGH,
+    DMS_EVT_DRC_FROZEN,
+    DMS_EVT_DRC_ENQ_ITEM_NOT_ENOUGH,
+    DMS_EVT_DRC_ENQ_ITEM_CONFLICT,
 
 // add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
