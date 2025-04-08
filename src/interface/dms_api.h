@@ -1031,6 +1031,7 @@ typedef unsigned int (*dms_check_is_maintain)(void);
 typedef dms_session_e(*dms_get_session_type)(unsigned int sid);
 typedef unsigned char(*dms_get_intercept_type)(unsigned int sid);
 typedef unsigned char(*dms_db_in_rollback)(void *db_handle);
+typedef int (*dms_check_if_reform_session)(void *db_handle);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1063,6 +1064,8 @@ typedef struct st_dms_callback {
     dms_drc_xa_res_rebuild dms_reform_rebuild_xa_res;
     dms_reform_shrink_xa_rms dms_shrink_xa_rms;
     dms_ckpt_unblock_rcy_local ckpt_unblock_rcy_local;
+    dms_check_if_reform_session check_if_reform_session;
+
     dms_drc_rebuild_parallel rebuild_alock_parallel;
     dms_reform_event_notify reform_event_notify;
  

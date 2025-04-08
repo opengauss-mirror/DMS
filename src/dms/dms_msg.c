@@ -451,12 +451,21 @@ static inline int32 get_dms_msg_max_wait_time_ms(dms_context_t *dms_ctx)
     return (dms_ctx != NULL && dms_ctx->max_wait_rsp_time != 0) ? (int32)dms_ctx->max_wait_rsp_time : DMS_WAIT_MAX_TIME;
 }
 
+static int32 dms_get_msg_flag_4_prio(dms_context_t *dms_ctx)
+{
+    if (dms_ctx->db_handle != NULL && dms_reform_in_process() && g_dms.callback.check_if_reform_session(dms_ctx->db_handle)) {
+        return REQ_FLAG_REFORM_SESSION;
+    }
+    return REQ_FLAG_DEFAULT;
+}
+
 static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, drc_req_owner_result_t *result)
 {
     dms_ask_res_req_t req = { 0 };
+    int32 flags = dms_get_msg_flag_4_prio(dms_ctx);
     DMS_INIT_MESSAGE_HEAD(&req.head,
-        MSG_REQ_ASK_OWNER_FOR_PAGE, 0, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
+        MSG_REQ_ASK_OWNER_FOR_PAGE, flags, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_ask_res_req_t);
     req.req_mode  = req_mode;
     req.curr_mode = curr_mode;
@@ -667,8 +676,9 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode)
 {
     dms_ask_res_req_t req = { 0 };
+    int32 flags = dms_get_msg_flag_4_prio(dms_ctx);
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_MASTER_FOR_PAGE,
-        0, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
+        flags, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
 
     req.head.size  = (uint16)sizeof(dms_ask_res_req_t);
     req.req_mode   = req_mode;
