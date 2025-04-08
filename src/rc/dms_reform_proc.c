@@ -969,7 +969,9 @@ static int dms_reform_sync_node_lfn(void)
 // set sync wait before done
 static int dms_reform_success(void)
 {
+    reform_info_t *reform_info = DMS_REFORM_INFO;
     LOG_RUN_FUNC_ENTER;
+    reform_info->reform_success = CM_TRUE;
     dms_reform_next_step();
     LOG_RUN_FUNC_SUCCESS;
     return DMS_SUCCESS;

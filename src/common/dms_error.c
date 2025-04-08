@@ -48,7 +48,7 @@ const char *g_dms_errno_common_desc[] = {
 
 const char *g_dms_errno_dcs_desc[] = {
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_MASTER_ID)] = "dms get page master id fail",
-    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT)] = "dms ask for res msg fault",
+    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_SEND_MSG_FAULT)] = "dms send msg fault",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_READ_LOCAL_PAGE)] = "dms read local page fail",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_BROADCAST_FAILED)] = "dms broadcast fail",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_TXN_INFO_FAILED)] = "dms get txn info fail",
@@ -62,6 +62,7 @@ const char *g_dms_errno_dcs_desc[] = {
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_PAGE_CHECKSUM_FAILED)] = "dms page checksum fail",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_REFORM_VISIT_RES)] = "dms %s is visited by reform",
     [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_GET_DISK_LSN_FAILED)] = "[%s]fail to get disk lsn",
+    [ERRNO_DMS_DCS_INDEX(ERRNO_DMS_DCS_RECV_MSG_FAULT)] = "dms receive msg fault",
 };
 
 const char *g_dms_errno_drc_desc[] = {

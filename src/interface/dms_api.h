@@ -338,6 +338,7 @@ typedef struct st_dms_context {
     unsigned long long wait_usecs;
     unsigned char intercept_type;
     unsigned char curr_mode;    // used for table lock
+    unsigned char is_timeout;   // used for ask remote page
     unsigned long long max_wait_rsp_time; // unit ms. under some circumstances, dms need get rsp quickly for timeout.
 } dms_context_t;
 

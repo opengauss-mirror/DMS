@@ -190,7 +190,7 @@ unsigned char dms_spin_try_lock(dms_drlock_t *dlock, unsigned int sid)
             return CM_TRUE;
         }
 
-        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+        if (ret != ERRNO_DMS_DCS_SEND_MSG_FAULT && ret != ERRNO_DMS_DCS_RECV_MSG_FAULT) {
             dms_cancel_request_res((char*)&dlock->drid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);
             return CM_FALSE;
         }

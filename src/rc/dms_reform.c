@@ -86,6 +86,16 @@ int dms_reform_in_process(void)
     }
 }
 
+int dms_reform_check_success(void)
+{
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    if (!dms_reform_in_process()) {
+        return CM_TRUE;
+    }
+    return reform_info->reform_success;
+}
+
 int dms_drc_accessible(unsigned char res_type)
 {
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
@@ -144,6 +154,7 @@ void dms_reform_set_start(void)
     reform_info->reform_pause = CM_FALSE;
     reform_info->current_step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
     reform_info->proc_time = (uint64)g_timer()->now;
+    reform_info->reform_success = CM_FALSE;
     dms_reform_proc_stat_clear_current();
     dms_reform_health_set_running();
     dms_reform_proc_set_running();

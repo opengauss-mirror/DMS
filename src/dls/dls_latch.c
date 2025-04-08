@@ -693,7 +693,7 @@ unsigned char dms_try_latch_s(dms_drlatch_t *dlatch, unsigned int sid)
             return CM_TRUE;
         }
 
-        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+        if (ret != ERRNO_DMS_DCS_SEND_MSG_FAULT && ret != ERRNO_DMS_DCS_RECV_MSG_FAULT) {
             return CM_FALSE;
         }
         dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);
@@ -753,7 +753,7 @@ unsigned char dms_try_latch_table(dms_context_t *dms_ctx, dms_drid_t *drid, dms_
         if (ret == DMS_SUCCESS) {
             return CM_TRUE;
         }
-        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+        if (ret != ERRNO_DMS_DCS_SEND_MSG_FAULT && ret != ERRNO_DMS_DCS_RECV_MSG_FAULT) {
             dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
@@ -877,7 +877,7 @@ unsigned char dms_try_alatch_s(dms_context_t *dms_ctx, alockid_t *alockid)
         if (ret == DMS_SUCCESS) {
             return CM_TRUE;
         }
-        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+        if (ret != ERRNO_DMS_DCS_SEND_MSG_FAULT && ret != ERRNO_DMS_DCS_RECV_MSG_FAULT) {
             dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
@@ -899,7 +899,7 @@ unsigned char dms_try_alatch_x(dms_context_t *dms_ctx, alockid_t *alockid)
         if (ret == DMS_SUCCESS) {
             return CM_TRUE;
         }
-        if (ret != ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT) {
+        if (ret != ERRNO_DMS_DCS_SEND_MSG_FAULT && ret != ERRNO_DMS_DCS_RECV_MSG_FAULT) {
             dls_cancel_request_lock(dms_ctx);
             return CM_FALSE;
         }
