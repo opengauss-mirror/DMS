@@ -1250,8 +1250,6 @@ typedef struct st_dms_profile {
     unsigned int channel_cnt;     // Number of connections between instances
     unsigned int work_thread_cnt; // Number of MES working threads
     unsigned int max_session_cnt; // Number of client sessions to be supported
-    unsigned short mfc_tickets; // message flow control, max requests from A instance to B instance
-    unsigned short mfc_max_wait_ticket_time; // max time to wait for ticket while sending a message
     unsigned int page_size;
     unsigned long long recv_msg_buf_size;
     unsigned int log_level;

@@ -78,36 +78,6 @@ typedef struct st_dms_message_t {
     char *buffer;
 } dms_message_t;
 
-typedef struct st_mfc_ticket {
-    uint16 count;
-    spinlock_t lock;
-} mfc_ticket_t;
-
-typedef struct st_mfc {
-    uint16 profile_tickets;
-    uint16 max_wait_ticket_time; // ms
-    mfc_ticket_t remain_tickets[DMS_MAX_INSTANCES];
-    mfc_ticket_t recv_tickets[DMS_MAX_INSTANCES];
-} mfc_t;
-
-static inline void mfc_add_tickets(mfc_ticket_t *ticket, uint16 count)
-{
-    cm_spin_lock(&ticket->lock, NULL);
-    ticket->count += count;
-    cm_spin_unlock(&ticket->lock);
-}
-
-static inline uint16 mfc_clean_tickets(mfc_ticket_t *ticket)
-{
-    uint16 count;
-    cm_spin_lock(&ticket->lock, NULL);
-    count = ticket->count;
-    ticket->count = 0;
-    cm_spin_unlock(&ticket->lock);
-    return count;
-}
-
-
 #define mfc_init mes_init
 #define mfc_uninit mes_uninit
 #define mfc_register_proc_func mes_register_proc_func

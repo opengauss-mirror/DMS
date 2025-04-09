@@ -63,7 +63,6 @@ typedef struct st_dms_instance {
     dms_processor_t processors[CM_MAX_MES_MSG_CMD];
     dms_callback_t callback;
     reform_context_t reform_ctx;
-    mfc_t mfc;
     uint64 min_scn[DMS_MAX_INSTANCES];
     uint8 gdb_in_progress;
     bool8 dms_init_finish;
@@ -86,8 +85,6 @@ typedef enum en_dms_msg_buffer_number {
     DMS_MSG_BUFFER_NO_2,
     DMS_MSG_BUFFER_NO_CEIL
 } dms_msg_buffer_number_e;
-
-#define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
 
 #define DMS_PRIORITY_COMPRESS_LEVEL 0
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)

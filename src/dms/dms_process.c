@@ -1430,22 +1430,6 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     LOG_RUN_INF("[DMS] dms_set_global_dms end");
 }
 
-static void dms_init_mfc(dms_profile_t *dms_profile)
-{
-    LOG_RUN_INF("[DMS] dms_init_mfc start");
-    g_dms.mfc.profile_tickets = dms_profile->mfc_tickets;
-    g_dms.mfc.max_wait_ticket_time = dms_profile->mfc_max_wait_ticket_time;
-
-    for (uint32 i = 0; i < DMS_MAX_INSTANCES; ++i) {
-        g_dms.mfc.remain_tickets[i].count = g_dms.mfc.profile_tickets;
-        GS_INIT_SPIN_LOCK(g_dms.mfc.remain_tickets[i].lock);
-
-        g_dms.mfc.recv_tickets[i].count = 0;
-        GS_INIT_SPIN_LOCK(g_dms.mfc.recv_tickets[i].lock);
-    }
-    LOG_RUN_INF("[DMS] dms_init_mfc end");
-}
-
 int dms_init(dms_profile_t *dms_profile)
 {
     int ret;
@@ -1504,8 +1488,6 @@ int dms_init(dms_profile_t *dms_profile)
         dms_deinit_proc_ctx();
         return ret;
     }
-
-    dms_init_mfc(dms_profile);
 
     ret = dms_reform_init(dms_profile);
     if (ret != DMS_SUCCESS) {
