@@ -1839,6 +1839,8 @@ int dms_convert_error_to_event(unsigned int dms_error, unsigned int *dms_event)
             *dms_event = DMS_EVT_IDLE_WAIT;
             break;
     }
+
+    return DMS_SUCCESS;
 }
 
 int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event)
