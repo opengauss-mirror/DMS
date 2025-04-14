@@ -439,6 +439,11 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     if (drc->type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
         result->seq = drc_page->seq;
+
+        DDES_FAULT_INJECTION_ACTION_TRIGGER_CUSTOM_ALWAYS(DMS_FI_DRC_FROZEN, {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
+        return ERRNOR_DMS_DRC_RECOVERY_PAGE; });
+
         if (req_info->sess_type == DMS_SESSION_NORMAL && drc_page->need_recover) {
             LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
             DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));

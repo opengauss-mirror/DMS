@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           179
+#define DMS_LOCAL_VERSION           180
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -623,6 +623,11 @@ typedef enum en_dms_wait_event {
     DMS_EVT_PROC_REFORM_REQ,
     DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT,
     DMS_EVT_DCS_INVALID_DRC_LSNDWAIT,
+    DMS_EVT_DRC_RECYCLE,
+    DMS_EVT_DRC_NOT_ENOUGH,
+    DMS_EVT_DRC_FROZEN,
+    DMS_EVT_DRC_ENQ_ITEM_NOT_ENOUGH,
+    DMS_EVT_DRC_ENQ_ITEM_CONFLICT,
 
 // add new enum at tail, or make adaptations to openGauss
     DMS_EVT_COUNT,
@@ -1245,8 +1250,6 @@ typedef struct st_dms_profile {
     unsigned int channel_cnt;     // Number of connections between instances
     unsigned int work_thread_cnt; // Number of MES working threads
     unsigned int max_session_cnt; // Number of client sessions to be supported
-    unsigned short mfc_tickets; // message flow control, max requests from A instance to B instance
-    unsigned short mfc_max_wait_ticket_time; // max time to wait for ticket while sending a message
     unsigned int page_size;
     unsigned long long recv_msg_buf_size;
     unsigned int log_level;

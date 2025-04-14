@@ -104,6 +104,8 @@ typedef enum en_dms_fi_point_name {
     DMS_FI_ACK_END_XA = 64,
     DMS_FI_ACK_XA_IN_USE = 65,
     DMS_FI_ROLLBACK_PREPARE = 66,
+    DMS_FI_DRC_NOT_ENOUGH = 67,
+    DMS_FI_DRC_FROZEN = 68,
 } dms_fi_point_name_e;
 
 #ifdef __cplusplus

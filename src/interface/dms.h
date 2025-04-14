@@ -1016,6 +1016,10 @@ DMS_DECLARE int dms_get_mem_usage_stat_row(unsigned int mem_id, mem_info_stat_t 
 DMS_DECLARE int dms_get_online_inst(unsigned long long *online_node);
 DMS_DECLARE int dms_update_param(unsigned int index, char *value);
 
+DMS_DECLARE int dms_convert_error_to_event(unsigned int dms_error, unsigned int *dms_event);
+DMS_DECLARE int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event);
+DMS_DECLARE int dms_end_sess_wait(unsigned int sid, unsigned int dms_event);
+
 #ifdef __cplusplus
 }
 #endif
