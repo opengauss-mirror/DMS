@@ -816,6 +816,11 @@ typedef struct st_dms_msg_stats {
     dms_stat_by_cmd_t stat_cmd[DMS_STAT_CMD_COUNT];
 } dms_msg_stats_t;
 
+typedef enum en_dms_reform_event {
+    DMS_REFORM_EVENT_INVALID = 0,
+    DMS_REFORM_EVENT_AFTER_PUSH_GCV,
+} dms_reform_event_e;
+
 typedef int(*dms_get_list_stable)(void *db_handle, unsigned long long *list_stable, unsigned char *reformer_id);
 typedef int(*dms_save_list_stable)(void *db_handle, unsigned long long list_stable, unsigned char reformer_id,
     unsigned long long list_in, unsigned int save_ctrl);
@@ -932,6 +937,7 @@ typedef int (*dms_drc_xa_res_rebuild)(void *db_handle, unsigned char thread_inde
 typedef void (*dms_reform_shrink_xa_rms)(void *db_handle, unsigned char undo_seg_id);
 typedef void (*dms_ckpt_unblock_rcy_local)(void *db_handle, unsigned long long list_in);
 typedef int (*dms_drc_rebuild_parallel)(void *db_handle, unsigned char thread_index, unsigned char thread_num);
+typedef int (*dms_reform_event_notify)(void *db_handle, dms_reform_event_e event);
 
 // for openGauss
 typedef void (*dms_thread_init_t)(unsigned char need_startup, char **reg_data);
@@ -1057,8 +1063,9 @@ typedef struct st_dms_callback {
     dms_drc_xa_res_rebuild dms_reform_rebuild_xa_res;
     dms_reform_shrink_xa_rms dms_shrink_xa_rms;
     dms_ckpt_unblock_rcy_local ckpt_unblock_rcy_local;
-
     dms_drc_rebuild_parallel rebuild_alock_parallel;
+    dms_reform_event_notify reform_event_notify;
+ 
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
     dms_thread_deinit_t dms_thread_deinit;

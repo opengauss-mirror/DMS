@@ -1854,6 +1854,12 @@ static int dms_reform_push_gcv_and_unlock(void)
         DMS_GLOBAL_CLUSTER_VER, g_dms.inst_id);
 
     LOG_RUN_FUNC_SUCCESS;
+#ifndef OPENGAUSS
+    share_info_t *share_info = DMS_SHARE_INFO;
+    if (!REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
+        d_dms.callback.reform_event_notify(g_dms.reform_ctx.handle_proc, DMS_REFORM_EVENT_AFTER_PUSH_GCV);
+    }
+#endif
     dms_reform_next_step();
     return DMS_SUCCESS;
 }
