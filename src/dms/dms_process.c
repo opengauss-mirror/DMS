@@ -1244,23 +1244,23 @@ static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, 
 {
     int32 ret;
     switch (log_id) {
-        case LOG_RUN:
+        case CM_LOG_RUN:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/run/%s", log_param->log_home, "dms.rlog");
             break;
-        case LOG_DEBUG:
+        case CM_LOG_DEBUG:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/debug/%s", log_param->log_home, "dms.dlog");
             break;
-        case LOG_ALARM:
+        case CM_LOG_ALARM:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/alarm/%s", log_param->log_home, "dms.alog");
             break;
-        case LOG_AUDIT:
+        case CM_LOG_AUDIT:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/audit/%s", log_param->log_home, "dms.aud");
             break;
-        case LOG_DMS_EVT_TRC:
+        case CM_LOG_DMS_EVT_TRC:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN,
                 "%s/trc/%s", log_param->log_home, "dms_event.trc");
             break;
-        case LOG_DMS_RFM_TRC:
+        case CM_LOG_DMS_RFM_TRC:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN,
                 "%s/trc/%s", log_param->log_home, "dms_reform.trc");
             break;
@@ -1290,8 +1290,8 @@ static int32 init_single_logger(log_param_t *log_param, log_type_t log_id)
 int dms_dyn_trc_init_logger_handle()
 {
     log_param_t *log_param = cm_log_param_instance();
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_EVT_TRC));
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_RFM_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_EVT_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_RFM_TRC));
     return DMS_SUCCESS;
 }
 
@@ -1354,20 +1354,20 @@ int32 dms_init_logger(logger_param_t *param_def)
     }
 
 #ifdef OPENGAUSS
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_RUN));
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DEBUG));
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_ALARM));
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_AUDIT));
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_EVT_TRC));
-    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_RFM_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_RUN));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DEBUG));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_ALARM));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_AUDIT));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_EVT_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_RFM_TRC));
 #endif
 
     log_param->log_instance_startup = (bool32)CM_TRUE;
 
 #ifdef OPENGAUSS
     if (log_param->log_level >= DEBUG_LOG_LEVEL) {
-        cm_recovery_log_file(LOG_DEBUG);
-        cm_recovery_log_file(LOG_RUN);
+        cm_recovery_log_file(CM_LOG_DEBUG);
+        cm_recovery_log_file(CM_LOG_RUN);
     }
 #endif
     return DMS_SUCCESS;
