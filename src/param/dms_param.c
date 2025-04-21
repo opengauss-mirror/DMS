@@ -297,3 +297,13 @@ status_t dms_update_param(uint32 index, char *value)
     }
     return g_dms_param_func[index](value);
 }
+
+void dms_update_inst_cnt(unsigned int inst_cnt, unsigned long long int inst_map)
+{
+    if (inst_cnt != g_dms.inst_cnt || inst_map != g_dms.inst_map) {
+        LOG_RUN_INF("[DMS REFORM] change dms inst_cnt from %u to %u, and inst_map from %llu to %llu",
+            g_dms.inst_cnt, inst_cnt, g_dms.inst_map, inst_map);
+        g_dms.inst_cnt = inst_cnt;
+        g_dms.inst_map = inst_map;
+    }
+}

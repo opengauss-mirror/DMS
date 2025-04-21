@@ -1025,7 +1025,7 @@ DMS_DECLARE int dms_update_param(unsigned int index, char *value);
 DMS_DECLARE int dms_convert_error_to_event(unsigned int dms_error, unsigned int *dms_event);
 DMS_DECLARE int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event);
 DMS_DECLARE int dms_end_sess_wait(unsigned int sid, unsigned int dms_event);
-
+DMS_DECLARE void dms_update_inst_cnt(unsigned int inst_cnt, unsigned long long int inst_map);
 #ifdef __cplusplus
 }
 #endif

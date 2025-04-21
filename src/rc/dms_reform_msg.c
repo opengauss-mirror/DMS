@@ -135,11 +135,11 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
 
     if (SECUREC_UNLIKELY(req.share_info.reform_type >= DMS_REFORM_TYPE_COUNT ||
         req.share_info.reform_step_count > DMS_REFORM_STEP_TOTAL_COUNT ||
-        req.share_info.list_stable.inst_id_count > g_dms.inst_cnt ||
-        req.share_info.list_online.inst_id_count > g_dms.inst_cnt ||
-        req.share_info.list_offline.inst_id_count > g_dms.inst_cnt ||
-        req.share_info.list_reconnect.inst_id_count > g_dms.inst_cnt ||
-        req.share_info.list_disconnect.inst_id_count > g_dms.inst_cnt)) {
+        req.share_info.list_stable.inst_id_count > DMS_MAX_INSTANCES ||
+        req.share_info.list_online.inst_id_count > DMS_MAX_INSTANCES ||
+        req.share_info.list_offline.inst_id_count > DMS_MAX_INSTANCES ||
+        req.share_info.list_reconnect.inst_id_count > DMS_MAX_INSTANCES ||
+        req.share_info.list_disconnect.inst_id_count > DMS_MAX_INSTANCES)) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
         return;
     }
