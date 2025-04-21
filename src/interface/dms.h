@@ -770,6 +770,12 @@ DMS_DECLARE int dms_get_version(void);
 DMS_DECLARE int dms_reform_in_process(void);
 
 /*
+ * @brief check if reform is success
+ * @* @return true&false
+ */
+DMS_DECLARE int dms_reform_check_success(void);
+
+/*
  * @brief show dms version
  * @* @return dms version
  */

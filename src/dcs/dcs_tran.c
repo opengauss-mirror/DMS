@@ -1224,7 +1224,7 @@ static int32 dms_ask_xa_owner_remote(dms_context_t *dms_ctx, uint8 master_id, ui
         LOG_DEBUG_ERR("[TXN][%s][dms_ask_xa_owner_remote]: wait owner ack of xa res timeout timeout=%d ms",
             cm_display_resid((char *)global_xid, DRC_RES_GLOBAL_XA_TYPE), DMS_WAIT_MAX_TIME);
         DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_CREATE_GLOBAL_XA_RES, master_id);
-        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
+        return ERRNO_DMS_DCS_RECV_MSG_FAULT;
     }
 
     if (msg.head->cmd == MSG_ACK_ERROR) {

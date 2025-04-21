@@ -325,6 +325,7 @@ int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode
     sess_stat->stat[DMS_STAT_NET_TIME] += sess_stat->wait_time[DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY] +
         sess_stat->wait_time[DMS_EVT_DCS_REQ_MASTER4PAGE_2WAY] +
         sess_stat->wait_time[DMS_EVT_DCS_REQ_MASTER4PAGE_3WAY];
+    dms_ctx->is_timeout = (ret == ERRNO_DMS_DCS_RECV_MSG_FAULT);
     return ret;
 }
 

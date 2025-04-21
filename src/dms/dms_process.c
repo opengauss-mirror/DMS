@@ -673,9 +673,9 @@ void dms_set_mes_message_pool(unsigned long long recv_msg_buf_size, mes_profile_
  * group 5 derived messages
  * group 6 everythin else
  */
-unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
+unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg)
 {
-    switch (cmd) {
+    switch (msg->cmd) {
         case MSG_REQ_SYNC_STEP:
         case MES_REQ_MGRT_MASTER_DATA:
         case MSG_REQ_PAGE_REBUILD:
@@ -705,6 +705,9 @@ unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
         case MSG_REQ_INVALID_OWNER:
         case MSG_REQ_INVALIDATE_SHARE_COPY:
             return MES_PRIORITY_FIVE;
+        case MSG_REQ_ASK_MASTER_FOR_PAGE:
+        case MSG_REQ_ASK_OWNER_FOR_PAGE:
+            return (msg->flags & REQ_FLAG_REFORM_SESSION ? MES_PRIORITY_ZERO : MES_PRIORITY_SIX);
         default:
             return MES_PRIORITY_SIX;
     }

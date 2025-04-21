@@ -313,6 +313,12 @@ typedef struct st_dms_chk_ownership_req {
     uint8  curr_mode;
 } dms_chk_ownership_req_t;
 
+typedef enum en_req_flags {
+    REQ_FLAG_DEFAULT = 0x00,
+    REQ_FLAG_REFORM_SESSION = 0x01,
+    REQ_FLAG_CEIL = 0x80,
+} req_flags_t;
+
 static inline void cm_print_error_msg(const void *msg_data)
 {
     msg_error_t *error_msg = (msg_error_t *)msg_data;

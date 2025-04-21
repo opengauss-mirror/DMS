@@ -199,7 +199,7 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
     return (cmd < MSG_CMD_CEIL) ? g_dms.processors[cmd].name : "INVALID";
 }
 
-unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
+unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
 void *dms_malloc(memory_context_t *context, size_t size);
 void dms_free(void *ptr);

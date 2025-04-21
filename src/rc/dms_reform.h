@@ -403,6 +403,7 @@ typedef struct st_reform_info {
     uint64              bitmap_in;
     bool8               is_locking;
     bool8               has_ddl_2phase;
+    bool8               reform_success;
     drc_part_list_t     normal_copy_lists[DRC_MAX_PART_NUM];
 } reform_info_t;
 

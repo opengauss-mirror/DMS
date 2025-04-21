@@ -74,7 +74,7 @@ static inline bool32 mfc_msg_is_req(dms_message_head_t *head)
  */
 static inline unsigned int mfc_get_mes_flag(dms_message_head_t *msg)
 {
-    unsigned int flag = dms_get_mes_prio_by_cmd(msg->cmd);
+    unsigned int flag = dms_get_mes_prio_by_cmd(msg);
     CM_ASSERT(flag <= MES_FLAG_SERIAL);
     return flag;
 }
