@@ -13,22 +13,27 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * dcs_msg.c
+ * cmpt_reform_proc.h
  *
  *
  * IDENTIFICATION
- *    src/dcs/dcs_msg.c
+ *    src/cmpt/cmpt_reform_proc.h
  *
  * -------------------------------------------------------------------------
  */
+#ifndef __CMPT_REFORM_PROC_H__
+#define __CMPT_REFORM_PROC_H__
 
-#include "dcs_msg.h"
+#include "cmpt_msg_version.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+extern dms_reform_judgement_proc_t *g_reform_judgement_proc_map[DMS_PROTO_VER_NUMS];
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __CMPT_REFORM_PROC_H__

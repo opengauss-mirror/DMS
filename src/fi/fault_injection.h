@@ -26,7 +26,7 @@
 #include "cm_config.h"
 #include "dms_api.h"
 #include "dms_msg.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "ddes_fault_injection.h"
 
 #ifdef __cplusplus

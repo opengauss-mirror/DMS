@@ -26,6 +26,7 @@
 #include "drc_page.h"
 #include "dms_reform_proc_parallel.h"
 #include "drc_tran.h"
+#include "cmpt_msg_drm.h"
 
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;

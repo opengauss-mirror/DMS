@@ -25,10 +25,10 @@
 #include "dms_error.h"
 #include "mes_interface.h"
 #include "dms_stat.h"
-#include "dcs_msg.h"
 #include "dls_msg.h"
 #include "cm_encrypt.h"
 #include "cm_timer.h"
+#include "cmpt_msg_mesi.h"
 
 bool8 g_lock_matrix[LATCH_STATUS_X + 1][LATCH_STATUS_X + 1] = {
     {1, 1, 1, 1},

@@ -34,14 +34,7 @@
 #include "dcs_page.h"
 #include "dms_reform_xa.h"
 #include "dms_reform_proc_stat.h"
-
-static dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
-     [DMS_PROTO_VER_1] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, inst_bitmap)) },
-     [DMS_PROTO_VER_2] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
-     [DMS_PROTO_VER_3] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
-     [DMS_PROTO_VER_4] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
-     [DMS_PROTO_VER_5] = { CM_ALIGN8(sizeof(dms_message_head_t) + sizeof(share_info_t)) },
-};
+#include "cmpt_msg_reform.h"
 
 static int dms_reform_req_common_wait(uint64 ruid)
 {

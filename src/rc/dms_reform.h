@@ -32,6 +32,7 @@
 #include "drc.h"
 #include "dms_reform_cm_res.h"
 #include "scrlock_adapter.h"
+#include "cmpt_msg_reform.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,109 +94,6 @@ extern "C" {
         }                                                                           \
     } while (CM_FALSE)
 
-typedef enum en_inst_list_type {
-    INST_LIST_OLD_BASE = 0,
-    INST_LIST_OLD_OUT = INST_LIST_OLD_BASE + DMS_ONLINE_STATUS_OUT,
-    INST_LIST_OLD_JOIN = INST_LIST_OLD_BASE + DMS_ONLINE_STATUS_JOIN,
-    INST_LIST_OLD_REFORM = INST_LIST_OLD_BASE + DMS_ONLINE_STATUS_REFORM,
-    INST_LIST_OLD_IN = INST_LIST_OLD_BASE + DMS_ONLINE_STATUS_IN,
-    INST_LIST_OLD_REMOVE,
-    INST_LIST_NEW_BASE,
-    INST_LIST_NEW_OUT = INST_LIST_NEW_BASE + DMS_ONLINE_STATUS_OUT,
-    INST_LIST_NEW_JOIN = INST_LIST_NEW_BASE + DMS_ONLINE_STATUS_JOIN,
-    INST_LIST_NEW_REFORM = INST_LIST_NEW_BASE + DMS_ONLINE_STATUS_REFORM,
-    INST_LIST_NEW_IN = INST_LIST_NEW_BASE + DMS_ONLINE_STATUS_IN,
-    INST_LIST_TYPE_COUNT
-} inst_list_type_t;
-
-// The steps will be repeated, DMS_REFORM_STEP_TOTAL_COUNT > DMS_REFORM_STEP_COUNT
-#define DMS_REFORM_STEP_TOTAL_COUNT     128
-#define DMS_REFORM_PHASE_TOTAL_COUNT    8
-
-// Notice: every step should not be dependent on its Value, Value is only used for distinguish different step
-typedef enum en_reform_step {
-    DMS_REFORM_STEP_DONE,
-    DMS_REFORM_STEP_PREPARE,                        // just sync wait reformer. do nothing
-    DMS_REFORM_STEP_START,                          // no need to set last_fail before this step
-    DMS_REFORM_STEP_DISCONNECT,
-    DMS_REFORM_STEP_RECONNECT,
-    DMS_REFORM_STEP_DRC_CLEAN,
-    DMS_REFORM_STEP_FULL_CLEAN,
-    DMS_REFORM_STEP_MIGRATE,
-    DMS_REFORM_STEP_REBUILD,
-    DMS_REFORM_STEP_REMASTER,
-    DMS_REFORM_STEP_REPAIR,
-    DMS_REFORM_STEP_SWITCH_LOCK,
-    DMS_REFORM_STEP_SWITCHOVER_DEMOTE,
-    DMS_REFORM_STEP_RECOVERY,
-    DMS_REFORM_STEP_RECOVERY_OPENGAUSS,
-    DMS_REFORM_STEP_DRC_RCY_CLEAN,
-    DMS_REFORM_STEP_CTL_RCY_CLEAN,
-    DMS_REFORM_STEP_TXN_DEPOSIT,
-    DMS_REFORM_STEP_ROLLBACK_PREPARE,
-    DMS_REFORM_STEP_ROLLBACK_START,
-    DMS_REFORM_STEP_SUCCESS,
-    DMS_REFORM_STEP_SELF_FAIL,                      // cause by self
-    DMS_REFORM_STEP_REFORM_FAIL,                    // cause by notification from reformer
-    DMS_REFORM_STEP_SYNC_WAIT,                      // tips: can not use before reconnect
-    DMS_REFORM_STEP_PAGE_ACCESS,                    // set page accessible
-    DMS_REFORM_STEP_DW_RECOVERY,                    // recovery the dw area
-    DMS_REFORM_STEP_DF_RECOVERY,
-    DMS_REFORM_STEP_SPACE_RELOAD,
-    DMS_REFORM_STEP_DRC_ACCESS,                     // set drc accessible
-    DMS_REFORM_STEP_DRC_INACCESS,                   // set drc inaccessible
-    DMS_REFORM_STEP_SWITCHOVER_PROMOTE_OPENGAUSS,
-    DMS_REFORM_STEP_FAILOVER_PROMOTE_OPENGAUSS,
-    DMS_REFORM_STEP_STARTUP_OPENGAUSS,              // for opengauss
-    DMS_REFORM_STEP_DONE_CHECK,
-    DMS_REFORM_STEP_SET_PHASE,                      // for Gauss100
-    DMS_REFORM_STEP_WAIT_DB,                        // for Gauss100
-    DMS_REFORM_STEP_FILE_UNBLOCKED,                   // for Gauss100
-    DMS_REFORM_STEP_FILE_BLOCKED,                   // for Gauss100
-    DMS_REFORM_STEP_UPDATE_SCN,
-    DMS_REFORM_STEP_WAIT_CKPT,                      // for Gauss100
-    DMS_REFORM_STEP_DRC_VALIDATE,
-    DMS_REFORM_STEP_LOCK_INSTANCE,                  // get X mode instance lock for reform
-    DMS_REFORM_STEP_PUSH_GCV_AND_UNLOCK,            // push GCV in X instance lock, then unlock X
-    DMS_REFORM_STEP_SET_REMOVE_POINT,               // for Gauss100, set rcy point who is removed node after ckpt
-    DMS_REFORM_STEP_RESET_USER,
-    DMS_REFORM_STEP_RECOVERY_ANALYSE,               // for Gauss100, set rcy flag for pages which in redo log
-    DMS_REFORM_STEP_XA_DRC_ACCESS,                  // for Gauss100, set xa drc access
-    DMS_REFORM_STEP_DDL_2PHASE_DRC_ACCESS,
-    DMS_REFORM_STEP_DDL_2PHASE_RCY,
-    DMS_REFORM_STEP_DRC_LOCK_ALL_ACCESS,
-    DMS_REFORM_STEP_SET_CURRENT_POINT,
-    DMS_REFORM_STEP_STANDBY_UPDATE_REMOVE_NODE_CTRL,
-    DMS_REFORM_STEP_STANDBY_STOP_THREAD,
-    DMS_REFORM_STEP_STANDBY_RELOAD_NODE_CTRL,
-    DMS_REFORM_STEP_STANDBY_SET_ONLINE_LIST,
-    DMS_REFORM_STEP_STOP_SERVER,
-    DMS_REFORM_STEP_RESUME_SERVER_FOR_REFORMER,
-    DMS_REFORM_STEP_RESUME_SERVER_FOR_PARTNER,
-    DMS_REFORM_STEP_START_LRPL,                     // for Gauss100, start log replay
-    DMS_REFORM_STEP_STOP_LRPL,                      // for Gauss100, stop log replay
-    DMS_REFORM_STEP_CALIBRATE_LOG_FILE,
-
-    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE1,        // for Gauss100, AZ SWITCHOVER primary to standby
-    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_STOP_CKPT,
-    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_UPDATE_NODE_CTRL,
-    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_CHANGE_ROLE,
-    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_APPROVE,       // for Gauss100, AZ SWITCHOVER primary to standby
-    DMS_REFORM_STEP_AZ_SWITCH_DEMOTE_PHASE2,        // for Gauss100, AZ SWITCHOVER primary to standby
-    DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PREPARE,             // for Gauss100, AZ SWITCHOVER standby to primary
-    DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE1,              // for Gauss100, AZ SWITCHOVER standby to primary
-    DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_PHASE2,              // for Gauss100, AZ SWITCHOVER standby to primary
-    DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE1,     // for Gauss100, AZ FAILOVER standby to primary
-    DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_RESETLOG,   // for Gauss100, AZ FAILOVER standby to primary
-    DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2,     // for Gauss100, AZ FAILOVER standby to primary
-    DMS_REFORM_STEP_RELOAD_TXN,
-
-    DMS_REFORM_STEP_SYNC_NODE_LFN,
-    DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_SWITCH_LOG,   // for Gauss100, AZ SWITCHOVER standby to primary
-    DMS_REFORM_STEP_AZ_PROMOTE_SUCCESS,
-    DMS_REFORM_STEP_COUNT
-} reform_step_t;
-
 #define DMS_REFORM_STEP_DESC_STR_LEN 30
 
 typedef enum en_dms_thread_status {
@@ -204,87 +102,6 @@ typedef enum en_dms_thread_status {
     DMS_THREAD_STATUS_PAUSING,
     DMS_THREAD_STATUS_PAUSED,
 } dms_thread_status_t;
-
-typedef struct st_migrate_task {
-    uint8               export_inst;
-    uint8               import_inst;
-    uint8               part_id;
-    uint8               unused;
-} migrate_task_t;
-
-typedef struct st_migrate_info {
-    migrate_task_t      migrate_task[DRC_MAX_PART_NUM];
-    uint8               migrate_task_num;
-    uint8               unused[3];
-} migrate_info_t;
-
-typedef struct st_remaster_info {
-    drc_part_t          part_map[DRC_MAX_PART_NUM];
-    drc_inst_part_t     inst_part_tbl[DMS_MAX_INSTANCES];
-    uint8               deposit_map[DMS_MAX_INSTANCES];
-} remaster_info_t;
-
-typedef struct st_version_info {
-    uint64              start_time;
-    uint8               inst_id;
-    uint8               unused[3];
-} version_info_t;
-
-#pragma pack(4)
-/* Tips: Byte alignment is required, padding is not allowed */
-typedef struct st_share_info {
-    /* ============= start version 1 =================*/
-    reform_step_t       reform_step[DMS_REFORM_STEP_TOTAL_COUNT];
-    reform_phase_t      reform_phase[DMS_REFORM_PHASE_TOTAL_COUNT];
-    instance_list_t     list_stable;
-    instance_list_t     list_online;
-    instance_list_t     list_offline;
-    instance_list_t     list_reconnect;
-    instance_list_t     list_disconnect;
-    instance_list_t     list_clean;
-    instance_list_t     list_rebuild;
-    instance_list_t     list_recovery;
-    instance_list_t     list_withdraw;
-    instance_list_t     list_rollback;
-    uint64              bitmap_stable;
-    uint64              bitmap_online;
-    uint64              bitmap_reconnect;
-    uint64              bitmap_disconnect;
-    uint64              bitmap_clean;
-    uint64              bitmap_recovery;
-    uint64              bitmap_in;
-    uint64              bitmap_remove;
-    remaster_info_t     remaster_info;
-    migrate_info_t      migrate_info;
-    version_info_t      reformer_version;       // record reformer version, find reformer restart in time
-    version_info_t      switch_version;         // in reform of switchover, there is another reformer
-    dms_reform_type_t   reform_type;
-    uint8               reform_step_count;
-    uint8               reform_phase_count;
-    bool8               full_clean;
-    uint8               reformer_id;            // current reformer id
-    uint8               promote_id;             // instance promote to primary
-    uint8               demote_id;              // instance demote to standy;
-    uint8               last_reformer;          // last reformer
-    bool8               catalog_centralized;
-    uint64              version_num;
-    dw_recovery_info_t  dw_recovery_info;
-    uint64              start_times[DMS_MAX_INSTANCES];
-    date_t              judge_time;
-    uint32              proto_version;
-    /* ============= end version 1 =================*/
-
-    /* ============= start version 2 =================*/
-    uint64              inst_bitmap[INST_LIST_TYPE_COUNT];
-    /* ============= end version 2 =================*/
-
-    /* ============= start version 5 =================*/
-    remaster_info_t     old_master_info;
-    uint8               drm_trigger;
-    /* ============= end version 5 =================*/
-} share_info_t;
-
-#pragma pack()
 
 typedef struct st_rebuild_info {
     void                *rebuild_data[DMS_MAX_INSTANCES];

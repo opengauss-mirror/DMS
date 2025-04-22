@@ -28,7 +28,7 @@
 #include "dms_mfc.h"
 #include "cm_types.h"
 #include "dms_msg.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "dms_reform.h"
 #include "fault_injection.h"
 
@@ -60,7 +60,8 @@ typedef struct st_dms_instance {
     uint32 proc_ctx_cnt;
     dms_ock_scrlock_context_t scrlock_ctx;
     dms_process_context_t *proc_ctx;
-    dms_processor_t processors[CM_MAX_MES_MSG_CMD];
+    dms_processor_t req_processors[DMS_REQ_CMD_SIZE];
+    dms_processor_t ack_processors[DMS_ACK_CMD_SIZE];
     dms_callback_t callback;
     reform_context_t reform_ctx;
     uint64 min_scn[DMS_MAX_INSTANCES];
@@ -196,7 +197,13 @@ static inline void dms_proc_broadcast_ack3(dms_process_context_t *process_ctx, d
 
 static inline const char *dms_get_mescmd_msg(uint32 cmd)
 {
-    return (cmd < MSG_CMD_CEIL) ? g_dms.processors[cmd].name : "INVALID";
+    if (cmd < MSG_REQ_END) {
+        return g_dms.req_processors[cmd].name;
+    } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
+        return g_dms.ack_processors[cmd - MSG_ACK_BEGIN].name;
+    } else {
+        return "INVALID";
+    }
 }
 
 unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg);

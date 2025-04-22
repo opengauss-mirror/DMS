@@ -367,12 +367,6 @@ typedef struct st_claim_info {
     uint32  srsn;
 } claim_info_t;
 
-typedef struct st_edp_info {
-    uint64  edp_map;        /* to indicate which instance holds EDP */
-    uint64  lsn;            /* current LSN of page */
-    uint8   latest_edp;     /* instance id which holds the max LSN's EDP */
-} edp_info_t;
-
 typedef struct st_res_id {
     char    data[DMS_RESID_SIZE];
     uint16  len;

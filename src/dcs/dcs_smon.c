@@ -25,10 +25,11 @@
 #include "dcs_smon.h"
 #include "dms_error.h"
 #include "dms_mfc.h"
-#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "drc_res_mgr.h"
 #include "dms_stat.h"
+#include "cmpt_msg_cmd.h"
+#include "cmpt_msg_lock.h"
 
 #ifndef OPENGAUSS
 #define CM_MAX_RMS 16320
@@ -649,8 +650,8 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
 }
 
 typedef struct dms_send_req_and_handle_ack_ctx {
-    uint8 req_msg_type;
-    uint8 rsp_msg_type;
+    uint16 req_msg_type;
+    uint16 rsp_msg_type;
     uint16 msg_size;
     void *cookie;
     int (*build_req_msg_body)(void *cookie, void *req_msg);

@@ -24,13 +24,12 @@
 
 #include "dms_process.h"
 #include "dcs_dc.h"
-#include "dcs_msg.h"
 #include "dcs_page.h"
 #include "dcs_cr_page.h"
 #include "dcs_tran.h"
 #include "dms_error.h"
 #include "dms_msg.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "dms_msg_protocol.h"
 #include "drc_lock.h"
 #include "drc_res_mgr.h"
@@ -495,7 +494,13 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 
     mes_msg_info_t msg_data = {head->cmd, head->src_sid};
     mes_set_cur_msg_info(work_idx, &msg_data, sizeof(mes_msg_info_t));
-    dms_processor_t *processor = &g_dms.processors[head->cmd];
+
+    dms_processor_t *processor = NULL;
+    if (head->cmd < MSG_REQ_END) {
+        processor = &g_dms.req_processors[head->cmd];
+    } else {
+        processor = &g_dms.ack_processors[head->cmd - MSG_ACK_BEGIN];
+    }
     if (processor->is_enqueue) {
         bool8 pass_check = dms_check_message_proto_version(head);
         if (!pass_check) {
@@ -562,15 +567,26 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 static int dms_register_proc_func(processor_func_t *proc_func)
 {
     if ((proc_func->cmd_type >= MSG_REQ_END && proc_func->cmd_type < MSG_ACK_BEGIN) ||
-        proc_func->cmd_type >= MSG_ACK_END || proc_func->cmd_type >= CM_MAX_MES_MSG_CMD) {
+        proc_func->cmd_type >= MSG_ACK_END) {
         DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, proc_func->cmd_type);
         return ERRNO_DMS_CMD_INVALID;
     }
-    g_dms.processors[proc_func->cmd_type].proc = proc_func->proc;
-    g_dms.processors[proc_func->cmd_type].is_enqueue  = proc_func->is_enqueue_work_thread;
-    g_dms.processors[proc_func->cmd_type].is_enable_before_reform = proc_func->is_enable_before_reform;
 
-    int ret = strcpy_s(g_dms.processors[proc_func->cmd_type].name, CM_MAX_NAME_LEN, proc_func->func_name);
+    uint32 index;
+    dms_processor_t *proc = NULL;
+    if (proc_func->cmd_type < MSG_REQ_END) {
+        // req
+        proc = g_dms.req_processors;
+        index = proc_func->cmd_type;
+    } else {
+        // ack
+        proc = g_dms.ack_processors;
+        index = proc_func->cmd_type - MSG_ACK_BEGIN;
+    }
+    proc[index].proc = proc_func->proc;
+    proc[index].is_enqueue  = proc_func->is_enqueue_work_thread;
+    proc[index].is_enable_before_reform = proc_func->is_enable_before_reform;
+    int ret = strcpy_s(proc[index].name, CM_MAX_NAME_LEN, proc_func->func_name);
     DMS_SECUREC_CHECK(ret);
 
     return DMS_SUCCESS;
@@ -929,7 +945,14 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 static unsigned short dms_get_msg_cmd(char *buff)
 {
     dms_message_head_t *dms_head = (dms_message_head_t *)buff;
-    return (unsigned short)(dms_head->cmd);
+    
+    if (dms_head->cmd < MSG_REQ_END) {
+        return dms_head->cmd;
+    } else if (dms_head->cmd >= MSG_ACK_BEGIN && dms_head->cmd < MSG_ACK_END) {
+        return MSG_REQ_END + dms_head->cmd - MSG_ACK_BEGIN;
+    } else {
+        return CM_MAX_MES_MSG_CMD;
+    }
 }
 
 int dms_mes_interrupt(void *arg, int wait_time)

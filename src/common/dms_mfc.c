@@ -22,7 +22,6 @@
  * -------------------------------------------------------------------------
  */
 
-#include "dms_mfc.h"
 #include "dms_process.h"
 #include "dms_error.h"
 #include "dms_stat.h"

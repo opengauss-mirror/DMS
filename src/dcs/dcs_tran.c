@@ -23,16 +23,17 @@
  */
 
 #include "dcs_tran.h"
-#include "dcs_msg.h"
 #include "dms.h"
 #include "dms_msg.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "dms_msg_protocol.h"
 #include "drc.h"
 #include "drc_tran.h"
 #include "dms_stat.h"
 #include "dms_error.h"
 #include "drc_res_mgr.h"
+#include "cmpt_msg_tran.h"
+#include "cmpt_msg_drm.h"
 
 int dms_request_opengauss_txn_status(dms_context_t *dms_ctx, unsigned char request, unsigned char *result)
 {
