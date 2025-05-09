@@ -627,12 +627,13 @@ DMS_DECLARE int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned c
  * @[in]param dms_ctx - dms_context_t structure.
  * @[in]param dst_inst - Target Instance
  * @[in]param xid - xid
+ * @[in]param xid_len - length of xid
  * @[out]param ilock - ilock
  * @[in]param ilock - ilock length
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char xid[DMS_XID_SIZE],
-    char *ilock, unsigned int ilock_len);
+DMS_DECLARE int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char *xid,
+    unsigned int xid_len, char *ilock, unsigned int ilock_len);
 
 /*
  * @brief the smon thread get table lock msg by rm
