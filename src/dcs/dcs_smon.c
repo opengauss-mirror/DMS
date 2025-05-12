@@ -327,8 +327,8 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
     return CM_SUCCESS;
 }
 
-int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char xid[DMS_XID_SIZE], char *ilock,
-    unsigned int ilock_len)
+int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char *xid, unsigned int xid_len,
+    char *ilock, unsigned int ilock_len)
 {
     dms_reset_error();
     int ret;
@@ -347,7 +347,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_ITL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     char *dest = (char *)(send_msg + sizeof(dms_message_head_t));
-    int32 retMemcpy = memcpy_s(dest, DMS_XID_SIZE, xid, DMS_XID_SIZE);
+    int32 retMemcpy = memcpy_s(dest, DMS_XID_SIZE, xid, xid_len);
     if (SECUREC_UNLIKELY(retMemcpy != EOK)) {
         g_dms.callback.mem_free(dms_ctx->db_handle, send_msg);
         CM_THROW_ERROR(ERR_SYSTEM_CALL, retMemcpy);
