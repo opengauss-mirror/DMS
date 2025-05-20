@@ -56,6 +56,7 @@ extern "C" {
 #define DRC_BUF_RES_POOL (&g_drc_res_ctx.global_buf_res.res_map.res_pool)
 #define DRC_LOCK_RES_MAP (&g_drc_res_ctx.global_lock_res.res_map)
 #define DRC_LOCK_RES_POOL (&g_drc_res_ctx.global_lock_res.res_map.res_pool)
+#define DRC_LOCAL_RES_PART(partid) (&g_drc_res_ctx.local_res_parts[(partid)])
 #define DRC_RECYCLE_THRESHOLD 0.9 /* hardcoded to 90% res pool usage */
 #define DRC_RECYCLE_ALLOC_COUNT 1.1
 #define DLS_LATCH_IS_OWNER(lock_mode) ((lock_mode) == DMS_LOCK_EXCLUSIVE || (lock_mode) == DMS_LOCK_SHARE)
@@ -360,6 +361,9 @@ typedef struct st_drc_res_ctx {
     spinlock_t              smon_recycle_lock;
     bool32                  smon_recycle_pause;
     drm_t                   drm;
+    bool32                  start_recycled;
+    atomic_t                version;
+    drc_part_list_t         local_res_parts[DRC_MAX_PART_NUM];
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;

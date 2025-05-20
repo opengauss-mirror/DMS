@@ -259,15 +259,13 @@ typedef struct st_dms_cr_assist_t {
     dms_cr_status_t status;                 /* OUT parameter */
 } dms_cr_assist_t;
 
-typedef struct st_dms_drlock {
-    dms_drid_t      drid;
-    void           *handle;
-} dms_drlock_t;
-
 typedef struct st_dms_drlatch {
-    dms_drid_t      drid;
-    void           *handle;
+    dms_drid_t         drid;
+    void              *handle;
+    unsigned long long version;
 } dms_drlatch_t;
+
+typedef dms_drlatch_t dms_drlock_t;
 
 typedef struct st_dms_xid_ctx {
     unsigned long long xid;
