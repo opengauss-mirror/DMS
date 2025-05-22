@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           182
+#define DMS_LOCAL_VERSION           183
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -1426,6 +1426,9 @@ typedef struct st_mes_worker_msg_stats_info {
     unsigned int msg_src_inst;
     mes_msg_info_t msg_info;
     char msg_cmd_desc[DMS_CMD_DESC_LEN];
+    unsigned long long longest_cost_time; // longest_cost_time in history
+    unsigned long long longest_get_msgitem_time; // longest_cost_time in history: longest_get_msgitem_time
+    char longest_cmd_desc[DMS_CMD_DESC_LEN]; // longest_cost_time in history: longest_cmd_desc
 } mes_worker_msg_stats_info_t;
 
 typedef struct st_mes_task_priority_stats_info {
@@ -1434,6 +1437,7 @@ typedef struct st_mes_task_priority_stats_info {
     unsigned long long inqueue_msgitem_num;
     unsigned long long finished_msgitem_num;
     unsigned long long msgitem_free_num;
+    double avg_cost_time;
 } mes_task_priority_stats_info_t;
 
 typedef struct st_mem_info_stat {
