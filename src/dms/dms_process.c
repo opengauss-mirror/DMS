@@ -951,7 +951,7 @@ int dms_init_mes(dms_profile_t *dms_profile)
 static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 inst_cnt, int32 res_type,
     uint32 pool_size, uint32 item_size, res_cmp_callback res_cmp_func, res_hash_callback get_hash_func)
 {
-    uint32 size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
+    size_t size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
     DMS_SECUREC_CHECK(memset_s(global_res->res_parts, size, 0, size));
     return drc_res_map_init(&global_res->res_map, inst_cnt, res_type, pool_size,
         item_size, res_cmp_func, get_hash_func);
@@ -959,7 +959,7 @@ static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 ins
 
 void dms_global_res_reinit(drc_global_res_map_t *global_res)
 {
-    uint32 size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
+    size_t size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
     DMS_SECUREC_CHECK(memset_s(global_res->res_parts, size, 0, size));
     drc_res_map_reinit(&global_res->res_map);
 }
