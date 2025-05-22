@@ -379,22 +379,31 @@ typedef struct st_drc_req_owner_result {
 } drc_req_owner_result_t;
 
 typedef struct st_cvt_info {
-    uint8   owner_id;
-    uint8   req_id;
-    bool8   is_try;
-    uint8   res_type;
-    uint8   unused;
-    uint16  len;
-    char    resid[DMS_RESID_SIZE];
-    uint64  req_ruid;
-    uint32  req_sid;
-    dms_lock_mode_t req_mode;
-    dms_lock_mode_t curr_mode;
+    union {
+        struct {
+            uint8   req_id;            /* the instance that the request comes from */
+            uint8   curr_mode;          /* current holding lock mode in request instance */
+            uint8   req_mode;           /* the expected lock mode that request instance wants */
+            bool8   is_try;             /* if is try request */
+            uint8   intercept_type;
+            uint8   is_upgrade;         /* used for table lock upgrade */
+            uint16  req_sid;            /* the session id that the request comes from */
+            uint64  req_ruid;               /* request packet ruid */
+            uint32  srsn;
+            date_t  req_time;
+            uint32  req_proto_ver;
+            dms_session_e sess_type;    /* session type */
+        };
+        drc_request_info_t req_info;
+    };
+
     uint64  invld_insts;
-    dms_session_e sess_type;
+    uint64  seq;
+    char    resid[DMS_RESID_SIZE];
+    uint8   owner_id;
+    uint8   res_type;
+    uint16  len;
     drc_req_owner_result_type_t type;
-    uint32 req_proto_ver;
-    uint64 seq;
 } cvt_info_t;
 
 typedef struct st_claim_info {
@@ -646,6 +655,16 @@ do {                                                                            
         LOG_DEBUG_INF("invalid drc type: %d", (drc)->type);                                                         \
     }                                                                                                               \
 } while (0)
+
+static inline bool32 dms_the_same_drc_req(drc_request_info_t *req1, drc_request_info_t *req2)
+{
+    if (req1->inst_id == req2->inst_id && req1->curr_mode == req2->curr_mode && req1->req_mode == req2->req_mode &&
+        req1->sess_id == req2->sess_id && req1->ruid == req2->ruid &&
+        req1->srsn == req2->srsn && req1->req_time == req2->req_time) {
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
 
 #ifdef __cplusplus
 }

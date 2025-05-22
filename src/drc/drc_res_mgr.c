@@ -1165,7 +1165,7 @@ static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *globa
     }
 
     if (drc->copy_insts > 0 && dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, drc->type,
-        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq) != DMS_SUCCESS) {
+        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq, NULL) != DMS_SUCCESS) {
         LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
             cm_display_resid(DRC_DATA(drc), drc->type), drc->copy_insts);
         return CM_FALSE;
