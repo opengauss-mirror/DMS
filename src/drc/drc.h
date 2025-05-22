@@ -35,6 +35,7 @@
 #include "cm_latch.h"
 #include "cm_date.h"
 #include "cm_list.h"
+#include "cm_thread_pool.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +44,7 @@ extern "C" {
 #define DRC_RES_CTX (&g_drc_res_ctx)
 #define DRC_PART_MNGR (&g_drc_res_ctx.part_mngr)
 #define DRC_PART_MASTER_ID(part_id) (g_drc_res_ctx.part_mngr.part_map[(part_id)].inst_id)
+#define DRC_PART_OLD_MASTER_ID(part_id) (g_drc_res_ctx.part_mngr.old_part_map[(part_id)].inst_id)
 #define DRC_DEFAULT_LOCK_RES_NUM (SIZE_M(1))
 #define DRC_DEFAULT_GLOCK_RES_NUM (SIZE_K(100))
 #define DRC_DEFAULT_LLOCK_RES_NUM (SIZE_K(100))
@@ -58,6 +60,8 @@ extern "C" {
 #define DRC_RECYCLE_ALLOC_COUNT 1.1
 #define DLS_LATCH_IS_OWNER(lock_mode) ((lock_mode) == DMS_LOCK_EXCLUSIVE || (lock_mode) == DMS_LOCK_SHARE)
 #define DLS_LATCH_IS_LOCKED(stat) ((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
+#define DRM_CTX (&g_drc_res_ctx.drm);
+#define DRM_STAT (&g_drc_res_ctx.drm.stat);
 
 typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,
@@ -136,6 +140,11 @@ typedef struct st_drc_alock {
     drc_head_t          head;
     alockid_t           alockid;
 } drc_alock_t;
+
+typedef struct st_drc_xa {
+    drc_head_t          head;
+    drc_global_xid_t    xid;
+} drc_xa_t;
 
 #define DRC_DATA(drc)           ((char *)(drc) + sizeof(drc_head_t))
 
@@ -276,7 +285,59 @@ typedef struct st_drc_part_mngr {
     uint32 reversed;
     drc_part_t part_map[DRC_MAX_PART_NUM];
     drc_inst_part_t inst_part_tbl[DMS_MAX_INSTANCES];
+    drc_part_t old_part_map[DRC_MAX_PART_NUM];
+    drc_inst_part_t old_inst_part_tbl[DMS_MAX_INSTANCES];
 } drc_part_mngr_t;
+
+#define DRM_BUFFER_SIZE         SIZE_K(30)
+
+typedef enum en_drm_data_type {
+    DRM_DATA_MIGRATE = 0,
+    DRM_DATA_RELEASE = 1,
+
+    DRM_DATA_TYPE_COUNT
+} drm_data_type_t;
+
+typedef struct st_drm_data {
+    uint8               inst_id;                // instance id received from or send to
+    uint8               res_type;               // drc type
+    uint16              res_len;                // drc len
+    uint32              data_type;              // for MIGRATE or RELEASE
+    uint32              data_len;               // the len of data
+    char                data[DRM_BUFFER_SIZE];  // max size 30K
+} drm_data_t;
+
+typedef struct st_drm_group {
+    spinlock_t          lock;
+    bool8               received;               // indicate if there are any unprocessed data
+    uint8               wid;                    // buffer index for receive message
+    uint8               unused[2];
+    drm_data_t          data[2];
+} drm_group_t;
+
+typedef struct st_drm_stat {
+    uint64              time_total;
+    uint64              time_release;
+    uint64              time_migrate;
+    uint64              time_collect;
+    uint32              count_release;
+    uint32              count_migrate;
+    uint32              count_collect;
+    uint32              count_wait;
+} drm_stat_t;
+
+typedef struct st_drm {
+    thread_t            thread;
+    thread_stat_t       status;
+    cm_event_t          event;
+    drm_group_t         release;                // received from current master;
+    drm_group_t         migrate;                // received from old master;
+    drm_data_t          send_data;           // for current master, cache drc which will be sent to old master
+    drm_stat_t          stat;
+    bool8               trigger;
+    bool8               inited;
+    uint16              part_id;
+} drm_t;
 
 typedef struct st_drc_res_ctx {
     drc_res_pool_t          lock_item_pool;     /* enqueue item pool */
@@ -298,6 +359,7 @@ typedef struct st_drc_res_ctx {
     void*                   smon_recycle_handle;
     spinlock_t              smon_recycle_lock;
     bool32                  smon_recycle_pause;
+    drm_t                   drm;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;
@@ -361,16 +423,6 @@ typedef struct st_res_id {
     uint8   type;
     uint8   unused;
 } res_id_t;
-
-typedef struct st_drc_global_xid_res {
-    bilist_node_t    node;               /* used for link drc_xa_res_t in free list or bucket list, must be first */
-    uint8            owner_id;           /* node the xa trans rm in */
-    uint8            undo_set_id;        /* undo set the xa trans save in */
-    bool8            in_recovery;        /* in recovery or not */
-    uint16           part_id;            /* which partition id that current xa trans belongs to */
-    bilist_node_t    part_node;          /* used for link drc_xa_res_t that belongs to the same partition id */
-    drc_global_xid_t xid;
-} drc_global_xa_res_t;
 
 typedef struct st_drc_xa_res_msg {
     uint8            owner_id;           /* owner */
@@ -478,6 +530,13 @@ static inline int32 drc_get_lock_master_id(void *lock_id, uint8 len, uint8 *mast
     return CM_SUCCESS;
 }
 
+static inline int32 drc_get_lock_old_master_id(void *lock_id, uint8 len, uint8 *master_id)
+{
+    uint32 part_id = drc_get_lock_partid((char *)lock_id, len, DRC_MAX_PART_NUM);
+    *master_id = DRC_PART_OLD_MASTER_ID(part_id);
+    return CM_SUCCESS;
+}
+
 static inline void bitmap64_set(uint64 *bitmap, uint8 num)
 {
     uint64 tmp;
@@ -561,28 +620,26 @@ static inline uint64 bitmap64_intersect(uint64 bitmap1, uint64 bitmap2)
 }
 
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
+int32 drc_get_old_master_id(char *resid, uint8 type, uint8 *master_id);
 int32 drc_get_xa_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
+int32 drc_get_xa_old_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
 int32 drc_get_xa_remaster_id(drc_global_xid_t *global_xid, uint8 *master_id);
-
-int32 drc_create_xa_res(void *db_handle, uint32 session_id, drc_global_xid_t *global_xid, uint8 owner_id,
-    uint8 undo_set_id, bool32 check_xa_drc);
-int32 drc_delete_xa_res(drc_global_xid_t *global_xid, bool32 check_xa_drc);
-int32 drc_enter_xa_res(drc_global_xid_t *global_xid, drc_global_xa_res_t **xa_res, bool32 check_xa_drc);
-void drc_leave_xa_res(drc_global_res_map_t *xa_res_map, drc_res_bucket_t *bucket);
-void drc_release_xa_by_part(drc_part_list_t *part);
+int32 drc_xa_create(void *db_handle, dms_session_e sess_type, uint32 sess_id, drc_global_xid_t *xid, uint8 owner_id);
+int32 drc_xa_delete(drc_global_xid_t *xid);
 
 #define DRC_DISPLAY(drc, desc)                                                                                      \
 do {                                                                                                                \
     drc_page_t *_drc_page_ = (drc_page_t *)(drc);                                                                   \
     drc_request_info_t *cvt = &(drc)->converting.req_info;                                                          \
     if ((drc)->type == DRC_RES_PAGE_TYPE) {                                                                         \
-        LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, EDP:%d-%llu-%llu, FLAG:%d-%d-%d",        \
+        LOG_DEBUG_INF("[%s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d, EDP:%d-%llu-%llu, FLAG:%d-%d-%d",            \
             desc, cm_display_resid(DRC_DATA(drc), (drc)->type), (drc)->owner, (drc)->lock_mode, (drc)->copy_insts,  \
             cvt->inst_id, cvt->curr_mode, cvt->req_mode, cvt->is_try, cvt->sess_type, cvt->ruid, cvt->sess_id,      \
             _drc_page_->last_edp, _drc_page_->last_edp_lsn, _drc_page_->edp_map,                                    \
             _drc_page_->need_recover, _drc_page_->need_flush, _drc_page_->rebuild_type);                            \
-    } else if ((drc)->type == DRC_RES_LOCK_TYPE || (drc)->type == DRC_RES_ALOCK_TYPE) {                             \
-        LOG_DEBUG_INF("[DRC %s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d",                                         \
+    } else if ((drc)->type == DRC_RES_LOCK_TYPE || (drc)->type == DRC_RES_ALOCK_TYPE ||                             \
+               (drc)->type == DRC_RES_GLOBAL_XA_TYPE) {                                                             \
+        LOG_DEBUG_INF("[%s][%s]%d-%d-%llu, CVT:%d-%d-%d-%d-%d-%llu-%d",                                             \
             desc, cm_display_resid(DRC_DATA(drc), (drc)->type), (drc)->owner, (drc)->lock_mode, (drc)->copy_insts,  \
             cvt->inst_id, cvt->curr_mode, cvt->req_mode, cvt->is_try, cvt->sess_type, cvt->ruid, cvt->sess_id);     \
     } else {                                                                                                        \

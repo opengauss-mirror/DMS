@@ -95,7 +95,8 @@ int32 mfc_send_data_async(dms_message_head_t *msg);
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body);
 int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size,
     const void *body1, uint32 len1, const void *body2, uint32 len2);
-int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+int32 mfc_send_data2_async(dms_message_head_t *head, uint32 head_size, const void *body, uint32 len);
+int32 mfc_send_data3_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2);
 int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms);
 int32 mfc_forward_request(dms_message_head_t *msg);

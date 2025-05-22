@@ -101,6 +101,10 @@ typedef enum en_msg_command {
     MSG_REQ_ALOCK_REBUILD = 68,
     MSG_REQ_SMON_ALOCK_BY_DRID = 69,
     MSG_REQ_CHECK_OWNERSHIP = 70,
+    MSG_REQ_DRC_MIGRATE = 71,
+    MSG_REQ_DRC_RELEASE = 72,
+    MSG_REQ_DRM = 73,
+    MSG_REQ_DRM_FINISH = 74,
     MSG_REQ_END,
 
     MSG_ACK_BEGIN = 128,
@@ -158,6 +162,8 @@ typedef enum en_msg_command {
     MSG_ACK_END_XA = 179,
     MSG_ACK_XA_IN_USE = 180,
     MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT = 181,
+    MSG_ACK_DRC_MIGRATE = 182,
+    MSG_ACK_DRM_FINISH = 183,
     MSG_ACK_END,
     MSG_CMD_CEIL = MSG_ACK_END
 } msg_command_t;

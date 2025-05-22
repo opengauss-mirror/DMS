@@ -1896,6 +1896,24 @@ uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_inst)
     return dms_get_ptp_proto_version(dest_inst);
 }
 
+uint32 dms_get_reform_proto_version(uint64 bitmap_online)
+{
+    uint32 msg_version = DMS_SW_PROTO_VER;
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        if (i == g_dms.inst_id) {
+            continue;
+        }
+        if (!bitmap64_exist(&bitmap_online, i)) {
+            continue;
+        }
+        uint32 node_version = dms_get_node_proto_version(i);
+        if (node_version != DMS_INVALID_PROTO_VER && node_version < msg_version) {
+            msg_version = node_version;
+        }
+    }
+    return msg_version;
+}
+
 inline dms_message_head_t *get_dms_head(dms_message_t *msg)
 {
     return (dms_message_head_t *)(msg->buffer);
@@ -2367,6 +2385,252 @@ bool8 dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode
     }
     
     return dms_check_page_ownership_r(dms_ctx, master_id, curr_mode);
+}
+
+void dms_notify_old_master_release(drc_head_t *drc, uint8 old_master, uint8 options)
+{
+    dms_notify_old_master_t notify;
+
+    notify.len = drc->len;
+    notify.type = drc->type;
+    notify.options = options;
+    errno_t err = memcpy_s(notify.data, DRM_RESID_LEN, DRC_DATA(drc), drc->len);
+    DMS_SECUREC_CHECK(err);
+
+    DMS_INIT_MESSAGE_HEAD(&notify.head, MSG_REQ_DRC_RELEASE, 0, g_dms.inst_id, old_master, 0, 0);
+    notify.head.size = (uint16)sizeof(dms_notify_old_master_t);
+
+    if (mfc_send_data_async(&notify.head) != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM][%s]notify_old_master_release, send failed", cm_display_resid(DRC_DATA(drc), drc->type));
+    } else {
+        LOG_DEBUG_INF("[DRM][%s]notify_old_master_release, success", cm_display_resid(DRC_DATA(drc), drc->type));
+    }
+}
+
+int dms_req_drc_migrate(dms_ack_drc_migrate_t *ack, char* resid, uint16 len, uint8 type, uint8 options, uint8 master)
+{
+    dms_req_drc_migrate_t req;
+
+    req.len = len;
+    req.type = type;
+    req.options = options;
+    errno_t err = memcpy_s(req.data, DRM_RESID_LEN, resid, len);
+    DMS_SECUREC_CHECK(err);
+
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_DRC_MIGRATE, 0, g_dms.inst_id, master, 0, 0);
+    req.head.size = (uint16)sizeof(dms_req_drc_migrate_t);
+
+    int32 ret = mfc_send_data(&req.head);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM][%s]send failed, dst_inst:%d", cm_display_resid(resid, type), master);
+        return ret;
+    }
+
+    dms_message_t message = { 0 };
+    ret = mfc_get_response(req.head.ruid, &message, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM][%s]recv failed, dst_inst:%d", cm_display_resid(resid, type), master);
+        return ret;
+    }
+
+    dms_ack_drc_migrate_t *temp = (dms_ack_drc_migrate_t *)message.buffer;
+    if (temp->ret != DMS_SUCCESS) {
+        mfc_release_response(&message);
+        LOG_DEBUG_ERR("[DRM][%s]fail to enter drc, dst_inst:%d", cm_display_resid(resid, type), master);
+        return DMS_ERROR;
+    }
+
+    if (!temp->exist) {
+        mfc_release_response(&message);
+        ack->exist = CM_FALSE;
+        return DMS_SUCCESS;
+    }
+
+    err = memcpy_s(ack, sizeof(dms_ack_drc_migrate_t), message.buffer, sizeof(dms_ack_drc_migrate_t));
+    DMS_SECUREC_CHECK(err);
+    mfc_release_response(&message);
+    return DMS_SUCCESS;
+}
+
+void dms_proc_drc_migrate_inner(dms_ack_drc_migrate_t *ack, dms_req_drc_migrate_t *req, dms_process_context_t *proc)
+{
+    dms_init_ack_head(&req->head, &ack->head, MSG_ACK_DRC_MIGRATE, sizeof(dms_ack_drc_migrate_t), proc->sess_id);
+    uint8 options = (req->options | DRC_RES_CHECK_OLD_MASTER) & ~DRC_RES_CHECK_MASTER & ~DRC_ALLOC;
+    drc_head_t *drc = NULL;
+    ack->ret = drc_enter(req->data, req->len, req->type, options, &drc);
+    if (ack->ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRP][%s]fail to enter drc", cm_display_resid(req->data, req->type));
+        return;
+    }
+    if (drc == NULL) {
+        LOG_DEBUG_INF("[DRP][%s]drc not exists", cm_display_resid(req->data, req->type));
+        ack->exist = CM_FALSE;
+        return;
+    }
+
+    ack->exist = CM_TRUE;
+    ack->owner = drc->owner;
+    ack->lock_mode = drc->lock_mode;
+    ack->copy_insts = drc->copy_insts;
+    ack->converting = drc->converting;
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *drc_page = (drc_page_t *)drc;
+        ack->last_edp = drc_page->last_edp;
+        ack->edp_map = drc_page->edp_map;
+        ack->last_edp_lsn = drc_page->last_edp_lsn;
+        ack->seq = drc_page->seq;
+    }
+    DRC_DISPLAY(drc, "DRP");
+    drc_leave(drc, options);
+}
+
+void dms_proc_drc_migrate(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_req_drc_migrate_t), CM_TRUE);
+    dms_req_drc_migrate_t *req = (dms_req_drc_migrate_t *)(receive_msg->buffer);
+    if (SECUREC_UNLIKELY(req->type >= DRC_RES_TYPE_MAX_COUNT || req->len > DRM_RESID_LEN)) {
+        LOG_DEBUG_ERR("[DRP]dms_proc_drc_migrate invalid message type:%d len:%d", req->type, req->len);
+        return;
+    }
+    LOG_DEBUG_INF("[DRP][%s]migrate start, src_inst:%d", cm_display_resid(req->data, req->type), req->head.src_inst);
+
+    dms_ack_drc_migrate_t ack;
+    dms_proc_drc_migrate_inner(&ack, req, proc_ctx);
+
+    if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRP][%s]fail to send ack", cm_display_resid(req->data, req->type));
+        return;
+    }
+
+    LOG_DEBUG_INF("[DRP][%s]success to send ack", cm_display_resid(req->data, req->type));
+}
+
+void dms_proc_drc_release(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_notify_old_master_t), CM_TRUE);
+    dms_notify_old_master_t *req = (dms_notify_old_master_t *)(receive_msg->buffer);
+    if (SECUREC_UNLIKELY(req->type >= DRC_RES_TYPE_MAX_COUNT || req->len > DRM_RESID_LEN)) {
+        LOG_DEBUG_ERR("[DRP]dms_proc_drc_release invalid message type:%d len:%d", req->type, req->len);
+        return;
+    }
+    LOG_DEBUG_INF("[DRP][%s]release start, src_inst:%d", cm_display_resid(req->data, req->type), req->head.src_inst);
+    drm_release_drc(req->data, req->len, req->type, req->options);
+}
+
+void drm_req_group_data_init(drm_req_data_t *req, drm_data_t *drm_data)
+{
+    DMS_INIT_MESSAGE_HEAD(&req->head, MSG_REQ_DRM, 0, g_dms.inst_id, drm_data->inst_id, 0, 0);
+    req->head.size = (uint16)(sizeof(drm_req_data_t) + drm_data->data_len);
+    req->inst_id = (uint8)g_dms.inst_id;
+    req->res_len = drm_data->res_len;
+    req->res_type = drm_data->res_type;
+    req->data_len = drm_data->data_len;
+    req->data_type = drm_data->data_type;
+}
+
+void drm_send_data(drm_data_t *drm_data)
+{
+    if (drm_data->data_len == 0) {
+        return;
+    }
+
+    char *desc = drm_data->data_type == DRM_DATA_MIGRATE ? "migrate" : "release";
+    drm_req_data_t req;
+    drm_req_group_data_init(&req, drm_data);
+
+    int32 ret = mfc_send_data2_async(&req.head, sizeof(drm_req_data_t), drm_data->data, drm_data->data_len);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM SMON][%s]fail to send req to inst:%d res_type:%d data_type:%d data_len:%u",
+            desc, drm_data->inst_id, drm_data->res_type, drm_data->data_type, drm_data->data_len);
+    } else {
+        LOG_DEBUG_INF("[DRM SMON][%s]success to send req to inst:%d res_type:%d data_type:%d data_len:%u",
+            desc, drm_data->inst_id, drm_data->res_type, drm_data->data_type, drm_data->data_len);
+    }
+}
+
+void dms_proc_drm(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    drm_t *drm = DRM_CTX;
+    drm_req_data_t *req = (drm_req_data_t *)receive_msg->buffer;
+    if (SECUREC_UNLIKELY(req->inst_id >= DMS_MAX_INSTANCES ||
+        req->res_type >= DRC_RES_TYPE_MAX_COUNT ||
+        req->res_len > DRM_RESID_LEN ||
+        req->data_len > DRM_BUFFER_SIZE ||
+        req->data_type >= DRM_DATA_TYPE_COUNT)) {
+        LOG_DEBUG_ERR("[DRP]dms_proc_drm invalid message");
+        return;
+    }
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(drm_req_data_t) + req->data_len, CM_TRUE);
+
+    drm_group_t *drm_group = NULL;
+    if (req->data_type == DRM_DATA_MIGRATE) {
+        drm_group = &drm->migrate;
+    } else {
+        CM_ASSERT(req->data_type == DRM_DATA_RELEASE);
+        drm_group = &drm->release;
+    }
+
+    if (drm_group->received) { // received data bu not yet processed, discard current message
+        return;
+    }
+
+    cm_spin_lock(&drm_group->lock, NULL);
+    if (drm_group->received) { // received data bu not yet processed, discard current message
+        cm_spin_unlock(&drm_group->lock);
+        return;
+    }
+    drm_data_t *data = &drm_group->data[drm_group->wid]; // get buffer to cache message
+    data->inst_id = req->inst_id;
+    data->res_len = req->res_len;
+    data->res_type = req->res_type;
+    data->data_type = req->data_type;
+    data->data_len = req->data_len;
+    errno_t err = memcpy_s(data->data, DRM_BUFFER_SIZE, (char *)req + sizeof(drm_req_data_t), req->data_len);
+    DMS_SECUREC_CHECK(err);
+    drm_group->received = CM_TRUE;
+    cm_spin_unlock(&drm_group->lock);
+    cm_event_notify(&drm->event);
+}
+
+int drm_req_finish(uint8 dst_id, bool32 *trigger)
+{
+    dms_message_head_t head;
+    DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_DRM_FINISH, 0, g_dms.inst_id, dst_id, 0, 0);
+    head.size = (uint16)(sizeof(dms_message_head_t));
+
+    int32 ret = mfc_send_data(&head);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM SMON][drm_req_finish]send failed, dst_inst:%d", dst_id);
+        return ret;
+    }
+
+    dms_message_t message = { 0 };
+    ret = mfc_get_response(head.ruid, &message, DMS_WAIT_MAX_TIME);
+    if (ret != CM_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM SMON][drm_req_finish]receive failed, dst_inst:%d", dst_id);
+        return ret;
+    }
+
+    drm_ack_finish_t *ack = (drm_ack_finish_t *)message.buffer;
+    *trigger = ack->trigger;
+    mfc_release_response(&message);
+    return DMS_SUCCESS;
+}
+
+void dms_proc_drm_finish(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_message_head_t), CM_TRUE);
+    dms_message_head_t *req_head = (dms_message_head_t *)receive_msg->buffer;
+
+    drm_t *drm = DRM_CTX;
+    drm_ack_finish_t ack;
+    dms_init_ack_head(req_head, &ack.head, MSG_ACK_DRM_FINISH, sizeof(drm_ack_finish_t), proc_ctx->sess_id);
+    ack.trigger = drm->trigger;
+    if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRM][dms_proc_drm_finish]fail to send ack");
+        return;
+    }
+    LOG_DEBUG_INF("[DRM][dms_proc_drm_finish]success to send ack");
 }
 
 #ifdef __cplusplus

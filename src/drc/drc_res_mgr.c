@@ -23,11 +23,9 @@
  */
 
 #include "drc_res_mgr.h"
-#include <stdlib.h>
-#include "securec.h"
-#include "dms_error.h"
 #include "drc_page.h"
 #include "dms_reform_proc_parallel.h"
+#include "drc_tran.h"
 
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;
@@ -313,6 +311,8 @@ uint16 drc_get_partid(drc_head_t *drc)
             return drc_get_lock_partid(DRC_DATA(drc), DMS_DRID_SIZE, DRC_MAX_PART_NUM);
         case DRC_RES_ALOCK_TYPE:
             return drc_get_lock_partid(DRC_DATA(drc), DMS_ALOCKID_SIZE, DRC_MAX_PART_NUM);
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return drc_get_xa_partid((drc_global_xid_t *)DRC_DATA(drc));
         default:
             cm_panic_log(CM_FALSE, "invalid type when get partid");
             return 0;
@@ -366,6 +366,57 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
+drc_head_t *drc_alloc(uint8 options, drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
+    drc_res_bucket_t *bucket)
+{
+    if (!(options & DRC_ALLOC)) {
+        return NULL;
+    }
+
+    drc_head_t *drc = drc_create(pool, resid, len, res_type, bucket);
+    if (SECUREC_UNLIKELY(drc == NULL)) {
+        return NULL;
+    } else {
+        return drc;
+    }
+}
+
+drc_head_t *drc_migrate(char *resid, uint16 len, uint8 res_type, uint8 options, uint8 old_master)
+{
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
+    drc_res_map_t *res_map = &global_res_map->res_map;
+    drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
+    drc_head_t *drc = NULL;
+    dms_ack_drc_migrate_t ack;
+
+    if (dms_req_drc_migrate(&ack, resid, len, res_type, options, old_master) != DMS_SUCCESS) {
+        return NULL;
+    }
+
+    if (!ack.exist) {
+        return drc_alloc(options, &res_map->res_pool, resid, len, res_type, bucket);
+    }
+
+    drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
+    if (SECUREC_UNLIKELY(drc == NULL)) {
+        return NULL;
+    }
+    drc->owner = ack.owner;
+    drc->lock_mode = ack.lock_mode;
+    drc->copy_insts = ack.copy_insts;
+    drc->converting = ack.converting;
+    if (res_type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *drc_page = (drc_page_t *)drc;
+        drc_page->last_edp = ack.last_edp;
+        drc_page->edp_map = ack.edp_map;
+        drc_page->last_edp_lsn = ack.last_edp_lsn;
+        drc_page->seq = ack.seq;
+    }
+    DRC_DISPLAY(drc, "DRM");
+    dms_notify_old_master_release(drc, old_master, options);
+    return drc;
+}
+
 drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
@@ -380,18 +431,28 @@ drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 op
         return drc;
     }
 
-    if (!(options & DRC_RES_ALLOC)) {
+    // accessed by old master(for migrate or release), return NULL if drc not exists
+    if (options & DRC_RES_CHECK_OLD_MASTER) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
     }
 
-    drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
-    if (SECUREC_UNLIKELY(drc == NULL)) {
+    uint8 old_master = CM_INVALID_ID8;
+    if (drc_get_old_master_id(resid, res_type, &old_master) != DMS_SUCCESS) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
     }
 
-    drc_inc_ref_count(drc);
+    // old master is self, just create drc according options. otherwise, should ask old master for drc
+    if (dms_dst_id_is_self(old_master)) {
+        drc = drc_alloc(options, &res_map->res_pool, resid, len, res_type, bucket);
+    } else {
+        drc = drc_migrate(resid, len, res_type, options, old_master);
+    }
+
+    if (drc != NULL) {
+        drc_inc_ref_count(drc);
+    }
     cm_spin_unlock(&bucket->lock);
     return drc;
 }
@@ -435,21 +496,50 @@ int drc_enter_check_access(char *resid, uint8 res_type, uint8 options)
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
-    if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
-        res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
-        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
-        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-        return ERRNO_DMS_REFORM_IN_PROCESS;
-    }
-
-    if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
-        res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
-        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
-        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-        return ERRNO_DMS_REFORM_IN_PROCESS;
+    switch (res_type) {
+        case DRC_RES_PAGE_TYPE:
+            if (!(options & DRC_RES_RELEASE) &&
+                res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
+                LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+                DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+                return ERRNO_DMS_REFORM_IN_PROCESS;
+            }
+            break;
+        case DRC_RES_LOCK_TYPE:
+        case DRC_RES_ALOCK_TYPE:
+            if ((options & DRC_CHECK_BIZ_SESSION) &&
+                res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
+                LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+                DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+                return ERRNO_DMS_REFORM_IN_PROCESS;
+            }
+        case DRC_RES_GLOBAL_XA_TYPE:
+            break;
+        default:
+            LOG_RUN_ERR("invalid res type:%d", res_type);
+            break;
     }
 
     return DMS_SUCCESS;
+}
+
+int drc_enter_check_old_master(char *resid, uint8 res_type, uint8 options)
+{
+    if (!(options & DRC_RES_CHECK_OLD_MASTER)) {
+        return DMS_SUCCESS;
+    }
+
+    uint8 master_id = CM_INVALID_ID8;
+    int ret = drc_get_old_master_id(resid, res_type, &master_id);
+    DMS_RETURN_IF_ERROR(ret);
+
+    if (dms_dst_id_is_self(master_id)) {
+        return DMS_SUCCESS;
+    }
+
+    LOG_DEBUG_WAR("[%s][drc_enter_check_old_master]old_master is %d", cm_display_resid(resid, res_type), master_id);
+    DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
+    return ERRNO_DMS_DRC_INVALID;
 }
 
 int drc_enter_check_master(char *resid, uint8 res_type, uint8 options)
@@ -514,6 +604,12 @@ int drc_enter_check(char *resid, uint8 res_type, uint8 options)
         return ret;
     }
 
+    ret = drc_enter_check_old_master(resid, res_type, options);
+    if (ret != DMS_SUCCESS) {
+        drc_unlatch(res_type, options);
+        return ret;
+    }
+
     return DMS_SUCCESS;
 }
 
@@ -539,6 +635,93 @@ int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t
     cm_spin_lock(&(*drc)->lock, NULL);
     try_drc_page_inc_seq(*drc);
     return DMS_SUCCESS;
+}
+
+bool8 drm_create_inner(char *resid, uint16 len, uint8 res_type, uint8 options)
+{
+    drc_global_res_map_t *gloabl_res_map = drc_get_global_res_map(res_type);
+    drc_res_map_t *res_map = &gloabl_res_map->res_map;
+    drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
+
+    cm_spin_lock(&bucket->lock, NULL);
+    drc_head_t *drc = (drc_head_t *)drc_res_map_lookup(res_map, bucket, resid, len);
+    if (drc != NULL) {
+        cm_spin_unlock(&bucket->lock);
+        return CM_TRUE;
+    }
+
+    drc = drc_alloc(options, &res_map->res_pool, resid, len, res_type, bucket);
+    if (drc == NULL) {
+        cm_spin_unlock(&bucket->lock);
+        return CM_FALSE;
+    }
+
+    switch (res_type) {
+        case DRC_RES_PAGE_TYPE: {
+            drm_migrate_page_t *migrate_page = (drm_migrate_page_t *)resid;
+            drc_page_t *drc_page = (drc_page_t *)drc;
+            errno_t err = memcpy_s(&drc->converting, sizeof(drc_cvt_item_t),
+                &migrate_page->converting, sizeof(drc_cvt_item_t));
+            DMS_SECUREC_CHECK(err);
+            drc->owner = migrate_page->owner;
+            drc->lock_mode = migrate_page->lock_mode;
+            drc->copy_insts = migrate_page->copy_insts;
+            drc_page->last_edp = migrate_page->last_edp;
+            drc_page->edp_map = migrate_page->edp_map;
+            drc_page->last_edp_lsn = migrate_page->last_edp_lsn;
+            drc_page->seq = migrate_page->seq;
+            break;
+        }
+
+        case DRC_RES_LOCK_TYPE: {
+            drm_migrate_lock_t *migrate_lock = (drm_migrate_lock_t *)resid;
+            errno_t err = memcpy_s(&drc->converting, sizeof(drc_cvt_item_t),
+                &migrate_lock->converting, sizeof(drc_cvt_item_t));
+            DMS_SECUREC_CHECK(err);
+            drc->owner = migrate_lock->owner;
+            drc->lock_mode = migrate_lock->lock_mode;
+            drc->copy_insts = migrate_lock->copy_insts;
+            break;
+        }
+
+        case DRC_RES_ALOCK_TYPE: {
+            drm_migrate_alock_t *migrate_alock = (drm_migrate_alock_t *)resid;
+            errno_t err = memcpy_s(&drc->converting, sizeof(drc_cvt_item_t),
+                &migrate_alock->converting, sizeof(drc_cvt_item_t));
+            DMS_SECUREC_CHECK(err);
+            drc->owner = migrate_alock->owner;
+            drc->lock_mode = migrate_alock->lock_mode;
+            drc->copy_insts = migrate_alock->copy_insts;
+            break;
+        }
+
+        case DRC_RES_GLOBAL_XA_TYPE: {
+            drm_migrate_xa_t *migrate_xa = (drm_migrate_xa_t *)resid;
+            drc->owner = migrate_xa->owner;
+            break;
+        }
+
+        default:
+            CM_ASSERT(0);
+            break;
+    }
+
+    DRC_DISPLAY(drc, "DRM");
+    cm_spin_unlock(&bucket->lock);
+
+    return CM_TRUE;
+}
+
+bool8 drm_create(char *resid, uint16 len, uint8 res_type)
+{
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
+    if (drc_enter_check(resid, res_type, options) != DMS_SUCCESS) {
+        return CM_FALSE;
+    }
+
+    bool8 ret = drm_create_inner(resid, len, res_type, options);
+    drc_unlatch(res_type, options);
+    return ret;
 }
 
 void drc_leave(drc_head_t *drc, uint8 options)
@@ -635,7 +818,9 @@ void drc_destroy(void)
         cm_chan_free(ctx->chan);
         ctx->chan = NULL;
     }
+
     uninit_drc_mem_context();
+    drm_thread_deinit();
 }
 
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id)
@@ -716,6 +901,23 @@ int32 drc_get_page_master_id(char *pageid, unsigned char *master_id)
     return DMS_SUCCESS;
 }
 
+int drc_get_page_old_master_id(char *pageid, unsigned char *master_id)
+{
+    dms_reset_error();
+    uint8  inst_id;
+    uint32 part_id;
+
+    part_id = drc_page_partid(pageid);
+    inst_id = DRC_PART_OLD_MASTER_ID(part_id);
+    if (inst_id == CM_INVALID_ID8) {
+        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND, cm_display_pageid(pageid));
+        return ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND;
+    }
+
+    *master_id = inst_id;
+    return DMS_SUCCESS;
+}
+
 int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id)
 {
     uint8  inst_id;
@@ -775,7 +977,23 @@ int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
         case DRC_RES_ALOCK_TYPE:
             return drc_get_lock_master_id(resid, DMS_ALOCKID_SIZE, master_id);
         default:
-            return CM_INVALID_ID8;
+            return DMS_ERROR;
+    }
+}
+
+int32 drc_get_old_master_id(char *resid, uint8 type, uint8 *master_id)
+{
+    switch (type) {
+        case DRC_RES_PAGE_TYPE:
+            return drc_get_page_old_master_id(resid, master_id);
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return drc_get_xa_old_master_id((drc_global_xid_t *)resid, master_id);
+        case DRC_RES_LOCK_TYPE:
+            return drc_get_lock_old_master_id(resid, DMS_DRID_SIZE, master_id);
+        case DRC_RES_ALOCK_TYPE:
+            return drc_get_lock_old_master_id(resid, DMS_ALOCKID_SIZE, master_id);
+        default:
+            return DMS_ERROR;
     }
 }
 
@@ -784,7 +1002,7 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_t
     uint8 options = DRC_RES_NORMAL;
 
     if (alloc) {
-        options |= DRC_RES_ALLOC;
+        options |= DRC_ALLOC;
     }
 
     if (intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
@@ -940,6 +1158,12 @@ static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *globa
 {
     drc_res_ctx_t *res_ctx = DRC_RES_CTX;
 
+    if (drc->type == DRC_RES_GLOBAL_XA_TYPE && drc->owner != CM_INVALID_ID8) {
+        LOG_DEBUG_WAR("[DRC recycle][%s]fail to release drc xa, owner:%d",
+            cm_display_resid(DRC_DATA(drc), drc->type), drc->owner);
+        return CM_FALSE;
+    }
+
     if (drc->copy_insts > 0 && dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, drc->type,
         drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq) != DMS_SUCCESS) {
         LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
@@ -985,9 +1209,24 @@ static bool8 drc_chk_4_recycle(drc_head_t *drc, uint64 *seq)
             return CM_FALSE;
         }
     }
+
+    if (drc->type == DRC_RES_GLOBAL_XA_TYPE) {
+        if (drc->owner != CM_INVALID_ID8) {
+            cm_spin_unlock(&drc->lock);
+            return CM_FALSE;
+        }
+    }
+
     drc->is_recycling = CM_TRUE;
     cm_spin_unlock(&drc->lock);
     return CM_TRUE;
+}
+
+bool8 drc_recycle_part_check(uint16 part_id)
+{
+    uint8 curr_master = DRC_PART_MASTER_ID(part_id);
+    uint8 old_master = DRC_PART_OLD_MASTER_ID(part_id);
+    return dms_dst_id_is_self(old_master) && dms_dst_id_is_self(curr_master);
 }
 
 void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, drc_part_list_t *part)
@@ -998,7 +1237,9 @@ void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *o
 
     if (node == NULL) {
         return;
-    }    
+    }
+    // drc can not be released by other thread, so we can access drc directly here
+    // so drc in old master can not processed here, otherwise there may be concurrency issues
     drc_head_t *drc = (drc_head_t *)BILIST_NODE_OF(drc_head_t, node, part_node);
     // check
     uint64 seq = 0;
@@ -1086,8 +1327,10 @@ static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t 
     }
     // serial recycling
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
-        drc_part_list_t *part = &global_drc_res->res_parts[part_id];
-        drc_recycle_drc_by_part(ctx, global_drc_res, part);
+        if (drc_recycle_part_check(part_id)) {
+            drc_part_list_t *part = &global_drc_res->res_parts[part_id];
+            drc_recycle_drc_by_part(ctx, global_drc_res, part);
+        }
         if (res_ctx->smon_recycle_pause) {
             break;
         }
@@ -1100,6 +1343,7 @@ static drc_recycle_obj_t recycle_objs[] = {
     { &g_drc_res_ctx.global_buf_res,   "BUF RES",   CM_FALSE },
     { &g_drc_res_ctx.global_lock_res,  "LOCK RES",  CM_FALSE },
     { &g_drc_res_ctx.global_alock_res, "ALOCK RES", CM_FALSE },
+    { &g_drc_res_ctx.global_xa_res,    "XA RES",    CM_FALSE },
 };
 
 static bool8 drc_do_recycle_task(dms_process_context_t *ctx)
@@ -1143,4 +1387,426 @@ void drc_recycle_thread(thread_t *thread)
         cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
     }
     LOG_RUN_INF("[DRC recycle]drc_recycle_thread close");
+}
+
+bool8 drc_cmp_part_info(void)
+{
+    for (uint8 i = 0; i < DRC_MAX_PART_NUM; i++) {
+        if (DRC_PART_MASTER_ID(i) != DRC_PART_OLD_MASTER_ID(i)) {
+            return CM_FALSE;
+        }
+    }
+    return CM_TRUE;
+}
+
+void drm_release_drc(char *data, uint16 len, uint8 type, uint8 options)
+{
+    drc_global_res_map_t *gloabl_res = drc_get_global_res_map(type);
+    drc_res_bucket_t *bucket = drc_res_map_get_bucket(&gloabl_res->res_map, data, len);
+    uint8 new_options = (options | DRC_RES_CHECK_OLD_MASTER) & ~DRC_RES_CHECK_MASTER & ~DRC_ALLOC;
+    drc_head_t *drc = NULL;
+    if (drc_enter(data, len, type, new_options, &drc) != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DRP][%s]fail to enter drc", cm_display_resid(data, type));
+        return;
+    }
+    if (drc == NULL) {
+        LOG_DEBUG_INF("[DRP][%s]drc not exist", cm_display_resid(data, type));
+        return;
+    }
+    cm_spin_lock(&bucket->lock, NULL);
+    if (drc->ref_count > 1) {
+        cm_spin_unlock(&bucket->lock);
+        drc_leave(drc, new_options);
+        LOG_DEBUG_INF("[DRP][%s]fail to release because of ref_count > 1", cm_display_resid(data, type));
+        return;
+    }
+    drc_release(drc, &gloabl_res->res_map, bucket);
+    cm_spin_unlock(&bucket->lock);
+    drc_unlatch(type, new_options);
+    LOG_DEBUG_INF("[DRP][%s]release success", cm_display_resid(data, type));
+}
+
+// old master, release drc after receive release message
+void drm_release(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm_stat_t *stat = DRM_STAT;
+    drm_group_t *release = &drm->release;
+
+    uint64 start_time = g_timer()->monotonic_now;
+    cm_spin_lock(&release->lock, NULL);
+    if (!release->received) {
+        cm_spin_unlock(&release->lock);
+        stat->time_release += g_timer()->monotonic_now - start_time;
+        return;
+    }
+    drm_data_t *drm_data = &release->data[release->wid];
+    release->wid = !release->wid;
+    release->received = CM_FALSE;
+    cm_spin_unlock(&release->lock);
+
+    LOG_DEBUG_INF("[DRM SMON][release]receive from current master:%d res_type:%d data_len:%u",
+        drm_data->inst_id, drm_data->res_type, drm_data->data_len);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_FALSE);
+    for (uint32 offset = 0; offset < drm_data->data_len; offset += drm_data->res_len) {
+        drm_release_drc(drm_data->data + offset, drm_data->res_len, drm_data->res_type, options);
+        stat->count_release++;
+    }
+    stat->time_release += g_timer()->monotonic_now - start_time;
+}
+
+void drm_data_init(drm_data_t *drm_data, uint8 inst_id, uint8 res_type, uint16 res_len, uint32 data_type)
+{
+    drm_data->inst_id = inst_id;
+    drm_data->res_type = res_type;
+    drm_data->res_len = res_len;
+    drm_data->data_type = data_type;
+    drm_data->data_len = 0;
+}
+
+uint32 drm_get_migrate_res_len(uint8 type)
+{
+    switch (type) {
+        case DRC_RES_PAGE_TYPE:
+            return sizeof(drm_migrate_page_t);
+
+        case DRC_RES_LOCK_TYPE:
+            return sizeof(drm_migrate_lock_t);
+
+        case DRC_RES_ALOCK_TYPE:
+            return sizeof(drm_migrate_alock_t);
+
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return sizeof(drm_migrate_xa_t);
+
+        default:
+            CM_ASSERT(0);
+            return 0;
+    }
+}
+
+void drm_collect_drc(drm_data_t *drm_data, uint32 offset, drc_head_t *drc)
+{
+    switch (drc->type) {
+        case DRC_RES_PAGE_TYPE: {
+            drm_migrate_page_t *migrate_page = (drm_migrate_page_t *)(drm_data->data + offset);
+            drc_page_t *drc_page = (drc_page_t *)drc;
+            errno_t err = memcpy_s(migrate_page->resid, drc->len, DRC_DATA(drc), drc->len);
+            DMS_SECUREC_CHECK(err);
+            err = memcpy_s(&migrate_page->converting, sizeof(drc_cvt_item_t), &drc->converting, sizeof(drc_cvt_item_t));
+            DMS_SECUREC_CHECK(err);
+            migrate_page->owner = drc->owner;
+            migrate_page->lock_mode = drc->lock_mode;
+            migrate_page->copy_insts = drc->copy_insts;
+            migrate_page->edp_map = drc_page->edp_map;
+            migrate_page->last_edp = drc_page->last_edp;
+            migrate_page->last_edp_lsn = drc_page->last_edp_lsn;
+            migrate_page->seq = drc_page->seq;
+            break;
+        }
+
+        case DRC_RES_LOCK_TYPE: {
+            drm_migrate_lock_t *migrate_lock = (drm_migrate_lock_t *)(drm_data->data + offset);
+            errno_t err = memcpy_s(migrate_lock->resid, drc->len, DRC_DATA(drc), drc->len);
+            DMS_SECUREC_CHECK(err);
+            err = memcpy_s(&migrate_lock->converting, sizeof(drc_cvt_item_t), &drc->converting, sizeof(drc_cvt_item_t));
+            DMS_SECUREC_CHECK(err);
+            migrate_lock->owner = drc->owner;
+            migrate_lock->lock_mode = drc->lock_mode;
+            migrate_lock->copy_insts = drc->copy_insts;
+            break;
+        }
+
+        case DRC_RES_ALOCK_TYPE: {
+            drm_migrate_alock_t *migrate_alock = (drm_migrate_alock_t *)(drm_data->data + offset);
+            errno_t err = memcpy_s(migrate_alock->resid, drc->len, DRC_DATA(drc), drc->len);
+            DMS_SECUREC_CHECK(err);
+            err = memcpy_s(&migrate_alock->converting, sizeof(drc_cvt_item_t), &drc->converting,
+                sizeof(drc_cvt_item_t));
+            DMS_SECUREC_CHECK(err);
+            migrate_alock->owner = drc->owner;
+            migrate_alock->lock_mode = drc->lock_mode;
+            migrate_alock->copy_insts = drc->copy_insts;
+        }
+
+        case DRC_RES_GLOBAL_XA_TYPE: {
+            drm_migrate_xa_t *migrate_xa = (drm_migrate_xa_t *)(drm_data->data + offset);
+            errno_t err = memcpy_s(migrate_xa->resid, drc->len, DRC_DATA(drc), drc->len);
+            DMS_SECUREC_CHECK(err);
+            migrate_xa->owner = drc->owner;
+            break;
+        }
+
+        default:
+            CM_ASSERT(0);
+            break;
+    }
+}
+
+bool8 drm_collect_part_inner(uint8 master, uint16 part_id, uint8 type, uint16 len)
+{
+    drm_t *drm = DRM_CTX;
+    drm_stat_t *stat = DRM_STAT;
+    drc_global_res_map_t *res_map = drc_get_global_res_map(type);
+    drc_part_list_t *part = &res_map->res_parts[part_id];
+    uint32 migrate_res_len = drm_get_migrate_res_len(type);
+
+    if (part->list.count == 0) {
+        return CM_FALSE;
+    }
+
+    drm_data_t *migrate = &drm->send_data;
+    drm_data_init(migrate, master, type, len, DRM_DATA_MIGRATE);
+
+    cm_spin_lock(&part->lock, NULL);
+    bilist_node_t *node = cm_bilist_head(&part->list);
+    uint32 offset = 0;
+    while (node != NULL && (offset + migrate_res_len) <= DRM_BUFFER_SIZE) {
+        drc_head_t *drc = DRC_RES_NODE_OF(drc_head_t, node, part_node);
+        drm_collect_drc(migrate, offset, drc);
+        node = BINODE_NEXT(node);
+        offset += migrate_res_len;
+        stat->count_collect++;
+    }
+    migrate->data_len = offset;
+    cm_spin_unlock(&part->lock);
+
+    drm_send_data(migrate);
+    return CM_TRUE;
+}
+
+bool8 drm_collect_part(uint8 curr_master, uint16 part_id)
+{
+    if (drm_collect_part_inner(curr_master, part_id, DRC_RES_PAGE_TYPE, DMS_PAGEID_SIZE) ||
+        drm_collect_part_inner(curr_master, part_id, DRC_RES_LOCK_TYPE, DMS_DRID_SIZE) ||
+        drm_collect_part_inner(curr_master, part_id, DRC_RES_ALOCK_TYPE, DMS_ALOCKID_SIZE) ||
+        drm_collect_part_inner(curr_master, part_id, DRC_RES_GLOBAL_XA_TYPE, DMS_XA_SIZE)) {
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
+
+// if the master fails to migrate DRC intime. duplicate DRC may be sent. so choose the next part as beginning
+void drm_collect(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm_stat_t *stat = DRM_STAT;
+
+    uint64 start_time = g_timer()->monotonic_now;
+    for (uint16 part_id = drm->part_id; part_id < drm->part_id + DRC_MAX_PART_NUM; part_id++) {
+        uint16 partid = part_id % DRC_MAX_PART_NUM;
+        uint8 curr_master = DRC_PART_MASTER_ID(partid);
+        uint8 old_master = DRC_PART_OLD_MASTER_ID(partid);
+        if (curr_master == old_master || dms_dst_id_is_self(curr_master) || !dms_dst_id_is_self(old_master)) {
+            continue;
+        }
+        if (drm_collect_part(curr_master, partid)) {
+            stat->time_collect += g_timer()->monotonic_now - start_time;
+            drm->part_id = (partid + 1) % DRC_MAX_PART_NUM;
+            return;
+        }
+    }
+
+    drm->trigger = CM_FALSE;
+    stat->time_collect += g_timer()->monotonic_now - start_time;
+}
+
+void drm_migrate(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm_stat_t *stat = DRM_STAT;
+    drm_group_t *migrate = &drm->migrate;
+
+    uint64 start_time = g_timer()->monotonic_now;
+    cm_spin_lock(&migrate->lock, NULL);
+    if (!migrate->received) {
+        cm_spin_unlock(&migrate->lock);
+        stat->time_migrate += g_timer()->monotonic_now - start_time;
+        return;
+    }
+
+    drm_data_t *migrate_data = &migrate->data[migrate->wid];
+    migrate->wid = !migrate->wid;
+    migrate->received = CM_FALSE;
+    cm_spin_unlock(&migrate->lock);
+
+    LOG_DEBUG_INF("[DRM SMON][migrate]receive from old master:%d res_type:%d data_len;%u",
+        migrate_data->inst_id, migrate_data->res_type, migrate_data->data_len);
+
+    drm_data_t *release_data = &drm->send_data;
+    drm_data_init(release_data, migrate_data->inst_id, migrate_data->res_type, migrate_data->res_len,
+        DRM_DATA_RELEASE);
+
+    uint32 offset_migrate = 0;
+    uint32 offset_release = 0;
+    uint32 migrate_res_len = drm_get_migrate_res_len(migrate_data->res_type);
+    while (offset_migrate < migrate_data->data_len) {
+        char *resid = migrate_data->data + offset_migrate;
+        if (drm_create(resid, migrate_data->res_len, migrate_data->res_type)) {
+            stat->count_migrate++;
+            errno_t err = memcpy_s(release_data->data + offset_release, DRM_BUFFER_SIZE - offset_release,
+                resid, migrate_data->res_len);
+            DMS_SECUREC_CHECK(err);
+            offset_release += migrate_data->res_len;
+        }
+        offset_migrate += migrate_res_len;
+    }
+    release_data->data_len = offset_release;
+    drm_send_data(release_data);
+    stat->time_migrate += g_timer()->monotonic_now - start_time;
+}
+
+void drm_thread_set_pause(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm->status = THREAD_STATUS_ENDING;
+    cm_event_notify(&drm->event);
+    while (drm->status != THREAD_STATUS_ENDED) {
+        cm_sleep(1);
+    }
+    LOG_RUN_INF("[DRM SMON]drm_thread pause");
+}
+
+void drm_thread_set_running(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm->status = THREAD_STATUS_PROCESSSING;
+    cm_event_notify(&drm->event);
+    LOG_RUN_INF("[DRM SMON]drm_thread run");
+}
+
+void drm_trigger(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm->trigger = CM_TRUE;
+    drm->part_id = 0;
+    drm->migrate.received = CM_FALSE;
+    drm->migrate.wid = 0;
+    drm->release.received = CM_FALSE;
+    drm->release.wid = 0;
+
+    drm_stat_t *stat = DRM_STAT;
+    DMS_SECUREC_CHECK(memset_s(stat, sizeof(drm_stat_t), 0, sizeof(drm_stat_t)));
+}
+
+void drm_finish(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm_stat_t *stat = DRM_STAT;
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+
+    if (drm->trigger || drc_cmp_part_info()) {
+        return;
+    }
+
+    bool32 trigger = CM_TRUE;
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
+        if (dms_dst_id_is_self(i)) {
+            continue;
+        }
+        if (!bitmap64_exist(&reform_info->bitmap_in, i)) {
+            continue;
+        }
+        if (drm_req_finish(i, &trigger) != DMS_SUCCESS) {
+            return;
+        }
+        if (trigger) {
+            return;
+        }
+    }
+
+    // overwrite old master map with current master map
+    drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
+    dms_reform_part_copy_inner(part_mngr->old_inst_part_tbl, part_mngr->inst_part_tbl,
+        part_mngr->old_part_map, part_mngr->part_map);
+
+    LOG_RUN_INF("[DRM SMON]time_total:%llu time_release:%llu time_collect:%llu time_migrate:%llu count_wait:%u "
+        "count_release:%u count_collect:%u count_migrate:%u", stat->time_total, stat->time_release, stat->time_collect,
+        stat->time_migrate, stat->count_wait, stat->count_release, stat->count_collect, stat->count_migrate);
+}
+
+void drm_sleep(void)
+{
+    drm_t *drm = DRM_CTX;
+    drm_stat_t *stat = DRM_STAT;
+    drm_group_t *release = &drm->release;
+    drm_group_t *migrate = &drm->migrate;
+
+    if (release->received || migrate->received) {
+        return;
+    }
+
+    // considering the slow speed of DRC migrate, in order to avoid wasting network, sleep 10ms here
+    (void)cm_event_timedwait(&drm->event, DRM_SLEEP_TIME);
+    stat->count_wait++;
+}
+
+// Due to the constraints of the re-master algorithm
+// drm_collect and drm_migrate can not be executer simultaneously at the same node
+void drm_inner(void)
+{
+    drm_t *drm = DRM_CTX;
+
+    if (drc_cmp_part_info()) {
+        (void)cm_event_timedwait(&drm->event, DMS_REFORM_SHORT_TIMEOUT);
+        return;
+    }
+
+    drm_stat_t *stat = DRM_STAT;
+    uint64 time_start = g_timer()->monotonic_now;
+    drm_release();
+    drm_collect();
+    drm_migrate();
+    drm_finish();
+    drm_sleep();
+    stat->time_total += g_timer()->monotonic_now - time_start;
+}
+
+void drm_thread(thread_t *thread)
+{
+#ifdef OPENGAUSS
+    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
+#endif
+    drm_t *drm = DRM_CTX;
+
+    LOG_RUN_INF("[DRM SMON]drm_thread start");
+    while (!thread->closed) {
+        if (drm->status == THREAD_STATUS_PROCESSSING) {
+            drm_inner();
+            continue;
+        }
+        if (drm->status == THREAD_STATUS_IDLE || drm->status == THREAD_STATUS_ENDING) {
+            drm->status = THREAD_STATUS_ENDED;
+        }
+        (void)cm_event_timedwait(&drm->event, DMS_REFORM_SHORT_TIMEOUT);
+    }
+    LOG_RUN_INF("[DRM SMON]drm_thread close");
+}
+
+int drm_thread_init(void)
+{
+    drm_t *drm = DRM_CTX;
+
+    cm_event_init(&drm->event);
+    int ret = cm_create_thread(drm_thread, 0, NULL, &drm->thread);
+    if (ret != CM_SUCCESS) {
+        cm_event_destory(&drm->event);
+        return ret;
+    }
+
+    drm->inited = CM_TRUE;
+    return DMS_SUCCESS;
+}
+
+void drm_thread_deinit(void)
+{
+    drm_t *drm = DRM_CTX;
+
+    if (!drm->inited) {
+        return;
+    }
+
+    cm_close_thread_with_event(&drm->thread, &drm->event);
+    cm_event_destory(&drm->event);
+    drm->inited = CM_FALSE;
 }

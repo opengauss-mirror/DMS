@@ -55,6 +55,7 @@ extern "C" {
 #define DMS_REFORM_INFO                 (&g_dms.reform_ctx.reform_info)
 #define DMS_SHARE_INFO                  (&g_dms.reform_ctx.share_info)
 #define DMS_REMASTER_INFO               (&g_dms.reform_ctx.share_info.remaster_info)
+#define DMS_OLD_MASTER_INFO             (&g_dms.reform_ctx.share_info.old_master_info)
 #define DMS_MIGRATE_INFO                (&g_dms.reform_ctx.share_info.migrate_info)
 #define DMS_REBUILD_INFO                (&g_dms.reform_ctx.reform_info.rebuild_info)
 #define DMS_SWITCHOVER_INFO             (&g_dms.reform_ctx.switchover_info)
@@ -276,6 +277,11 @@ typedef struct st_share_info {
     /* ============= start version 2 =================*/
     uint64              inst_bitmap[INST_LIST_TYPE_COUNT];
     /* ============= end version 2 =================*/
+
+    /* ============= start version 5 =================*/
+    remaster_info_t     old_master_info;
+    uint8               drm_trigger;
+    /* ============= end version 5 =================*/
 } share_info_t;
 
 #pragma pack()
@@ -585,6 +591,8 @@ void dms_reform_inst_list_add(instance_list_t *inst_lists, uint8 list_index, uin
 void dms_reform_list_add_all(instance_list_t *list_dst);
 void dms_reform_list_cancat(instance_list_t *list_dst, instance_list_t *list_src);
 void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *list_src);
+void dms_reform_part_copy_inner(drc_inst_part_t *dst_tbl, drc_inst_part_t *src_tbl,
+    drc_part_t *dst_map, drc_part_t *src_map);
 
 #ifdef __cplusplus
 }

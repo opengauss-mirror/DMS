@@ -772,7 +772,8 @@ bool8 drc_can_release(drc_page_t *drc_page, uint8 inst_id)
 bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
 {
     drc_head_t *drc = NULL;
-    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
+    options |= DRC_RES_RELEASE;
     if (drc_enter(resid, len, DRC_RES_PAGE_TYPE, options, &drc) != DMS_SUCCESS) {
         return CM_FALSE;
     }
@@ -947,6 +948,8 @@ drc_res_pool_t *get_buf_pool(int drc_type)
             return &ctx->global_lock_res.res_map.res_pool;
         case DRC_RES_ALOCK_TYPE:
             return &ctx->global_alock_res.res_map.res_pool;
+        case DRC_RES_GLOBAL_XA_TYPE:
+            return &ctx->global_xa_res.res_map.res_pool;
         default:
             return NULL;
     }
@@ -979,6 +982,7 @@ bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_
 {
     drc_head_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
+    options |= DRC_RES_RELEASE;
     if (drc_enter(resid, len, DRC_RES_PAGE_TYPE, options, &drc) != DMS_SUCCESS || drc == NULL) {
         return CM_FALSE;
     }

@@ -36,8 +36,11 @@
 #include "dms_reform_proc_stat.h"
 
 static dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
-     [DMS_PROTO_VER_1] = { OFFSET_OF(dms_reform_req_sync_share_info_t, share_info.inst_bitmap), },
-     [DMS_PROTO_VER_2] = { sizeof(dms_reform_req_sync_share_info_t) },
+     [DMS_PROTO_VER_1] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, inst_bitmap)) },
+     [DMS_PROTO_VER_2] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
+     [DMS_PROTO_VER_3] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
+     [DMS_PROTO_VER_4] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
+     [DMS_PROTO_VER_5] = { CM_ALIGN8(sizeof(dms_message_head_t) + sizeof(share_info_t)) },
 };
 
 static int dms_reform_req_common_wait(uint64 ruid)
@@ -618,7 +621,6 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 
     int ret = DMS_SUCCESS;
     drc_head_t *drc = NULL;
-    drc_global_xa_res_t *xa_res = NULL;
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
 
     drc_part_list_t *part = &global_res_map->res_parts[migrate_task->part_id];
@@ -632,14 +634,9 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
     }
 
     for (uint32 i = 0; i < res_list->count; i++) {
-        if (type == DRC_RES_GLOBAL_XA_TYPE) {
-            xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);
-            ret = dms_reform_req_migrate_xa(xa_res, req, &offset, sess_id);
-        } else {
-            drc = DRC_RES_NODE_OF(drc_head_t, node, part_node);
-            DRC_DISPLAY(drc, "migrate");
-            ret = dms_reform_req_migrate_add_buf_res(drc, req, &offset, sess_id);
-        }
+        drc = DRC_RES_NODE_OF(drc_head_t, node, part_node);
+        DRC_DISPLAY(drc, "migrate");
+        ret = dms_reform_req_migrate_add_buf_res(drc, req, &offset, sess_id);
 
         if (ret != DMS_SUCCESS) {
             g_dms.callback.mem_free(handle, req);
@@ -756,11 +753,6 @@ void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message
 
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
-        return;
-    }
-
-    if (req->res_type == DRC_RES_GLOBAL_XA_TYPE) {
-        dms_reform_proc_req_xa_migrate(process_ctx, receive_msg);
         return;
     }
 
@@ -1240,15 +1232,10 @@ int dms_reform_map_info_req_wait(uint64 ruid)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     mfc_release_response(&res);
 
-    uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
-    errno_t err = memcpy_s(part_mngr->inst_part_tbl, size, remaster_info.inst_part_tbl, size);
-    DMS_SECUREC_CHECK(err);
+    dms_reform_part_copy_inner(part_mngr->inst_part_tbl, remaster_info.inst_part_tbl,
+        part_mngr->part_map, remaster_info.part_map);
 
-    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
-    err = memcpy_s(part_mngr->part_map, size, remaster_info.part_map, size);
-    DMS_SECUREC_CHECK(err);
-
-    err = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info.deposit_map, DMS_MAX_INSTANCES);
+    errno_t err = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info.deposit_map, DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(err);
 
     return DMS_SUCCESS;
@@ -1269,13 +1256,8 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, dms_messag
     dms_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
         process_ctx->sess_id);
 
-    uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
-    err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
-    DMS_SECUREC_CHECK(err);
-
-    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
-    err = memcpy_s(remaster_info->part_map, size, part_mngr->part_map, size);
-    DMS_SECUREC_CHECK(err);
+    dms_reform_part_copy_inner(remaster_info->inst_part_tbl, part_mngr->inst_part_tbl,
+        remaster_info->part_map, part_mngr->part_map);
 
     err = memcpy_s(remaster_info->deposit_map, DMS_MAX_INSTANCES, ctx->deposit_map, DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(err);

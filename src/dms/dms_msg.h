@@ -277,7 +277,7 @@ typedef struct st_dms_ask_xa_inuse_req {
 
 typedef struct st_dms_ask_xa_inuse_ack {
     dms_message_head_t head;
-    bool8 inuse;
+    bool8 exist;
     uint8 unused[3];
 } dms_ask_xa_inuse_ack_t;
 
@@ -481,6 +481,10 @@ bool8 dms_cmd_need_ack(uint32 cmd);
 void dms_proc_check_page_ownership(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_build_req_info_local(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode,
     drc_request_info_t *req_info);
+void dms_proc_drc_migrate(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_drc_release(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_drm(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+
 /*
 * The following structs are used for communication
 * between Primary and Standby to obtain relevant
@@ -513,6 +517,59 @@ void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned
     unsigned int req_proto_ver);
 
 void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret);
+
+#define DRM_RESID_LEN       sizeof(drc_global_xid_t)
+
+typedef struct st_dms_req_drc_migrate {
+    dms_message_head_t  head;
+    char                data[DRM_RESID_LEN];
+    uint16              len;
+    uint8               type;
+    uint8               options;
+} dms_req_drc_migrate_t;
+
+typedef struct st_dms_ack_drc_migrate {
+    dms_message_head_t  head;
+    uint64              edp_map;
+    uint64              last_edp_lsn;
+    uint64              seq;
+    uint64              copy_insts;
+    drc_cvt_item_t      converting;
+    uint8               owner;
+    uint8               lock_mode;
+    uint8               last_edp;
+    uint8               exist;
+    uint32              ret;
+} dms_ack_drc_migrate_t;
+
+int dms_req_drc_migrate(dms_ack_drc_migrate_t *ack, char* resid, uint16 len, uint8 type, uint8 options, uint8 master);
+void dms_notify_old_master_release(drc_head_t *drc, uint8 old_master, uint8 options);
+
+typedef struct st_dms_notify_old_master {
+    dms_message_head_t  head;
+    char                data[DRM_RESID_LEN];
+    uint16              len;
+    uint8               type;
+    uint8               options;
+} dms_notify_old_master_t;
+
+typedef struct st_drm_req_data {
+    dms_message_head_t  head;
+    uint8               inst_id;
+    uint8               res_type;
+    uint16              res_len;
+    uint32              data_type;
+    uint32              data_len;
+} drm_req_data_t;
+
+void drm_send_data(drm_data_t *drm_data);
+
+typedef struct st_drm_ack_finish {
+    dms_message_head_t  head;
+    bool32              trigger;
+} drm_ack_finish_t;
+int drm_req_finish(uint8 dst_id, bool32 *trigger);
+void dms_proc_drm_finish(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

@@ -33,11 +33,13 @@ typedef enum st_dms_protocol_version {
     DMS_PROTO_VER_1 = 1,    // first version
     DMS_PROTO_VER_2 = 2,
     DMS_PROTO_VER_3 = 3,    // add MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT
+    DMS_PROTO_VER_4 = 4,    // add reform step
+    DMS_PROTO_VER_5 = 5,    // for 1.11.0 add DRM
     DMS_PROTO_VER_NUMS
 } dms_protocol_version_t;
 
 #define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
-#define DMS_SW_PROTO_VER      DMS_PROTO_VER_3
+#define DMS_SW_PROTO_VER      DMS_PROTO_VER_5
 
 typedef enum en_dms_protocol_result {
     DMS_PROTOCOL_VERSION_NOT_MATCH = 0,
@@ -73,6 +75,7 @@ bool8 dms_check_message_proto_version(dms_message_head_t *head);
 uint32 dms_get_forward_request_proto_version(uint8 dst_inst, uint32 recv_req_proto_ver);
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_proc_opengauss_immediate_ckpt(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+uint32 dms_get_reform_proto_version(uint64 bitmap_online);
 
 /****************** A lightweight, universal DMS message version compatibility solution *******************/
 typedef struct st_dms_proto_version_attr {
