@@ -412,64 +412,32 @@ int dms_reform_sync_cluster_version(bool8 pushing)
     return DMS_SUCCESS;
 }
 
+char *g_reform_type_desc[] = {
+    [DMS_REFORM_TYPE_FOR_NORMAL] = "NORMAL";
+    [DMS_REFORM_TYPE_FOR_BUILD] = "CREATE DATABASE";
+    [DMS_REFORM_TYPE_FOR_SWITCHOVER] = "SWITCHOVER";
+    [DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS] = "OPENGAUSS_NORMAL";
+    [DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS] = "FAILOVER_OPENGAUSS";
+    [DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS] = "SWITCHOVER FOR OPENGAUSS";
+    [DMS_REFORM_TYPE_FOR_FULL_CLEAN] = "FULL_CLEAN";
+    [DMS_REFORM_TYPE_FOR_MAINTAIN] = "FOR MAINTAIN";
+    [DMS_REFORM_TYPE_FOR_RST_RECOVER] = "FOR RESTORE RECOVER";
+    [DMS_REFORM_TYPE_FOR_NEW_JOIN] = "NEW JOIN";
+    [DMS_REFORM_TYPE_FOR_OLD_REMOVE] = "OLD REMOVE";
+    [DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY] = "SHUTDOWN CONSISTENCY";
+    [DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN] = "FOR STANDBY MAINTAIN";
+    [DMS_REFORM_TYPE_FOR_NORMAL_STANDBY] = "STANDBY NORMAL";
+    [DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE] = "AZ SWITCHOVER DEMOTE";
+    [DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE] = "AZ SWITCHOVER PROMOTE";
+    [DMS_REFORM_TYPE_FOR_AZ_FAILOVER] = "AZ FAILOVER";
+}
+
 char *dms_reform_get_type_desc(uint32 reform_type)
 {
-    switch (reform_type) {
-        case DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS:
-            return "OPENGAUSS_NORMAL";
-
-        case DMS_REFORM_TYPE_FOR_NORMAL:
-            return "NORMAL";
-
-        case DMS_REFORM_TYPE_FOR_SWITCHOVER:
-            return "SWITCHOVER";
-
-        case DMS_REFORM_TYPE_FOR_RST_RECOVER:
-            return "FOR RESTORE RECOVER";
-
-        case DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS:
-            return "FAILOVER_OPENGAUSS";
-
-        case DMS_REFORM_TYPE_FOR_BUILD:
-            return "CREATE DATABASE";
-
-        case DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS:
-            return "SWITCHOVER FOR OPENGAUSS";
-
-        case DMS_REFORM_TYPE_FOR_FULL_CLEAN:
-            return "FULL_CLEAN";
-
-        case DMS_REFORM_TYPE_FOR_MAINTAIN:
-            return "FOR MAINTAIN";
-
-        case DMS_REFORM_TYPE_FOR_NEW_JOIN:
-            return "NEW JOIN";
-
-        case DMS_REFORM_TYPE_FOR_OLD_REMOVE:
-            return "OLD REMOVE";
-
-        case DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY:
-            return "SHUTDOWN CONSISTENCY";
-
-        case DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN:
-            return "FOR STANDBY MAINTAIN";
-
-        case DMS_REFORM_TYPE_FOR_NORMAL_STANDBY:
-            return "STANDBY NORMAL";
-
-        case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE:
-            return "AZ SWITCHOVER DEMOTE";
-
-        case DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE:
-            return "AZ SWITCHOVER PROMOTE";
-
-        case DMS_REFORM_TYPE_FOR_AZ_FAILOVER:
-            return "AZ FAILOVER";
-
-        case DMS_REFORM_TYPE_COUNT:
-        default:
-            return "UNKNOWN TYPE";
+    if (reform_type >= DMS_REFORM_TYPE_COUNT || g_reform_type_desc[reform_type] == NULL) {
+        return "UNKNOWN TYPE";
     }
+    return g_reform_type_desc[reform_type];
 }
 
 void dms_reform_judgement_step_log(void)
