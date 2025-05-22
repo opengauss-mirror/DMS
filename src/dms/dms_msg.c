@@ -1575,8 +1575,11 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *re
     if (req.res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(proc_ctx->db_handle,
             req.resid, CM_TRUE, &lock_mode, &ack.edp_map, &ack.lsn);
-    } else {
+    } else if (req.res_type == DRC_RES_LOCK_TYPE || req.res_type == DRC_RES_ALOCK_TYPE) {
         ret = drc_confirm_converting(proc_ctx->db_handle, req.resid, req.res_type, &lock_mode);
+    } else {
+        LOG_DEBUG_ERR("[DMS][dms_proc_confirm_cvt_req]: invalid type: %d", req.res_type);
+        return;
     }
     if (ret != DMS_SUCCESS) {
         ack.result = CONFIRM_NONE;
