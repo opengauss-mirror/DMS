@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-dms_stat_t g_dms_stat;
+dms_stat_t g_dms_stat = {0};
 dms_time_consume_t g_dms_time_consume;
 
 void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
@@ -102,6 +102,9 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
 DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *event_cnt,
     unsigned long long *event_time)
 {
+    if (g_dms_stat.inited) {
+        return;
+    }
     unsigned long long cnt = 0;
     unsigned long long time = 0;
 
@@ -133,10 +136,28 @@ DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *
     }
 }
 
+DMS_DECLARE void dms_get_session_event(unsigned int sid, dms_wait_event_t event_type, unsigned long long *event_cnt,
+    unsigned long long *event_time)
+{
+    uint32 sess_cnt = g_dms_stat.sess_cnt;
+    if (sid >= sess_cnt || !g_dms_stat.inited) {
+        return;
+    }
+    session_stat_t *stat = g_dms_stat.sess_stats + sid;
+    if (event_cnt != NULL) {
+        *event_cnt = stat->wait_count[event_type];
+    }
+    if (event_time != NULL) {
+        *event_time = stat->wait_time[event_type];
+    }
+}
+
 DMS_DECLARE unsigned long long dms_get_stat(dms_sysstat_t stat_type)
 {
     unsigned long long cnt = 0;
-
+    if (g_dms_stat.inited) {
+        return cnt;
+    }
     uint32 sess_cnt = g_dms_stat.sess_cnt;
     for (uint32 i = 0; i < sess_cnt; ++i) {
         session_stat_t *stat = g_dms_stat.sess_stats + i;
@@ -146,8 +167,27 @@ DMS_DECLARE unsigned long long dms_get_stat(dms_sysstat_t stat_type)
     return cnt;
 }
 
+DMS_DECLARE void dms_get_session_stat_wait_attr(unsigned int sid, dms_wait_event_t event, unsigned int *is_waiting)
+{
+    uint32 sess_cnt = g_dms_stat.sess_cnt;
+    if (sid >= sess_cnt || !g_dms_stat.inited) {
+        return;
+    }
+    session_stat_t *stat = g_dms_stat.sess_stats + sid;
+    uint32 level = MIN(stat->level, DMS_STAT_MAX_LEVEL);
+    for (uint32 i = 0; i < level; i++) {
+        session_wait_t *wait = &stat->wait[i];
+        if ((wait->event == event) && (is_waiting != NULL)) {
+            *is_waiting = wait->is_waiting;
+        }
+    }
+}
+
 DMS_DECLARE void dms_reset_stat(void)
 {
+    if (g_dms_stat.inited) {
+        return;
+    }
     uint32 j;
     uint32 sess_cnt = g_dms_stat.sess_cnt;
     for (uint32 i = 0; i < sess_cnt; ++i) {

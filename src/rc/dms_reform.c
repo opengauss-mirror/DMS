@@ -34,6 +34,7 @@
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_fault_inject.h"
 #include "drc_res_mgr.h"
+#include "dms_msg_protocol.h"
 #ifndef WIN32
 #include "config.h"
 #else
@@ -853,4 +854,11 @@ void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *list_src)
         }
     }
     *list_dst = list_result;
+}
+
+void dms_get_version_info(dms_version_info_t* version_stats)
+{
+    if (version_stats != NULL) {
+        version_stats->dms_proto_version = (uint32)DMS_SW_PROTO_VER;
+    }
 }

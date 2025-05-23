@@ -618,10 +618,8 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
 
     LOG_DEBUG_INF("[DMS][ASK TLOCK BY TID]: src_id=%u-%u, dst_inst=%u", dms_ctx->inst_id, dms_ctx->sess_id, inst_id);
 
-    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE, CM_TRUE);
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, head->cmd, head->dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
@@ -630,7 +628,6 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
     dms_message_t msg = {0};
     ret = mfc_get_response(ruid, &msg, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
         LOG_DEBUG_ERR("[DMS][dms_smon_req_tlock_by_tid]: wait get tlock by tid ack timeout");
         return ret;
     }
@@ -639,7 +636,6 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -649,7 +645,6 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
 
     g_dms.callback.get_tlock_by_tid_ack(recv_msg, stack, w_marks, valid_cnt);
     mfc_release_response(&msg);
-    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
     return CM_SUCCESS;
 }
 

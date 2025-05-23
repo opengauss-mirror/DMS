@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           182
+#define DMS_LOCAL_VERSION           183
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -110,6 +110,9 @@ typedef enum en_dms_dr_type {
     DMS_DR_TYPE_SS_LINK = 29,
     DMS_DR_TYPE_TX_ALCK = 30,
     DMS_DR_TYPE_SE_ALCK = 31,
+    DMS_DR_TYPE_PCRD_LATCH = 32,
+    DMS_DR_TYPE_PCRD_LIST_LATCH = 33,
+    DMS_DR_TYPE_PCRD_SPIN = 34,
     DMS_DR_TYPE_MAX,
 } dms_dr_type_t;
 
@@ -622,7 +625,7 @@ typedef enum en_dms_wait_event {
     DMS_EVT_REQ_CKPT,
     DMS_EVT_PROC_GENERIC_REQ,
     DMS_EVT_PROC_REFORM_REQ,
-    DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT,
+    DMS_EVT_DCS_TRANSFER_PAGE_LSNDWAIT,
     DMS_EVT_DCS_INVALID_DRC_LSNDWAIT,
     DMS_EVT_DRC_RECYCLE,
     DMS_EVT_DRC_NOT_ENOUGH,
@@ -1034,6 +1037,7 @@ typedef unsigned char(*dms_get_intercept_type)(unsigned int sid);
 typedef unsigned char(*dms_db_in_rollback)(void *db_handle);
 typedef void (*dms_get_inst_cnt)(void *db_handle, unsigned int *inst_count, unsigned long long int *inst_map);
 typedef int (*dms_check_if_reform_session)(void *db_handle);
+typedef void(*dms_inc_buffer_remote_reads)(void *db_handle);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1244,6 +1248,7 @@ typedef struct st_dms_callback {
     dms_get_intercept_type get_intercept_type;
     dms_db_in_rollback db_in_rollback;
     dms_get_inst_cnt get_inst_cnt;
+    dms_inc_buffer_remote_reads inc_buffer_remote_reads;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1461,6 +1466,10 @@ typedef enum en_dms_param_index {
 #endif
     DMS_PARAM_SS_COUNT,
 } dms_param_index;
+
+typedef struct st_dms_version_info {
+    unsigned int dms_proto_version;
+} dms_version_info_t;
 
 #ifdef __cplusplus
 }

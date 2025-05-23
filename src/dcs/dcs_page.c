@@ -298,6 +298,9 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
 
     uint64 page_lsn = g_dms.callback.get_page_lsn(ctrl);
     dms_claim_ownership(dms_ctx, (uint8)master_id, mode, DCS_ACK_PAGE_IS_DIRTY(msg), page_lsn);
+#ifndef OPENGAUSS
+    g_dms.callback.inc_buffer_remote_reads(dms_ctx->db_handle);
+#endif
     return DMS_SUCCESS;
 }
 
@@ -450,7 +453,7 @@ static int dcs_owner_transfer_page_ack(dms_process_context_t *ctx, dms_buf_ctrl_
     if (page_ack->node_cnt != 0) {
         g_dms.callback.get_replay_lfns(ctx->db_handle, &page_ack_wrapper.data[0], node_data_len);
     }
-    dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSTER_PAGE_LSNDWAIT, CM_TRUE);
+    dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_TRANSFER_PAGE_LSNDWAIT, CM_TRUE);
     g_dms.callback.lsnd_wait(ctx->db_handle, page_ack->node_lfn);
     dms_end_stat(ctx->sess_id);
 #endif

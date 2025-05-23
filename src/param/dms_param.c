@@ -242,13 +242,13 @@ status_t dms_update_elapsed_switch(char *value)
 
 status_t dms_update_drc_mem_max_size(char *value)
 {
-    uint64 val = 0;
+    int64 val = 0;
     CM_RETURN_IFERR(cm_str2size(value, (int64 *)&val));
     if (g_dms.drc_mem_context == NULL || val == 0) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "SS_DRC_MAX_MEM_SIZE change failed, drc_mem_context is not available");
         return DMS_ERROR;
     }
-    g_dms.drc_mem_context->mem_max_size = val;
+    g_dms.drc_mem_context->mem_max_size = (uint64)val;
     return DMS_SUCCESS;
 }
 
