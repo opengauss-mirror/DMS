@@ -280,19 +280,6 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_head_t *drc, drc_r
     return DMS_SUCCESS;
 }
 
-uint8 drc_lookup_owner_id(uint64 *owner_map)
-{
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; ++i) {
-        // currently, for multiple owners, return the owner with the smallest id
-        if (bitmap64_exist(owner_map, i)) {
-            return i;
-        }
-    }
-
-    cm_panic(0);
-    return 0;
-}
-
 int drc_get_no_owner_id(void *db_handle, drc_head_t *drc, uint8 *owner_id)
 {
     if (drc->type != DRC_RES_PAGE_TYPE) {

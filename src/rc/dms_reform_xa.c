@@ -25,6 +25,7 @@
 #include "dms_reform_msg.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_msg_protocol.h"
+#include "drc_tran.h"
 
 static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild, drc_global_xid_t *xid,
     uint8 master_id, uint8 undo_set_id)

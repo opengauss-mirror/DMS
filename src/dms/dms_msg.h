@@ -30,6 +30,8 @@
 #include "dms_api.h"
 #include "drc.h"
 #include "dms_error.h"
+#include "dms_msg_protocol.h"
+#include "drm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -466,7 +468,6 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
 void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 void dms_cancel_request_res(char *resid, uint16 len, uint32 sid, uint8 type);
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_smon_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
     uint8 type, dms_session_e sess_type, uint8 owner_id, uint64 seq);
@@ -479,11 +480,6 @@ bool8 dms_cmd_is_broadcast(uint32 cmd);
 bool8 dms_cmd_is_req(uint32 cmd);
 bool8 dms_cmd_need_ack(uint32 cmd);
 void dms_proc_check_page_ownership(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_build_req_info_local(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode,
-    drc_request_info_t *req_info);
-void dms_proc_drc_migrate(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_proc_drc_release(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
-void dms_proc_drm(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 
 /*
 * The following structs are used for communication
@@ -517,6 +513,10 @@ void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned
     unsigned int req_proto_ver);
 
 void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret);
+
+int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
+    dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 sess_id, dms_session_e sess_type, uint32 srsn);
+void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info);
 
 #define DRM_RESID_LEN       sizeof(drc_global_xid_t)
 
@@ -568,8 +568,10 @@ typedef struct st_drm_ack_finish {
     dms_message_head_t  head;
     bool32              trigger;
 } drm_ack_finish_t;
-int drm_req_finish(uint8 dst_id, bool32 *trigger);
 void dms_proc_drm_finish(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_drc_migrate(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_drc_release(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
+void dms_proc_drm(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

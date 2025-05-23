@@ -202,7 +202,7 @@ int dms_url_change_check(mes_addr_t *inst_net_addr, uint32 node_cnt)
     uint64 bitmap_new = 0;
     dms_get_bitmap_inst(&bitmap_old, MES_GLOBAL_INST_MSG.profile.inst_net_addr, MES_GLOBAL_INST_MSG.profile.inst_cnt);
     dms_get_bitmap_inst(&bitmap_new, inst_net_addr, node_cnt);
-    if (!bitmap64_include(bitmap_new, bitmap_old)) {
+    if (!cm_bitmap64_include(bitmap_new, bitmap_old)) {
         LOG_RUN_ERR("the new inst bitmap must include old inst bitmap. please check");
         CM_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "change the node ID or decrease node cnt",
             "the cluster when the URL is changed dynamically");

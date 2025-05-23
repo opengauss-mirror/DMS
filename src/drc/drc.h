@@ -35,7 +35,7 @@
 #include "cm_latch.h"
 #include "cm_date.h"
 #include "cm_list.h"
-#include "cm_thread_pool.h"
+#include "drm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -198,7 +198,6 @@ void drc_res_map_add_res(drc_res_bucket_t* bucket, char* res);
 char* drc_res_map_lookup(const drc_res_map_t* res_map, drc_res_bucket_t* res_bucket, char* resid, uint32 len);
 void drc_res_map_del_res(drc_res_map_t* res_map, drc_res_bucket_t* bucket, char* resid, uint32 len);
 void drc_destroy(void);
-void drc_init_deposit_map(void);
 
 typedef struct st_drc_buf_res_msg {
     uint8 claimed_owner;
@@ -271,12 +270,6 @@ typedef struct st_drc_inst_part {
     uint16 expected_num;
 } drc_inst_part_t;
 
-typedef struct st_inst_drm_info {
-    uint8 remaster_status;
-    uint8 reserve;
-    uint16 task_num;
-} inst_drm_info_t;
-
 typedef struct st_drc_part_mngr {
     uint32 version;
     bool8  inited;
@@ -289,56 +282,6 @@ typedef struct st_drc_part_mngr {
     drc_part_t old_part_map[DRC_MAX_PART_NUM];
     drc_inst_part_t old_inst_part_tbl[DMS_MAX_INSTANCES];
 } drc_part_mngr_t;
-
-#define DRM_BUFFER_SIZE         SIZE_K(30)
-
-typedef enum en_drm_data_type {
-    DRM_DATA_MIGRATE = 0,
-    DRM_DATA_RELEASE = 1,
-
-    DRM_DATA_TYPE_COUNT
-} drm_data_type_t;
-
-typedef struct st_drm_data {
-    uint8               inst_id;                // instance id received from or send to
-    uint8               res_type;               // drc type
-    uint16              res_len;                // drc len
-    uint32              data_type;              // for MIGRATE or RELEASE
-    uint32              data_len;               // the len of data
-    char                data[DRM_BUFFER_SIZE];  // max size 30K
-} drm_data_t;
-
-typedef struct st_drm_group {
-    spinlock_t          lock;
-    bool8               received;               // indicate if there are any unprocessed data
-    uint8               wid;                    // buffer index for receive message
-    uint8               unused[2];
-    drm_data_t          data[2];
-} drm_group_t;
-
-typedef struct st_drm_stat {
-    uint64              time_total;
-    uint64              time_release;
-    uint64              time_migrate;
-    uint64              time_collect;
-    uint32              count_release;
-    uint32              count_migrate;
-    uint32              count_collect;
-    uint32              count_wait;
-} drm_stat_t;
-
-typedef struct st_drm {
-    thread_t            thread;
-    thread_stat_t       status;
-    cm_event_t          event;
-    drm_group_t         release;                // received from current master;
-    drm_group_t         migrate;                // received from old master;
-    drm_data_t          send_data;           // for current master, cache drc which will be sent to old master
-    drm_stat_t          stat;
-    bool8               trigger;
-    bool8               inited;
-    uint16              part_id;
-} drm_t;
 
 typedef struct st_drc_res_ctx {
     drc_res_pool_t          lock_item_pool;     /* enqueue item pool */
@@ -437,44 +380,6 @@ typedef struct st_res_id {
     uint8   unused;
 } res_id_t;
 
-typedef struct st_drc_xa_res_msg {
-    uint8            owner_id;           /* owner */
-    uint8            undo_set_id;        /* undo set the xa trans save in */
-    drc_global_xid_t xa_xid;
-} drc_xa_res_msg_t;
-
-static inline bool32 dms_same_page(char *res, const char *resid, uint32 len)
-{
-    drc_page_t *drc_page = (drc_page_t *)res;
-    if (drc_page == NULL || resid == NULL || len == 0) {
-        cm_panic(0);
-    }
-    return memcmp(drc_page->data, resid, len) == 0 ? CM_TRUE : CM_FALSE;
-}
-
-static inline uint32 dms_res_hash(int32 res_type, char *resid, uint32 len)
-{
-    return cm_hash_bytes((uint8 *)resid, len, INFINITE_HASH_RANGE);
-}
-
-static inline uint32 dms_xa_res_hash(int32 res_type, char *resid, uint32 len)
-{
-    uint32 offset = 0;
-    drc_global_xid_t *xid = (drc_global_xid_t *)resid;
-    char buffer[DMS_MAX_XA_BASE16_GTRID_LEN + DMS_MAX_XA_BASE16_BQUAL_LEN + sizeof(uint64)] = { 0 };
-    char *xid_pointer = buffer;
-    *(uint64 *)xid_pointer = xid->fmt_id;
-    offset += sizeof(uint64);
-    int32 ret = memcpy_sp(xid_pointer + offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
-    DMS_SECUREC_CHECK(ret);
-    offset += xid->gtrid_len;
-    if (xid->bqual_len > 0) {
-        ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
-        DMS_SECUREC_CHECK(ret);
-    }
-    return cm_hash_bytes((uint8 *)buffer, offset, INFINITE_HASH_RANGE);
-}
-
 static inline void init_drc_cvt_item(drc_cvt_item_t* converting)
 {
     converting->begin_time = 0;
@@ -506,49 +411,7 @@ static inline drc_global_res_map_t *drc_get_global_res_map(drc_res_type_e res_ty
 
 /* page resource related API */
 uint8 drc_get_deposit_id(uint8 instance_id);
-uint8 drc_lookup_owner_id(uint64 *owner_map);
 void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info);
-
-// use BKDR hash algorithm, get the hash id
-static inline uint32 drc_resource_id_hash(char *id, uint32 len, uint32 range)
-{
-    uint32 seed = 131; // this is BKDR hash seed: 31 131 1313 13131 131313 etc..
-    uint32 hash = 0;
-    uint32 i;
-
-    for (i = 0; i < len; i++) {
-        hash = hash * seed + (*id++);
-    }
-    
-    return (hash % range);
-}
-
-static inline uint16 drc_get_lock_partid(char *id, uint32 len, uint32 range)
-{
-    uint32 trunc_len = 0;
-#ifndef OPENGAUSS
-    if (DMS_DR_IS_TABLE_TYPE(((dms_drid_t *)id)->type)) {
-        // Ignoring part id is to hash the table and partition into the same part, accelerating table lcok rebuild.
-        trunc_len = (uint32)(sizeof(((dms_drid_t *)0)->parent) + sizeof(((dms_drid_t *)0)->part));
-    }
-#endif
-
-    return (uint16)drc_resource_id_hash(id, len - trunc_len, range);
-}
-
-static inline int32 drc_get_lock_master_id(void *lock_id, uint8 len, uint8 *master_id)
-{
-    uint32 part_id = drc_get_lock_partid((char *)lock_id, len, DRC_MAX_PART_NUM);
-    *master_id = DRC_PART_MASTER_ID(part_id);
-    return CM_SUCCESS;
-}
-
-static inline int32 drc_get_lock_old_master_id(void *lock_id, uint8 len, uint8 *master_id)
-{
-    uint32 part_id = drc_get_lock_partid((char *)lock_id, len, DRC_MAX_PART_NUM);
-    *master_id = DRC_PART_OLD_MASTER_ID(part_id);
-    return CM_SUCCESS;
-}
 
 static inline void bitmap64_set(uint64 *bitmap, uint8 num)
 {
@@ -609,36 +472,8 @@ static inline void bitmap64_union(uint64 *bitmap1, uint64 bitmap2)
     *bitmap1 = bitmap;
 }
 
-// if all bytes in bitmap2 are also in bitmap1, return true
-// bitmap1 = 1101, bitmap2 = 1001 return true
-// bitmap1 = 1101, bitmap2 = 1011 return false
-static inline bool32 bitmap64_include(uint64 bitmap1, uint64 bitmap2)
-{
-    uint64 bitmap = bitmap2 & (~bitmap1);
-    return bitmap == 0;
-}
-
-// if there is byte in bitmap2 is also in bitmap1, return true
-// bitmap1 = 1101, bitmap2 = 0010 return false
-// bitmap1 = 1101, bitmap2 = 0011 return true
-static inline bool32 bitmap64_exist_ex(uint64 bitmap1, uint64 bitmap2)
-{
-    return (bitmap1 & bitmap2) != 0;
-}
-
-static inline uint64 bitmap64_intersect(uint64 bitmap1, uint64 bitmap2)
-{
-    uint64 bitmap = bitmap1 & bitmap2;
-    return bitmap;
-}
-
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id);
 int32 drc_get_old_master_id(char *resid, uint8 type, uint8 *master_id);
-int32 drc_get_xa_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
-int32 drc_get_xa_old_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
-int32 drc_get_xa_remaster_id(drc_global_xid_t *global_xid, uint8 *master_id);
-int32 drc_xa_create(void *db_handle, dms_session_e sess_type, uint32 sess_id, drc_global_xid_t *xid, uint8 owner_id);
-int32 drc_xa_delete(drc_global_xid_t *xid);
 
 #define DRC_DISPLAY(drc, desc)                                                                                      \
 do {                                                                                                                \
@@ -659,16 +494,6 @@ do {                                                                            
         LOG_DEBUG_INF("invalid drc type: %d", (drc)->type);                                                         \
     }                                                                                                               \
 } while (0)
-
-static inline bool32 dms_the_same_drc_req(drc_request_info_t *req1, drc_request_info_t *req2)
-{
-    if (req1->inst_id == req2->inst_id && req1->curr_mode == req2->curr_mode && req1->req_mode == req2->req_mode &&
-        req1->sess_id == req2->sess_id && req1->ruid == req2->ruid &&
-        req1->srsn == req2->srsn && req1->req_time == req2->req_time) {
-        return CM_TRUE;
-    }
-    return CM_FALSE;
-}
 
 #ifdef __cplusplus
 }
