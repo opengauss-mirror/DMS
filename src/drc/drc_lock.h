@@ -45,35 +45,56 @@ typedef struct st_drc_local_latch_stat {
 typedef struct st_drc_local_lock_res {
     bilist_node_t   node;
     dms_drid_t      resid;
+    volatile bool8  recycling;
     volatile bool8  releasing;
-    volatile uint8  is_reform_visit;
+    bool8           is_reform_visit;
+    uint8           partid;
+    uint64          version;
     char            aligned1[CM_CACHE_LINE_SIZE];
     spinlock_t      lock;
+    bilist_node_t   lru_node;
     char            aligned2[CM_CACHE_LINE_SIZE];
     drc_local_latch_t latch_stat;
     spinlock_t modify_mode_lock;
 } drc_local_lock_res_t;
 
-/* local lock resource API */
-drc_local_lock_res_t* drc_get_local_resx(dms_drid_t *lock_id);
-
-int drc_confirm_converting(void *db_handle, char *resid, uint8 type, uint8 *lock_mode);
-
-#define STAT_TOTAL_WAIT_USECS_BEGIN     uint64 _begin_time_ = (uint64)g_timer()->now
-#define STAT_TOTAL_WAIT_USECS_END       dms_ctx->wait_usecs = (uint64)g_timer()->now - _begin_time_
+int drc_confirm_converting(void *db_handle, char* resid, uint8 type, uint8 *lock_mode);
 
 #define STAT_RPC_BEGIN                  uint64 _rpc_begin_ = (uint64)g_timer()->now
 #define STAT_RPC_WAIT_USECS             ((uint64)g_timer()->now - _rpc_begin_)
 
-static inline void drc_lock_local_resx(drc_local_lock_res_t *lock_res, spin_statis_t *stat,
-    spin_statis_instance_t *stat_instance)
+static inline void lock_resx_add_lru_head(drc_local_lock_res_t *lock_res)
 {
-    cm_spin_lock_with_stat(&lock_res->lock, stat, stat_instance);
+    drc_part_list_t *lru_list = DRC_LOCAL_RES_PART(lock_res->partid);
+    cm_spin_lock(&lru_list->lock, NULL);
+    cm_bilist_add_head(&lock_res->lru_node, &lru_list->list);
+    cm_spin_unlock(&lru_list->lock);
 }
 
-static inline void drc_unlock_local_resx(drc_local_lock_res_t *lock_res)
+static inline void lock_resx_del_from_lru(drc_local_lock_res_t *lock_res)
 {
-    cm_spin_unlock(&lock_res->lock);
+    drc_part_list_t *lru_list = DRC_LOCAL_RES_PART(lock_res->partid);
+    cm_spin_lock(&lru_list->lock, NULL);
+    cm_bilist_del(&lock_res->lru_node, &lru_list->list);
+    cm_spin_unlock(&lru_list->lock);
+}
+
+static inline void lock_resx_move_to_lru_head(drc_local_lock_res_t *lock_res)
+{
+    drc_part_list_t *lru_list = DRC_LOCAL_RES_PART(lock_res->partid);
+    cm_spin_lock(&lru_list->lock, NULL);
+    cm_bilist_del(&lock_res->lru_node, &lru_list->list);
+    cm_bilist_add_head(&lock_res->lru_node, &lru_list->list);
+    cm_spin_unlock(&lru_list->lock);
+}
+
+bool8 drc_get_lock_resx_by_drid(dms_drid_t *drid, drc_local_lock_res_t **lock_res, uint64 *ver);
+
+static inline bool8 drc_get_lock_resx_by_dlatch(dms_drlatch_t *dlatch, drc_local_lock_res_t **lock_res)
+{
+    bool8 ret = drc_get_lock_resx_by_drid(&dlatch->drid, (drc_local_lock_res_t **)&dlatch->handle, &dlatch->version);
+    *lock_res = (drc_local_lock_res_t *)dlatch->handle;
+    return ret;
 }
 
 #ifdef __cplusplus

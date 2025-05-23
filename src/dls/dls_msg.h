@@ -36,6 +36,7 @@ extern "C" {
 
 #define DLS_SPIN_COUNT 1
 #define DLS_MSG_RETRY_TIME 3 // ms
+#define DLS_MIN_WAIT_TIME 3000 // ms
 
 /*
  * if type + id can uniquely identify lock resource,
@@ -77,7 +78,7 @@ static inline void dls_sleep(uint32 *spin_times, uint32 *wait_ticks, uint32 spin
         cm_spin_sleep();
         *spin_times = 0;
         if (wait_ticks != NULL) {
-            (*wait_ticks)++;    
+            (*wait_ticks)++;
         }
     }
 }
@@ -86,16 +87,6 @@ static inline void dms_reset_drid(dms_drid_t *drid)
 {
     errno_t err = memset_s(drid, sizeof(dms_drid_t), 0, sizeof(dms_drid_t));
     DMS_SECUREC_CHECK(err);
-}
-
-static inline drc_local_lock_res_t *dls_get_local_resx(void **handle, dms_drid_t *drid)
-{
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)(*handle);
-    if (SECUREC_UNLIKELY(lock_res == NULL)) {
-        lock_res = drc_get_local_resx(drid);
-        *handle = (void*)lock_res;
-    }
-    return lock_res;
 }
 
 static inline void dls_init_dms_ctx(dms_context_t *dms_ctx, drc_local_lock_res_t *lock_res, uint32 sid,
@@ -107,6 +98,7 @@ static inline void dls_init_dms_ctx(dms_context_t *dms_ctx, drc_local_lock_res_t
     dms_ctx->inst_id        = g_dms.inst_id;
     dms_ctx->len            = (size_t)DMS_DRID_SIZE;
     dms_ctx->type           = DRC_RES_LOCK_TYPE;
+    dms_ctx->curr_mode      = lock_res->latch_stat.lock_mode;
     dms_ctx->sess_type      = g_dms.callback.get_session_type(sid);
     dms_ctx->intercept_type = g_dms.callback.get_intercept_type(sid);
     DMS_SECUREC_CHECK(memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, (char*)&lock_res->resid, DMS_DRID_SIZE));
@@ -114,28 +106,174 @@ static inline void dls_init_dms_ctx(dms_context_t *dms_ctx, drc_local_lock_res_t
 
 static inline void dls_init_dms_ctx_ext(dms_context_t *dms_ctx, void *resid, uint8 len, uint8 type, bool8 is_try)
 {
-    dms_ctx->len = len;
-    dms_ctx->type = type;
-    dms_ctx->is_try = is_try;
+    dms_ctx->len          = len;
+    dms_ctx->type         = type;
+    dms_ctx->is_try       = is_try;
     DMS_SECUREC_CHECK(memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, resid, len));
 }
 
-static inline void dms_wait4releasing(drc_local_lock_res_t *lock_res, spin_statis_t *stat,
-    spin_statis_instance_t *stat_instance, uint32 *count)
+static inline drc_local_lock_res_t *dls_get_lock_res(dms_drlatch_t *dlatch)
 {
-    while (lock_res->releasing) {
-        SPIN_STAT_INC(stat, spins);
-        (*count)++;
-        if ((*count) >= GS_SPIN_COUNT) {
-            cm_spin_sleep();
-            *count = 0;
-            SPIN_STAT_INC(stat_instance, wait_times);
-        }
+    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t*)dlatch->handle;
+    if (SECUREC_UNLIKELY(lock_res == NULL)) {
+        (void)drc_get_lock_resx_by_dlatch(dlatch, &lock_res);
     }
+    return lock_res;
+}
+
+static inline void dls_enter_lock_res(dms_drlatch_t *dlatch, spin_statis_t *spin_stat,
+    spin_statis_instance_t *stat_instance, drc_local_lock_res_t **lock_res)
+{
+    *lock_res = (drc_local_lock_res_t *)dlatch->handle;
+    do {
+        if (*lock_res != NULL) {
+            cm_spin_lock_with_stat(&(*lock_res)->lock, spin_stat, stat_instance);
+            if (dlatch->version == (*lock_res)->version) {
+                lock_resx_move_to_lru_head(*lock_res);
+                return;
+            }
+            cm_spin_unlock(&(*lock_res)->lock);
+        }
+        if (!drc_get_lock_resx_by_dlatch(dlatch, lock_res)) {
+            cm_spin_sleep();
+        }
+    } while (CM_TRUE);
+}
+
+static inline void dls_leave_lock_res(drc_local_lock_res_t *lock_res)
+{
+    cm_spin_unlock(&lock_res->lock);
 }
 
 #define DRID_FORMATE       "(%u/%u/%llu/%u/%u)"
 #define DRID_ELEMENT(drid) (uint32)(drid)->type,(uint32)(drid)->uid,(drid)->oid,(drid)->index,(drid)->part
+
+#define DLS_WAIT_FOR_LATCH_S                                                                            \
+    do {                                                                                                \
+        if (LATCH_NEED_STAT(stat)) {                                                                    \
+            stat->misses++;                                                                             \
+        }                                                                                               \
+        while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S &&           \
+            !(latch_stat->stat == LATCH_STATUS_IX && is_force)) {                                       \
+            if (++count >= GS_SPIN_COUNT) {                                                             \
+                SPIN_STAT_INC(stat, s_sleeps);                                                          \
+                cm_spin_sleep();                                                                        \
+                count = 0;                                                                              \
+            }                                                                                           \
+        }                                                                                               \
+    } while (0)
+
+#define DLS_WAIT_FOR_LATCH_TIMED_S                                                                       \
+    do {                                                                                                 \
+        if (LATCH_NEED_STAT(stat)) {                                                                     \
+            stat->misses++;                                                                              \
+        }                                                                                                \
+        while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S &&            \
+            !(latch_stat->stat == LATCH_STATUS_IX && is_force)) {                                        \
+            if (ticks >= wait_ticks) {                                                                   \
+                dms_cancel_request_res((char*)&dlatch->drid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);     \
+                LOG_DEBUG_INF("[DLS]%s" DRID_FORMATE " timeout", __func__, DRID_ELEMENT(&dlatch->drid)); \
+                return CM_FALSE;                                                                         \
+            }                                                                                            \
+            if (++count >= GS_SPIN_COUNT) {                                                              \
+                ticks++;                                                                                 \
+                count = 0;                                                                               \
+                cm_spin_sleep();                                                                         \
+                SPIN_STAT_INC(stat, s_sleeps);                                                           \
+            }                                                                                            \
+        }                                                                                                \
+    }while (0)
+
+#define DLS_WAIT_FOR_LATCH_X                                                                            \
+    do {                                                                                                \
+        if (LATCH_NEED_STAT(stat)) {                                                                    \
+            stat->misses++;                                                                             \
+        }                                                                                               \
+        while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {           \
+            if (++count >= GS_SPIN_COUNT) {                                                             \
+                SPIN_STAT_INC(stat, x_sleeps);                                                          \
+                cm_spin_sleep();                                                                        \
+                count = 0;                                                                              \
+            }                                                                                           \
+        }                                                                                               \
+    } while (0)
+
+#define DLS_WAIT_FOR_LATCH_TIMED_X                                                                       \
+    do {                                                                                                 \
+        if (LATCH_NEED_STAT(stat)) {                                                                     \
+            stat->misses++;                                                                              \
+        }                                                                                                \
+        while (latch_stat->stat != LATCH_STATUS_IDLE && latch_stat->stat != LATCH_STATUS_S) {            \
+            if (ticks >= wait_ticks) {                                                                   \
+                dms_cancel_request_res((char*)&dlatch->drid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);     \
+                LOG_DEBUG_INF("[DLS]%s" DRID_FORMATE " timeout", __func__, DRID_ELEMENT(&dlatch->drid)); \
+                return CM_FALSE;                                                                         \
+            }                                                                                            \
+            if (++count >= GS_SPIN_COUNT) {                                                              \
+                SPIN_STAT_INC(stat, x_sleeps);                                                           \
+                cm_spin_sleep();                                                                         \
+                count = 0;                                                                               \
+                ticks++;                                                                                 \
+            }                                                                                            \
+        }                                                                                                \
+    } while (0)
+
+#define DLS_WAIT_LATCH_TIMEOUT                                                                          \
+    do {                                                                                                \
+        if (ticks >= wait_ticks) {                                                                      \
+            dms_cancel_request_res((char*)&dlatch->drid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);        \
+            LOG_DEBUG_INF("[DLS]%s" DRID_FORMATE " timeout", __func__, DRID_ELEMENT(&dlatch->drid));    \
+            return CM_FALSE;                                                                            \
+        }                                                                                               \
+        cm_spin_sleep();                                                                                \
+    } while (0)
+
+#define DLS_WAIT_FOR_LOCK_RELEASE                                                                       \
+    while (lock_res->releasing || lock_res->recycling) {                                                \
+        if (++count >= GS_SPIN_COUNT) {                                                                 \
+            cm_spin_sleep();                                                                            \
+            count = 0;                                                                                  \
+            SPIN_STAT_INC(stat_instance, wait_times);                                                   \
+        }                                                                                               \
+    }
+
+#define DLS_WAIT_FOR_LOCK_RELEASE_TIMED                                                                 \
+    while (lock_res->releasing || lock_res->recycling) {                                                \
+        if (ticks >= wait_ticks) {                                                                      \
+            dms_cancel_request_res((char*)&dlatch->drid, DMS_DRID_SIZE, sid, DRC_RES_LOCK_TYPE);        \
+            LOG_DEBUG_INF("[DLS]%s" DRID_FORMATE " timeout", __func__, DRID_ELEMENT(&dlatch->drid));    \
+            return CM_FALSE;                                                                            \
+        }                                                                                               \
+        if (++count >= GS_SPIN_COUNT) {                                                                 \
+            ticks++;                                                                                    \
+            count = 0;                                                                                  \
+            SPIN_STAT_INC(stat_instance, wait_times);                                                   \
+            cm_spin_sleep();                                                                            \
+        }                                                                                               \
+    }
+
+#define DLS_WAIT_FOR_SPINLOCK                                                                           \
+    while (lock_res->latch_stat.stat != LATCH_STATUS_IDLE) {                                            \
+        SPIN_STAT_INC(stat, spins);                                                                     \
+        if (++count >= GS_SPIN_COUNT) {                                                                 \
+            count = 0;                                                                                  \
+            cm_spin_sleep();                                                                            \
+            SPIN_STAT_INC(stat_instance, wait_times);                                                   \
+        }                                                                                               \
+    }
+
+#define DLS_WAIT_FOR_LOCK_TRANSFER                                                                      \
+    do {                                                                                                \
+        if ((g_timer()->now - begin) / MICROSECS_PER_MILLISEC >= DMS_WAIT_MAX_TIME ||                   \
+            g_dms.reform_ctx.reform_info.is_locking || is_try) {                                        \
+            if (*lock_res != NULL) {                                                                    \
+                (*lock_res)->releasing = CM_FALSE;                                                      \
+            }                                                                                           \
+            LOG_DEBUG_WAR("[DLS] release lock(%s) timeout", cm_display_lockid(lockid));                 \
+            return DMS_ERROR;                                                                           \
+        }                                                                                               \
+        dls_sleep(&spin_times, NULL, GS_SPIN_COUNT);                                                    \
+    } while (0)
 
 #ifdef __cplusplus
 }
