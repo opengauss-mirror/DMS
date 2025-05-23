@@ -291,6 +291,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_DRC_RELEASE, "drm release", "", "dms" },
     { MSG_REQ_DRM, "drm", "", "dms" },
     { MSG_REQ_DRM_FINISH, "drm finish", "", "dms" },
+    { MSG_REQ_PRE_CRE_DRC, "pre create drc", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },

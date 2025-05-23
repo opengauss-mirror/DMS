@@ -691,6 +691,22 @@ void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_m
     }
 }
 
+void dms_proc_pre_cre_drc_req(dms_process_context_t *ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_pre_cre_drc_t), CM_FALSE);
+    dms_pre_cre_drc_t *cre_drc_req = (dms_pre_cre_drc_t *)(receive_msg->buffer);
+    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
+    drc_head_t *drc = NULL;
+    int ret = drc_enter(cre_drc_req->resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, &drc);
+    if (ret != DMS_SUCCESS) {
+        return;
+    }
+    if (drc == NULL) {
+        return;
+    }
+    drc_leave(drc, options);
+}
+
 typedef struct st_dms_ctrl_wrapper {
     dms_buf_ctrl_t *ctrl;
     unsigned long long ruid;
@@ -749,6 +765,7 @@ static int32 dcs_try_get_page_owner_id_batch(dms_context_t *dms_ctx,
         ctrl_wraps[i].ruid = page_req.head.ruid;
     }
 
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_TRY, CM_TRUE);
     for (uint32 i = 0; i < req_count; i++) {
         dms_buf_ctrl_t *ctrl = ctrl_wraps[i].ctrl;
         dms_message_t msg;
@@ -797,6 +814,7 @@ static int32 dcs_try_get_page_owner_id_batch(dms_context_t *dms_ctx,
         ctrl_wraps[i].result = ret;
         mfc_release_response(&msg);
     }
+    dms_end_stat(dms_ctx->sess_id);
 
     return DMS_SUCCESS;
 }
@@ -843,6 +861,23 @@ int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
     g_dms.callback.mem_free(dms_ctx->db_handle, ctrl_wraps);
     LOG_DEBUG_INF("[DCS][try ask master for page owner id batch] success");
     return DMS_SUCCESS;
+}
+
+void dms_try_send_drc_create_msg(dms_context_t *dms_ctx, char *pageid)
+{
+    unsigned char master_id = 0;
+    int ret = drc_get_page_master_id(pageid, &master_id);
+    if (ret != DMS_SUCCESS) {
+        return;
+    }
+    dms_pre_cre_drc_t drc_one = {0};
+    DMS_INIT_MESSAGE_HEAD(&drc_one.head, MSG_REQ_PRE_CRE_DRC, 0, dms_ctx->inst_id, (uint32)master_id,
+        dms_ctx->sess_id, CM_INVALID_ID16);
+    if (memcpy_sp(drc_one.resid, DMS_PAGEID_SIZE, pageid, DMS_PAGEID_SIZE) != EOK) {
+        return;
+    }
+    drc_one.head.size = (uint16)sizeof(dms_pre_cre_drc_t);
+    (void)mfc_send_data_async(&drc_one.head);
 }
 
 static int dcs_send_rls_owner_req(dms_context_t *dms_ctx, uint8 master_id, uint64 *ruid)

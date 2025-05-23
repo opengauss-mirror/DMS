@@ -1908,6 +1908,7 @@ bool8 dms_cmd_need_ack(uint32 cmd)
         case MSG_REQ_OWNER_CKPT_EDP:
         case MSG_REQ_MASTER_CLEAN_EDP:
         case MSG_REQ_OWNER_CLEAN_EDP:
+        case MSG_REQ_PRE_CRE_DRC:
             return CM_FALSE;
         default:
             return CM_TRUE;

@@ -149,6 +149,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_DRC_RELEASE,            dms_proc_drc_release,               CM_TRUE, CM_FALSE, "drc release" },
     { MSG_REQ_DRM,                    dms_proc_drm,                       CM_TRUE, CM_FALSE, "drm" },
     { MSG_REQ_DRM_FINISH,             dms_proc_drm_finish,                CM_TRUE, CM_FALSE, "drm finish" },
+    { MSG_REQ_PRE_CRE_DRC,            dms_proc_pre_cre_drc_req,           CM_TRUE, CM_TRUE, "pre cre drc req" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -722,6 +723,7 @@ unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg)
         case MSG_REQ_CLAIM_OWNER:
         case MSG_REQ_INVALID_OWNER:
         case MSG_REQ_INVALIDATE_SHARE_COPY:
+        case MSG_REQ_PRE_CRE_DRC:
             return MES_PRIORITY_FIVE;
         case MSG_REQ_ASK_MASTER_FOR_PAGE:
         case MSG_REQ_ASK_OWNER_FOR_PAGE:

@@ -321,6 +321,11 @@ typedef enum en_req_flags {
     REQ_FLAG_CEIL = 0x80,
 } req_flags_t;
 
+typedef struct st_dms_pre_cre_drc {
+    dms_message_head_t head;
+    char resid[DMS_RESID_SIZE];
+} dms_pre_cre_drc_t;
+
 static inline void cm_print_error_msg(const void *msg_data)
 {
     msg_error_t *error_msg = (msg_error_t *)msg_data;
