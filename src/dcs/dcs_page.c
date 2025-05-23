@@ -72,13 +72,23 @@ static inline void dcs_buf_clean_ctrl_edp(dms_context_t *dms_ctx, dms_buf_ctrl_t
     g_dms.callback.clean_ctrl_edp(dms_ctx->db_handle, ctrl);
 }
 
+static inline void dcs_clean_is_edp(dms_buf_ctrl_t *ctrl)
+{
+    if (ctrl->is_edp) {
+        g_dms.callback.set_flushed_lsn(ctrl);
+        ctrl->is_edp = 0;
+    }
+}
+
 static inline void dcs_set_ctrl4granted(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t granted_mode)
 {
 #ifndef OPENGAUSS
-    if (ctrl->is_edp) {
-        /* incase owner node clean edp info and recycle buffer before cleaning edp on this node */
+    if (granted_mode == DMS_LOCK_EXCLUSIVE) {
+        /*  should delay clean edp page */
+        dcs_clean_is_edp(ctrl);
+        unsigned long long latest_lfn = g_dms.callback.get_global_lfn(dms_ctx->db_handle);
+        g_dms.callback.update_page_lfn(ctrl, latest_lfn);
         LOG_DEBUG_INF("[DCS][%s]: wait to clean edp", cm_display_pageid(dms_ctx->resid));
-        dcs_buf_clean_ctrl_edp(dms_ctx, ctrl);
     }
 #endif
     ctrl->edp_map = 0;
