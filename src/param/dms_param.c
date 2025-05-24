@@ -210,7 +210,7 @@ int dms_url_change_check(mes_addr_t *inst_net_addr, uint32 node_cnt)
     }
 
     int i_old = 0;
-    for (int i = 0; i < node_cnt; ++i) {
+    for (uint32 i = 0; i < node_cnt; ++i) {
         if (inst_net_addr[i].inst_id != MES_GLOBAL_INST_MSG.profile.inst_net_addr[i_old].inst_id) {
             continue;
         }

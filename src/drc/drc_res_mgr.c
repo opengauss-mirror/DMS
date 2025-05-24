@@ -298,7 +298,14 @@ static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
     // init drc_page
     if (res_type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
+        cm_bilist_node_init(&drc_page->flush_node);
+        drc_page->owner_lsn = 0;
+        drc_page->edp_map = 0;
+        drc_page->rebuild_type = REFORM_ASSIST_LIST_NONE;
+        drc_page->need_recover = CM_FALSE;
+        drc_page->need_flush = CM_FALSE;
         drc_page->last_edp = CM_INVALID_ID8;
+        drc_page->last_edp_lsn = 0;
         drc_page->seq = 0;
     }
 }

@@ -206,7 +206,7 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
         return CM_TRUE;
     }
 
-    if (drc_page->last_edp_lsn > edp->lsn || drc_page->edp_map == 0) {
+    if (drc_page->edp_map == 0) {
         drc_leave((drc_head_t *)drc_page, options);
         return CM_FALSE;
     }
