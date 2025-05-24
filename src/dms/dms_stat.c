@@ -102,7 +102,7 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
 DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *event_cnt,
     unsigned long long *event_time)
 {
-    if (g_dms_stat.inited) {
+    if (!g_dms_stat.inited) {
         return;
     }
     unsigned long long cnt = 0;
@@ -155,7 +155,7 @@ DMS_DECLARE void dms_get_session_event(unsigned int sid, dms_wait_event_t event_
 DMS_DECLARE unsigned long long dms_get_stat(dms_sysstat_t stat_type)
 {
     unsigned long long cnt = 0;
-    if (g_dms_stat.inited) {
+    if (!g_dms_stat.inited) {
         return cnt;
     }
     uint32 sess_cnt = g_dms_stat.sess_cnt;
@@ -185,7 +185,7 @@ DMS_DECLARE void dms_get_session_stat_wait_attr(unsigned int sid, dms_wait_event
 
 DMS_DECLARE void dms_reset_stat(void)
 {
-    if (g_dms_stat.inited) {
+    if (!g_dms_stat.inited) {
         return;
     }
     uint32 j;
