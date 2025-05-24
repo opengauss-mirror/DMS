@@ -113,9 +113,8 @@ static bool32 dms_reform_health_check_reformer(void)
 
 // if there is instance status before less than now
 // it means the instance restart in the period of reform, set reform fail
-static bool32 dms_reform_cmp_online_status(uint8 *online_status, uint64 *online_times)
+static bool32 dms_reform_cmp_online_status(node_info_t *node_infos)
 {
-    health_info_t *health_info = DMS_HEALTH_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
     uint64 list_online_cache = 0;
     bool32 in_list_cache = CM_FALSE;
@@ -126,27 +125,28 @@ static bool32 dms_reform_cmp_online_status(uint8 *online_status, uint64 *online_
         if (!in_list_cache) {
             continue;
         }
-        if (health_info->online_status[i] > online_status[i]) {
+        online_status_t *old_status = DMS_ONLINE_STATUS(i);
+        online_status_t *new_status = &node_infos[i].online_status;
+        if (old_status->status > new_status->status) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_cmp_online_status error, inst(%d), status cache: %d, current: %d",
-                i, health_info->online_status[i], online_status[i]);
+                i, old_status->status, new_status->status);
             return CM_FALSE;
         } else {
-            health_info->online_status[i] = online_status[i];
+            old_status->status = new_status->status;
         }
 
-        // for switchover, not need to use online_times to judge
+        // for switchover, not need to use start_times to judge
         if (REFORM_TYPE_IS_SWITCHOVER(share_info->reform_type)) {
-            if (online_status[i] != DMS_STATUS_IN) {
+            if (new_status->status != DMS_STATUS_IN) {
                 LOG_RUN_ERR("[DMS REFORM]dms_reform_cmp_online_status error, inst(%d), current: %d, "
-                    "excepted: %d in switchover",
-                    i, online_status[i], DMS_STATUS_IN);
+                    "excepted: %d in switchover", i, new_status->status, DMS_STATUS_IN);
                 return CM_FALSE;
             }
             continue;
         }
-        if (online_times[i] != health_info->online_times[i]) {
+        if (new_status->start_time != old_status->start_time) {
             LOG_RUN_ERR("[DMS REFORM]dms_reform_cmp_online_status error, inst(%d), time cache: %llu, current: %llu",
-                        i, health_info->online_times[i], online_times[i]);
+                        i, old_status->start_time, new_status->start_time);
             return CM_FALSE;
         }
     }
@@ -179,9 +179,7 @@ static bool32 dms_reform_health_check_partner(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    uint8 online_status[DMS_MAX_INSTANCES] = { 0 };
-    uint64 online_times[DMS_MAX_INSTANCES] = { 0 };
-    uint8 online_rw_status[DMS_MAX_INSTANCES] = { 0 };
+    node_info_t node_infos[DMS_MAX_INSTANCES] = { 0 };
     instance_list_t list_online;
     instance_list_t list_offline;
 
@@ -198,14 +196,14 @@ static bool32 dms_reform_health_check_partner(void)
         return CM_FALSE;
     }
 
-    if (dms_reform_get_online_status(&list_online, online_status, online_times, online_rw_status,
-        reform_ctx->sess_health) != DMS_SUCCESS) {
+    if (dms_reform_get_online_status(&list_online, reform_ctx->sess_health, node_infos)
+        != DMS_SUCCESS) {
         return CM_TRUE;
     }
 
-    dms_set_driver_ping_info(online_version, online_rw_status, &list_online);
+    dms_set_driver_ping_info(online_version, &list_online, node_infos);
 
-    return dms_reform_cmp_online_status(online_status, online_times);
+    return dms_reform_cmp_online_status(node_infos);
 }
 
 void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info)

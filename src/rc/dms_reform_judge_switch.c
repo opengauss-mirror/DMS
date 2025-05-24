@@ -251,7 +251,6 @@ bool32 dms_reform_judgement_switchover_opengauss_check(instance_list_t *inst_lis
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     switchover_info_t *switchover_info = DMS_SWITCHOVER_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
 
     // if there are restart/remove/new add instances, ignore switchover request at current judgement
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 ||
@@ -268,8 +267,9 @@ bool32 dms_reform_judgement_switchover_opengauss_check(instance_list_t *inst_lis
 
     // if the standby node(which has request switchover) is not exist in bitmap_online. clear this request
     // if the standby node restart, also clear
+    online_status_t *online_status = DMS_ONLINE_STATUS(switchover_info->inst_id);
     if (!bitmap64_exist(&share_info->bitmap_online, switchover_info->inst_id) ||
-        (health_info->online_times[switchover_info->inst_id] != switchover_info->start_time)) {
+        (online_status->start_time != switchover_info->start_time)) {
         switchover_info->switch_req = CM_FALSE;
         switchover_info->inst_id = CM_INVALID_ID8;
         switchover_info->sess_id = CM_INVALID_ID16;

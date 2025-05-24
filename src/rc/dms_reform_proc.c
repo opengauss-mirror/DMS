@@ -1539,7 +1539,6 @@ static int dms_reform_sync_wait_reformer(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
-    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     instance_list_t *list_onlie = &share_info->list_online;
     uint8 dst_id = CM_INVALID_ID8;
     uint8 ret_flag = CM_FALSE;
@@ -1548,14 +1547,15 @@ static int dms_reform_sync_wait_reformer(void)
     uint64 scn = g_dms.callback.get_global_scn(g_dms.reform_ctx.handle_proc);
     reform_info->max_scn = MAX(reform_info->max_scn, scn);
 #endif
-    reformer_ctrl->instance_step[g_dms.inst_id] = reform_info->last_step;
+    g_dms.reform_ctx.nodes_info[g_dms.inst_id].instance_step = reform_info->last_step;
     for (uint8 i = 0; i < list_onlie->inst_id_count; i++) {
         dst_id = list_onlie->inst_id_list[i];
+        node_info_t *node_info = DMS_NODE_INFO(dst_id);
         // can not wait here, return the function, sleep thread and check fail flag at the upper-layer function
-        if (reformer_ctrl->instance_step[dst_id] != reform_info->last_step) {
+        if (node_info->instance_step != reform_info->last_step) {
             ret_flag = CM_TRUE;
         }
-        if (reformer_ctrl->instance_fail[dst_id]) {
+        if (node_info->instance_fail) {
             LOG_RUN_INF("[DMS REFORM]dms_reform_sync_wait_reformer receive partner(%d) fail", dst_id);
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "receive fail reform partner");
             return ERRNO_DMS_REFORM_FAIL;
@@ -1769,14 +1769,13 @@ static int dms_reform_drc_validate()
 
 static bool32 dms_reform_check_partner_fail(void)
 {
-    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
-
     if (DMS_IS_SHARE_PARTNER) {
         return CM_FALSE;
     }
 
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        if (reformer_ctrl->instance_fail[i]) {
+        node_info_t *info = DMS_NODE_INFO(i);
+        if (info->instance_fail) {
             return CM_TRUE;
         }
     }
@@ -1892,7 +1891,6 @@ static int dms_reform_reset_user()
 
 static int dms_reform_set_remove_point(void)
 {
-    reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t inst_list;
     int ret = DMS_SUCCESS;
@@ -1907,7 +1905,8 @@ static int dms_reform_set_remove_point(void)
     dms_reform_bitmap_to_list(&inst_list, share_info->bitmap_remove);
     for (uint32 i = 0; i < inst_list.inst_id_count; i++) {
         uint32 inst = (uint32)inst_list.inst_id_list[i];
-        ret = g_dms.callback.set_remove_point(g_dms.reform_ctx.handle_proc, inst, &reform_info->curr_points[inst]);
+        log_point_t *point = &g_dms.reform_ctx.nodes_info[inst].curr_point;
+        ret = g_dms.callback.set_remove_point(g_dms.reform_ctx.handle_proc, inst, point);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_FUNC_FAIL;
             return ret;
@@ -2160,13 +2159,12 @@ char *dms_reform_get_step_desc(uint32 step)
 
 void dms_reform_cache_curr_point(unsigned int node_id, void *curr_point)
 {
-    reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
 
     if (DMS_IS_SHARE_REFORMER) {
         if (bitmap64_exist(&share_info->bitmap_remove, (uint8)node_id)) {
             log_point_t *point = (log_point_t *)curr_point;
-            reform_info->curr_points[node_id] = *point;
+            g_dms.reform_ctx.nodes_info[node_id].curr_point = *point;
         }
     }
 }

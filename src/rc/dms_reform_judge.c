@@ -93,26 +93,24 @@ void dms_reform_update_reformer_version(uint64 start_time, uint8 inst_id)
     cm_spin_unlock(&reform_info->version_lock);
 }
 
-static int dms_reform_get_online_status_l(uint8 *online_status, uint64 *online_times,
-    uint8 *online_rw_status, uint8 dst_id)
+static int dms_reform_get_online_status_l(uint8 dst_id, online_status_t *online_status)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 status = (uint8)g_dms.callback.get_dms_status(g_dms.reform_ctx.handle_judge);
     CM_ASSERT(status <= DMS_STATUS_IN);
-    online_status[dst_id] = status;
-    online_times[dst_id] = reform_info->start_time;
+    online_status->status = status;
+    online_status->start_time = reform_info->start_time;
 #ifdef OPENGAUSS
-    online_rw_status[dst_id] = 1;
+    online_status->rw_status = 1;
 #else
-    online_rw_status[dst_id] = (uint8)g_dms.callback.check_db_readwrite(g_dms.reform_ctx.handle_judge);
+    online_status->rw_status = (uint8)g_dms.callback.check_db_readwrite(g_dms.reform_ctx.handle_judge);
 #endif
     dms_reform_update_reformer_version(reform_info->start_time, dst_id);
     return DMS_SUCCESS;
 }
 
 // don't retry while wait overtime, finish current judgement and get online list again
-static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_times, uint8 *online_rw_status,
-    uint8 dst_id, uint32 sess_id)
+static int dms_reform_get_online_status_r(uint8 dst_id, uint32 sess_id, online_status_t *online_status)
 {
     dms_reform_req_partner_status_t req;
 
@@ -123,7 +121,7 @@ static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_t
         return ret;
     }
 
-    ret = dms_reform_req_dms_status_wait(online_status, online_times, online_rw_status, dst_id, req.head.ruid);
+    ret = dms_reform_req_dms_status_wait(dst_id, req.head.ruid, online_status);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS REFORM]dms_reform_get_online_status_r WAIT error: %d, dst_id: %d", ret, dst_id);
     }
@@ -131,23 +129,24 @@ static int dms_reform_get_online_status_r(uint8 *online_status, uint64 *online_t
     return ret;
 }
 
-static void dms_update_rw_bitmap(uint64 *rw_bitmap, uint8 *online_rw_status, instance_list_t *list_online)
+static void dms_update_rw_bitmap(uint64 *rw_bitmap, instance_list_t *list_online, node_info_t *node_infos)
 {
     dms_reform_list_to_bitmap(rw_bitmap, list_online);
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         if (!bitmap64_exist(rw_bitmap, i)) {
             continue;
         }
-        if (!online_rw_status[i]) {
+        online_status_t *status = &node_infos[i].online_status;
+        if (!status->rw_status) {
             bitmap64_clear(rw_bitmap, i);
         }
     }
 }
 
-void dms_set_driver_ping_info(uint64 online_version, uint8 *online_rw_status, instance_list_t *list_online)
+void dms_set_driver_ping_info(uint64 online_version, instance_list_t *list_online, node_info_t *node_infos)
 {
     uint64 rw_bitmap = 0ULL;
-    dms_update_rw_bitmap(&rw_bitmap, online_rw_status, list_online);
+    dms_update_rw_bitmap(&rw_bitmap, list_online, node_infos);
     cm_spin_lock(&g_dms.dms_driver_ping_info.lock, NULL);
     g_dms.dms_driver_ping_info.driver_ping_info.rw_bitmap = rw_bitmap;
     g_dms.dms_driver_ping_info.driver_ping_info.major_version = online_version;
@@ -156,18 +155,18 @@ void dms_set_driver_ping_info(uint64 online_version, uint8 *online_rw_status, in
 }
 
 // 1. req to online list and get status
-int dms_reform_get_online_status(instance_list_t *list_online, uint8 *online_status, uint64* online_times,
-    uint8 *online_rw_status, uint32 sess_id)
+int dms_reform_get_online_status(instance_list_t *list_online, uint32 sess_id, node_info_t *node_infos)
 {
     uint8 dst_id = CM_INVALID_ID8;
     int ret = DMS_SUCCESS;
 
     for (uint8 i = 0; i < list_online->inst_id_count; i++) {
         dst_id = list_online->inst_id_list[i];
+        online_status_t *online_status = &node_infos[dst_id].online_status;
         if (dms_dst_id_is_self(dst_id)) {
-            ret = dms_reform_get_online_status_l(online_status, online_times, online_rw_status, dst_id);
+            ret = dms_reform_get_online_status_l(dst_id, online_status);
         } else {
-            ret = dms_reform_get_online_status_r(online_status, online_times, online_rw_status, dst_id, sess_id);
+            ret = dms_reform_get_online_status_r(dst_id, sess_id, online_status);
         }
         if (ret != DMS_SUCCESS) {
             return ret;
@@ -304,7 +303,6 @@ static int dms_reform_check_remote_inner(uint8 dst_id)
 static int dms_reform_check_remote(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_online = &share_info->list_online;
     uint8 dst_id = CM_INVALID_ID8;
@@ -328,8 +326,9 @@ static int dms_reform_check_remote(void)
     }
 
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        reformer_ctrl->instance_fail[i] = 0;
-        reformer_ctrl->instance_step[i] = 0;
+        node_info_t *info = DMS_NODE_INFO(i);
+        info->instance_fail = 0;
+        info->instance_step = 0;
     }
 
     LOG_DEBUG_FUNC_SUCCESS;
@@ -510,7 +509,7 @@ static void dms_reform_instance_lists_log(instance_list_t *inst_lists)
     LOG_RUN_INF("[DMS REFORM]instance lists info:\n%s", desc);
 }
 
-static void dms_reform_judgement_list_collect(instance_list_t *inst_lists, uint8 *online_status)
+static void dms_reform_judgement_list_collect(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     bool32 in_list_online = CM_FALSE;
@@ -522,10 +521,11 @@ static void dms_reform_judgement_list_collect(instance_list_t *inst_lists, uint8
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         in_list_online = bitmap64_exist(&share_info->bitmap_online, i);
         in_list_stable = bitmap64_exist(&share_info->bitmap_stable, i);
+        online_status_t *online_status = DMS_ONLINE_STATUS(i);
         if (in_list_online && in_list_stable) {
-            dms_reform_inst_list_add(inst_lists, (uint8)(INST_LIST_OLD_BASE + online_status[i]), i);
+            dms_reform_inst_list_add(inst_lists, (uint8)(INST_LIST_OLD_BASE + online_status->status), i);
         } else if (in_list_online && !in_list_stable) {
-            dms_reform_inst_list_add(inst_lists, (uint8)(INST_LIST_NEW_BASE + online_status[i]), i);
+            dms_reform_inst_list_add(inst_lists, (uint8)(INST_LIST_NEW_BASE + online_status->status), i);
         } else if (!in_list_online && in_list_stable) {
             dms_reform_inst_list_add(inst_lists, INST_LIST_OLD_REMOVE, i);
         }
@@ -1485,12 +1485,13 @@ static int dms_reform_sync_share_info(void)
     return DMS_SUCCESS;
 }
 
-static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *inst_lists)
+static int dms_reform_refresh_map_info(instance_list_t *inst_lists)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     // reformer status is IN, part info and txn deposit map is valid
-    if (online_status[g_dms.inst_id] == (uint8)DMS_STATUS_IN) {
+    online_status_t *info = DMS_ONLINE_STATUS(g_dms.inst_id);
+    if (info->status == (uint8)DMS_STATUS_IN) {
         reform_info->use_default_map = CM_FALSE;
         return DMS_SUCCESS;
     }
@@ -1515,7 +1516,7 @@ static int dms_reform_refresh_map_info(uint8 *online_status, instance_list_t *in
 }
 
 #ifdef OPENGAUSS
-static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
+static void dms_reform_adjust(instance_list_t *inst_lists)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
     if (share_info->reform_type == DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS) {
@@ -1528,7 +1529,7 @@ static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
             dms_reform_bitmap_to_list(&share_info->list_online, share_info->bitmap_online);
             uint32 len = (uint32)(sizeof(instance_list_t) * INST_LIST_TYPE_COUNT);
             memset_s(inst_lists, len, 0, len);
-            dms_reform_judgement_list_collect(inst_lists, online_status);
+            dms_reform_judgement_list_collect(inst_lists);
         }
     }
 }
@@ -1537,10 +1538,10 @@ static void dms_reform_adjust(instance_list_t *inst_lists, uint8 *online_status)
 static void dms_reform_judgement_record_start_times(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
 
     for (uint32 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        share_info->start_times[i] = health_info->online_times[i];
+        node_info_t *info = DMS_NODE_INFO(i);
+        share_info->start_times[i] = info->online_status.start_time;
     }
 }
 
@@ -1604,7 +1605,7 @@ static uint32 dms_get_reform_version()
     return reform_version;
 }
 
-static bool32 dms_reform_judgement(uint8 *online_status)
+static bool32 dms_reform_judgement()
 {
     instance_list_t inst_lists[INST_LIST_TYPE_COUNT];
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -1633,7 +1634,7 @@ static bool32 dms_reform_judgement(uint8 *online_status)
 
     share_info->reformer_version.inst_id = (uint8)g_dms.inst_id;
     share_info->reformer_version.start_time = reform_info->start_time;
-    dms_reform_judgement_list_collect(inst_lists, online_status);
+    dms_reform_judgement_list_collect(inst_lists);
 #ifndef OPENGAUSS
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_REFRESH_REFORM_INFO);
     dms_reform_judgement_refresh_reform_info();
@@ -1660,13 +1661,13 @@ static bool32 dms_reform_judgement(uint8 *online_status)
     }
 
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_REFRESH_MAP_INFO);
-    if (dms_reform_refresh_map_info(online_status, inst_lists) != DMS_SUCCESS) {
+    if (dms_reform_refresh_map_info(inst_lists) != DMS_SUCCESS) {
         dms_reform_judgement_stat_desc("fail to refresh map info");
         return CM_FALSE;
     }
 
 #ifdef OPENGAUSS
-    dms_reform_adjust(inst_lists, online_status);
+    dms_reform_adjust(inst_lists);
 #endif
     cm_spin_lock(&reform_context->share_info_lock, NULL);
     share_info->version_num++;
@@ -1701,17 +1702,16 @@ static bool8 dms_reform_kick_reboot_inst_online_list()
         return CM_FALSE;
     }
     share_info_t *share_info = DMS_SHARE_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
     uint64 bitmap_kick_out = 0;
     uint64 bitmap_status_in = 0;
     for (uint8 i = 0; i < share_info->list_online.inst_id_count; ++i) {
         uint8 inst_id = share_info->list_online.inst_id_list[i];
-        if ((health_info->online_status[inst_id] == DMS_STATUS_JOIN ||
-            health_info->online_status[inst_id] == DMS_STATUS_OUT) &&
-            bitmap64_exist(&share_info->bitmap_stable, inst_id)) {
+        online_status_t *online_status = DMS_ONLINE_STATUS(inst_id);
+        if ((online_status->status == DMS_STATUS_JOIN || online_status->status == DMS_STATUS_OUT)
+            && bitmap64_exist(&share_info->bitmap_stable, inst_id)) {
             bitmap64_set(&bitmap_kick_out, inst_id);
         }
-        if (health_info->online_status[inst_id] == DMS_STATUS_IN) {
+        if (online_status->status == DMS_STATUS_IN) {
             bitmap64_set(&bitmap_status_in, inst_id);
         }
     }
@@ -1744,7 +1744,6 @@ static void dms_reform_judgement_reformer(void)
 {
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     share_info_t *share_info = DMS_SHARE_INFO;
-    health_info_t *health_info = DMS_HEALTH_INFO;
 
     if (dms_reform_in_process()) {
         dms_reform_judgement_stat_cancel();
@@ -1777,8 +1776,9 @@ static void dms_reform_judgement_reformer(void)
     }
 
     dms_reform_judgement_stat_step(DMS_REFORM_JUDGE_GET_ONLINE_STATUS);
-    if (dms_reform_get_online_status(&share_info->list_online, health_info->online_status, health_info->online_times,
-        health_info->online_rw_status, reform_ctx->sess_judge) != DMS_SUCCESS) {
+    node_info_t *node_info = g_dms.reform_ctx.nodes_info;
+    if (dms_reform_get_online_status(&share_info->list_online, reform_ctx->sess_judge, node_info)
+        != DMS_SUCCESS) {
         dms_reform_judgement_stat_desc("fail to get online status");
         return;
     }
@@ -1790,9 +1790,9 @@ static void dms_reform_judgement_reformer(void)
         return;
     }
 #endif
-    dms_set_driver_ping_info(online_version, health_info->online_rw_status, &share_info->list_online);
+    dms_set_driver_ping_info(online_version, &share_info->list_online, node_info);
 
-    if (!dms_reform_judgement(health_info->online_status)) {
+    if (!dms_reform_judgement()) {
         return;
     }
 

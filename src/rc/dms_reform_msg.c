@@ -212,7 +212,6 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_step_t), CM_TRUE);
     dms_reform_req_sync_step_t *req = (dms_reform_req_sync_step_t *)receive_msg->buffer;
-    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 instance_id = req->head.src_inst;
 
@@ -231,10 +230,11 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
         return;
     }
 
+    node_info_t *node_info = DMS_NODE_INFO(instance_id);
     if (req->curr_step == DMS_REFORM_STEP_SELF_FAIL) {
-        reformer_ctrl->instance_fail[instance_id] = CM_TRUE;
+        node_info->instance_fail = CM_TRUE;
     } else {
-        reformer_ctrl->instance_step[instance_id] = req->last_step;
+        node_info->instance_step = req->last_step;
     }
     reform_info->max_scn = MAX(reform_info->max_scn, req->scn);
 
@@ -296,8 +296,7 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
     }
 }
 
-int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, uint8 *online_rw_status,
-    uint8 dst_id, uint64 ruid)
+int dms_reform_req_dms_status_wait(uint8 dst_id, uint64 ruid, online_status_t *online_status)
 {
     dms_message_t res;
     int ret = DMS_SUCCESS;
@@ -313,9 +312,9 @@ int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, u
         mfc_release_response(&res);
         return DMS_ERROR;
     }
-    online_status[dst_id] = ack_common->dms_status;
-    online_times[dst_id] = ack_common->start_time;
-    online_rw_status[dst_id] = ack_common->db_is_readwrite;
+    online_status->status = ack_common->dms_status;
+    online_status->start_time = ack_common->start_time;
+    online_status->rw_status = ack_common->db_is_readwrite;
     mfc_release_response(&res);
     return DMS_SUCCESS;
 }
@@ -459,10 +458,10 @@ void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, dms_message
     }
 
     // switchover will change reformer, initial status array at every instances
-    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        reformer_ctrl->instance_fail[i] = 0;
-        reformer_ctrl->instance_step[i] = 0;
+        node_info_t *info = DMS_NODE_INFO(i);
+        info->instance_fail = 0;
+        info->instance_step = 0;
     }
 }
 
