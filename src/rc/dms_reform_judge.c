@@ -595,6 +595,39 @@ static void dms_reform_judgement_new_join(instance_list_t *inst_lists)
     }
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_dw_recovery(inst_lists);
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_DRC_ACCESS);
+    dms_reform_judgement_set_curr_point();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_RECOVERY);
+    dms_reform_judgement_file_blocked(inst_lists);
+    dms_reform_judgement_space_reload();
+    // file_unblocked must be done before txn_deposit
+    dms_reform_judgement_file_unblocked();
+    dms_reform_judgement_update_scn();
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_xa_access();
+    dms_reform_judgement_set_phase(DMS_PHASE_AFTER_TXN_DEPOSIT);
+    dms_reform_judgement_success();
+    dms_reform_judgement_set_phase(DMS_PHASE_END);
+    dms_reform_judgement_done();
+}
+
+static void dms_reform_judgement_new_join_v4(instance_list_t *inst_lists)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_reconnect(inst_lists);
+    dms_reform_judgement_start();
+    dms_reform_judgement_drc_inaccess();
+    if (!share_info->catalog_centralized) {
+        dms_reform_judgement_lock_instance();
+        dms_reform_judgement_drc_clean(inst_lists);
+        dms_reform_judgement_rebuild(inst_lists);
+    }
+    dms_reform_judgement_remaster(inst_lists);
+    dms_reform_judgement_dw_recovery(inst_lists);
     dms_reform_judgement_sync_node_lfn();
     dms_reform_judgement_drc_access();
     dms_reform_judgement_page_access();
@@ -686,6 +719,26 @@ static void dms_reform_judgement_old_remove(instance_list_t *inst_lists)
 }
 
 static void dms_reform_judgement_shutdown_consistency(instance_list_t *inst_lists)
+{
+    dms_reform_judgement_prepare();
+    dms_reform_judgement_disconnect(inst_lists);
+    dms_reform_judgement_start();
+    dms_reform_judgement_drc_inaccess();
+    dms_reform_judgement_lock_instance();
+    dms_reform_judgement_drc_clean(inst_lists);
+    dms_reform_judgement_rebuild(inst_lists);
+    dms_reform_judgement_remaster(inst_lists);
+    dms_reform_judgement_repair();
+    dms_reform_judgement_drc_access();
+    dms_reform_judgement_page_access();
+    dms_reform_judgement_rollback_prepare(inst_lists);
+    dms_reform_judgement_txn_deposit(inst_lists);
+    dms_reform_judgement_success();
+    dms_reform_judgement_rollback_start(inst_lists);
+    dms_reform_judgement_done();
+}
+
+static void dms_reform_judgement_shutdown_consistency_v4(instance_list_t *inst_lists)
 {
     dms_reform_judgement_prepare();
     dms_reform_judgement_disconnect(inst_lists);
@@ -1381,6 +1434,56 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc_base[DMS_REFORM_TYPE_
     dms_reform_judgement_shutdown_consistency_check, dms_reform_judgement_shutdown_consistency },
 };
 
+static dms_reform_judgement_proc_t g_reform_judgement_proc_v4[DMS_REFORM_TYPE_COUNT] = {
+    [DMS_REFORM_TYPE_FOR_NORMAL] = {
+    dms_reform_judgement_normal_check, dms_reform_judgement_normal },
+#ifdef OPENGAUSS
+    [DMS_REFORM_TYPE_FOR_NORMAL_OPENGAUSS] = {
+    dms_reform_judgement_normal_opengauss_check, dms_reform_judgement_normal_opengauss },
+
+    [DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS] = {
+    dms_reform_judgement_failover_opengauss_check, dms_reform_judgement_failover_opengauss },
+#endif
+    [DMS_REFORM_TYPE_FOR_BUILD] = {
+    dms_reform_judgement_build_check, dms_reform_judgement_build },
+#ifdef OPENGAUSS
+    [DMS_REFORM_TYPE_FOR_SWITCHOVER_OPENGAUSS] = {
+    dms_reform_judgement_switchover_opengauss_check, dms_reform_judgement_switchover_opengauss },
+#endif
+    [DMS_REFORM_TYPE_FOR_FULL_CLEAN] = {
+    dms_reform_judgement_full_clean_check, dms_reform_judgement_full_clean },
+
+    [DMS_REFORM_TYPE_FOR_MAINTAIN] = {
+    dms_reform_judgement_maintain_check, dms_reform_judgement_maintain },
+
+    [DMS_REFORM_TYPE_FOR_RST_RECOVER] = {
+    dms_reform_judgement_rst_recover_check, dms_reform_judgement_rst_recover },
+
+    [DMS_REFORM_TYPE_FOR_NEW_JOIN] = {
+    dms_reform_judgement_new_join_check, dms_reform_judgement_new_join_v4 },
+
+    [DMS_REFORM_TYPE_FOR_STANDBY_MAINTAIN] = {
+    dms_reform_judgement_standby_maintain_check, dms_reform_judgement_standby_maintain },
+
+    [DMS_REFORM_TYPE_FOR_NORMAL_STANDBY] = {
+    dms_reform_judgement_normal_check, dms_reform_judgement_normal_standby },
+
+    [DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_DEMOTE] = {
+    dms_reform_judgement_az_switchover_check, dms_reform_judgement_az_switchover_demote },
+
+    [DMS_REFORM_TYPE_FOR_AZ_SWITCHOVER_PROMOTE] = {
+    dms_reform_judgement_az_switchover_check, dms_reform_judgement_az_switchover_to_promote },
+
+    [DMS_REFORM_TYPE_FOR_AZ_FAILOVER] = {
+    dms_reform_judgement_az_failover_check, dms_reform_judgement_az_failover },
+
+    [DMS_REFORM_TYPE_FOR_OLD_REMOVE] = {
+    dms_reform_judgement_old_remove_check, dms_reform_judgement_old_remove },
+
+    [DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY] = {
+    dms_reform_judgement_shutdown_consistency_check, dms_reform_judgement_shutdown_consistency_v4 },
+};
+
 static dms_reform_judgement_proc_t g_reform_judgement_proc_v5[DMS_REFORM_TYPE_COUNT] = {
     [DMS_REFORM_TYPE_FOR_NORMAL] = {
     dms_reform_judgement_normal_check, dms_reform_judgement_normal },
@@ -1428,14 +1531,14 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc_v5[DMS_REFORM_TYPE_CO
     dms_reform_judgement_old_remove_check, dms_reform_judgement_old_remove },
 
     [DMS_REFORM_TYPE_FOR_SHUTDOWN_CONSISTENCY] = {
-    dms_reform_judgement_shutdown_consistency_check, dms_reform_judgement_shutdown_consistency },
+    dms_reform_judgement_shutdown_consistency_check, dms_reform_judgement_shutdown_consistency_v4 },
 };
 
 static dms_reform_judgement_proc_t *g_reform_judgement_proc_map[DMS_PROTO_VER_NUMS] = {
     [DMS_PROTO_VER_1] = g_reform_judgement_proc_base,
     [DMS_PROTO_VER_2] = g_reform_judgement_proc_base,
     [DMS_PROTO_VER_3] = g_reform_judgement_proc_base,
-    [DMS_PROTO_VER_4] = g_reform_judgement_proc_base,
+    [DMS_PROTO_VER_4] = g_reform_judgement_proc_v4,
     [DMS_PROTO_VER_5] = g_reform_judgement_proc_v5,
 };
 

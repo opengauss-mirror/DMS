@@ -2039,6 +2039,7 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2] = { "AZ_FAILOVER_PROMOTE_PHASE2",
         dms_reform_az_failover_promote_phase2, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RELOAD_TXN] = { "RELOAD_TXN", dms_reform_reload_txn, NULL, CM_FALSE },
+    /*==================== end version 3 ====================*/
     [DMS_REFORM_STEP_SYNC_NODE_LFN] = { "SYNC_NODE_LFN", dms_reform_sync_node_lfn, NULL, CM_FALSE },
     [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_SWITCH_LOG] = { "AZ_SWITCH_PROMOTE_SWITCH_LOG",
         dms_reform_az_switchover_promote_switch_log, NULL, CM_FALSE },
