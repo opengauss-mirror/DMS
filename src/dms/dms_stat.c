@@ -414,6 +414,22 @@ int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_in
             LOG_DEBUG_ERR("[DMS]strcpy_s error");
             return DMS_ERROR;
         }
+        mes_worker_info.longest_cmd = ((mes_msg_info_t *)mes_worker_info.longest_data)->cmd;
+        if (mes_worker_info.longest_cmd < MSG_REQ_END ||
+            (mes_worker_info.longest_cmd >= MSG_ACK_BEGIN && mes_worker_info.longest_cmd < MSG_ACK_END)) {
+            ret = strcpy_s(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN,
+                g_dms.processors[mes_worker_info.longest_cmd].name);
+        } else {
+            ret = memset_sp(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, 0, DMS_CMD_DESC_LEN);
+        }
+
+        if (ret != EOK) {
+            LOG_DEBUG_ERR("[DMS]Secure C lib has thrown an error %d", ret);
+            return DMS_ERROR;
+        }
+
+        mes_worker_msg_stats_result->longest_cost_time = mes_worker_info.longest_cost_time;
+        mes_worker_msg_stats_result->longest_get_msgitem_time = mes_worker_info.longest_get_msgitem_time;
     }
     return DMS_SUCCESS;
 }
@@ -433,6 +449,7 @@ int dms_get_task_worker_priority_stat(unsigned int priority_id,
     mes_task_priority_stats_result->worker_num = mes_worker_priority_info.worker_num;
     mes_task_priority_stats_result->finished_msgitem_num = mes_worker_priority_info.finished_msgitem_num;
     mes_task_priority_stats_result->inqueue_msgitem_num = mes_worker_priority_info.inqueue_msgitem_num;
+    mes_task_priority_stats_result->avg_cost_time = mes_worker_priority_info.avg_cost_time;
     return DMS_SUCCESS;
 }
 
