@@ -346,8 +346,8 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_ACK_SMON_ALOCK_BY_DRID, "ack smon deadlock alock by drid", "", "dms" },
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT, "ack immediate ckpt request", "", "dms" },
     { MSG_ACK_CHECK_OWNERSHIP, "ack check page ownership", "", "dms" },
-    { MSG_ACK_DRC_MIGRATE, "drm ack", "", "dms" },
-    { MSG_ACK_DRM_FINISH, "drm finish ack", "", "dms" },
+    { MSG_ACK_DRC_MIGRATE, "drm ack", "", "dms"},
+    { MSG_ACK_DRM_FINISH, "drm finish ack", "", "dms"},
 };
 
 /* g_wait_cmd_desc size */

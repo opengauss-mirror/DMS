@@ -61,8 +61,8 @@ extern "C" {
 #define DRC_RECYCLE_ALLOC_COUNT 1.1
 #define DLS_LATCH_IS_OWNER(lock_mode) ((lock_mode) == DMS_LOCK_EXCLUSIVE || (lock_mode) == DMS_LOCK_SHARE)
 #define DLS_LATCH_IS_LOCKED(stat) ((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
-#define DRM_CTX (&g_drc_res_ctx.drm);
-#define DRM_STAT (&g_drc_res_ctx.drm.stat);
+#define DRM_CTX (&g_drc_res_ctx.drm)
+#define DRM_STAT (&g_drc_res_ctx.drm.stat)
 
 typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,

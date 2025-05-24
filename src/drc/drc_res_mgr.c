@@ -647,8 +647,8 @@ int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t
 
 bool8 drm_create_inner(char *resid, uint16 len, uint8 res_type, uint8 options)
 {
-    drc_global_res_map_t *gloabl_res_map = drc_get_global_res_map(res_type);
-    drc_res_map_t *res_map = &gloabl_res_map->res_map;
+    drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
+    drc_res_map_t *res_map = &global_res_map->res_map;
     drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
 
     cm_spin_lock(&bucket->lock, NULL);
@@ -909,7 +909,7 @@ int32 drc_get_page_master_id(char *pageid, unsigned char *master_id)
     return DMS_SUCCESS;
 }
 
-int drc_get_page_old_master_id(char *pageid, unsigned char *master_id)
+int32 drc_get_page_old_master_id(char *pageid, unsigned char *master_id)
 {
     dms_reset_error();
     uint8  inst_id;
