@@ -1279,7 +1279,7 @@ static int dms_reform_done_check()
             return ret;
         }
     }
-    
+
     share_info_t *share_info = DMS_SHARE_INFO;
     if (!REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
         g_dms.callback.reform_done_notify(g_dms.reform_ctx.handle_proc);
@@ -1713,6 +1713,15 @@ static int dms_reform_space_reload(void)
     return DMS_SUCCESS;
 }
 
+static inline void dms_reform_set_cluster_running_prot_ver()
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+    uint32 curr_ver = dms_get_cluster_running_min_version();
+    CM_ASSERT(share_info->proto_version <= DMS_SW_PROTO_VER);
+    LOG_RUN_INF("[DMS REFORM][PROTOVER] sync to %d", share_info->proto_version);
+    cm_atomic32_cas(&g_dms.cluster_running_min_proto_vers, curr_ver, share_info->proto_version);
+}
+
 static int dms_reform_drc_inaccess(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -1743,6 +1752,9 @@ static int dms_reform_drc_inaccess(void)
             drc_buf_res_set_inaccess(&ctx->global_buf_res);
             break;
     }
+
+    dms_reform_set_cluster_running_prot_ver();
+
     LOG_RUN_FUNC_SUCCESS;
     dms_reform_next_step();
 

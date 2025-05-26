@@ -813,7 +813,7 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
             (uint32)ack_dms_head->size, (uint32)sizeof(dms_ask_res_owner_id_ack_t));
         dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
         dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
-        mfc_release_response(msg);
+        mfc_release_response(&msg);
         return ERRNO_DMS_MES_INVALID_MSG;
     }
     dms_ask_res_owner_id_ack_t *ack = (dms_ask_res_owner_id_ack_t *)msg.buffer;
@@ -1728,6 +1728,8 @@ void dms_init_cluster_proto_version()
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         dms_set_node_proto_version(i, DMS_INVALID_PROTO_VER);
     }
+
+    g_dms.cluster_running_min_proto_vers = DMS_SW_PROTO_VER;
 
     int ret = CM_FALSE;
     do {

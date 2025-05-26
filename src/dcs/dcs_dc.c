@@ -135,8 +135,8 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
     if (!dms_broad_info->handle_recv_msg) {
         ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, dms_broad_info->timeout, all_inst, &succ_inst);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_AND_RETURN_IF_BCAST_ERROR(ret, "bcast cmd:%d, expect_insts:%llu, succ_insts:%llu,
-            cmd, all_inst, succ_inst");
+        DMS_THROW_AND_RETURN_IF_BCAST_ERROR(ret, "bcast cmd:%d, expect_insts:%llu, succ_insts:%llu",
+            cmd, all_inst, succ_inst);
     } else {
         mes_msg_list_t recv_msg;
         recv_msg.count = 0;

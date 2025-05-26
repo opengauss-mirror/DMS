@@ -296,7 +296,6 @@ static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
                 LOG_RUN_ERR("[mfc_check_bcast_res]node:%hhu acks errno:%d",
                     ack_msg->head.src_inst, ack_msg->ret);
             }
-
         }
     }
 

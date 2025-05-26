@@ -73,6 +73,7 @@ typedef struct st_dms_instance {
     void* mes_ptr;
     uint32 max_wait_time;
     atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
+    atomic32_t cluster_running_min_proto_vers;
     uint32 max_alive_time_for_abnormal_status;
     ddes_fi_context_t fi_ctx;
     dms_msg_stats_t msg_stats[DMS_CM_MAX_SESSIONS];
@@ -204,6 +205,11 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
     } else {
         return "INVALID";
     }
+}
+
+static inline uint32 dms_get_cluster_running_min_version()
+{
+    return (uint32)cm_atomic32_get(&g_dms.cluster_running_min_proto_vers);
 }
 
 unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg);
