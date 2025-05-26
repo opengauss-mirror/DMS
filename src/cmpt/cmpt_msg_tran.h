@@ -101,7 +101,7 @@ typedef struct st_dms_ask_xa_inuse_req {
 
 typedef struct st_dms_ask_xa_inuse_ack {
     dms_message_head_t head;
-    bool8 inuse;
+    bool8 exist;
     uint8 unused[3];
 } dms_ask_xa_inuse_ack_t;
 

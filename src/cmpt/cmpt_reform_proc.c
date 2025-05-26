@@ -898,7 +898,7 @@ static dms_reform_judgement_proc_t g_reform_judgement_proc_v5[DMS_REFORM_TYPE_CO
     dms_reform_judgement_shutdown_consistency_check, dms_reform_judgement_shutdown_consistency_v4 },
 };
 
-static dms_reform_judgement_proc_t *g_reform_judgement_proc_map[DMS_PROTO_VER_NUMS] = {
+dms_reform_judgement_proc_t *g_reform_judgement_proc_map[DMS_PROTO_VER_NUMS] = {
     [DMS_PROTO_VER_1] = g_reform_judgement_proc_base,
     [DMS_PROTO_VER_2] = g_reform_judgement_proc_base,
     [DMS_PROTO_VER_3] = g_reform_judgement_proc_base,
@@ -906,7 +906,7 @@ static dms_reform_judgement_proc_t *g_reform_judgement_proc_map[DMS_PROTO_VER_NU
     [DMS_PROTO_VER_5] = g_reform_judgement_proc_v5,
 };
 
-static dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
+dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
      [DMS_PROTO_VER_1] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, inst_bitmap)) },
      [DMS_PROTO_VER_2] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },
      [DMS_PROTO_VER_3] = { CM_ALIGN8(sizeof(dms_message_head_t) + OFFSET_OF(share_info_t, old_master_info)) },

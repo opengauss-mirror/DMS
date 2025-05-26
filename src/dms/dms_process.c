@@ -477,7 +477,7 @@ static bool32 validate_msg_args(dms_process_context_t *ctx, dms_message_t *dms_m
 
     dms_set_node_proto_version(head->src_inst, head->sw_proto_ver);
     if ((head->cmd >= MSG_REQ_END && head->cmd < MSG_ACK_BEGIN) || head->cmd >= MSG_ACK_END) {
-        dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_FALSE);
+        dms_protocol_send_ack_version_not_match(ctx, dms_msg, CM_FALSE);
         return CM_FALSE;
     }
 
@@ -494,7 +494,7 @@ static bool32 validate_msg_args(dms_process_context_t *ctx, dms_message_t *dms_m
         bool8 pass_check = dms_check_message_proto_version(head);
         if (!pass_check) {
             if (dms_cmd_need_ack(head->cmd)) {
-                dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_TRUE);
+                dms_protocol_send_ack_version_not_match(ctx, dms_msg, CM_TRUE);
             }
             return CM_FALSE;
         }
@@ -574,7 +574,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         return;
     }
 
-    dms_lock_instance_s(head->cmd, ctx->sess_id, &dms_msg);
+    dms_lock_instance_s(head->cmd, ctx->sess_id);
     process_msg_inner(ctx, mes_msg, &dms_msg, processor);
     dms_unlock_instance_s(head->cmd, ctx->sess_id);
 }
