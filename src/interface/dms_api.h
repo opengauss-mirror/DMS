@@ -795,7 +795,7 @@ typedef struct st_dms_broadcast_info {
     unsigned long long inst_map; /* when scope is DMS_BROADCAST_SPECIFY_LIST, inst_map is used */
     unsigned int timeout;
     unsigned char handle_recv_msg;
-    unsigned char check_session_kill; 
+    unsigned char check_session_kill;
 } dms_broadcast_info_t;
 
 typedef enum en_dms_stat_cmd {
@@ -1075,7 +1075,7 @@ typedef struct st_dms_callback {
 
     dms_drc_rebuild_parallel rebuild_alock_parallel;
     dms_reform_event_notify reform_event_notify;
- 
+
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
     dms_thread_deinit_t dms_thread_deinit;
