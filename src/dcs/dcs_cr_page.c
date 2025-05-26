@@ -1059,12 +1059,16 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
     for (;;) {
         dms_begin_stat(dms_ctx->sess_id, DMS_EVT_PCR_CHECK_CURR_VISIBLE, CM_TRUE);
         DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_CHECK_VISIBLE, MSG_REQ_CHECK_VISIBLE);
-        if (mfc_send_data3(&check.head, sizeof(msg_cr_check_t), dms_cr->page) != CM_SUCCESS) {
+        ret = mfc_send_data3(&check.head, sizeof(msg_cr_check_t), dms_cr->page);
+        if (ret != CM_SUCCESS) {
+            DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, check.head.cmd, check.head.dst_inst);
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
 
-        if (mfc_get_response(check.head.ruid, &message, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
+        ret = mfc_get_response(check.head.ruid, &message, DMS_WAIT_MAX_TIME);
+        if (ret != CM_SUCCESS) {
+            DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, check.head.cmd, check.head.dst_inst);
             dms_end_stat(dms_ctx->sess_id);
             break;
         }

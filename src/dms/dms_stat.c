@@ -393,7 +393,7 @@ int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_in
     if (!g_dms.dms_init_finish || worker_id >= MES_MAX_TASK_NUM) {
         return DMS_ERROR;
     }
-    mes_worker_info_t mes_worker_info;
+    mes_worker_info_t mes_worker_info = { 0 };
     if (mes_get_worker_info(worker_id, &mes_worker_info) != DMS_SUCCESS) {
         return DMS_ERROR;
     }
@@ -404,6 +404,7 @@ int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_in
     mes_worker_msg_stats_result->get_msgitem_time = mes_worker_info.get_msgitem_time;
     mes_worker_msg_stats_result->msg_ruid = mes_worker_info.msg_ruid;
     mes_worker_msg_stats_result->msg_src_inst = mes_worker_info.msg_src_inst;
+    mes_worker_msg_stats_result->is_free = mes_worker_info.is_free;
     MEMS_RETURN_IFERR(memcpy_sp(&mes_worker_msg_stats_result->msg_info, sizeof(mes_worker_msg_stats_result->msg_info),
         mes_worker_info.data, sizeof(mes_worker_msg_stats_result->msg_info)));
 

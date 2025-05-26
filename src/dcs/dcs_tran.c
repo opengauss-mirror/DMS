@@ -335,7 +335,7 @@ int dms_request_txn_info(dms_context_t *dms_ctx, dms_txn_info_t *dms_txn_info)
         LOG_DEBUG_ERR("[TXN] receive message from instance(%u) failed, cmd(%u) ruid(%llu) errcode(%d)",
             (uint32)xid_ctx->inst_id, (uint32)MSG_REQ_TXN_INFO, head->ruid, ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret);
+        DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, MSG_REQ_TXN_INFO, xid_ctx->inst_id);
         return ERRNO_DMS_RECV_MSG_FAILED;
     }
 

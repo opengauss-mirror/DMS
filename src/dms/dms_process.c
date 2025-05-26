@@ -724,6 +724,7 @@ unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg)
         case MSG_REQ_INVALID_OWNER:
         case MSG_REQ_INVALIDATE_SHARE_COPY:
         case MSG_REQ_PRE_CRE_DRC:
+        case MSG_REQ_RELEASE_OWNER:
             return MES_PRIORITY_FIVE;
         case MSG_REQ_ASK_MASTER_FOR_PAGE:
         case MSG_REQ_ASK_OWNER_FOR_PAGE:
