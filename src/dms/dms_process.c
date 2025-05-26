@@ -24,13 +24,12 @@
 
 #include "dms_process.h"
 #include "dcs_dc.h"
-#include "dcs_msg.h"
 #include "dcs_page.h"
 #include "dcs_cr_page.h"
 #include "dcs_tran.h"
 #include "dms_error.h"
 #include "dms_msg.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "dms_msg_protocol.h"
 #include "drc_lock.h"
 #include "drc_res_mgr.h"
@@ -456,63 +455,64 @@ void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg)
     dms_msg->buffer = mes_msg->buffer;
 }
 
-static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg)
+static bool32 validate_msg_args(dms_process_context_t *ctx, dms_message_t *dms_msg,
+    uint32 work_idx, uint64 ruid, dms_processor_t **processor)
 {
-    if (work_idx >= g_dms.proc_ctx_cnt) {
-        cm_panic(0);
-    }
-
-    dms_message_t dms_msg;
-    dms_cast_mes_msg(mes_msg, &dms_msg);
-    dms_reform_proc_stat_bind_mes_task(work_idx);
-    dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
-    dms_message_head_t* head = get_dms_head(&dms_msg);
-
-    bool32 init_finish = g_dms.dms_init_finish;
+    dms_message_head_t* head = get_dms_head(dms_msg);
+        bool32 init_finish = g_dms.dms_init_finish;
     if (!init_finish) {
         LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, "
             "src_sid:%u, dest_sid:%u, finish dms init:%u", 
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        return;
+        return CM_FALSE;
     }
 
     if (SECUREC_UNLIKELY(ctx->db_handle == NULL)) {
         ctx->db_handle = g_dms.callback.get_db_handle(&ctx->sess_id, DMS_SESSION_TYPE_WORKER);
         if (ctx->db_handle == NULL) {
-            return;
+            return CM_FALSE;
         }
     }
-    
-    /* ruid should have been brought in dms msghead */
-    CM_ASSERT(ruid == 0 || head->ruid == ruid);
 
     dms_set_node_proto_version(head->src_inst, head->sw_proto_ver);
     if ((head->cmd >= MSG_REQ_END && head->cmd < MSG_ACK_BEGIN) || head->cmd >= MSG_ACK_END) {
-        dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_FALSE);
-        return;
+        dms_protocol_send_ack_version_not_match(ctx, dms_msg, CM_FALSE);
+        return CM_FALSE;
     }
 
     mes_msg_info_t msg_data = {head->cmd, head->src_sid};
     mes_set_cur_msg_info(work_idx, &msg_data, sizeof(mes_msg_info_t));
-    dms_processor_t *processor = &g_dms.processors[head->cmd];
-    if (processor->is_enqueue) {
+
+    *processor = NULL;
+    if (head->cmd < MSG_REQ_END) {
+        *processor = &g_dms.req_processors[head->cmd];
+    } else {
+        *processor = &g_dms.ack_processors[head->cmd - MSG_ACK_BEGIN];
+    }
+    if ((*processor)->is_enqueue) {
         bool8 pass_check = dms_check_message_proto_version(head);
         if (!pass_check) {
             if (dms_cmd_need_ack(head->cmd)) {
-                dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_TRUE);
+                dms_protocol_send_ack_version_not_match(ctx, dms_msg, CM_TRUE);
             }
-            return;
+            return CM_FALSE;
         }
     }
 
+    return CM_TRUE;
+}
+
+static void process_msg_inner(dms_process_context_t *ctx, mes_msg_t *mes_msg,
+    dms_message_t *dms_msg, dms_processor_t *processor)
+{
 #ifdef OPENGAUSS
     bool32 enable_proc = DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
 #else
     bool32 enable_proc = CM_TRUE;
 #endif
 
-    dms_lock_instance_s(head->cmd, ctx->sess_id);
+    dms_message_head_t* head = get_dms_head(dms_msg);
     bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || \
         dms_msg_skip_gcv_check(head->cmd);
     if (!enable_proc || !gcv_approved) {
@@ -521,7 +521,6 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid,
             (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        dms_unlock_instance_s(head->cmd, ctx->sess_id);
         return;
     }
 
@@ -535,11 +534,11 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
     (void)g_dms.callback.cache_msg(ctx->db_handle, (char*)mes_msg->buffer);
 #endif
     if (processor->is_enqueue) {
-        processor->proc(ctx, &dms_msg);
+        processor->proc(ctx, dms_msg);
     }
 #ifdef OPENGAUSS  
     (void)g_dms.callback.db_check_lock(ctx->db_handle);
-#endif   
+#endif
 
     /*
      * Now DMS use memory manager functions provided by DB,
@@ -555,6 +554,28 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
         dms_dyn_trc_end(ctx->sess_id);
     }
 
+    return;
+}
+
+static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg)
+{
+    if (work_idx >= g_dms.proc_ctx_cnt) {
+        cm_panic(0);
+    }
+
+    dms_message_t dms_msg;
+    dms_cast_mes_msg(mes_msg, &dms_msg);
+    dms_reform_proc_stat_bind_mes_task(work_idx);
+    dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
+    dms_message_head_t* head = get_dms_head(&dms_msg);
+
+    dms_processor_t *processor = NULL;
+    if (!validate_msg_args(ctx, &dms_msg, work_idx, ruid, &processor)) {
+        return;
+    }
+
+    dms_lock_instance_s(head->cmd, ctx->sess_id);
+    process_msg_inner(ctx, mes_msg, &dms_msg, processor);
     dms_unlock_instance_s(head->cmd, ctx->sess_id);
 }
 
@@ -562,15 +583,26 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 static int dms_register_proc_func(processor_func_t *proc_func)
 {
     if ((proc_func->cmd_type >= MSG_REQ_END && proc_func->cmd_type < MSG_ACK_BEGIN) ||
-        proc_func->cmd_type >= MSG_ACK_END || proc_func->cmd_type >= CM_MAX_MES_MSG_CMD) {
+        proc_func->cmd_type >= MSG_ACK_END) {
         DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, proc_func->cmd_type);
         return ERRNO_DMS_CMD_INVALID;
     }
-    g_dms.processors[proc_func->cmd_type].proc = proc_func->proc;
-    g_dms.processors[proc_func->cmd_type].is_enqueue  = proc_func->is_enqueue_work_thread;
-    g_dms.processors[proc_func->cmd_type].is_enable_before_reform = proc_func->is_enable_before_reform;
 
-    int ret = strcpy_s(g_dms.processors[proc_func->cmd_type].name, CM_MAX_NAME_LEN, proc_func->func_name);
+    uint32 index;
+    dms_processor_t *proc = NULL;
+    if (proc_func->cmd_type < MSG_REQ_END) {
+        // req
+        proc = g_dms.req_processors;
+        index = proc_func->cmd_type;
+    } else {
+        // ack
+        proc = g_dms.ack_processors;
+        index = proc_func->cmd_type - MSG_ACK_BEGIN;
+    }
+    proc[index].proc = proc_func->proc;
+    proc[index].is_enqueue  = proc_func->is_enqueue_work_thread;
+    proc[index].is_enable_before_reform = proc_func->is_enable_before_reform;
+    int ret = strcpy_s(proc[index].name, CM_MAX_NAME_LEN, proc_func->func_name);
     DMS_SECUREC_CHECK(ret);
 
     return DMS_SUCCESS;
@@ -930,7 +962,14 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 static unsigned short dms_get_msg_cmd(char *buff)
 {
     dms_message_head_t *dms_head = (dms_message_head_t *)buff;
-    return (unsigned short)(dms_head->cmd);
+    
+    if (dms_head->cmd < MSG_REQ_END) {
+        return dms_head->cmd;
+    } else if (dms_head->cmd >= MSG_ACK_BEGIN && dms_head->cmd < MSG_ACK_END) {
+        return MSG_REQ_END + dms_head->cmd - MSG_ACK_BEGIN;
+    } else {
+        return CM_MAX_MES_MSG_CMD;
+    }
 }
 
 int dms_mes_interrupt(void *arg, int wait_time)

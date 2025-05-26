@@ -24,10 +24,9 @@
 #ifndef __DCS_PAGE_H__
 #define __DCS_PAGE_H__
 
-#include "cm_types.h"
 #include "drc.h"
-#include "dcs_msg.h"
-#include "dms_msg.h"
+#include "cmpt_msg_mesi.h"
+#include "dms_mfc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,13 +34,6 @@ extern "C" {
 
 #define DCS_INSTID_VALID(instid) ((instid) != CM_INVALID_ID8)
 #define DCS_DMS_REQUEST_PAGE_WAIT_TIME  2000
-
-typedef struct st_msg_page_batch_op {
-    dms_message_head_t head;
-    uint32 count;
-    atomic_t lsn;
-    uint64 scn;
-} msg_page_batch_op_t;
 
 void drc_proc_buf_ctrl_recycle(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_message_t *receive_msg);

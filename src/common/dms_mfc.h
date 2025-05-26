@@ -27,19 +27,17 @@
 #include "mes_interface.h"
 #include "cm_spinlock.h"
 #include "dms_api.h"
+#include "cmpt_msg_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* common code to adapt new MES */
-
 #define DMS_MSG_HEAD_SIZE       sizeof(dms_message_head_t)
-#define DMS_ASYNC_OR_INVLD_RUID (0)
-
-#define DMS_MSG_HEAD_UNUSED_SIZE 24
 #define DMS_MAX_WORK_THREAD_CNT  128
 
+#define DMS_ASYNC_OR_INVLD_RUID (0)
 #define MFC_RETURN_IF_BAD_RUID(ruid)                \
     do {                                            \
         if (ruid == 0) {                            \
@@ -47,31 +45,6 @@ extern "C" {
             return CM_ERROR;                        \
         }                                           \
     } while (0)
-
-typedef struct st_dms_message_head {
-    unsigned int msg_proto_ver;
-    unsigned int sw_proto_ver;
-    unsigned int cmd;
-    unsigned int  flags;
-    unsigned long long ruid;
-    unsigned char src_inst;
-    unsigned char dst_inst;
-    unsigned short size;
-    unsigned int cluster_ver;
-    unsigned short src_sid;
-    unsigned short dst_sid;
-    unsigned short tickets;
-    unsigned short unused;
-    union {
-        struct {
-            long long judge_time; // for message used in reform, check if it is the same round of reform
-        };
-        struct {
-            unsigned long long seq;
-        };
-        unsigned char reserved[DMS_MSG_HEAD_UNUSED_SIZE]; /* 64 bytes total */
-    };
-} dms_message_head_t;
 
 typedef struct st_dms_message_t {
     dms_message_head_t *head;

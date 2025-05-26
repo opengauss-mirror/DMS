@@ -30,7 +30,7 @@
 #include "dms_process.h"
 #include "dcs_tran.h"
 #include "drc_res_mgr.h"
-#include "dms_msg_protocol.h"
+#include "cmpt_msg_tran.h"
 
 #define TX_WAIT_INTERVAL      5  // in milliseconds
 

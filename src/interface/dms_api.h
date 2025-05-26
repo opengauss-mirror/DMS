@@ -1037,6 +1037,8 @@ typedef unsigned char(*dms_db_in_rollback)(void *db_handle);
 typedef void (*dms_get_inst_cnt)(void *db_handle, unsigned int *inst_count, unsigned long long int *inst_map);
 typedef int (*dms_check_if_reform_session)(void *db_handle);
 typedef void(*dms_inc_buffer_remote_reads)(void *db_handle);
+typedef void(*dms_begin_event_wait)(unsigned int sid, unsigned int dms_event, unsigned char immediate);
+typedef void(*dms_end_event_wait)(unsigned int sid, unsigned int prev_dms_event, unsigned int dms_event);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1249,6 +1251,8 @@ typedef struct st_dms_callback {
     dms_db_in_rollback db_in_rollback;
     dms_get_inst_cnt get_inst_cnt;
     dms_inc_buffer_remote_reads inc_buffer_remote_reads;
+    dms_begin_event_wait begin_event_wait;
+    dms_end_event_wait end_event_wait;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {

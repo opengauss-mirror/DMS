@@ -24,13 +24,14 @@
 
 #include "dcs_cr_page.h"
 #include "dcs_page.h"
-#include "dcs_msg.h"
 #include "drc_res_mgr.h"
 #include "dms_error.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "dms_msg_protocol.h"
 #include "dms_stat.h"
 #include "dms_dynamic_trace.h"
+#include "cmpt_msg_pcr.h"
+#include "cmpt_msg_tran.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,7 +95,7 @@ static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *r
 
 static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *request, char *wxid)
 {
-    msg_txn_wait_t msg ;
+    msg_txn_wait_t msg;
     dms_init_ack_head(&request->head, &msg.head, MSG_ACK_TXN_WAIT, sizeof(msg_txn_wait_t), ctx->sess_id);
     msg.head.src_inst = ctx->inst_id;
     CM_ASSERT(request->head.dst_inst == ctx->inst_id);

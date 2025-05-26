@@ -30,6 +30,8 @@
 #include "dms_cm.h"
 #include "cm_hash.h"
 #include "cm_thread_pool.h"
+#include "dms_msg_protocol.h"
+#include "cm_atomic.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,8 +48,6 @@ extern "C" {
 #define DMS_RES_MAP_INIT_PARAM 2
 #define DMS_GET_DRC_INFO_COUNT 100
 #define DMS_GET_DRC_INFO_SLEEP_TIME 100
-
-#define DMS_XA_SIZE             sizeof(drc_global_xid_t)
 
 typedef struct st_drc_recycle_obj {
     drc_global_res_map_t *global_drc_res;
@@ -111,43 +111,6 @@ void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *
 int32 drc_get_page_old_master_id(char *pageid, unsigned char *master_id);
 uint8 drc_get_deposit_id(uint8 instance_id);
 void drc_init_deposit_map(void);
-
-typedef struct st_drm_migrate_page {
-    char                resid[DMS_PAGEID_SIZE];
-    uint8               owner;
-    uint8               lock_mode;
-    uint8               last_edp;
-    uint8               unused;
-    uint64              copy_insts;
-    uint64              last_edp_lsn;
-    uint64              edp_map;
-    uint64              seq;
-    drc_cvt_item_t      converting;
-} drm_migrate_page_t;
-
-typedef struct st_drm_migrate_lock {
-    char                resid[DMS_DRID_SIZE];
-    uint8               owner;
-    uint8               lock_mode;
-    uint16              unused;
-    uint64              copy_insts;
-    drc_cvt_item_t      converting;
-} drm_migrate_lock_t;
-
-typedef struct st_drm_migrate_alock {
-    char                resid[DMS_ALOCKID_SIZE];
-    uint8               owner;
-    uint8               lock_mode;
-    uint16              unused;
-    uint64              copy_insts;
-    drc_cvt_item_t      converting;
-} drm_migrate_alock_t;
-
-typedef struct st_drm_migrate_xa {
-    char                resid[DMS_XA_SIZE];
-    uint8               owner;
-    uint8               unused[3];
-} drm_migrate_xa_t;
 
 #define DRM_SLEEP_TIME      10
 

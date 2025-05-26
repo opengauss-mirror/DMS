@@ -13,33 +13,49 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * dcs_smon.h
+ * cmpt_msg_lock.h
  *
  *
  * IDENTIFICATION
- *    src/dcs/dcs_smon.h
+ *    src/cmpt/cmpt_msg_lock.h
  *
  * -------------------------------------------------------------------------
  */
+#ifndef __CMPT_MSG_LOCK_H__
+#define __CMPT_MSG_LOCK_H__
 
-#ifndef DCS_SMON_H
-#define DCS_SMON_H
-
-#include "dms_process.h"
+#include "cmpt_msg_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_tlock_by_rm(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_tlock_by_tid(dms_process_context_t *ctx, dms_message_t *receive_msg);
-void dcs_proc_smon_alock_by_drid(dms_process_context_t *ctx, dms_message_t *receive_msg);
+#pragma pack(4)
+typedef struct st_dms_smon_deadlock_alock_req {
+    dms_message_head_t head;
+    alockid_t          alockid;
+} dms_smon_deadlock_alock_req_t;
+
+typedef struct st_dms_smon_deadlock_alock_rsp {
+    dms_message_head_t head;
+    uint32 ret_code;
+    uint32 data_size;
+    char data[0];
+} dms_smon_deadlock_alock_rsp_t;
+#pragma pack()
+
+typedef struct st_dcs_req_tlock_by_rm {
+    uint32 type;
+    uint16 sid;
+    uint16 rmid;
+} dcs_req_tlock_by_rm_t;
+
+typedef struct st_dcs_req_tlock_by_tid {
+    char tlock[DMS_SMON_TLOCK_MSG_MAX_LEN];
+} dcs_req_tlock_by_tid_t;
 
 #ifdef __cplusplus
 }
 #endif
-#endif
+
+#endif // __CMPT_MSG_LOCK_H__

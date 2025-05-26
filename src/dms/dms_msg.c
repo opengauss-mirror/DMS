@@ -28,6 +28,7 @@
 #include "dcs_page.h"
 #include "dms_msg_protocol.h"
 #include "dms_dynamic_trace.h"
+#include "cmpt_msg_misc.h"
 #include "dms_smon.h"
 
 #ifdef __cplusplus

@@ -27,7 +27,7 @@
 #include "dms.h"
 #include "dms_cm.h"
 #include "dms_error.h"
-#include "dms_msg_command.h"
+#include "cmpt_msg_cmd.h"
 #include "dms_msg_protocol.h"
 #include "drc.h"
 #include "drc_res_mgr.h"

@@ -23,12 +23,12 @@
  */
 
 #include "dcs_dc.h"
-#include "dcs_msg.h"
-#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "dms_error.h"
 #include "dms_api.h"
 #include "cm_utils.h"
+#include "cmpt_msg_cmd.h"
+#include "cmpt_msg_misc.h"
 
 #ifdef __cplusplus
 extern "C" {

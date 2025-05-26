@@ -65,11 +65,6 @@ int dms_reform_repair(void);
 void dms_reform_rebuild_add_to_flush_copy(drc_page_t *drc_page);
 void dms_reform_rebuild_del_from_flush_copy(drc_page_t *drc_page);
 
-typedef struct st_repair_item {
-    char        page_id[DMS_PAGEID_SIZE];
-    uint32      action;
-} repair_item_t;
-
 #ifdef __cplusplus
 }
 #endif

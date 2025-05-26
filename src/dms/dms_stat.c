@@ -53,6 +53,10 @@ void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
     stat->wait[curr_level].immediate = immediate;
     LOG_DEBUG_INF("[DMS][EVT %u-%u]", sid, curr_level);
 
+#ifndef OPENGAUSS
+    g_dms.callback.begin_event_wait(sid, event, immediate);
+#endif
+
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
     }
@@ -95,6 +99,10 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
 
     stat->wait_time[event] += stat->wait[stat->level].usecs;
     stat->wait_count[event]++;
+
+#ifndef OPENGAUSS
+    g_dms.callback.end_event_wait(sid, stat->wait[stat->level].event, event);
+#endif
 
     stat->wait[stat->level].is_waiting = CM_FALSE;
 }
@@ -358,7 +366,7 @@ static_assert(DMS_CMD_SIZE == DMS_CMD_DESC_SIZE,
 DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_result)
 {
     /* input cmd is offset */
-    if (index >= DMS_CMD_SIZE || index < 0) {
+    if (index >= DMS_CMD_DESC_SIZE || index < 0) {
         cmd_stat_result->is_valid = CM_FALSE;
         return;
     }
@@ -383,8 +391,20 @@ DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_re
         return;
     }
 
-    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].count;
-    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].time;
+    uint32 i;
+    uint32 cmd = g_wait_cmd_desc[index].cmd;
+    if (cmd < MSG_REQ_END) {
+        i = cmd;
+    } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
+        i = MSG_REQ_END + cmd - MSG_ACK_BEGIN;
+    } else {
+        LOG_DEBUG_ERR("[DMS][dms_get_cmd_stat:wait_class]:invalid command %u", cmd);
+        cmd_stat_result->is_valid = CM_FALSE;
+        return;
+    }
+
+    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[i].count;
+    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[i].time;
     cmd_stat_result->is_valid = CM_TRUE;
 }
 
@@ -409,17 +429,30 @@ int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_in
         mes_worker_info.data, sizeof(mes_worker_msg_stats_result->msg_info)));
 
     if (mes_worker_msg_stats_result->msg_info.cmd < MSG_REQ_END) {
-        errno_t ret = strcpy_s(mes_worker_msg_stats_result->msg_cmd_desc, DMS_CMD_DESC_LEN,
-            g_dms.processors[mes_worker_msg_stats_result->msg_info.cmd].name);
+        uint32 cmd = mes_worker_msg_stats_result->msg_info.cmd;
+        if (cmd >= MSG_ACK_END || (cmd >= MSG_REQ_END && cmd < MSG_ACK_BEGIN)) {
+            LOG_DEBUG_ERR("[DMS]invalid command ID: %u", cmd);
+            return DMS_ERROR;
+        }
+        dms_processor_t *processor = NULL;
+        if (cmd < MSG_REQ_END) {
+            processor = &g_dms.req_processors[cmd];
+        } else {
+            processor = &g_dms.ack_processors[cmd - MSG_ACK_BEGIN];
+        }
+
+        errno_t ret = strcpy_s(mes_worker_msg_stats_result->msg_cmd_desc, DMS_CMD_DESC_LEN, processor->name);
         if (ret != EOK) {
             LOG_DEBUG_ERR("[DMS]strcpy_s error");
             return DMS_ERROR;
         }
         mes_worker_info.longest_cmd = ((mes_msg_info_t *)mes_worker_info.longest_data)->cmd;
-        if (mes_worker_info.longest_cmd < MSG_REQ_END ||
-            (mes_worker_info.longest_cmd >= MSG_ACK_BEGIN && mes_worker_info.longest_cmd < MSG_ACK_END)) {
-            ret = strcpy_s(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN,
-                g_dms.processors[mes_worker_info.longest_cmd].name);
+        if (mes_worker_info.longest_cmd < MSG_REQ_END) {
+            processor = &g_dms.req_processors[mes_worker_info.longest_cmd];
+            ret = strcpy_s(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, processor->name);
+        } else if (mes_worker_info.longest_cmd >= MSG_ACK_BEGIN && mes_worker_info.longest_cmd < MSG_ACK_END) {
+            processor = &g_dms.ack_processors[mes_worker_info.longest_cmd - MSG_ACK_BEGIN];
+            ret = strcpy_s(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, processor->name);
         } else {
             ret = memset_sp(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, 0, DMS_CMD_DESC_LEN);
         }

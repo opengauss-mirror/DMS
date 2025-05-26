@@ -29,6 +29,7 @@
 #include "dms_cm.h"
 #include "drc_lock.h"
 #include "dms_msg.h"
+#include "cmpt_msg_mesi.h"
 
 #ifdef __cplusplus
 extern "C" {

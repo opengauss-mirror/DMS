@@ -24,6 +24,7 @@
 
 #include "dms_smon.h"
 #include "dms_dynamic_trace.h"
+#include "cmpt_msg_mesi.h"
 #include "drc_page.h"
 
 bool32 dms_the_same_drc_req(drc_request_info_t *req1, drc_request_info_t *req2)
