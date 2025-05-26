@@ -135,6 +135,8 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
     uint64 sz = pool->extend_step * pool->item_size;
     char *addr = (char *)dms_malloc(g_dms.drc_mem_context, sz);
     if (addr == NULL) {
+        LOG_DEBUG_ERR_INHIBIT(LOG_INHIBIT_LEVEL2,
+            "drc res pool_extend failed, memory used maybe has reached context max_mem_size");
         pool->need_recycle = CM_TRUE;
         return CM_FALSE;
     }
