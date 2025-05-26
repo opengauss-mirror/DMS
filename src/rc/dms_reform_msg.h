@@ -83,8 +83,7 @@ typedef struct st_dms_reform_req_partner_status {
     driver_ping_info_t driver_ping_info;
 } dms_reform_req_partner_status_t;
 void dms_reform_init_req_dms_status(dms_reform_req_partner_status_t *req, uint8 dst_id, uint32 sess_id);
-int dms_reform_req_dms_status_wait(uint8 *online_status, uint64 *online_times, uint8 *online_rw_status,
-    uint8 dst_id, uint64 ruid);
+int dms_reform_req_dms_status_wait(uint8 dst_id, uint64 ruid, online_status_t *online_info);
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 
 typedef struct st_dms_reform_req_prepare {

@@ -51,7 +51,6 @@ extern "C" {
 #define DMS_REFORM_CONFIRM_TIMEOUT      5000000 // 5s
 #define DMS_REFORM_LOCK_INST_TIMEOUT    (g_dms.max_wait_time * MICROSECS_PER_MILLISEC)
 #define DMS_REFORM_CONTEXT              (&g_dms.reform_ctx)
-#define DMS_REFORMER_CTRL               (&g_dms.reform_ctx.reformer_ctrl)
 #define DMS_REFORM_INFO                 (&g_dms.reform_ctx.reform_info)
 #define DMS_SHARE_INFO                  (&g_dms.reform_ctx.share_info)
 #define DMS_REMASTER_INFO               (&g_dms.reform_ctx.share_info.remaster_info)
@@ -63,6 +62,8 @@ extern "C" {
 #define DMS_PARALLEL_INFO               (&g_dms.reform_ctx.parallel_info)
 #define DRC_PART_REMASTER_ID(part_id)   (g_dms.reform_ctx.share_info.remaster_info.part_map[(part_id)].inst_id)
 #define DMS_AZ_SWITCHOVER_INFO          (&g_dms.reform_ctx.az_switchover_info)
+#define DMS_NODE_INFO(inst_id)          (&g_dms.reform_ctx.nodes_info[(inst_id)])
+#define DMS_ONLINE_STATUS(inst_id)      (&g_dms.reform_ctx.nodes_info[(inst_id)].online_status)
 
 #define LOG_DEBUG_FUNC_SUCCESS          LOG_DEBUG_INF("[DMS REFORM]%s success", __FUNCTION__)
 #define LOG_DEBUG_FUNC_FAIL             LOG_DEBUG_ERR("[DMS REFORM]%s fail, error: %d", __FUNCTION__, ret)
@@ -290,11 +291,6 @@ typedef struct st_rebuild_info {
     void                *rebuild_data[DMS_MAX_INSTANCES];
 } rebuild_info_t;
 
-typedef struct st_reformer_ctrl {
-    bool8               instance_fail[DMS_MAX_INSTANCES];
-    uint8               instance_step[DMS_MAX_INSTANCES];
-} reformer_ctrl_t;
-
 typedef struct st_log_point {
     uint32              asn;
     uint32              block_id;
@@ -405,7 +401,6 @@ typedef struct st_reform_info {
     bool8               use_default_map;        // if use default part_map in this judgement
     bool8               rst_recover;            // recover after restore for Gauss100
     uint8               unused[1];
-    log_point_t         curr_points[DMS_MAX_INSTANCES];
     uint64              bitmap_in;
     bool8               is_locking;
     bool8               has_ddl_2phase;
@@ -457,13 +452,9 @@ typedef struct st_reform_scrlock_context {
     bool8 enable_ssl;
     bool8 is_server;
     uint8 recovery_node_num;
-    dms_instance_net_addr_t inst_net_addr[DMS_MAX_INSTANCES];
 } reform_scrlock_context_t;
 
 typedef struct st_health_info {
-    uint8               online_status[DMS_MAX_INSTANCES];
-    uint64              online_times[DMS_MAX_INSTANCES];
-    uint8               online_rw_status[DMS_MAX_INSTANCES];
     dms_thread_status_t thread_status;
     date_t              dyn_log_time;
 } health_info_t;
@@ -500,6 +491,20 @@ typedef struct st_parallel_thread {
     void                *data[DMS_MAX_INSTANCES];           // if need send message in parallel proc
 } parallel_thread_t;
 
+typedef struct st_online_status {
+    uint8  status;
+    uint8  rw_status;
+    uint64 start_time;
+} online_status_t;
+
+typedef struct st_reform_node_info {
+    online_status_t         online_status;
+    dms_instance_net_addr_t inst_net_addr;
+    log_point_t             curr_point;
+    bool8                   instance_fail;
+    uint8                   instance_step;
+} node_info_t;
+
 typedef void(*dms_assign_proc)(void);
 typedef int(*dms_parallel_proc)(resource_id_t *res_id, parallel_thread_t *parallel);
 
@@ -533,7 +538,6 @@ typedef struct st_reform_context {
     uint32              sess_proc;              // used to send message in reform proc
     uint32              sess_normal;
     uint32              sess_health;
-    reformer_ctrl_t     reformer_ctrl;
     reform_info_t       reform_info;
     spinlock_t          share_info_lock;
     share_info_t        share_info;
@@ -550,6 +554,7 @@ typedef struct st_reform_context {
     reform_scrlock_context_t scrlock_reinit_ctx;
     az_switchover_info_t  az_switchover_info;
     latch_t             res_ctrl_latch; // lock control for reform dependent db resources
+    node_info_t         nodes_info[DMS_MAX_INSTANCES];
 } reform_context_t;
 
 typedef struct st_dms_driver_ping_info {
