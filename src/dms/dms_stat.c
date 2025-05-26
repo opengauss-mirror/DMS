@@ -53,6 +53,10 @@ void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
     stat->wait[curr_level].immediate = immediate;
     LOG_DEBUG_INF("[DMS][EVT %u-%u]", sid, curr_level);
 
+#ifndef OPENGAUSS
+    g_dms.callback.begin_event_wait(sid, event, immediate);
+#endif
+
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
     }
@@ -95,6 +99,10 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
 
     stat->wait_time[event] += stat->wait[stat->level].usecs;
     stat->wait_count[event]++;
+
+#ifndef OPENGAUSS
+    g_dms.callback.end_event_wait(sid, stat->wait[stat->level].event, event);
+#endif
 
     stat->wait[stat->level].is_waiting = CM_FALSE;
 }
