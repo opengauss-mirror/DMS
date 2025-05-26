@@ -366,7 +366,7 @@ static_assert(DMS_CMD_SIZE == DMS_CMD_DESC_SIZE,
 DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_result)
 {
     /* input cmd is offset */
-    if (index >= DMS_CMD_SIZE || index < 0) {
+    if (index >= DMS_CMD_DESC_SIZE || index < 0) {
         cmd_stat_result->is_valid = CM_FALSE;
         return;
     }
@@ -391,8 +391,20 @@ DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_re
         return;
     }
 
-    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].count;
-    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].time;
+    uint32 i;
+    uint32 cmd = g_wait_cmd_desc[index].cmd;
+    if (cmd < MSG_REQ_END) {
+        i = cmd;
+    } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
+        i = MSG_REQ_END + cmd - MSG_ACK_BEGIN;
+    } else {
+        LOG_DEBUG_ERR("[DMS][dms_get_cmd_stat:wait_class]:invalid command %u", cmd);
+        cmd_stat_result->is_valid = CM_FALSE;
+        return;
+    }
+
+    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[i].count;
+    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[i].time;
     cmd_stat_result->is_valid = CM_TRUE;
 }
 

@@ -105,7 +105,7 @@ typedef struct dms_command_stats {
 
 typedef struct st_dms_time_consume {
     char aligned1[CM_CACHE_LINE_SIZE];
-    dms_command_stats_t cmd_stats[MSG_CMD_CEIL];
+    dms_command_stats_t cmd_stats[DMS_CMD_SIZE];
 } dms_time_consume_t;
 
 extern dms_time_consume_t g_dms_time_consume;
@@ -134,11 +134,20 @@ static inline void dms_consume_with_time(uint32 cmd, uint64 start_time, int ret)
         return;
     }
 
+    uint32 index;
+    if (cmd < MSG_REQ_END) {
+        index = cmd;
+    } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
+        index = MSG_REQ_END + cmd - MSG_ACK_BEGIN;
+    } else {
+        return;
+    }
+
     uint64 elapsed_time = dms_cm_get_time_usec() - start_time;
-    cm_spin_lock(&(g_dms_time_consume.cmd_stats[cmd].lock), NULL);
-    g_dms_time_consume.cmd_stats[cmd].time += elapsed_time;
-    (void)cm_atomic_inc(&(g_dms_time_consume.cmd_stats[cmd].count));
-    cm_spin_unlock(&(g_dms_time_consume.cmd_stats[cmd].lock));
+    cm_spin_lock(&(g_dms_time_consume.cmd_stats[index].lock), NULL);
+    g_dms_time_consume.cmd_stats[index].time += elapsed_time;
+    (void)cm_atomic_inc(&(g_dms_time_consume.cmd_stats[index].count));
+    cm_spin_unlock(&(g_dms_time_consume.cmd_stats[index].lock));
     return;
 }
 
