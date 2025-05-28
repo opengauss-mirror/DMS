@@ -51,7 +51,7 @@ DMS_DECLARE int dms_init(dms_profile_t *dms_profile);
 
 /*
 * @brief DMS init logger
- * @[in] param param_def - logger parameter 
+ * @[in] param param_def - logger parameter
  * @return DMS_SUCCESS - success; otherwise: failed
 */
 DMS_DECLARE int dms_init_logger(logger_param_t *param_def);
@@ -60,7 +60,7 @@ DMS_DECLARE int dms_init_logger(logger_param_t *param_def);
 * @brief DMS refresh logger configure
  * @[in] log_field -  logger configure string.
  * @[in] value -  logger configure value.
- * @return void 
+ * @return void
 */
 DMS_DECLARE void dms_refresh_logger(char *log_field, unsigned long long *value);
 
@@ -801,9 +801,9 @@ DMS_DECLARE void dms_file_enter(void);
 DMS_DECLARE void dms_file_leave(void);
 
 DMS_DECLARE int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
-    unsigned long long *success_inst, unsigned long long *ruid);
+    unsigned long long *send_insts, unsigned long long *success_inst, unsigned long long *ruid);
 DMS_DECLARE int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout,
-    unsigned long long *success_inst);
+    unsigned long long *wait_insts, unsigned long long *succ_insts);
 /*
  * @brief thorough check for DRC and bufferpool buffer befor reform ends
  * @ PANIC if any of version, pageid, lockmode and need_flush is unmatched.
@@ -859,13 +859,13 @@ DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_po
 /*
  * @brief send oldest_xmin
  * @[in]param dms_ctx -  context information.
- * @[in]param oldest_xmin -  oldest xmin during snapshot in node 
+ * @[in]param oldest_xmin -  oldest xmin during snapshot in node
  * @[in]param dest_id -  destination instance id
  * @return DMS_SUCCESS - success;otherwise: failed
  */
 DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned long long oldest_xmin,
     unsigned char dest_id);
-    
+
 DMS_DECLARE int dms_get_drc_info(int *is_found, dv_drc_buf_info* drc_info);
 
 /*
@@ -874,8 +874,8 @@ DMS_DECLARE int dms_get_drc_info(int *is_found, dv_drc_buf_info* drc_info);
  * @[out]param event_cnt - the count of the happenings of specified waiting event
  * @[out]param event_time - the total cost time of specified waiting event
  * @return DMS_SUCCESS - success;otherwise: failed
- */   
-DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt, 
+ */
+DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt,
     unsigned long long *event_time);
 
 DMS_DECLARE int dms_create_global_xa_res(dms_context_t *dms_ctx, unsigned char owner_id, unsigned char undo_set_id,

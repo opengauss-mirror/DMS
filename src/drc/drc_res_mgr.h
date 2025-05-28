@@ -55,10 +55,18 @@ typedef struct st_drc_recycle_obj {
     bool8 has_recycled;
 } drc_recycle_obj_t;
 
+static inline void drc_get_page_hash(char pageid[DMS_PAGEID_SIZE], uint32 *hash_key, uint32 *hash_val)
+{
+    uint32 running_protover = dms_get_cluster_running_min_version();
+    bool8 group_hash = running_protover >= DMS_PROTO_VER_5;
+    g_dms.callback.get_page_hash_val(pageid, group_hash, hash_key, hash_val);
+}
+
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
 {
-    uint32 hash_val = g_dms.callback.get_page_hash_val(pageid);
-    return (uint16)cm_hash_uint32(hash_val, DRC_MAX_PART_NUM);
+    uint32 hash_val = 0;
+    drc_get_page_hash(pageid, NULL, &hash_val);
+    return hash_val % DRC_MAX_PART_NUM;
 }
 
 static inline void drc_set_deposit_id(uint8 instance_id, uint8 deposit_id)

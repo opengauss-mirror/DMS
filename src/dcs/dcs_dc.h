@@ -30,6 +30,15 @@
 extern "C" {
 #endif
 
+#define DMS_THROW_AND_RETURN_IF_BCAST_ERROR(error_no, ...)                                  \
+    do {                                                                                    \
+        if (error_no == ERRNO_DMS_DCS_BROADCAST_FAILED) {                                   \
+            cm_set_error((char *)__FILE_NAME__, (uint32)__LINE__, (cm_errno_t)error_no,     \
+                dms_get_error_desc(error_no), ##__VA_ARGS__);                               \
+            return ERRNO_DMS_DCS_BROADCAST_FAILED;                                          \
+        }                                                                                   \
+    } while (CM_FALSE)                                                                      \
+
 void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
 

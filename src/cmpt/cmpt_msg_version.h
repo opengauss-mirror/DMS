@@ -36,7 +36,7 @@ typedef enum st_dms_protocol_version {
     DMS_PROTO_VER_2 = 2,
     DMS_PROTO_VER_3 = 3,    // add MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT
     DMS_PROTO_VER_4 = 4,    // add reform step
-    DMS_PROTO_VER_5 = 5,    // for 1.11.0 add DRM
+    DMS_PROTO_VER_5 = 5,    // BCM 1.11.0: add DRM; change DRC hash from single to group hash
     DMS_PROTO_VER_NUMS
 } dms_protocol_version_t;
 

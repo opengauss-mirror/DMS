@@ -325,7 +325,6 @@ int32 dms_invalidate_share_copy_with_timeout(dms_process_context_t *ctx, char *r
     if (succ_insts != copy_insts) {
         LOG_DYN_TRC_ERR("[ISC][%s]: invalid failed, invld_insts=%llu, succ_insts=%llu",
             cm_display_resid(resid, type), copy_insts, succ_insts);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
         dms_dyn_trc_end(ctx->sess_id);
         dms_end_stat(ctx->sess_id);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
@@ -809,6 +808,14 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
     }
 
     CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_FALSE);
+    if (ack_dms_head->size < (uint32)sizeof(dms_ask_res_owner_id_ack_t)) {
+        LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u", (uint32)ack_dms_head->cmd,
+            (uint32)ack_dms_head->size, (uint32)sizeof(dms_ask_res_owner_id_ack_t));
+        dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
+        mfc_release_response(&msg);
+        return ERRNO_DMS_MES_INVALID_MSG;
+    }
     dms_ask_res_owner_id_ack_t *ack = (dms_ask_res_owner_id_ack_t *)msg.buffer;
     *owner_id = ack->owner_id;
 
@@ -1722,6 +1729,8 @@ void dms_init_cluster_proto_version()
         dms_set_node_proto_version(i, DMS_INVALID_PROTO_VER);
     }
 
+    g_dms.cluster_running_min_proto_vers = DMS_SW_PROTO_VER;
+
     int ret = CM_FALSE;
     do {
         atomic32_t cur_version = cm_atomic32_get(&g_dms.cluster_proto_vers[g_dms.inst_id]);
@@ -2056,7 +2065,7 @@ void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret)
     if (cmd >= DMS_STAT_CMD_COUNT) {
         return;
     }
-    
+
     if (ret != CM_SUCCESS) {
         if (type == DRC_RES_LOCK_TYPE) {
             g_dms.msg_stats[sid].stat_cmd[cmd].ask_lock_fail_cnt++;
@@ -2104,7 +2113,7 @@ void dms_proc_check_page_ownership(dms_process_context_t *proc_ctx, dms_message_
             cm_display_resid(req.resid, DRC_RES_PAGE_TYPE), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
         return;
     }
-    
+
     LOG_DEBUG_INF("[DMS][%s][check ownership]: send ack successfully, check ret:%d",
             cm_display_resid(req.resid, DRC_RES_PAGE_TYPE), ack.ret);
 }
@@ -2119,7 +2128,7 @@ static bool8 dms_check_page_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
     req.len = dms_ctx->len;
     req.curr_mode = curr_mode;
     req.inst_id = dms_ctx->inst_id;
-    
+
     if (memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, dms_ctx->len) != EOK) {
         LOG_DEBUG_ERR("[DMS][%s]: system call failed", cm_display_resid(dms_ctx->resid, DRC_RES_PAGE_TYPE));
         return CM_FALSE;
@@ -2130,7 +2139,7 @@ static bool8 dms_check_page_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
             cm_display_resid(req.resid, DRC_RES_PAGE_TYPE), (uint32)master_id);
         return CM_FALSE;
     }
-    
+
     dms_message_t msg = {0};
     if (mfc_get_response(req.head.ruid, &msg, DMS_WAIT_MAX_TIME) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s]:wait owner ack timeout timeout=%d ms",
@@ -2147,7 +2156,7 @@ static bool8 dms_check_page_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
 bool8 dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode)
 {
     uint8 master_id;
-    
+
     if (drc_get_master_id(dms_ctx->resid, DRC_RES_PAGE_TYPE, &master_id) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][check ownership]: get master id failed",
             cm_display_resid(dms_ctx->resid, DRC_RES_PAGE_TYPE));
@@ -2157,7 +2166,7 @@ bool8 dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode
     if (master_id == dms_ctx->inst_id) {
         return drc_chk_page_ownership(dms_ctx->resid, dms_ctx->len, dms_ctx->inst_id, curr_mode);
     }
-    
+
     return dms_check_page_ownership_r(dms_ctx, master_id, curr_mode);
 }
 #ifdef __cplusplus

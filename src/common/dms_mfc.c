@@ -196,7 +196,7 @@ static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
     dms_set_node_proto_version((head)->src_inst, (head)->sw_proto_ver);
     if ((head)->cmd == MSG_ACK_PROTOCOL_VERSION_NOT_MATCH) {
         dms_protocol_result_ack_t recv_msg = *(dms_protocol_result_ack_t*)dms_msg->buffer;
-        LOG_RUN_INF("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
+        LOG_RUN_WAR("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
             "dst_sid:%u, msg_proto_ver:%u, result:%u, my sw_proto_ver:%u",
             (uint32)(head)->src_inst, (uint32)(head)->src_sid,
             (uint32)(head)->dst_inst, (uint32)(head)->dst_sid,
@@ -289,8 +289,13 @@ static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
         }
 
         dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
-        if (head->cmd != MSG_ACK_PROTOCOL_VERSION_NOT_MATCH && (!check_ret || ack_msg->ret == DMS_SUCCESS)) {
-            *recv_succ_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
+        if (head->cmd != MSG_ACK_PROTOCOL_VERSION_NOT_MATCH) {
+            if (!check_ret || ack_msg->ret == DMS_SUCCESS) {
+                *recv_succ_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
+            } else {
+                LOG_RUN_ERR("[mfc_check_bcast_res]node:%hhu acks errno:%d",
+                    ack_msg->head.src_inst, ack_msg->ret);
+            }
         }
     }
 

@@ -771,6 +771,7 @@ typedef struct st_dv_drc_buf_info {
     unsigned char           converting_req_info_curr_mode;
     unsigned char           converting_req_info_req_mode;
     unsigned char           is_valid;
+    unsigned char           hash_key;
 } dv_drc_buf_info;
 
 typedef struct st_dms_reform_start_context {
@@ -795,7 +796,7 @@ typedef struct st_dms_broadcast_info {
     unsigned long long inst_map; /* when scope is DMS_BROADCAST_SPECIFY_LIST, inst_map is used */
     unsigned int timeout;
     unsigned char handle_recv_msg;
-    unsigned char check_session_kill; 
+    unsigned char check_session_kill;
 } dms_broadcast_info_t;
 
 typedef enum en_dms_stat_cmd {
@@ -848,7 +849,8 @@ typedef int(*dms_tx_rollback_start)(void *db_handle, unsigned char inst_id);
 typedef int(*dms_convert_to_readwrite)(void *db_handle);
 typedef int(*dms_tx_rollback_finish)(void *db_handle, unsigned char inst_id);
 typedef unsigned char(*dms_recovery_in_progress)(void *db_handle);
-typedef unsigned int(*dms_get_page_hash_val)(const char pageid[DMS_PAGEID_SIZE]);
+typedef unsigned int(*dms_get_page_hash_val)(const char pageid[DMS_PAGEID_SIZE],
+    unsigned char group_hash, unsigned int *hash_key, unsigned int *hash_val);
 typedef unsigned int(*dms_inc_and_get_srsn)(unsigned int sess_id);
 typedef unsigned long long(*dms_get_page_lsn)(const dms_buf_ctrl_t *dms_ctrl);
 typedef int(*dms_set_flushed_lsn)(dms_buf_ctrl_t *dms_ctrl);
@@ -1075,7 +1077,7 @@ typedef struct st_dms_callback {
 
     dms_drc_rebuild_parallel rebuild_alock_parallel;
     dms_reform_event_notify reform_event_notify;
- 
+
     // used in reform for opengauss
     dms_thread_init_t dms_thread_init;
     dms_thread_deinit_t dms_thread_deinit;

@@ -164,7 +164,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
-    
+
     // converting node can only receive error ack or wait timeout
     // so we can remove it from converting directly
     if (converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
@@ -769,7 +769,7 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
     } else if (!release) {
         drc_try_confirm_cvt(drc);
     }
-    
+
     drc_leave(drc, options);
     return release;
 }
@@ -875,6 +875,10 @@ void fill_dv_drc_buf_info(drc_head_t *drc, dv_drc_buf_info *res_buf_info)
     res_buf_info->converting_req_info_inst_id = drc->converting.req_info.inst_id;
     res_buf_info->converting_req_info_curr_mode = drc->converting.req_info.curr_mode;
     res_buf_info->converting_req_info_req_mode = drc->converting.req_info.req_mode;
+
+    uint32 hash_key = 0;
+    (void)drc_get_page_hash(DRC_DATA(drc), &hash_key, NULL); /* hashval not needed */
+    res_buf_info->hash_key = hash_key;
     char *drc_data = cm_display_resid(DRC_DATA(drc), drc->type);
     int ret = strcpy_s(res_buf_info->data, DMS_MAX_RESOURCE_NAME_LEN, drc_data);
     if (ret != EOK) {
