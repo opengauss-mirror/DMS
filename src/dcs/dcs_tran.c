@@ -272,7 +272,7 @@ void dcs_proc_txn_info_req(dms_process_context_t *process_ctx, dms_message_t *re
     dms_txn_info_t txn_info = { 0 };
 
     uint32 total_size = (uint32)(sizeof(msg_txn_info_request_t));
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, total_size, CM_TRUE);
     msg_txn_info_request_t *txn_info_req = (msg_txn_info_request_t *)(receive_msg->buffer);
 
     /* sync SCN */

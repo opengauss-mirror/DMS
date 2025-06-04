@@ -230,7 +230,7 @@ void dcs_proc_smon_tlock_by_rm(dms_process_context_t *ctx, dms_message_t *receiv
 
     if (SECUREC_UNLIKELY(sid >= DMS_CM_MAX_SESSIONS)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid sid value");
-        LOG_RUN_ERR("[SMON] proc table lock by rm, the sid %u is invalid", (uint32)sid);
+        LOG_DEBUG_ERR("[SMON] proc table lock by rm, the sid %u is invalid", (uint32)sid);
         return;
     }
 
@@ -538,6 +538,11 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
     uint32 msg_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN * MAX_TABLE_LOCK_NUM);
 
     dms_message_head_t *ack_head = (dms_message_head_t *)g_dms.callback.mem_alloc(ctx->db_handle, msg_size);
+    if (ack_head == NULL) {
+        cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
+        return;
+    }
+    
     char *output_msg = (char *)ack_head + sizeof(dms_message_head_t);
 
     dms_message_head_t *head = (dms_message_head_t *)(receive_msg->buffer);

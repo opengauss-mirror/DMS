@@ -82,7 +82,7 @@ static void dms_smon_handle_ready_ack(dms_process_context_t *ctx,
         has_edp = bitmap64_exist(&ack->edp_map, drc->owner);
     }
     claim_info_t claim_info;
-    (void)dms_set_claim_info(&claim_info, DRC_DATA(drc), drc->len, drc->type, cvt_req->inst_id,
+    dms_set_claim_info(&claim_info, DRC_DATA(drc), drc->len, drc->type, cvt_req->inst_id,
         ack->lock_mode, (bool8)has_edp, ack->lsn, cvt_req->sess_id, DMS_SESSION_NORMAL, cvt_req->srsn);
 
     cvt_info_t cvt_info;

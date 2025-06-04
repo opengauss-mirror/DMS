@@ -136,7 +136,7 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
         req.share_info.list_offline.inst_id_count > DMS_MAX_INSTANCES ||
         req.share_info.list_reconnect.inst_id_count > DMS_MAX_INSTANCES ||
         req.share_info.list_disconnect.inst_id_count > DMS_MAX_INSTANCES)) {
-        LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
+        LOG_RUN_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
         return;
     }
 
@@ -146,8 +146,8 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
     cm_spin_lock(&reform_context->share_info_lock, NULL);
     if (local_share_info->version_num == received_share_info->version_num &&
         dms_reform_version_same(&local_reform_info->reformer_version, &received_share_info->reformer_version)) {
-        LOG_DEBUG_WAR("[DMS REFORM] current round(version num:%llu) of reform is being executed "
-                      "or share info sync msg has been expired", local_share_info->version_num);
+        LOG_RUN_WAR("[DMS REFORM] current round(version num:%llu) of reform is being executed "
+            "or share info sync msg has been expired", local_share_info->version_num);
         dms_reform_ack_sync_share_info(process_ctx, receive_msg, DMS_SUCCESS);
         cm_spin_unlock(&reform_context->share_info_lock);
         return;
@@ -216,7 +216,8 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
 
     if (SECUREC_UNLIKELY(req->last_step >= DMS_REFORM_STEP_COUNT ||
         req->curr_step >= DMS_REFORM_STEP_COUNT ||
-        req->next_step >= DMS_REFORM_STEP_COUNT)) {
+        req->next_step >= DMS_REFORM_STEP_COUNT ||
+        instance_id >= DMS_MAX_INSTANCES)) {
         LOG_DEBUG_ERR("[DMS REFORM] dms_reform_proc_sync_step, invalid request, "
             "last_step=%u, curr_step=%u, next_step=%u", (uint32)req->last_step,
             (uint32)req->curr_step, (uint32)req->next_step);
@@ -314,7 +315,7 @@ int dms_reform_req_dms_status_wait(uint8 dst_id, uint64 ruid, online_status_t *o
 
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_FALSE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_TRUE);
     dms_reform_ack_req_dms_status(process_ctx, receive_msg);
 }
 
@@ -514,22 +515,22 @@ void dms_reform_proc_sync_next_step(dms_process_context_t *process_ctx, dms_mess
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     if (!dms_reform_check_judge_time(&req->head)) {
-        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        LOG_RUN_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
         return;
     }
 
     if (SECUREC_UNLIKELY(req->next_step >= DMS_REFORM_STEP_COUNT)) {
-        LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_next_step invalid next_step");
+        LOG_RUN_ERR("[DMS REFORM]dms_reform_proc_sync_next_step invalid next_step");
         return;
     }
 
     if (DMS_IS_REFORMER) {
-        LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
+        LOG_RUN_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
         return;
     }
 
     if (req->start_time != reform_info->start_time) {
-        LOG_DEBUG_WAR("[DMS REFORM]expired dms_reform_proc_sync_next_step");
+        LOG_RUN_WAR("[DMS REFORM]expired dms_reform_proc_sync_next_step");
         return;
     }
 

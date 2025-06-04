@@ -224,7 +224,7 @@ void dms_init_ack_head2(dms_message_head_t *ack_head, unsigned int cmd, unsigned
     unsigned int req_proto_ver);
 void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret);
 
-int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
+void dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 sess_id, dms_session_e sess_type, uint32 srsn);
 void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info);
 

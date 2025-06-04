@@ -113,7 +113,7 @@ void dms_build_req_info_local(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode,
     req_info->inst_id    = dms_ctx->inst_id;
     req_info->is_try     = dms_ctx->is_try;
     req_info->sess_id    = (uint16)dms_ctx->sess_id;
-    req_info->req_time   = (date_t)g_timer()->monotonic_now;
+    req_info->req_time   = g_timer()->monotonic_now;
     req_info->sess_type  = dms_ctx->sess_type;
     req_info->is_upgrade = dms_ctx->is_upgrade;
     req_info->req_proto_ver  = DMS_SW_PROTO_VER;
@@ -379,7 +379,7 @@ void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_
         (uint32)request.head.dst_inst, (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
 }
 
-int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
+void dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 sess_id, dms_session_e sess_type, uint32 srsn)
 {
     claim_info->new_id   = ownerid;
@@ -392,12 +392,7 @@ int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint
     claim_info->sess_type = sess_type;
     claim_info->srsn = srsn;
     int ret = memcpy_s(claim_info->resid, DMS_RESID_SIZE, resid, len);
-    if (ret == EOK) {
-        return DMS_SUCCESS;
-    }
-    LOG_DEBUG_ERR("[DMS][%s][dms_set_claim_info]: system call failed", cm_display_resid(resid, res_type));
-    DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_resid(resid, res_type));
-    return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
+    DMS_SECUREC_CHECK(ret);
 }
 
 static inline int32 dms_handle_grant_owner_ack(dms_context_t *dms_ctx, void *res,
@@ -693,7 +688,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     req.is_upgrade = dms_ctx->is_upgrade;
     req.res_type   = dms_ctx->type;
     req.len        = dms_ctx->len;
-    req.req_time   = (date_t)g_timer()->monotonic_now;
+    req.req_time   = g_timer()->monotonic_now;
     req.req_proto_ver = req.head.msg_proto_ver;
     req.srsn       = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
 #ifndef OPENGAUSS
@@ -1147,19 +1142,16 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *ctx, dms_message_t *receiv
     dms_ask_res_owner_id_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_RES_OWNER_ID, sizeof(dms_ask_res_owner_id_ack_t), ctx->sess_id);
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: src_id=%u, src_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
-        (uint32)req.head.src_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid);
 
     ack.owner_id = owner_id;
     DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ASK_RES_OWNER_ID, MSG_ACK_ASK_RES_OWNER_ID);
     if (mfc_send_data(&ack.head) == DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: finished, dst_id=%u, dst_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
-        (uint32)ack.head.dst_sid);
+            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
     } else {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_ask_res_owner_id]: failed to send ack, dst_id=%u, dst_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
-        (uint32)ack.head.dst_sid);
+            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
     }
     return;
 }
@@ -1282,8 +1274,7 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
     ack.lfn = 0;
     dms_init_ack_head(&req.head, &ack.common_ack.head, ack_cmd, sizeof(dms_invld_ack_t), proc_ctx->sess_id);
     LOG_DYN_TRC_INF("[PIR][%s]srcid=%u ssid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
-        (uint32)req.head.src_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid);
 
     int32 ret = DMS_SUCCESS;
     if (req.res_type == DRC_RES_PAGE_TYPE) {
@@ -1466,7 +1457,7 @@ void dms_proc_claim_ownership_req(dms_process_context_t *ctx, dms_message_t *rec
 
     CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, request->res_type, CM_FALSE);
     // call drc interface to claim ownership
-    (void)dms_set_claim_info(&claim_info, request->resid, request->len, (uint8)request->res_type,
+    dms_set_claim_info(&claim_info, request->resid, request->len, (uint8)request->res_type,
         request->head.src_inst, request->req_mode, (bool8)request->has_edp, request->lsn, request->head.src_sid,
         request->sess_type, request->srsn);
 
@@ -1543,7 +1534,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *ctx, dms_message_t *rece
         cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
         (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
 
-    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_FALSE);
     drc_request_info_t *req_info = &req.drc_reg_info;
     req_info->ruid = req.head.ruid;
 
@@ -1569,17 +1560,14 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *re
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_confirm_cvt_req_t), CM_FALSE);
     dms_confirm_cvt_req_t req = *(dms_confirm_cvt_req_t *)(receive_msg->buffer);
 
-    int32 ret;
     uint8 lock_mode;
     dms_confirm_cvt_ack_t ack;
-    if (memset_s(&ack, sizeof(dms_confirm_cvt_ack_t), 0, sizeof(dms_confirm_cvt_ack_t)) != EOK) {
-        cm_panic(0);
-    }
+    int32 ret = memset_s(&ack, sizeof(dms_confirm_cvt_ack_t), 0, sizeof(dms_confirm_cvt_ack_t));
+    DMS_SECUREC_CHECK(ret);
     dms_init_ack_head(&(req.head), &ack.head, MSG_ACK_CONFIRM_CVT, sizeof(dms_confirm_cvt_ack_t),
         proc_ctx->sess_id);
     LOG_DEBUG_INF("[DMS][%s][dms_proc_confirm_cvt_req]: src_id=%u, src_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
-        (uint32)req.head.src_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid);
 
     if (req.res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(proc_ctx->db_handle,
@@ -1599,13 +1587,11 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *re
 
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_confirm_cvt_req]: failed to send ack, dst_id=%u, dst_sid=%u",
-            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
-            (uint32)ack.head.dst_sid);
+            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
         return;
     }
     LOG_DEBUG_INF("[DMS][%s][dms_proc_confirm_cvt_req]: send ack ok, dst_id=%u, dst_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
-        (uint32)ack.head.dst_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
 }
 
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
@@ -1971,6 +1957,7 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
      * 2) When the lower version sends a message to the higher version, the new fields at the end will be set to
      * 3) If the message is sent from the same version, the message will be copied normally.
      **/
+    int32 ret;
     dms_message_head_t *msg_head = (dms_message_head_t *)(msg->buffer);
     const dms_proto_version_attr *version_attr = dms_get_version_attr(version_attrs, msg_head->msg_proto_ver);
     if (version_attr == NULL) {
@@ -1980,11 +1967,14 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
     }
 
     if (version_attr->req_size < info_size) {
-        (void)memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
+        ret = memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
+        DMS_SECUREC_CHECK(ret);
         uint32 remain_size = info_size - msg_head->size;
-        (void)memset_s(((uchar *)out_info) + msg_head->size, remain_size, 0, remain_size);
+        ret = memset_s(((uchar *)out_info) + msg_head->size, remain_size, 0, remain_size);
+        DMS_SECUREC_CHECK(ret);
     } else {
-        (void)memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
+        ret = memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
+        DMS_SECUREC_CHECK(ret);
     }
 
     return DMS_SUCCESS;
