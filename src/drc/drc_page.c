@@ -453,10 +453,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
         return ret;
     }
 
-    if (drc->type == DRC_RES_PAGE_TYPE) {
-        drc_shift_to_head(drc);
-    }
-
+    drc_shift_to_head(drc);
     return DMS_SUCCESS;
 }
 

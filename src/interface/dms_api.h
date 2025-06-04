@@ -1316,7 +1316,7 @@ typedef struct st_dms_profile {
     unsigned char enable_dyn_trace;
     unsigned char enable_reform_trace;
     unsigned long long drc_buf_size;
-    unsigned int spin_sleep_time_nsec;
+    unsigned int  spin_sleep_time_nsec;
 } dms_profile_t;
 
 typedef struct st_logger_param {
