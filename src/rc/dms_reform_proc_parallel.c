@@ -48,11 +48,6 @@ static void dms_reform_parallel_thread_inner(parallel_thread_t *parallel)
 
 static void dms_reform_parallel_thread(thread_t *thread)
 {
-#ifdef OPENGAUSS
-    // this thread will invoke startup method in opengauss
-    // need_startup flag need set to be true
-    g_dms.callback.dms_thread_init(CM_TRUE, (char **)&thread->reg_data);
-#endif
     char thread_name[CM_MAX_THREAD_NAME_LEN];
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
     parallel_thread_t *parallel = (parallel_thread_t *)thread->argument;
@@ -60,6 +55,12 @@ static void dms_reform_parallel_thread(thread_t *thread)
     cm_set_thread_name(thread_name);
     dms_set_is_reform_thrd(CM_TRUE);
     dms_set_tls_sid(parallel->sess_id);
+
+#ifdef OPENGAUSS
+    // this thread will invoke startup method in opengauss
+    // need_startup flag need set to be true
+    g_dms.callback.dms_thread_init(CM_TRUE, (char **)&thread->reg_data);
+#endif
 
     dms_reform_proc_stat_bind_proc_parallel(parallel->index);
     LOG_RUN_INF("[DMS REFORM]%s thread started", thread_name);
