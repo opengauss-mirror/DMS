@@ -108,11 +108,6 @@ DMS_DECLARE void dms_uninit(void);
 DMS_DECLARE int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode_t mode);
 
 /*
- * @brief sleep if dms_request_page return error
- */
-DMS_DECLARE void dms_request_page_wait(void);
-
-/*
 * @brief forward to specified node to construct heap CR page.
 * @[in]param dms_ctx -  Obtains the context information required by the page.
 * @[in&out]param dms_cr -  Properties required to construct a consistent page.
@@ -160,16 +155,8 @@ DMS_DECLARE int dms_cr_check_master(dms_context_t *dms_ctx, unsigned int *dst_in
 DMS_DECLARE int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned int dst_inst_id,
     unsigned char *is_empty_itl, unsigned char *is_found);
 
-/*
-* @brief try ask master for page owner id.
-* @[in]param dms_ctx -  Obtains the context information required by the page.
-* @[in]param dms_cr -  Properties required to construct a consistent page.
-* @[in]param req_mode -  lock mode.
-* @[out]param owner_id -  page owner id.
-* @return DMS_SUCCESS - success;otherwise: failed
-*/
-DMS_DECLARE int dms_try_ask_master_for_page_owner_id(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
-    dms_lock_mode_t req_mode, unsigned char *owner_id);
+DMS_DECLARE int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
+    dms_buf_ctrl_t **ctrls, unsigned int req_count, dms_lock_mode_t req_mode);
 
 /*
 * @brief init distributed spin lock.
@@ -586,13 +573,6 @@ DMS_DECLARE int dms_clean_edp(dms_context_t *dms_ctx, dms_edp_info_t *pages, uns
 DMS_DECLARE unsigned long long dms_get_min_scn(unsigned long long min_scn);
 
 /*
- * @brief set min scn
- * @[in]param min_scn - cluster min scn .
- * @return
- */
-DMS_DECLARE void dms_set_min_scn(unsigned char inst_id, unsigned long long min_scn);
-
-/*
  * @brief retrieve dms statistics of waiting events
  * @[in]param the type of waiting event
  * @[out]the count of the happenings of specified waiting event
@@ -804,7 +784,6 @@ DMS_DECLARE void dms_show_version(char *version);
 DMS_DECLARE int dms_reform_last_failed(void);
 
 DMS_DECLARE int dms_wait_reform_phase(unsigned char reform_phase);
-DMS_DECLARE int dms_wait_reform_finish(void);
 DMS_DECLARE void dms_set_reform_continue(void);
 
 DMS_DECLARE int dms_is_reformer(void);
@@ -829,6 +808,19 @@ DMS_DECLARE void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl,
 * @[in]param log_level -  db log level.
 */
 DMS_DECLARE void dms_set_log_level(unsigned int log_level);
+
+/*
+* @brief set log size
+* @[in]param log_level -  db log size.
+*/
+void dms_set_log_file_size(unsigned long long log_size);
+
+/*
+* @brief set log count
+* @[in]param log_level -  db log count.
+*/
+void dms_set_log_file_count(unsigned int log_count);
+
 
 /*
  * @brief get latch owner id
@@ -920,51 +912,10 @@ DMS_DECLARE int dms_calc_mem_usage(dms_profile_t *dms_profile, unsigned long lon
 
 DMS_DECLARE void dms_reform_proc_callback_stat_start(reform_callback_stat_e callback_stat);
 DMS_DECLARE void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat);
-DMS_DECLARE void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat);
 
-/*
- * @brief set dms fi entries from db params
- * @[in]param type - fault type
- * @[in]param entries - fault entries array
- * @[in]param count - the hwm of array
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_fi_set_entries(unsigned int type, unsigned int *entries, unsigned int count);
-
-/*
- * @brief set dms fi value from db params
- * @[in]param type - fault type
- * @[in]param value - fault value
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_fi_set_entry_value(unsigned int type, unsigned int value);
 DMS_DECLARE int dms_reform_rebuild_send_rest(unsigned int sess_id, unsigned char thread_index);
 
-/*
- * @brief get thread local storage var
- * @return var
- */
-DMS_DECLARE int dms_fi_get_tls_trigger_custom();
-
-/*
- * @brief set thread local storage var
- * @[in]param val - value
- */
-DMS_DECLARE void dms_fi_set_tls_trigger_custom(int val);
-
 DMS_DECLARE int dms_get_reform_locking(void);
-
-/*
- * @brief call fault injection
- * @[in]param point - fault index
- */
-DMS_DECLARE void fault_injection_call(unsigned int point, ...);
-
-/*
- * @brief get if a point is custom fault injection
- * @[out]return CM_FALSE or CM_TRUE
- */
-DMS_DECLARE unsigned char dms_fi_entry_custom_valid(unsigned int point);
 
 DMS_DECLARE void dms_lock_res_ctrl_shared_mode(unsigned int sid);
 
@@ -1051,7 +1002,6 @@ DMS_DECLARE int dms_dynamic_trace_dump_iterator(char **sess_trc_buf, unsigned ch
 DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
 DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 DMS_DECLARE void dms_fsync_logfile(void);
-DMS_DECLARE void dms_set_elapsed_switch(unsigned char elapsed_switch);
 
 DMS_DECLARE int dms_get_task_worker_msg_stat(unsigned int worker_id,
     mes_worker_msg_stats_info_t *mes_worker_msg_stats_result);
@@ -1062,6 +1012,8 @@ DMS_DECLARE int dms_get_task_worker_priority_stat(unsigned int priority_id,
 DMS_DECLARE int dms_collect_mem_usage_stat();
 
 DMS_DECLARE int dms_get_mem_usage_stat_row(unsigned int mem_id, mem_info_stat_t *mem_stat_row_result);
+DMS_DECLARE int dms_get_online_inst(unsigned long long *online_node);
+DMS_DECLARE int dms_update_param(unsigned int index, char *value);
 
 #ifdef __cplusplus
 }

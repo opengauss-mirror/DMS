@@ -74,28 +74,36 @@ typedef struct st_dms_instance {
     uint32 max_wait_time;
     atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
     uint32 max_alive_time_for_abnormal_status;
-    dms_fi_context_t fi_ctx;
+    ddes_fi_context_t fi_ctx;
     dms_msg_stats_t msg_stats[DMS_CM_MAX_SESSIONS];
     dms_driver_ping_info_t dms_driver_ping_info;
+    memory_context_t *drc_mem_context;
 } dms_instance_t;
+
+typedef enum en_dms_msg_buffer_number {
+    DMS_MSG_BUFFER_NO_0 = 0,
+    DMS_MSG_BUFFER_NO_1,
+    DMS_MSG_BUFFER_NO_2,
+    DMS_MSG_BUFFER_NO_CEIL
+} dms_msg_buffer_number_e;
 
 #define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
 
 #define DMS_PRIORITY_COMPRESS_LEVEL 0
-#define DMS_BUFFER_POOL_NUM (3)
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)
-#define DMS_FIRST_BUFFER_LENGTH (128)
-#define DMS_SECOND_BUFFER_LENGTH (256)
+#define DMS_MSG_BUFFER_QUEUE_NUM_PRIO_6 (16)
+#define DMS_FIRST_BUFFER_LENGTH (256)
+#define DMS_SECOND_BUFFER_LENGTH (512)
 #define DMS_THIRD_BUFFER_LENGTH (SIZE_K(32) + 256)
+#define DMS_FIRST_BUFFER_RATIO (0.25)
+#define DMS_SECOND_BUFFER_RATIO (0.25)
+#define DMS_THIRDLY_BUFFER_RATIO (0.5)
+
 #define DMS_CKPT_NOTIFY_TASK_RATIO (1.0f / 32)
 #define DMS_CLEAN_EDP_TASK_RATIO (1.0f / 32)
 #define DMS_DERIVED_TASK_RATIO (1.0f / 8)
 #define DMS_TXN_INFO_TASK_RATIO (1.0f / 16)
 #define DMS_RECV_WORK_THREAD_RATIO (1.0f / 4)
-#define DMS_FIRST_BUFFER_RATIO (1.0f / 4)
-#define DMS_SECOND_BUFFER_RATIO (1.0f / 4)
-#define DMS_THIRDLY_BUFFER_RATIO (1.0f / 2)
-#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
 
 #define DMS_WORK_THREAD_COUNT       (dms_profile->enable_mes_task_threadpool == CM_TRUE ? \
     dms_profile->mes_task_worker_max_cnt : dms_profile->work_thread_cnt)
@@ -147,12 +155,27 @@ typedef struct st_dms_instance {
 #define DMS_DEFAULT_MSG_NUM_FLOOR 0
 #define DEFAULT_TIME_FOR_ABNORMAL_STATUS 10
 
+#define DMS_GLOBAL_CLUSTER_VER  (g_dms.cluster_ver)
+
 #define DMS_LOG_BACKUP_FILE_COUNT   (10)
 #define DMS_MAX_LOG_FILE_SIZE       ((uint64)SIZE_M(1024) * 1)
 #define DMS_MAX_DYN_TRC_WARN_BUF    "DMS_MAX_DYN_TRACE_SIZE reached:"
 #define DMS_MAX_DYN_TRC_WARN_SZ     31
+#define DMS_MALLOC_ALIGN_OFFSET     16
 
 extern dms_instance_t g_dms;
+
+typedef enum en_dms_malloc_fun_type {
+    MALLOC_TYPE_OS = 0,
+    MALLOC_TYPE_REGIST = 1,
+    MALLOC_TYPE_CONTEXT = 2,
+    MALLOC_TYPE_CEIL
+} dms_malloc_fun_type_t;
+
+typedef struct st_dms_buffer_header {
+    dms_malloc_fun_type_t type;
+    char padding[DMS_MALLOC_ALIGN_OFFSET - sizeof(dms_malloc_fun_type_t)];
+} dms_buffer_header_t;
 
 static inline void dms_proc_msg_ack(dms_process_context_t *process_ctx, dms_message_t *msg)
 {
@@ -181,7 +204,7 @@ static inline const char *dms_get_mescmd_msg(uint32 cmd)
 
 unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
-void *dms_malloc(size_t size);
+void *dms_malloc(memory_context_t *context, size_t size);
 void dms_free(void *ptr);
 void dms_dynamic_trace_cache_inner(dms_log_level_t log_level, char *buf_text, uint32, bool8 is_head);
 

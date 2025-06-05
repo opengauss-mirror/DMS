@@ -163,9 +163,9 @@ drps_desc_t g_drps_desc_t[] = {
     {DMS_REFORM_STEP_REBUILD,                                   DRPS_LEVEL_TOP,     "REBUILD"},
     {DRPS_DRC_REBUILD_WAIT_LATCH,                               DRPS_LEVEL_ONE,     "WAIT_LATCH"},
     {DRPS_DRC_REBUILD_PAGE,                                     DRPS_LEVEL_ONE,     "PAGE"},
-    {DRPS_CALLBACK_STAT_CKPT_LATCH,                             DRPS_LEVEL_TWO,     "CKPT_LATCH"},
     {DRPS_CALLBACK_STAT_BUCKET_LOCK,                            DRPS_LEVEL_TWO,     "BUCKET_LOCK"},
     {DRPS_CALLBACK_STAT_SS_READ_LOCK,                           DRPS_LEVEL_TWO,     "SS_READ_LOCK"},
+    {DRPS_CALLBACK_STAT_SS_CKPT_COPY_LOCK,                      DRPS_LEVEL_TWO,     "SS_CKPT_COPY_LOCK"},
     {DRPS_CALLBACK_STAT_GET_DISK_LSN,                           DRPS_LEVEL_TWO,     "GET_DISK_LSN"},
     {DRPS_CALLBACK_STAT_DRC_EXIST,                              DRPS_LEVEL_TWO,     "DRC_EXIST"},
     {DRPS_CALLBACK_STAT_CLEAN_EDP,                              DRPS_LEVEL_TWO,     "CLEAN_EDP"},
@@ -317,8 +317,8 @@ void dms_reform_proc_stat_log_current(void)
 }
 
 dms_reform_proc_stat_e g_callback_stat_map[REFORM_CALLBACK_STAT_COUNT] = {
-    [REFORM_CALLBACK_STAT_CKPT_LATCH] = DRPS_CALLBACK_STAT_CKPT_LATCH,
     [REFORM_CALLBACK_STAT_BUCKET_LOCK] = DRPS_CALLBACK_STAT_BUCKET_LOCK,
+    [REFORM_CALLBACK_STAT_SS_CKPT_COPY_LOCK] = DRPS_CALLBACK_STAT_SS_CKPT_COPY_LOCK,
     [REFORM_CALLBACK_STAT_REBUILD_TLOCK_REMOTE] = DRPS_CALLBACK_STAT_TLOCK_REMOTE,
     [REFORM_CALLBACK_STAT_GET_DISK_LSN] = DRPS_CALLBACK_STAT_GET_DISK_LSN,
     [REFORM_CALLBACK_STAT_DRC_EXIST] = DRPS_CALLBACK_STAT_DRC_EXIST,
@@ -350,15 +350,6 @@ void dms_reform_proc_callback_stat_end(reform_callback_stat_e callback_stat)
     }
     uint32 item = (uint32)g_callback_stat_map[callback_stat];
     dms_reform_proc_stat_end(item);
-}
-
-void dms_reform_proc_callback_stat_times(reform_callback_stat_e callback_stat)
-{
-    if (callback_stat >= REFORM_CALLBACK_STAT_COUNT) {
-        return;
-    }
-    uint32 item = (uint32)g_callback_stat_map[callback_stat];
-    dms_reform_proc_stat_times(item);
 }
 
 static bool32 dms_reform_proc_desc_is_skip(uint32 cmd)

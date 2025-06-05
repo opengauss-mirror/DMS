@@ -175,6 +175,7 @@ typedef struct st_dms_res_req_info {
     dms_lock_mode_t curr_mode;
     char resid[DMS_RESID_SIZE];
     uint32 req_proto_ver;
+    uint64 seq;
 } dms_res_req_info_t;
 
 typedef struct st_dms_cancel_request_res {
@@ -446,9 +447,9 @@ void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t 
 void dms_smon_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 int32 dms_invalidate_ownership(dms_process_context_t* ctx, char* resid, uint16 len,
-    uint8 type, dms_session_e sess_type, uint8 owner_id);
+    uint8 type, dms_session_e sess_type, uint8 owner_id, uint64 seq);
 int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 len,
-    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct);
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint64 seq);
 int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
 void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *receive_msg);
 void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);

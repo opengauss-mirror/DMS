@@ -62,25 +62,25 @@ static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint32 cmd, dms
 
 static int32 dcs_send_edp_to_master_ckpt(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_MASTER_CKPT_EDP, MSG_REQ_MASTER_CKPT_EDP);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_MASTER_CKPT_EDP, MSG_REQ_MASTER_CKPT_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_MASTER_CKPT_EDP, pages, count);
 }
 
 static int32 dcs_send_edp_to_owner_ckpt(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_OWNER_CKPT_EDP, MSG_REQ_OWNER_CKPT_EDP);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_OWNER_CKPT_EDP, MSG_REQ_OWNER_CKPT_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_OWNER_CKPT_EDP, pages, count);
 }
 
 static int32 dcs_send_edp_to_master_clean(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_MASTER_CLEAN_EDP, MSG_REQ_MASTER_CLEAN_EDP);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_MASTER_CLEAN_EDP, MSG_REQ_MASTER_CLEAN_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_MASTER_CLEAN_EDP, pages, count);
 }
 
 static int32 dcs_send_edp_to_owner_clean(dms_context_t *dms_ctx, uint8 inst_id, dms_edp_info_t *pages, uint32 count)
 {
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_OWNER_CLEAN_EDP, MSG_REQ_OWNER_CLEAN_EDP);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_OWNER_CLEAN_EDP, MSG_REQ_OWNER_CLEAN_EDP);
     return dcs_send_edp(dms_ctx, inst_id, MSG_REQ_OWNER_CLEAN_EDP, pages, count);
 }
 
@@ -195,19 +195,19 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
         return CM_TRUE;
     }
     if (drc_page->need_recover) {
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         return CM_FALSE;
     }
 
     if (drc_page->head.owner == CM_INVALID_ID8) {
         edp->edp_map = drc_page->edp_map != 0 ? drc_page->edp_map : CM_INVALID_ID64;
         drc_page->edp_map = 0;
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         return CM_TRUE;
     }
 
     if (drc_page->last_edp_lsn > edp->lsn || drc_page->edp_map == 0) {
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         return CM_FALSE;
     }
 
@@ -217,7 +217,7 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
     drc_page->edp_map = 0;
     drc_page->last_edp_lsn = edp->lsn;
     drc_page->last_edp = CM_INVALID_ID8;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return CM_TRUE;
 }
 

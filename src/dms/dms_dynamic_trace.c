@@ -180,10 +180,10 @@ static int dms_dyn_trc_init_logger(dms_profile_t *dms_profile)
     dms_reset_error();
     errno_t ret;
     log_param_t *log_param = cm_log_param_instance();
-    log_param->log_backup_file_count = DMS_LOG_BACKUP_FILE_COUNT;
-    log_param->audit_backup_file_count = DMS_LOG_BACKUP_FILE_COUNT;
-    log_param->max_log_file_size = DMS_MAX_LOG_FILE_SIZE;
-    log_param->max_audit_file_size = DMS_MAX_LOG_FILE_SIZE;
+    log_param->log_backup_file_count = dms_profile->log_backup_file_count;
+    log_param->audit_backup_file_count = dms_profile->log_backup_file_count;
+    log_param->max_log_file_size = dms_profile->log_max_file_size;
+    log_param->max_audit_file_size = dms_profile->log_max_file_size;
 
     const int file_perm = 600;
     const int path_perm = 700;
@@ -216,7 +216,7 @@ int dms_init_dynamic_trace(dms_profile_t *dms_profile)
     g_dms_dyn_trc.sess_iterator = 0;
     size_t size = g_dms_dyn_trc.sess_cnt * sizeof(dms_sess_dyn_trc_t);
 
-    g_dms_dyn_trc.sess_dyn_trc = (dms_sess_dyn_trc_t *)dms_malloc(size);
+    g_dms_dyn_trc.sess_dyn_trc = (dms_sess_dyn_trc_t *)dms_malloc(NULL, size);
     if (g_dms_dyn_trc.sess_dyn_trc == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;

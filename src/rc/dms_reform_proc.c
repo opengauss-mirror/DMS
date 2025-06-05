@@ -209,12 +209,12 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
              * no need to check connverting info.
              */
             if (ctrl->lock_mode != drc->lock_mode) {
-                cm_panic_log( req_info->req_mode == ctrl->lock_mode,
+                cm_panic_log(req_info->req_mode >= ctrl->lock_mode,
                     "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
                     cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode, req_info->req_mode);
             }
         } else {
-            cm_panic_log(drc->lock_mode == ctrl->lock_mode,"[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+            cm_panic_log(drc->lock_mode >= ctrl->lock_mode, "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
                 cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode);
         }
     } else {
@@ -228,7 +228,7 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
             (int)drc->owner);
     }
 
-    drc_leave(drc);
+    drc_leave(drc, options);
 }
 #endif
 
@@ -780,7 +780,7 @@ static int dms_reform_rollback_prepare(void)
     share_info_t *share_info = DMS_SHARE_INFO;
     instance_list_t *list_rollback = &share_info->list_rollback;
 
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ROLLBACK_PREPARE);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ROLLBACK_PREPARE);
 
     LOG_RUN_FUNC_ENTER;
     if (DMS_IS_SHARE_PARTNER || list_rollback->inst_id_count == 0) {
@@ -1302,12 +1302,12 @@ static int dms_reform_sync_step_send(void)
     int ret = DMS_SUCCESS;
 
     while (CM_TRUE) {
-        dms_reform_init_req_sync_step(&req);
         if (reform_info->reform_fail) {
             DMS_THROW_ERROR(ERRNO_DMS_REFORM_FAIL, "reform fail flag has been set");
             return ERRNO_DMS_REFORM_FAIL;
         }
 
+        dms_reform_init_req_sync_step(&req);
         ret = mfc_send_data(&req.head);
         if (ret != DMS_SUCCESS) {
             LOG_DEBUG_ERR("[DMS REFORM]dms_reform_sync_step SEND error: %d, dst_id: %d", ret, req.head.dst_inst);
@@ -1355,13 +1355,13 @@ static void dms_reform_remote_fail(void)
 static int dms_reform_self_fail(void)
 {
     LOG_RUN_FUNC_ENTER;
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    reform_info->reform_fail = CM_TRUE;
     if (DMS_IS_SHARE_REFORMER) {
         dms_reform_remote_fail();
     } else {
         (void)dms_reform_sync_step_send();
     }
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    reform_info->reform_fail = CM_TRUE;
     dms_reform_set_last_fail();
     dms_reform_end();
     LOG_RUN_FUNC_SUCCESS;
@@ -1722,12 +1722,7 @@ static int dms_reform_lock_instance(void)
         LOG_RUN_ERR("[DMS REFORM][GCV PUSH]lock timeout error, curr holder sid=%hu, moded=%hu, "
             "shared count=%hu, time:%llu, inst:%d exits now", latch->sid, latch->stat,
             latch->shared_count, curr_time - begin_time, g_dms.inst_id);
-
-#ifdef _DEBUG
-        cm_panic(0);
-#else
         cm_exit(0);
-#endif
     }
 
     LOG_RUN_INF("[DMS REFORM][GCV PUSH]dms_reform_lock_instance lock success");

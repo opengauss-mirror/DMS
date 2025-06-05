@@ -156,7 +156,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         }
         *can_cvt = CM_TRUE;
         converting->req_info   = *req;
-        converting->begin_time = g_timer()->now;
+        converting->begin_time = g_timer()->monotonic_now;
         return DMS_SUCCESS;
     }
 
@@ -182,7 +182,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         }
         *can_cvt = CM_TRUE;
         converting->req_info   = *req;
-        converting->begin_time = g_timer()->now;
+        converting->begin_time = g_timer()->monotonic_now;
     }
     return DMS_SUCCESS;
 }
@@ -205,7 +205,7 @@ static int32 drc_chk_conflict_4_normal(drc_head_t *drc, drc_request_info_t *req,
         }
         *can_cvt  = CM_TRUE;
         converting->req_info = *req;
-        converting->begin_time = g_timer()->now;
+        converting->begin_time = g_timer()->monotonic_now;
         return DMS_SUCCESS;
     }
 
@@ -247,7 +247,7 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_head_t *drc, drc_r
     if (drc->converting.req_info.inst_id == CM_INVALID_ID8) {
         cm_panic(drc->convert_q.count == 0);
         drc->converting.req_info = *req_info;
-        drc->converting.begin_time = g_timer()->now;
+        drc->converting.begin_time = g_timer()->monotonic_now;
         *converting = CM_TRUE;
         return DMS_SUCCESS;
     }
@@ -353,11 +353,11 @@ static int drc_get_page_no_owner(dms_process_context_t *ctx, drc_req_owner_resul
     return DMS_SUCCESS;
 }
 
-static void drc_try_prepare_confirm_cvt(drc_head_t *drc)
+static void drc_try_confirm_cvt(drc_head_t *drc)
 {
     drc_request_info_t *cvt_req = &drc->converting.req_info;
 
-    if (!if_cvt_need_confirm(&drc->converting) || cvt_req->inst_id == CM_INVALID_ID8) {
+    if (cvt_req->inst_id == CM_INVALID_ID8 || !if_cvt_need_confirm(&drc->converting)) {
         return;
     }
 
@@ -369,7 +369,7 @@ static void drc_try_prepare_confirm_cvt(drc_head_t *drc)
         LOG_DEBUG_ERR("[DRC]memcpy_s err: %d", ret);
         return;
     }
-    drc->converting.begin_time = g_timer()->now;
+    drc->converting.begin_time = g_timer()->monotonic_now;
     LOG_DEBUG_WAR("[DRC][%s] converting [inst:%d sid:%d ruid:%llu req_mode:%d] prepare confirm",
         cm_display_resid(DRC_DATA(drc), drc->type), cvt_req->inst_id, cvt_req->sess_id, cvt_req->ruid,
         cvt_req->req_mode);
@@ -408,7 +408,7 @@ static int drc_set_req_result(dms_process_context_t *ctx, drc_req_owner_result_t
     } else {
         result->type = DRC_REQ_OWNER_WAITING;
         result->curr_owner_id = CM_INVALID_ID8;
-        drc_try_prepare_confirm_cvt(drc);
+        drc_try_confirm_cvt(drc);
     }
     return DMS_SUCCESS;
 }
@@ -438,6 +438,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
 {
     if (drc->type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
+        result->seq = drc_page->seq;
         if (req_info->sess_type == DMS_SESSION_NORMAL && drc_page->need_recover) {
             LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
             DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
@@ -451,7 +452,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     bool32 can_cvt = CM_FALSE;
     int32 ret = drc_enq_req_item(ctx, drc, req_info, &can_cvt);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
-        drc_try_prepare_confirm_cvt(drc);
+        drc_try_confirm_cvt(drc);
         return ret;
     }
 
@@ -482,12 +483,12 @@ int32 drc_request_page_owner(dms_process_context_t *ctx, char* resid, uint16 len
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
     if (drc->is_recycling) {
-        drc_leave(drc);
+        drc_leave(drc, options);
         LOG_DYN_TRC_WAR("[RPO][%s]is recycling", cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_IS_RECYCLING;
     }
     ret = drc_request_page_owner_internal(ctx, resid, res_type, req_info, result, drc);
-    drc_leave(drc);
+    drc_leave(drc, options);
     return ret;
 }
 
@@ -508,6 +509,15 @@ static void drc_remove_edp_map(drc_page_t *drc_page, uint8 inst_id)
     }
 }
 
+uint64 try_get_drc_page_seq(drc_head_t *drc)
+{
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *page_drc = (drc_page_t *)drc;
+        return page_drc->seq;
+    }
+    return 0;
+}
+
 void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info)
 {
     drc_request_info_t *req_info = &drc->converting.req_info;
@@ -522,6 +532,7 @@ void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info)
     cvt_info->is_try = req_info->is_try;
     cvt_info->sess_type = req_info->sess_type;
     cvt_info->req_proto_ver = req_info->req_proto_ver;
+    cvt_info->seq = try_get_drc_page_seq(drc);
 
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
     CM_ASSERT(cvt_info->req_id < DMS_MAX_INSTANCES);
@@ -609,7 +620,7 @@ void drc_convert_page_owner(drc_head_t* drc, claim_info_t* claim_info, cvt_info_
     /* assign next lock request to converting */
     drc_lock_item_t *next_lock_item = (drc_lock_item_t *)cm_bilist_pop_first(&drc->convert_q);
     drc->converting.req_info = next_lock_item->req_info;
-    drc->converting.begin_time = g_timer()->now;
+    drc->converting.begin_time = g_timer()->monotonic_now;
     drc_res_pool_free_item(&ctx->lock_item_pool, (char*)next_lock_item);
 
     /* get the detail converting information */
@@ -633,7 +644,7 @@ int32 drc_claim_page_owner(claim_info_t* claim_info, cvt_info_t* cvt_info)
     drc_convert_page_owner(drc, claim_info, cvt_info);
     LOG_DEBUG_INF("[DCS][%s][drc_claim_page_owner]: mode=%d, owner=%d, copy_insts=%llu",
         cm_display_resid(claim_info->resid, claim_info->res_type), drc->lock_mode, drc->owner, drc->copy_insts);
-    drc_leave(drc);
+    drc_leave(drc, options);
     return DMS_SUCCESS;
 }
 
@@ -662,7 +673,7 @@ bool8 drc_cancel_converting(drc_head_t *drc, drc_request_info_t *req, cvt_info_t
             /* assign next lock request to converting */
             drc_lock_item_t *next_lock_item = (drc_lock_item_t *)cm_bilist_pop_first(&drc->convert_q);
             drc->converting.req_info = next_lock_item->req_info;
-            drc->converting.begin_time = g_timer()->now;
+            drc->converting.begin_time = g_timer()->monotonic_now;
             drc_res_pool_free_item(&DRC_RES_CTX->lock_item_pool, (char*)next_lock_item);
             /* get the detail converting information */
             drc_get_convert_info(drc, cvt_info);
@@ -708,56 +719,12 @@ void drc_cancel_request_res(char *resid, uint16 len, uint8 res_type, drc_request
     }
 
     if (drc_cancel_converting(drc, req, cvt_info)) {
-        drc_leave(drc);
+        drc_leave(drc, options);
         return;
     }
 
     drc_cancel_convert_q(drc, req);
-    drc_leave(drc);
-}
-
-void drc_release(drc_head_t *drc, drc_res_map_t *buf_map, drc_res_bucket_t *bucket)
-{
-    // remove convert_q
-    drc_release_convert_q(&drc->convert_q);
-
-    // remove drc from part list
-    drc_remove_from_part_list(drc);
-
-    // remove drc from hash bucket
-    drc_res_map_del_res(buf_map, bucket, DRC_DATA(drc), drc->len);
-
-    // free drc to resource pool, to be reused later
-    drc_res_pool_free_item(&buf_map->res_pool, (char*)drc);
-    drc->is_using = CM_FALSE;
-}
-
-bool8 drc_chk_4_recycle(char *resid, uint16 len)
-{
-    drc_head_t *drc = NULL;
-    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
-    if (drc_enter(resid, len, DRC_RES_PAGE_TYPE, options, &drc) != DMS_SUCCESS) {
-        return CM_FALSE;
-    }
-
-    // DRC not exists, no need to recycle
-    if (drc == NULL) {
-        return CM_FALSE;
-    }
-
-    drc_page_t *drc_page = (drc_page_t *)drc;
-    if (drc->is_recycling ||
-        drc->converting.req_info.inst_id != CM_INVALID_ID8 ||
-        drc_page->edp_map != 0 ||
-        drc_page->need_flush ||
-        drc_page->need_recover) {
-        drc_leave(drc);
-        return CM_FALSE;
-    }
-
-    drc->is_recycling = CM_TRUE;
-    drc_leave(drc);
-    return CM_TRUE;
+    drc_leave(drc, options);
 }
 
 bool8 drc_can_release(drc_page_t *drc_page, uint8 inst_id)
@@ -815,45 +782,11 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
     if (drc->owner == inst_id && release) {
         drc_shift_to_tail(drc);
     } else if (!release) {
-        drc_try_prepare_confirm_cvt(drc);
+        drc_try_confirm_cvt(drc);
     }
     
-    drc_leave(drc);
+    drc_leave(drc, options);
     return release;
-}
-
-bool8 drc_recycle(dms_process_context_t *ctx, drc_head_t *drc)
-{
-    int32 ret = DMS_SUCCESS;
-    if (drc->copy_insts > 0) {
-        ret = dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, DRC_RES_PAGE_TYPE,
-            drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE);
-        if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
-                cm_display_resid(DRC_DATA(drc), drc->type), drc->copy_insts);
-            return CM_FALSE;
-        }
-    }
-    if (drc->owner != CM_INVALID_ID8) {
-        ret = dms_invalidate_ownership(ctx, DRC_DATA(drc), drc->len, DRC_RES_PAGE_TYPE,
-            DMS_SESSION_NORMAL, drc->owner);
-        if (ret != DMS_SUCCESS) {
-            LOG_DEBUG_WAR("[DRC recycle][%s]fail to release owner: %d",
-                cm_display_resid(DRC_DATA(drc), drc->type), drc->owner);
-            return CM_FALSE;
-        }
-    }
-
-    drc_res_bucket_t* bucket = drc_res_map_get_bucket(DRC_BUF_RES_MAP, DRC_DATA(drc), drc->len);
-    cm_spin_lock(&bucket->lock, NULL);
-    while (drc->ref_count > 0) {
-        cm_spin_unlock(&bucket->lock);
-        cm_sleep(1);
-        cm_spin_lock(&bucket->lock, NULL);
-    }
-    drc_release(drc, DRC_BUF_RES_MAP, bucket);
-    cm_spin_unlock(&bucket->lock);
-    return CM_TRUE;
 }
 
 void drc_release_by_part(drc_part_list_t *part, uint8 type)
@@ -888,7 +821,7 @@ int dms_recovery_page_need_skip(char *pageid, unsigned long long redo_lsn, unsig
         drc_page->need_recover = CM_TRUE;
     }
     *skip = !drc_page->need_recover;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -928,7 +861,7 @@ int dms_recovery_analyse_page(char *pageid, unsigned long long redo_lsn)
     }
     CM_ASSERT(drc_page != NULL);
     if (drc_page->need_recover) {
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         return DMS_SUCCESS;
     }
     if (redo_lsn > drc_page->owner_lsn) {
@@ -936,7 +869,7 @@ int dms_recovery_analyse_page(char *pageid, unsigned long long redo_lsn)
     } else {
         dms_recovery_analyse_page_skip_recover(drc_page);
     }
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -1077,11 +1010,12 @@ bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_
     // owner has been transferred, but claim message has not been processed
     if (curr_mode == DMS_LOCK_NULL && drc->converting.req_info.inst_id != CM_INVALID_ID8 &&
         drc->converting.req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
-        drc_leave(drc);
+        drc_try_confirm_cvt(drc);
+        drc_leave(drc, options);
         return CM_FALSE;
     }
 
     uint8 owner = drc->owner;
-    drc_leave(drc);
+    drc_leave(drc, options);
     return owner == inst_id;
 }

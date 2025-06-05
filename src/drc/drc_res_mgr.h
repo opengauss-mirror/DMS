@@ -42,6 +42,14 @@ extern "C" {
 #define DRC_CHECK_BIZ_SESSION  16
 
 #define DMS_RES_MAP_INIT_PARAM 2
+#define DMS_GET_DRC_INFO_COUNT 100
+#define DMS_GET_DRC_INFO_SLEEP_TIME 10
+
+typedef struct st_drc_recycle_obj {
+    drc_global_res_map_t *obj_res_map;
+    char *obj_name;    
+} drc_recycle_obj_t;
+
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
 {
     uint32 hash_val = g_dms.callback.get_page_hash_val(pageid);
@@ -68,21 +76,20 @@ static inline void drc_dec_ref_count(drc_head_t *drc)
 int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id);
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id);
 int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id);
-void drc_remove_from_part_list(drc_head_t *drc);
 void drc_shift_to_tail(drc_head_t *drc);
 void drc_shift_to_head(drc_head_t *drc);
-void drc_release_convert_q(bilist_t *convert_q);
 void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map);
 int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc);
-void drc_leave(drc_head_t *drc);
+void drc_leave(drc_head_t *drc, uint8 options);
 uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_type, bool32 check_master);
 void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t *drc_local_lock_res_result);
-void drc_recycle_buf_res_thread(thread_t *thread);
-void drc_recycle_drc_page_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle);
+void drc_recycle_thread(thread_t *thread);
+void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, drc_part_list_t *part);
 void drc_recycle_buf_res_set_running(void);
 void drc_recycle_buf_res_set_pause(void);
 void drc_enter_buf_res_set_blocked(void);
 void drc_enter_buf_res_set_unblocked(void);
+void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *bucket);
 
 #ifdef __cplusplus
 }

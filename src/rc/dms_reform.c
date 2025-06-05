@@ -416,23 +416,6 @@ int dms_wait_reform(unsigned int *has_offline)
     return CM_TRUE;
 }
 
-int dms_wait_reform_finish(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-    while (!DMS_FIRST_REFORM_FINISH) {
-        if (reform_info->last_fail) {
-            if (DMS_FIRST_REFORM_FINISH) {
-                return CM_TRUE;
-            }
-            return CM_FALSE;
-        }
-        DMS_REFORM_SHORT_SLEEP;
-    }
-
-    g_dms.callback.set_dms_status(g_dms.reform_ctx.handle_proc, (int)DMS_STATUS_IN);
-    return CM_TRUE;
-}
-
 char *dms_reform_phase_desc(uint8 reform_phase)
 {
     switch (reform_phase) {
@@ -721,8 +704,11 @@ bool8 dms_reform_type_is(dms_reform_type_t type)
 
 void dms_show_version(char *version)
 {
-    int ret = strcpy_s(version, DMS_VERSION_MAX_LEN, (char *)DEF_DMS_VERSION);
-    DMS_SECUREC_CHECK(ret);
+    DMS_SECUREC_CHECK(strcpy_s(version, DMS_VERSION_MAX_LEN, (char *)DEF_DMS_VERSION));
+    DMS_SECUREC_CHECK(strcat_s(version, DMS_VERSION_MAX_LEN, "\n"));
+    char cbb_version[DMS_VERSION_MAX_LEN] = {0};
+    cm_show_version(cbb_version);
+    DMS_SECUREC_CHECK(strcat_s(version, DMS_VERSION_MAX_LEN, cbb_version));
 }
 
 int dms_reform_last_failed(void)

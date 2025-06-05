@@ -43,6 +43,9 @@ extern "C" {
 #define DRC_PART_MNGR (&g_drc_res_ctx.part_mngr)
 #define DRC_PART_MASTER_ID(part_id) (g_drc_res_ctx.part_mngr.part_map[(part_id)].inst_id)
 #define DRC_DEFAULT_LOCK_RES_NUM (SIZE_M(1))
+#define DRC_DEFAULT_GLOCK_RES_NUM (SIZE_K(100))
+#define DRC_DEFAULT_LLOCK_RES_NUM (SIZE_K(100))
+#define DRC_DEFAULT_ALOCK_RES_NUM (SIZE_K(10))
 #define DRC_RES_NODE_OF(type, node, field) ((type *)((char *)(node) - OFFSET_OF(type, field)))
 #define DRC_RES_EXTEND_MAX_NUM DMS_MAX_INSTANCES
 #define DRC_RES_EXTEND_TRY_TIMES 3
@@ -124,6 +127,7 @@ typedef struct st_drc_page {
     bool8               need_flush : 1;
     bool8               unused1 : 6;
     uint8               unused2;
+    uint64              seq;
 } drc_page_t;
 
 typedef struct st_drc_lock {
@@ -310,6 +314,7 @@ typedef struct st_drc_req_owner_result {
     drc_req_owner_result_type_t type;
     uint8 curr_owner_id;
     uint64 invld_insts;  // share copies to be invalidated.
+    uint64 seq; // message version
 } drc_req_owner_result_t;
 
 typedef struct st_cvt_info {
@@ -328,6 +333,7 @@ typedef struct st_cvt_info {
     dms_session_e sess_type;
     drc_req_owner_result_type_t type;
     uint32 req_proto_ver;
+    uint64 seq;
 } cvt_info_t;
 
 typedef struct st_claim_info {

@@ -26,9 +26,9 @@
 #include <stdlib.h>
 #include "securec.h"
 #include "dms_error.h"
-#include "dcs_page.h"
 #include "drc_page.h"
 #include "dms_reform_proc_parallel.h"
+
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;
 
@@ -106,7 +106,7 @@ int32 drc_res_pool_init(drc_res_pool_t* pool, uint32 max_extend_num, uint32 res_
     }
 
     sz = (uint64)res_size * ((uint64)res_num);
-    pool->addr[0] = (char *)dms_malloc(sz);
+    pool->addr[0] = (char *)dms_malloc(g_dms.drc_mem_context, sz);
     if (pool->addr[0] == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -157,7 +157,7 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
 {
     cm_panic(pool->addr[pool->extend_num] == NULL);
     uint64 sz = (uint64)pool->extend_step * (uint64)pool->item_size;
-    pool->addr[pool->extend_num] = (char *)dms_malloc(sz);
+    pool->addr[pool->extend_num] = (char *)dms_malloc(g_dms.drc_mem_context, sz);
     if (pool->addr[pool->extend_num] == NULL) {
         pool->can_extend = CM_FALSE;
         return CM_FALSE;
@@ -167,7 +167,9 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
     pool->item_num += pool->extend_step;
     pool->each_pool_size[pool->extend_num] = pool->extend_step;
     pool->extend_num++;
-    pool->can_extend = (pool->extend_num < pool->max_extend_num);
+    if (g_dms.drc_mem_context->mem_max_size == CM_INVALID_ID64) {
+        pool->can_extend = (pool->extend_num < pool->max_extend_num);
+    }
     return CM_TRUE;
 }
 
@@ -200,10 +202,17 @@ void drc_res_pool_destroy(drc_res_pool_t* pool)
 char* drc_res_pool_alloc_item(drc_res_pool_t* pool)
 {
     cm_spin_lock(&pool->lock, NULL);
-    if (cm_bilist_empty(&pool->free_list) &&
-        (pool->extend_num >= pool->max_extend_num || !drc_res_pool_extend(pool))) {
-        cm_spin_unlock(&pool->lock);
-        return NULL;
+    if (g_dms.drc_mem_context->mem_max_size == CM_INVALID_ID64) {
+        if (cm_bilist_empty(&pool->free_list) &&
+            (pool->extend_num >= pool->max_extend_num || !drc_res_pool_extend(pool))) {
+            cm_spin_unlock(&pool->lock);
+            return NULL;
+        }
+    } else {
+        if (cm_bilist_empty(&pool->free_list) && (!drc_res_pool_extend(pool))) {
+            cm_spin_unlock(&pool->lock);
+            return NULL;
+        }
     }
     char *item_addr = (char *)cm_bilist_pop_first(&pool->free_list);
     pool->used_num++;
@@ -233,7 +242,7 @@ int32 drc_res_map_init(drc_res_map_t* res_map, uint32 max_extend_num, int32 res_
 
     res_map->bucket_num = DMS_RES_MAP_INIT_PARAM * item_num + 1;
     bucket_size = (uint64)(res_map->bucket_num * sizeof(drc_res_bucket_t));
-    res_map->buckets = (drc_res_bucket_t*)dms_malloc(bucket_size);
+    res_map->buckets = (drc_res_bucket_t*)dms_malloc(g_dms.drc_mem_context, bucket_size);
     if (res_map->buckets == NULL) {
         DMS_THROW_ERROR(ERRNO_DMS_ALLOC_FAILED);
         return ERRNO_DMS_ALLOC_FAILED;
@@ -289,7 +298,7 @@ drc_res_bucket_t* drc_res_map_get_bucket(drc_res_map_t* res_map, char* resid, ui
     return &res_map->buckets[hash_val % res_map->bucket_num];
 }
 
-static void drc_init(drc_head_t *drc, char* resid, uint16 len, uint8 res_type)
+static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
 {
     // init drc_head
     drc->type = res_type;
@@ -306,6 +315,7 @@ static void drc_init(drc_head_t *drc, char* resid, uint16 len, uint8 res_type)
     if (res_type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
         drc_page->last_edp = CM_INVALID_ID8;
+        drc_page->seq = 0;
     }
 }
 
@@ -334,7 +344,7 @@ void drc_add_into_part_list(drc_head_t *drc)
     cm_spin_unlock(&part->lock);
 }
 
-void drc_remove_from_part_list(drc_head_t *drc)
+static inline void drc_remove_from_part_list(drc_head_t *drc)
 {
     drc_global_res_map_t *res_map = drc_get_global_res_map(drc->type);
     drc_part_list_t *part = &res_map->res_parts[drc->part_id];
@@ -343,8 +353,7 @@ void drc_remove_from_part_list(drc_head_t *drc)
     cm_spin_unlock(&part->lock);
 }
 
-static drc_head_t* drc_create_buf_res(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
-    drc_res_bucket_t *bucket)
+drc_head_t *drc_create(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type, drc_res_bucket_t *bucket)
 {
     drc_head_t *drc = (drc_head_t *)drc_res_pool_alloc_item(pool);
     if (drc == NULL) {
@@ -368,7 +377,7 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
-drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 options)
+drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;
@@ -387,7 +396,7 @@ drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 optio
         return NULL;
     }
 
-    drc = drc_create_buf_res(&res_map->res_pool, resid, len, res_type, bucket);
+    drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
     if (SECUREC_UNLIKELY(drc == NULL)) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
@@ -398,60 +407,79 @@ drc_head_t *drc_get_buf_res(char* resid, uint16 len, uint8 res_type, uint8 optio
     return drc;
 }
 
-static int drc_buf_res_latch(char *resid, uint8 res_type, uint8 options)
+int drc_latch(char *resid, uint8 res_type, uint8 options)
 {
-    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
-    uint8 master_id = CM_INVALID_ID8;
+    if (!(options & DRC_RES_CHECK_ACCESS)) {
+        return DMS_SUCCESS;
+    }
 
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     if (!cm_latch_timed_s(&res_map->res_latch, 1, CM_FALSE, NULL)) {
-        LOG_DEBUG_WAR("[%s][drc_buf_res_latch]fail to latch s", cm_display_resid(resid, res_type));
+        LOG_DEBUG_WAR("[%s][drc_latch]fail to latch s", cm_display_resid(resid, res_type));
         DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
         return ERRNO_DMS_REFORM_IN_PROCESS;
-    }
-
-    if (options & DRC_RES_CHECK_ACCESS) {
-        if (res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_INACCESS) {
-            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]drc is inaccessible", cm_display_resid(resid, res_type));
-            cm_unlatch(&res_map->res_latch, NULL);
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
-        if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
-            res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
-            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
-            cm_unlatch(&res_map->res_latch, NULL);
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
-
-        if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
-            res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
-            LOG_DEBUG_WAR("[%s][drc_buf_res_latch]data is inaccessible", cm_display_resid(resid, res_type));
-            cm_unlatch(&res_map->res_latch, NULL);
-            DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-            return ERRNO_DMS_REFORM_IN_PROCESS;
-        }
-    }
-
-    if (options & DRC_RES_CHECK_MASTER) {
-        (void)drc_get_master_id(resid, res_type, &master_id);
-        if (dms_dst_id_is_self(master_id)) {
-            return DMS_SUCCESS;
-        }
-
-        LOG_DEBUG_WAR("[%s][drc_buf_res_latch]master is changed to %d", cm_display_resid(resid, res_type), master_id);
-        cm_unlatch(&res_map->res_latch, NULL);
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
-        return ERRNO_DMS_DRC_INVALID;
     }
 
     return DMS_SUCCESS;
 }
 
-void drc_buf_res_unlatch(uint8 res_type)
+void drc_unlatch(uint8 res_type, uint8 options)
 {
+    if (!(options & DRC_RES_CHECK_ACCESS)) {
+        return;
+    }
+
     drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
     cm_unlatch(&res_map->res_latch, NULL);
+}
+
+int drc_enter_check_access(char *resid, uint8 res_type, uint8 options)
+{
+    if (!(options & DRC_RES_CHECK_ACCESS)) {
+        return DMS_SUCCESS;
+    }
+
+    drc_global_res_map_t *res_map = drc_get_global_res_map(res_type);
+    if (res_map->drc_accessible_stage == DRC_ACCESS_STAGE_ALL_INACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]drc is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
+        res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
+        res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    return DMS_SUCCESS;
+}
+
+int drc_enter_check_master(char *resid, uint8 res_type, uint8 options)
+{
+    if (!(options & DRC_RES_CHECK_MASTER)) {
+        return DMS_SUCCESS;
+    }
+
+    uint8 master_id = CM_INVALID_ID8;
+    int ret = drc_get_master_id(resid, res_type, &master_id);
+    DMS_RETURN_IF_ERROR(ret);
+
+    if (dms_dst_id_is_self(master_id)) {
+        return DMS_SUCCESS;
+    }
+
+    LOG_DEBUG_WAR("[%s][drc_enter_check_master]master is %d", cm_display_resid(resid, res_type), master_id);
+    DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
+    return ERRNO_DMS_DRC_INVALID;
 }
 
 void drc_enter_buf_res_set_blocked(void)
@@ -480,30 +508,56 @@ void drc_enter_buf_res_set_unblocked(void)
     cm_unlatch(&alock_res_map->res_latch, NULL);
 }
 
-int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc)
+int drc_enter_check(char *resid, uint8 res_type, uint8 options)
 {
-    int ret = drc_buf_res_latch(resid, res_type, options);
+    int ret = drc_latch(resid, res_type, options);
+    DMS_RETURN_IF_ERROR(ret);
+
+    ret = drc_enter_check_access(resid, res_type, options);
     if (ret != DMS_SUCCESS) {
+        drc_unlatch(res_type, options);
         return ret;
     }
 
-    drc_head_t *temp_drc = drc_get_buf_res(resid, len, res_type, options);
-    if (temp_drc == NULL) {
-        drc_buf_res_unlatch(res_type);
-        *drc = NULL;
-        return DMS_SUCCESS;
+    ret = drc_enter_check_master(resid, res_type, options);
+    if (ret != DMS_SUCCESS) {
+        drc_unlatch(res_type, options);
+        return ret;
     }
 
-    cm_spin_lock(&temp_drc->lock, NULL);
-    *drc = temp_drc;
     return DMS_SUCCESS;
 }
 
-void drc_leave(drc_head_t *drc)
+void try_drc_page_inc_seq(drc_head_t *drc)
 {
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *page_drc = (drc_page_t *)drc;
+        page_drc->seq++;
+    }
+}
+
+int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t **drc)
+{
+    int ret = drc_enter_check(resid, res_type, options);
+    DMS_RETURN_IF_ERROR(ret);
+
+    *drc = drc_find_or_create(resid, len, res_type, options);
+    if ((*drc) == NULL) {
+        drc_unlatch(res_type, options);
+        return DMS_SUCCESS;
+    }
+
+    cm_spin_lock(&(*drc)->lock, NULL);
+    try_drc_page_inc_seq(*drc);
+    return DMS_SUCCESS;
+}
+
+void drc_leave(drc_head_t *drc, uint8 options)
+{
+    uint8 res_type = drc->type;
     drc_dec_ref_count(drc);
     cm_spin_unlock(&drc->lock);
-    drc_buf_res_unlatch(drc->type);
+    drc_unlatch(res_type, options);
 }
 
 /*
@@ -549,6 +603,11 @@ void drc_res_map_del_res(drc_res_map_t* res_map, drc_res_bucket_t* bucket, char*
     return;
 }
 
+static void uninit_drc_mem_context()
+{
+    ddes_memory_context_destroy(g_dms.drc_mem_context);
+}
+
 void drc_destroy(void)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
@@ -582,6 +641,7 @@ void drc_destroy(void)
         cm_chan_free(ctx->chan);
         ctx->chan = NULL;
     }
+    uninit_drc_mem_context();
 }
 
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id)
@@ -601,7 +661,7 @@ int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[D
     if (drc_page->head.owner == CM_INVALID_ID8) {
         *id = CM_INVALID_ID8;
         ret = drc_get_no_owner_id(db_handle, (drc_head_t *)drc_page, id);
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         return ret;
     }
 
@@ -611,7 +671,7 @@ int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[D
     }
 
     *id = drc_page->head.owner;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -630,7 +690,7 @@ int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_sess
     }
 
     if (drc_page->head.owner == CM_INVALID_ID8) {
-        drc_leave((drc_head_t *)drc_page);
+        drc_leave((drc_head_t *)drc_page, options);
         *id = CM_INVALID_ID8;
         return DMS_SUCCESS;
     }
@@ -641,7 +701,7 @@ int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_sess
     }
 
     *id = drc_page->head.owner;
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -698,7 +758,7 @@ void drc_shift_to_head(drc_head_t *drc)
     cm_spin_unlock(&part->lock);
 }
 
-void drc_release_convert_q(bilist_t *convert_q)
+static inline void drc_release_convert_q(bilist_t *convert_q)
 {
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_lock_item_t *item = NULL;
@@ -758,36 +818,56 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_t
 * @brief userd by server to obtain DRC entry from DMS
 * @[in] tag: Uniquely identify a page
 * @[out] is_found: is_found = 0 means that there are no requested buffer in the buffer pool of the cluster currently
-* @[out] drc_info: Save the DRC information of the current page, 
+* @[out] drc_info: Save the DRC information of the current page,
 *        including page related information in Standby which held the COPY
 */
 int dms_get_drc_info(int* is_found, dv_drc_buf_info* drc_info)
 {
     drc_page_t *drc_page = NULL;
-    int32 ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, DMS_SESSION_NORMAL,
-        (drc_head_t **)&drc_page);
-    if (ret != DMS_SUCCESS) {
-        drc_info = NULL;
-        return ret;
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
+
+    uint32 count = 0;
+    int32 ret;
+    while (count < DMS_GET_DRC_INFO_COUNT) {
+        ret = drc_enter(drc_info->data, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
+        if (ret != DMS_SUCCESS) {
+            drc_info = NULL;
+            return ret;
+        }
+        if (drc_page == NULL) {
+            *is_found = 0;
+            return DMS_SUCCESS;
+        }
+        if (drc_page->head.owner != CM_INVALID_ID8) {
+            *is_found = 1;
+            drc_info->claimed_owner = drc_page->head.owner;
+            drc_info->copy_insts = drc_page->head.copy_insts;
+            drc_info->copy_promote = 0;
+            drc_info->edp_map = drc_page->edp_map;
+            drc_info->in_recovery = drc_page->need_recover;
+            drc_info->last_edp = drc_page->last_edp;
+            drc_info->len = drc_page->head.len;
+            drc_info->lock_mode = drc_page->head.lock_mode;
+            drc_info->lsn = drc_page->last_edp_lsn;
+            drc_info->part_id = drc_page->head.part_id;
+            drc_info->recovery_skip = drc_page->need_flush;
+            drc_info->type = drc_page->head.type;
+            drc_leave((drc_head_t *)drc_page, options);
+            break;
+        }
+        drc_leave((drc_head_t *)drc_page, options);
+        cm_sleep(DMS_GET_DRC_INFO_SLEEP_TIME);
+        count++;
     }
-    if (drc_page == NULL) {
-        *is_found = 0;
-        return DMS_SUCCESS;
+
+    if (count == DMS_GET_DRC_INFO_COUNT) {
+        LOG_DEBUG_WAR("[DRC][%s] get drc info timeout", cm_display_resid(drc_info->data, drc_page->head.type));
+        return DMS_ERROR;
     }
-    *is_found = 1;
-    drc_info->claimed_owner = drc_page->head.owner;
-    drc_info->copy_insts = drc_page->head.copy_insts;
-    drc_info->copy_promote = 0;
-    drc_info->edp_map = drc_page->edp_map;
-    drc_info->in_recovery = drc_page->need_recover;
-    drc_info->last_edp = drc_page->last_edp;
-    drc_info->len = drc_page->head.len;
-    drc_info->lock_mode = drc_page->head.lock_mode;
-    drc_info->lsn = drc_page->last_edp_lsn;
-    drc_info->part_id = drc_page->head.part_id;
-    drc_info->recovery_skip = drc_page->need_flush;
-    drc_info->type = drc_page->head.type;
-    drc_leave((drc_head_t *)drc_page);
+
+    LOG_DEBUG_INF("[DRC][%s] get drc info: claimed_owner = %d, copy_insts = %llu, master_id = %d",
+        cm_display_resid(drc_info->data, drc_page->head.type), drc_info->claimed_owner, drc_info->copy_insts,
+        drc_info->master_id);
 
     ret = drc_get_master_id(drc_info->data, DRC_RES_PAGE_TYPE, &drc_info->master_id);
     if (drc_info->copy_insts != 0 ||
@@ -859,80 +939,110 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
     drc_local_lock_res_result->is_valid = CM_FALSE;
 }
 
-static void drc_recycle_drc_page_cancle(drc_page_t *drc_page)
+void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *bucket)
 {
-    cm_spin_lock(&drc_page->head.lock, NULL);
-    drc_page->head.is_recycling = CM_FALSE;
-    drc_shift_to_head((drc_head_t *)drc_page);
-    cm_spin_unlock(&drc_page->head.lock);
+    // remove convert_q
+    drc_release_convert_q(&drc->convert_q);
+
+    // remove drc from part list
+    drc_remove_from_part_list(drc);
+
+    // remove drc from hash bucket
+    drc_res_map_del_res(drc_res_map, bucket, DRC_DATA(drc), drc->len);
+
+    // free drc to resource pool, to be reused later
+    drc_res_pool_free_item(&drc_res_map->res_pool, (char*)drc);
+    drc->is_using = CM_FALSE;
 }
 
-void drc_recycle_drc_page_by_part(drc_part_list_t *part, uint32 sess_id, void *db_handle)
+static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *global_res, drc_head_t *drc, uint64 seq)
 {
-    if (part->list.count == 0) {
-        return;
+    if (drc->copy_insts > 0 && dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, drc->type,
+        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq) != DMS_SUCCESS) {
+        LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
+            cm_display_resid(DRC_DATA(drc), drc->type), drc->copy_insts);
+        return CM_FALSE;
     }
-    dms_process_context_t ctx;
+    
+    if (drc->owner != CM_INVALID_ID8 && dms_invalidate_ownership(ctx, DRC_DATA(drc), drc->len,
+        drc->type, DMS_SESSION_NORMAL, drc->owner, seq) != DMS_SUCCESS) {
+        LOG_DEBUG_WAR("[DRC recycle][%s]fail to release owner: %d",
+            cm_display_resid(DRC_DATA(drc), drc->type), drc->owner);
+        return CM_FALSE;
+    }
+
+    drc_res_bucket_t* bucket = drc_res_map_get_bucket(&global_res->res_map, DRC_DATA(drc), drc->len);
+    cm_spin_lock(&bucket->lock, NULL);
+    while (drc->ref_count > 0) {
+        cm_spin_unlock(&bucket->lock);
+        cm_sleep(1);
+        cm_spin_lock(&bucket->lock, NULL);
+    }
+    drc_release(drc, &global_res->res_map, bucket);
+    cm_spin_unlock(&bucket->lock);
+    return CM_TRUE;
+}
+
+static bool8 drc_chk_4_recycle(drc_head_t *drc, uint64 *seq)
+{
+    cm_spin_lock(&drc->lock, NULL);
+    if (drc->converting.req_info.inst_id != CM_INVALID_ID8) {
+        cm_spin_unlock(&drc->lock);
+        return CM_FALSE;
+    }
+
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_page_t *drc_page = (drc_page_t *)drc;
+        *seq = drc_page->seq;
+        if (drc_page->edp_map != 0 || drc_page->need_flush || drc_page->need_recover) {
+            cm_spin_unlock(&drc->lock);
+            return CM_FALSE;
+        }
+    }
+    drc->is_recycling = CM_TRUE;
+    cm_spin_unlock(&drc->lock);
+    return CM_TRUE;
+}
+
+void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, drc_part_list_t *part)
+{
     cm_spin_lock(&part->lock, NULL);
     bilist_node_t *node = cm_bilist_tail(&part->list);
     cm_spin_unlock(&part->lock);
 
     if (node == NULL) {
         return;
-    }
-    drc_page_t *drc_page = (drc_page_t *)BILIST_NODE_OF(drc_head_t, node, part_node);
-    if (!drc_chk_4_recycle(drc_page->data, drc_page->head.len)) {
+    }    
+    drc_head_t *drc = (drc_head_t *)BILIST_NODE_OF(drc_head_t, node, part_node);
+    // check
+    uint64 seq = 0;
+    if (!drc_chk_4_recycle(drc, &seq)) {
+        drc_shift_to_head(drc);
         return;
     }
-    ctx.db_handle = db_handle;
-    ctx.inst_id = g_dms.inst_id;
-    ctx.sess_id = sess_id;
-    if (drc_recycle(&ctx, (drc_head_t *)drc_page)) {
+    // recycle
+    if (drc_recycle(ctx, obj_res_map, drc, seq)) {
         return;
     }
-    drc_recycle_drc_page_cancle(drc_page);
+    // reset flag and move to head if recycling failed
+    cm_spin_lock(&drc->lock, NULL);
+    drc->is_recycling = CM_FALSE;
+    cm_spin_unlock(&drc->lock);
+    drc_shift_to_head(drc);
 }
 
-static void drc_recycle_buf_res_single(void)
+static void drc_recycle_drc_part_stat(drc_global_res_map_t *obj_res_map, char *obj_name)
 {
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_part_list_t *part = NULL;
-
-    for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
-        part = &ctx->global_buf_res.res_parts[part_id];
-        drc_recycle_drc_page_by_part(part, ctx->smon_recycle_sid, ctx->smon_recycle_handle);
-    }
-}
-
-static void drc_recycle_buf_res_part_stat(void)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
     drc_part_list_t *part = NULL;
     char buf_log[CM_BUFLEN_1K] = { 0 };
     char buf_num[CM_BUFLEN_32] = { 0 };
-    MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, "[DRC recycle]every part drc count:"));
+    PRTS_RETVOID_IFERR(sprintf_s(buf_log, CM_BUFLEN_1K, "[DRC %s recycle]every part drc count:", obj_name));
     for (uint8 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
-        part = &ctx->global_buf_res.res_parts[part_id];
+        part = &obj_res_map->res_parts[part_id];
         PRTS_RETVOID_IFERR(sprintf_s(buf_num, CM_BUFLEN_32, " %u", part->list.count));
         MEMS_RETVOID_IFERR(strcat_s(buf_log, CM_BUFLEN_1K, buf_num));
     }
-    LOG_DEBUG_INF(buf_log);
-}
-
-static void drc_recycle_buf_res_start(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-
-    // use single thread when there is no parallel thread
-    if (!reform_info->parallel_enable) {
-        drc_recycle_buf_res_single();
-        return;
-    }
-
-    // try parallel thread first, and then use single thread when fail to use parallel thread
-    if (drc_recycle_buf_res_parallel() != DMS_SUCCESS) {
-        drc_recycle_buf_res_single();
-    }
+    LOG_DEBUG_WAR(buf_log);
 }
 
 void drc_recycle_buf_res_set_pause(void)
@@ -949,27 +1059,71 @@ void drc_recycle_buf_res_set_running(void)
     LOG_RUN_INF("[DRC recycle]running");
 }
 
-void drc_recycle_buf_res_thread(thread_t *thread)
+static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, char *obj_name)
+{
+    drc_res_pool_t *pool = &obj_res_map->res_map.res_pool;
+    // check if need to recycle
+    if (pool->can_extend || pool->used_num < pool->item_num * DRC_RECYCLE_THRESHOLD) {
+        return CM_FALSE;
+    }
+    cm_spin_lock(&DRC_RES_CTX->smon_recycle_lock, NULL);
+    // parallel recycling
+    if (DMS_REFORM_INFO->parallel_enable &&
+        dms_proc_parallel(DMS_PROC_PARALLEL_RECYCLE_DRC_RES, (void*)obj_res_map) == DMS_SUCCESS) {
+        cm_spin_unlock(&DRC_RES_CTX->smon_recycle_lock);
+        drc_recycle_drc_part_stat(obj_res_map, obj_name);
+        return CM_TRUE;
+    }
+    // serial recycling
+    for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
+        drc_part_list_t *part = &obj_res_map->res_parts[part_id];
+        drc_recycle_drc_by_part(ctx, obj_res_map, part);
+    }
+    cm_spin_unlock(&DRC_RES_CTX->smon_recycle_lock);
+    drc_recycle_drc_part_stat(obj_res_map, obj_name);
+    return CM_TRUE;
+}
+
+static drc_recycle_obj_t recycle_objs[] = {
+    { &g_drc_res_ctx.global_buf_res,   "BUF RES"   },
+    { &g_drc_res_ctx.global_lock_res,  "LOCK RES"  },
+    { &g_drc_res_ctx.global_alock_res, "ALOCK RES" },
+};
+
+static inline bool8 drc_do_recycle_task(dms_process_context_t *ctx)
+{
+    uint8 recycle_obj_count = 0;
+    uint8 obj_count = ELEMENT_COUNT(recycle_objs);
+    for (uint8 i = 0; i < obj_count; i++) {
+        if (drc_recycle_internal(ctx, recycle_objs[i].obj_res_map, recycle_objs[i].obj_name)) {
+            recycle_obj_count++;
+        }
+    }
+    return (recycle_obj_count > 0);
+}
+
+void drc_recycle_thread(thread_t *thread)
 {
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
+
+    dms_process_context_t proc_ctx;
     drc_res_ctx_t *ctx = DRC_RES_CTX;
-    drc_res_pool_t *pool = DRC_BUF_RES_POOL;
 
     ctx->smon_recycle_handle = g_dms.callback.get_db_handle(&ctx->smon_recycle_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(ctx->smon_recycle_handle != NULL, "alloc db handle failed");
 
-    LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread start");
+    proc_ctx.inst_id   = g_dms.inst_id;
+    proc_ctx.sess_id   = ctx->smon_recycle_sid;
+    proc_ctx.db_handle = ctx->smon_recycle_handle;
+    
+    LOG_RUN_INF("[DRC recycle]drc_recycle_thread start");
     while (!thread->closed) {
-        if (pool->can_extend || pool->used_num < pool->item_num * DRC_RECYCLE_THRESHOLD) {
-            cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
+        if (drc_do_recycle_task(&proc_ctx)) {
             continue;
         }
-        cm_spin_lock(&ctx->smon_recycle_lock, NULL);
-        drc_recycle_buf_res_start();
-        cm_spin_unlock(&ctx->smon_recycle_lock);
-        drc_recycle_buf_res_part_stat();
+        cm_sleep(DMS_REFORM_SHORT_TIMEOUT);
     }
-    LOG_RUN_INF("[DRC recycle]drc_recycle_buf_res_thread close");
+    LOG_RUN_INF("[DRC recycle]drc_recycle_thread close");
 }

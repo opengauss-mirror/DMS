@@ -93,7 +93,7 @@ bool8 dms_reform_rebuild_set_type(drc_page_t *drc_page, reform_assist_list_type_
 
 void dms_reform_page_rebuild_null(drc_page_t *drc_page, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
-    CM_ASSERT(ctrl_info->ctrl.is_edp);
+    CM_ASSERT(ctrl_info->is_edp);
     drc_add_edp_map(drc_page, inst_id, ctrl_info->lsn);
 }
 
@@ -140,15 +140,14 @@ void dms_reform_page_set_owner_lsn(drc_page_t *drc_page, uint64 lsn)
 
 void dms_reform_page_rebuild_s(drc_page_t *drc_page, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
-    uint64 lsn = ctrl_info->lsn;
     bool8 is_owner = CM_FALSE;
 
     cm_panic_log(drc_page->head.lock_mode == DMS_LOCK_NULL || drc_page->head.lock_mode == DMS_LOCK_SHARE,
         "[DRC rebuild][%s]lock_mode(%d) error", cm_display_pageid(drc_page->data), drc_page->head.lock_mode);
 
-    if (ctrl_info->ctrl.is_edp) {
+    if (ctrl_info->is_edp) {
         is_owner = dms_reform_rebuild_set_type(drc_page, REFORM_ASSIST_LIST_EDP_COPY);
-        drc_add_edp_map(drc_page, inst_id, lsn);
+        drc_add_edp_map(drc_page, inst_id, ctrl_info->lsn);
     } else if (ctrl_info->is_dirty) {
         is_owner = dms_reform_rebuild_set_type(drc_page, REFORM_ASSIST_LIST_OWNER);
     } else {
@@ -156,11 +155,11 @@ void dms_reform_page_rebuild_s(drc_page_t *drc_page, dms_ctrl_info_t *ctrl_info,
     }
 
     if (!drc_page->need_recover) {
-        drc_page->need_recover = ctrl_info->ctrl.in_rcy;
+        drc_page->need_recover = ctrl_info->in_rcy;
     }
     drc_page->head.lock_mode = DMS_LOCK_SHARE;
     dms_reform_page_set_owner(drc_page, is_owner, inst_id);
-    dms_reform_page_set_owner_lsn(drc_page, lsn);
+    dms_reform_page_set_owner_lsn(drc_page, ctrl_info->lsn);
 }
 
 void dms_reform_page_rebuild_x(drc_page_t *drc_page, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
@@ -173,27 +172,24 @@ void dms_reform_page_rebuild_x(drc_page_t *drc_page, dms_ctrl_info_t *ctrl_info,
     drc_page->head.owner = inst_id;
     drc_page->head.lock_mode = DMS_LOCK_EXCLUSIVE;
     drc_page->owner_lsn = ctrl_info->lsn;
-    drc_page->need_recover = ctrl_info->ctrl.in_rcy;
+    drc_page->need_recover = ctrl_info->in_rcy;
 }
 
-int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 inst_id)
+int dms_reform_proc_page_rebuild(dms_ctrl_info_t *ctrl_info, uint8 inst_id)
 {
-    dms_buf_ctrl_t *ctrl = &ctrl_info->ctrl;
-    uint64 lsn = ctrl_info->lsn;
-    bool8 is_dirty = ctrl_info->is_dirty;
-
-    if (SECUREC_UNLIKELY(ctrl->lock_mode >= DMS_LOCK_MODE_MAX || ctrl->is_edp > 1)) {
-        LOG_DEBUG_ERR("[DRC rebuild] invalid request message, is_edp=%u", (uint32)ctrl->is_edp);
+    if (SECUREC_UNLIKELY(ctrl_info->lock_mode >= DMS_LOCK_MODE_MAX || ctrl_info->is_edp > 1)) {
+        LOG_DEBUG_ERR("[DRC rebuild] invalid request message, is_edp=%d", ctrl_info->is_edp);
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "ctrl_info");
         return ERRNO_DMS_PARAM_INVALID;
     }
 
-    LOG_DEBUG_INF("[DRC rebuild][%s]remote_dirty: %d, lock_mode: %d, is_edp: %d, inst_id: %d, lsn: %llu, is_dirty: %d",
-        cm_display_pageid(resid), ctrl->edp_map > 0, ctrl->lock_mode, ctrl->is_edp, inst_id, lsn, is_dirty);
+    LOG_DEBUG_INF("[DRC rebuild][%s]lock_mode: %d, is_edp: %d, inst_id: %d, lsn: %llu, is_dirty: %d",
+        cm_display_pageid(ctrl_info->pageid), ctrl_info->lock_mode, ctrl_info->is_edp, inst_id, ctrl_info->lsn,
+        ctrl_info->is_dirty);
 
     drc_page_t *drc_page = NULL;
     uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_REFORM, DMS_RES_INTERCEPT_TYPE_NONE, CM_FALSE);
-    int ret = drc_enter(resid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
+    int ret = drc_enter(ctrl_info->pageid, DMS_PAGEID_SIZE, DRC_RES_PAGE_TYPE, options, (drc_head_t **)&drc_page);
     if (ret != DMS_SUCCESS) {
         return ret;
     }
@@ -201,7 +197,7 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
         return ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH;
     }
-    switch (ctrl->lock_mode) {
+    switch (ctrl_info->lock_mode) {
         case DMS_LOCK_NULL:
             dms_reform_page_rebuild_null(drc_page, ctrl_info, inst_id);
             break;
@@ -218,7 +214,7 @@ int dms_reform_proc_page_rebuild(char *resid, dms_ctrl_info_t *ctrl_info, uint8 
             CM_ASSERT(CM_FALSE);
             break;
     }
-    drc_leave((drc_head_t *)drc_page);
+    drc_leave((drc_head_t *)drc_page, options);
     return DMS_SUCCESS;
 }
 
@@ -228,7 +224,7 @@ static int dms_reform_rebuild_page_inner(dms_context_t *dms_ctx, dms_ctrl_info_t
     int ret;
     if (master_id == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_LOCAL);
-        ret = dms_reform_proc_page_rebuild(dms_ctx->resid, ctrl_info, master_id);
+        ret = dms_reform_proc_page_rebuild(ctrl_info, master_id);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_PAGE_LOCAL);
     } else if (thread_index == CM_INVALID_ID8) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_PAGE_REMOTE);
@@ -246,12 +242,12 @@ int dms_buf_res_rebuild_drc_parallel(dms_context_t *dms_ctx, dms_ctrl_info_t *ct
 {
     dms_reset_error();
     uint8 master_id = CM_INVALID_ID8;
-    int ret = drc_get_page_remaster_id(dms_ctx->resid, &master_id);
+    int ret = drc_get_page_remaster_id(ctrl_info->pageid, &master_id);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, fail to get remaster id", cm_display_pageid(dms_ctx->resid));
+        LOG_DEBUG_INF("[DRC][%s]page rebuild, fail to get remaster id", cm_display_pageid(ctrl_info->pageid));
         return ret;
     }
-    LOG_DEBUG_INF("[DRC][%s]dms_buf_res_rebuild_drc, remaster(%d)", cm_display_pageid(dms_ctx->resid), master_id);
+    LOG_DEBUG_INF("[DRC][%s]page rebuild, remaster id: %d", cm_display_pageid(ctrl_info->pageid), master_id);
     return dms_reform_rebuild_page_inner(dms_ctx, ctrl_info, master_id, thread_index);
 }
 
@@ -371,7 +367,7 @@ int dms_reform_proc_lock_rebuild(void *resid, uint8 len, uint8 type, uint8 lock_
         }
         drc->lock_mode = DMS_LOCK_SHARE;
     }
-    drc_leave(drc);
+    drc_leave(drc, options);
     return DMS_SUCCESS;
 }
 

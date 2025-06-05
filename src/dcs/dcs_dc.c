@@ -51,10 +51,10 @@ void dcs_proc_broadcast_req(dms_process_context_t *process_ctx, dms_message_t *r
     int32 ret = g_dms.callback.process_broadcast(process_ctx->db_handle, &broad_ctx);
     if (output_msg_len != 0) {
         char ack_buf[DCS_BROADCAST_OUTPUT_MSG_LEN + sizeof(dms_message_head_t)];
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST_WITH_MSG, MSG_ACK_BROADCAST_WITH_MSG);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST_WITH_MSG, MSG_ACK_BROADCAST_WITH_MSG);
         cm_ack_result_msg2(process_ctx, receive_msg, MSG_ACK_BROADCAST_WITH_MSG, output_msg, output_msg_len, ack_buf);
     } else {
-        DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST, MSG_ACK_BROADCAST);
+        DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_BROADCAST, MSG_ACK_BROADCAST);
         cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BROADCAST, ret);
     }
     LOG_DEBUG_INF("Succeed to send ack to inst %u", receive_msg->head->src_inst);
@@ -190,7 +190,7 @@ int dms_smon_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len,
 void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
 #ifdef OPENGAUSS
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BOC, MSG_ACK_BOC);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_BOC, MSG_ACK_BOC);
     cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BOC, DMS_ERROR);
 #else
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dcs_boc_req_t), CM_TRUE);
@@ -202,7 +202,7 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg
     g_dms.callback.update_global_scn(process_ctx->db_handle, boc_req->commit_scn);
     g_dms.callback.update_global_lsn(process_ctx->db_handle, boc_req->lsn);
     (void)cm_atomic_set((atomic_t *)&(g_dms.min_scn[boc_req->inst_id]), (int64)boc_req->min_scn);
-    DMS_FAULT_INJECTION_CALL(DMS_FI_ACK_BOC, MSG_ACK_BOC);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_BOC, MSG_ACK_BOC);
     cm_ack_result_msg(process_ctx, receive_msg, MSG_ACK_BOC, DMS_SUCCESS);
 #endif
     return;
@@ -219,7 +219,7 @@ int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigne
     head.size = (uint16)(sizeof(dms_message_head_t) + len);
     uint64 all_inst = reform_info->bitmap_connect;
     all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_BROADCAST, MSG_REQ_BROADCAST);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_BROADCAST, MSG_REQ_BROADCAST);
     mfc_broadcast2(all_inst, &head, (const void *)data, success_inst);
     *ruid = head.ruid;
     if (*success_inst == all_inst) {
@@ -261,7 +261,7 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
 
     uint64 all_inst = reform_info->bitmap_connect;
     uint64 inval_insts = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_BOC, MSG_REQ_BOC);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_BOC, MSG_REQ_BOC);
     mfc_broadcast(inval_insts, (void *)&boc_req, success_inst);
     *ruid = boc_req.head.ruid;
     if (*success_inst != inval_insts) {
@@ -329,7 +329,7 @@ int dms_broadcast_ddl_sync_msg(dms_context_t *dms_ctx, char *data, unsigned int 
     unsigned int timeout, dms_broadcast_scope_e scope, unsigned char check_session_kill)
 {
     dms_reset_error();
-    DMS_FAULT_INJECTION_CALL(DMS_FI_REQ_DDL_SYNC, MSG_REQ_DDL_SYNC);
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_DDL_SYNC, MSG_REQ_DDL_SYNC);
     dms_broadcast_info_t dms_broad_info = {.scope = scope, .inst_map = 0, .handle_recv_msg = handle_recv_msg,
         .timeout = timeout, .check_session_kill = check_session_kill, .data = data, .len = len,
         .output = NULL, .output_len = NULL};
