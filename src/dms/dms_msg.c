@@ -1448,43 +1448,39 @@ void dms_proc_claim_ownership_req(dms_process_context_t *ctx, dms_message_t *rec
     dms_end_stat(ctx->sess_id);
 }
 
-void dms_cancel_request_res(dms_context_t *dms_ctx)
+void dms_cancel_request_res(char *resid, uint16 len, uint32 sid, uint8 type)
 {
     uint8 master_id;
-    int32 ret = drc_get_master_id(dms_ctx->resid, dms_ctx->type, &master_id);
+    int32 ret = drc_get_master_id(resid, type, &master_id);
     if (ret != DMS_SUCCESS) {
-        LOG_DEBUG_ERR("[DMS][%s] notify master cancel req: get master id failed",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type));
+        LOG_DEBUG_ERR("[DMS][%s] notify master cancel req: get master id failed", cm_display_resid(resid, type));
         return;
     }
 
     dms_cancel_request_res_t req = { 0 };
-    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CANCEL_REQUEST_RES, 0,
-        dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CANCEL_REQUEST_RES, 0, g_dms.inst_id, master_id, sid, CM_INVALID_ID16);
     req.head.size      = (uint16)sizeof(dms_cancel_request_res_t);
-    req.inst_id        = dms_ctx->inst_id;
-    req.sess_id        = dms_ctx->sess_id;
-    req.len            = dms_ctx->len;
-    req.res_type       = (uint8)dms_ctx->type;
-    req.sess_type      = dms_ctx->sess_type;
-    req.intercept_type = dms_ctx->intercept_type;
-    req.srsn = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
-    ret = memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, dms_ctx->len);
+    req.inst_id        = g_dms.inst_id;
+    req.sess_id        = sid;
+    req.len            = len;
+    req.res_type       = type;
+    req.sess_type      = g_dms.callback.get_session_type(sid);
+    req.intercept_type = g_dms.callback.get_intercept_type(sid);
+    req.srsn = g_dms.callback.inc_and_get_srsn(sid);
+    ret = memcpy_sp(req.resid, DMS_RESID_SIZE, resid, len);
     if (SECUREC_UNLIKELY(ret != EOK)) {
-        LOG_DEBUG_ERR("[DMS][%s] notify master cancel request res: system call failed",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type));
+        LOG_DEBUG_ERR("[DMS][%s] notify master cancel request res: system call failed", cm_display_resid(resid, type));
         return;
     }
     ret = mfc_send_data_async(&req.head);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         LOG_DEBUG_ERR("[DMS][%s] notify master cancel request res: send msg failed, src_id=%u, src_sid=%u, dest_id=%u",
-            cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)req.head.src_inst,
-            (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
+            cm_display_resid(resid, type), (uint32)req.head.src_inst, (uint32)req.head.src_sid,
+            (uint32)req.head.dst_inst);
         return;
     }
     LOG_DEBUG_INF("[DMS][%s] notify master cancel request res successfully, src_id=%u, src_sid=%u, dest_id=%u",
-        cm_display_resid(dms_ctx->resid, dms_ctx->type), (uint32)req.head.src_inst,
-        (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
+        cm_display_resid(resid, type), (uint32)req.head.src_inst, (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
 }
 
 void dms_proc_cancel_request_res(dms_process_context_t *ctx, dms_message_t *receive_msg)

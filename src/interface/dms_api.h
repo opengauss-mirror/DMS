@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           179
+#define DMS_LOCAL_VERSION           171
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -261,10 +261,12 @@ typedef struct st_dms_cr_assist_t {
 
 typedef struct st_dms_drlock {
     dms_drid_t      drid;
+    void           *handle;
 } dms_drlock_t;
 
 typedef struct st_dms_drlatch {
-    dms_drid_t   drid;
+    dms_drid_t      drid;
+    void           *handle;
 } dms_drlatch_t;
 
 typedef struct st_dms_xid_ctx {
@@ -875,6 +877,8 @@ typedef void(*dms_leave_page)(void *db_handle, unsigned char changed, unsigned i
 typedef char *(*dms_mem_alloc)(void *context, unsigned int size);
 typedef void(*dms_mem_free)(void *context, void *ptr);
 typedef void(*dms_mem_reset)(void *context);
+typedef void *(*dms_drc_alloc)(size_t size);
+typedef void(*dms_drc_free)(void *ptr);
 // The maximum length of output_msg is 128 bytes.
 typedef int (*dms_process_broadcast)(void *db_handle, dms_broadcast_context_t *broad_ctx);
 typedef int (*dms_process_broadcast_ack)(void *db_handle, dms_broadcast_context_t *broad_ctx);
@@ -1005,6 +1009,9 @@ typedef int (*dms_check_shutdown_consistency)(void *db_handle, instance_list_t *
 typedef int (*dms_check_db_readwrite)(void *db_handle);
 typedef unsigned int (*dms_check_is_maintain)();
 
+typedef dms_session_e(*dms_get_session_type)(unsigned int sid);
+typedef unsigned char(*dms_get_intercept_type)(unsigned int sid);
+
 typedef struct st_dms_callback {
     // used in reform
     dms_get_list_stable get_list_stable;
@@ -1087,6 +1094,9 @@ typedef struct st_dms_callback {
     dms_mem_alloc mem_alloc;
     dms_mem_free mem_free;
     dms_mem_reset mem_reset;
+
+    dms_drc_alloc drc_malloc_prot;
+    dms_drc_free drc_free_prot;
 
     dms_process_broadcast process_broadcast;
     dms_process_broadcast_ack process_broadcast_ack;
@@ -1194,6 +1204,8 @@ typedef struct st_dms_callback {
     dms_check_shutdown_consistency check_shutdown_consistency;
     dms_check_db_readwrite check_db_readwrite;
     dms_check_is_maintain check_is_maintain;
+    dms_get_session_type get_session_type;
+    dms_get_intercept_type get_intercept_type;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
@@ -1257,6 +1269,7 @@ typedef struct st_dms_profile {
     unsigned char enable_dyn_trace;
     unsigned char enable_reform_trace;
     unsigned long long drc_buf_size;
+    unsigned int spin_sleep_time_nsec;
 } dms_profile_t;
 
 typedef struct st_logger_param {

@@ -442,7 +442,7 @@ void dms_proc_ask_master_for_res(dms_process_context_t *proc_ctx, dms_message_t 
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_proc_claim_ownership_req(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
-void dms_cancel_request_res(dms_context_t *dms_ctx);
+void dms_cancel_request_res(char *resid, uint16 len, uint32 sid, uint8 type);
 void dms_proc_cancel_request_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_smon_entry(thread_t *thread);
 void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);

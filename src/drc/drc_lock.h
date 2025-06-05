@@ -45,9 +45,11 @@ typedef struct st_drc_local_latch_stat {
 typedef struct st_drc_local_lock_res {
     bilist_node_t   node;
     dms_drid_t      resid;
-    volatile bool8  releasing;  // align later
+    volatile bool8  releasing;
     volatile uint8  is_reform_visit;
+    char            aligned1[CM_CACHE_LINE_SIZE];
     spinlock_t      lock;
+    char            aligned2[CM_CACHE_LINE_SIZE];
     drc_local_latch_t latch_stat;
     spinlock_t modify_mode_lock;
 } drc_local_lock_res_t;
