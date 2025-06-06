@@ -36,7 +36,7 @@ extern "C" {
 #define DMS_LOCAL_MINOR_VER_WEIGHT  1000
 #define DMS_LOCAL_MAJOR_VERSION     0
 #define DMS_LOCAL_MINOR_VERSION     0
-#define DMS_LOCAL_VERSION           184
+#define DMS_LOCAL_VERSION           185
 
 #define DMS_SUCCESS 0
 #define DMS_ERROR (-1)
@@ -320,10 +320,14 @@ typedef struct st_dms_context {
         dms_process_context_t proc_ctx;
     };
     dms_session_e sess_type;  // request page: recovery session flag
-    unsigned char is_try;
+    unsigned char is_try      : 1;
+    unsigned char is_upgrade  : 1;
+    unsigned char is_timeout  : 1;   // used for ask remote page
+    unsigned char unused      : 5;
     unsigned char type;
-    unsigned char is_upgrade;
     unsigned short len;
+    unsigned char curr_mode;    // used for table lock
+    unsigned char intercept_type;
     unsigned long long ctx_ruid; /* this ruid indicates one message ack is pending recv */
     union {
         char resid[DMS_RESID_SIZE];
@@ -334,12 +338,7 @@ typedef struct st_dms_context {
         unsigned char edp_inst;
         drc_global_xid_t global_xid;
     };
-    void *stat;
-    void *stat_instance;
-    unsigned long long wait_usecs;
-    unsigned char intercept_type;
-    unsigned char curr_mode;    // used for table lock
-    unsigned char is_timeout;   // used for ask remote page
+    void *check_handle;
     unsigned long long max_wait_rsp_time; // unit ms. under some circumstances, dms need get rsp quickly for timeout.
 } dms_context_t;
 
@@ -1041,6 +1040,7 @@ typedef int (*dms_check_if_reform_session)(void *db_handle);
 typedef void(*dms_inc_buffer_remote_reads)(void *db_handle);
 typedef void(*dms_begin_event_wait)(unsigned int sid, unsigned int dms_event, unsigned char immediate);
 typedef void(*dms_end_event_wait)(unsigned int sid, unsigned int prev_dms_event, unsigned int dms_event);
+typedef int(*dms_check_session_status)(void *db_handle);
 
 typedef struct st_dms_callback {
     // used in reform
@@ -1255,6 +1255,7 @@ typedef struct st_dms_callback {
     dms_inc_buffer_remote_reads inc_buffer_remote_reads;
     dms_begin_event_wait begin_event_wait;
     dms_end_event_wait end_event_wait;
+    dms_check_session_status check_session_status;
 } dms_callback_t;
 
 typedef struct st_dms_instance_net_addr {
