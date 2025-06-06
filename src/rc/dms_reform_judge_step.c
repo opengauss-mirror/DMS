@@ -788,3 +788,8 @@ void dms_reform_judgement_drc_validate(bool8 set_inaccess)
 #endif
 }
 #endif
+
+void dms_reform_judgement_sync_node_lfn(void)
+{
+    dms_reform_add_step(DMS_REFORM_STEP_SYNC_NODE_LFN);
+}

@@ -282,7 +282,7 @@ static int dms_reform_df_recovery_inner(void)
 static int dms_reform_space_reload_inner(void)
 {
     share_info_t *share_info = DMS_SHARE_INFO;
-    return g_dms.callback.space_reload(g_dms.reform_ctx.handle_proc, share_info->bitmap_in);
+    return g_dms.callback.space_reload(g_dms.reform_ctx.handle_normal, share_info->bitmap_in);
 }
 
 static void dms_reform_recovery_set_flag_by_part_inner(drc_page_t *drc_page)
@@ -407,6 +407,22 @@ static int dms_reform_az_switchover_promote_phase1(void)
 
     LOG_RUN_FUNC_ENTER;
     ret = g_dms.callback.az_switchover_promote_phase1(g_dms.reform_ctx.handle_normal);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    LOG_RUN_FUNC_SUCCESS;
+    dms_reform_next_step();
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_az_switchover_promote_switch_log(void)
+{
+    int ret = DMS_SUCCESS;
+
+    LOG_RUN_FUNC_ENTER;
+    ret = g_dms.callback.az_switchover_promote_switch_log(g_dms.reform_ctx.handle_normal);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -875,6 +891,23 @@ static int dms_reform_reload_txn(void)
     }
 
     ret = dms_reform_tx_area_load(&list);
+    if (ret != DMS_SUCCESS) {
+        LOG_RUN_FUNC_FAIL;
+        return ret;
+    }
+
+    dms_reform_next_step();
+    LOG_RUN_FUNC_SUCCESS;
+    return DMS_SUCCESS;
+}
+
+static int dms_reform_sync_node_lfn(void)
+{
+    share_info_t *share_info = DMS_SHARE_INFO;
+
+    LOG_RUN_FUNC_ENTER;
+    int ret = g_dms.callback.sync_node_lfn(g_dms.reform_ctx.handle_normal, share_info->reform_type,
+        share_info->bitmap_online);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_FUNC_FAIL;
         return ret;
@@ -1905,6 +1938,9 @@ dms_reform_proc_t g_dms_reform_procs[DMS_REFORM_STEP_COUNT] = {
     [DMS_REFORM_STEP_AZ_FAILOVER_PROMOTE_PHASE2] = { "AZ_FAILOVER_PROMOTE_PHASE2",
         dms_reform_az_failover_promote_phase2, NULL, CM_FALSE },
     [DMS_REFORM_STEP_RELOAD_TXN] = { "RELOAD_TXN", dms_reform_reload_txn, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_SYNC_NODE_LFN] = { "SYNC_NODE_LFN", dms_reform_sync_node_lfn, NULL, CM_FALSE },
+    [DMS_REFORM_STEP_AZ_SWITCH_PROMOTE_SWITCH_LOG] = { "AZ_SWITCH_PROMOTE_SWITCH_LOG",
+        dms_reform_az_switchover_promote_switch_log, NULL, CM_FALSE },
 };
 
 static int dms_reform_proc_inner(void)
