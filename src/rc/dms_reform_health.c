@@ -263,6 +263,7 @@ void dms_reform_health_thread(thread_t *thread)
 {
     dms_set_is_reform_thrd(CM_TRUE);
     cm_set_thread_name(DMS_REFORM_HEALTH_THRD_NAME);
+    mes_block_sighup_signal();
     health_info_t *health_info = DMS_HEALTH_INFO;
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
 #ifdef OPENGAUSS

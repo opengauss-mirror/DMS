@@ -244,7 +244,6 @@ typedef struct st_dms_xa_res_req {
     uint8 undo_set_id;
     drc_global_xid_t xa_xid;
     dms_xa_oper_type_t oper_type;
-    bool32 check_xa_drc;
 } dms_xa_res_req_t;
 
 typedef struct st_dms_xa_res_ack {
@@ -256,7 +255,6 @@ typedef struct st_dms_ask_xa_owner_req {
     dms_message_head_t head;
     dms_session_e sess_type;
     drc_global_xid_t xa_xid;
-    bool32 check_xa_drc;
 } dms_ask_xa_owner_req_t;
 
 typedef struct st_dms_ask_xa_owner_ack {
@@ -390,6 +388,17 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
         }                                                                                                       \
     } while (0)
 
+#define CM_CHK_PROC_XA_XID_MSG_SIZE_NO_ERR(res_type, resid)                                                     \
+    do {                                                                                                        \
+        if ((res_type) == DRC_RES_GLOBAL_XA_TYPE) {                                                             \
+            drc_global_xid_t *xid = (drc_global_xid_t *)(resid);                                                \
+            if (xid->gtrid_len == 0) {                                                                          \
+                LOG_DEBUG_ERR("[drc_global_xid_t] gtrid len: 0");                                               \
+                return;                                                                                         \
+            }                                                                                                   \
+        }                                                                                                       \
+    } while (0)
+
 #define DMS_INIT_MESSAGE_HEAD(head, v_cmd, v_flags, v_src_inst, v_dst_inst, v_src_sid, v_dst_sid)               \
     do {                                                                                                        \
         dms_check_message_cmd(v_cmd, CM_TRUE);                                                                  \
@@ -452,7 +461,6 @@ int32 dms_invalidate_share_copy(dms_process_context_t* ctx, char* resid, uint16 
     uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint64 seq);
 int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *owner_id);
 void dms_proc_ask_res_owner_id(dms_process_context_t *dms_ctx, dms_message_t *receive_msg);
-void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 dms_message_head_t* get_dms_head(dms_message_t *msg);
 bool8 dms_cmd_is_broadcast(uint32 cmd);
 bool8 dms_cmd_is_req(uint32 cmd);

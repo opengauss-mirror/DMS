@@ -62,7 +62,7 @@ static inline int32 chk_convertq_4_conflict_reverse(drc_head_t *drc, drc_request
 static int32 chk_if_valid_retry_request(drc_head_t *drc, drc_request_info_t *new_req, drc_request_info_t *old_req,
     drc_lock_item_t *next)
 {
-    if (new_req->req_time <= old_req->req_time) {
+    if (new_req->req_time < old_req->req_time) {
         LOG_DEBUG_INF("[DRC][%s] invalid request, [new:inst_id=%d, sid=%d, ruid=%llu, req_mode=%d, "
             "curr_mode=%d, req_time=%lld], [old:inst_id=%d, sid=%d, ruid=%llu, req_mode=%d, curr_mode=%d, "
             "req_time=%lld]", cm_display_resid(DRC_DATA(drc), drc->type), new_req->inst_id, new_req->sess_id,
@@ -122,7 +122,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         next = (drc_lock_item_t*)next->node.next;
         // upgrade req will be add to head, so we delete it here
         if (curr->req_info.inst_id == req->inst_id) {
-            if (req->req_time <= curr->req_info.req_time) {
+            if (req->req_time < curr->req_info.req_time) {
                 DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
                 return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
             }
@@ -145,7 +145,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
     drc_cvt_item_t *converting = &drc->converting;
 
     if (req->inst_id == converting->req_info.inst_id) {
-        if (req->req_time <= converting->req_info.req_time) {
+        if (req->req_time < converting->req_info.req_time) {
             DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
             return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
         }
@@ -915,28 +915,21 @@ void fill_dv_drc_buf_info(drc_head_t *drc, dv_drc_buf_info *res_buf_info)
     cm_spin_unlock(&drc->lock);
 }
 
-drc_head_t *find_valid_drc_buf(uint64 pool_index, uint64 index_in_pool, uint64 *index, drc_res_pool_t *pool)
+static void find_valid_drc_buf(drc_res_pool_t *pool, uint64 *index, dv_drc_buf_info *res_buf_info)
 {
-    char *addr = pool->addr[pool_index] + index_in_pool * pool->item_size;
-    for (; ;) {
-        if (index_in_pool >= pool->each_pool_size[pool_index]) {
-            ++pool_index;
-            if (pool_index >= pool->max_extend_num) {
-                return NULL;
-            }
-            addr = pool->addr[pool_index];
-            index_in_pool = 0;
-            continue;
+    while (*index < pool->item_num) {
+        drc_head_t *drc_head = (drc_head_t *)drc_pool_find_item(pool, *index);
+        if (drc_head == NULL) {
+            res_buf_info->is_valid = CM_FALSE;
+            return;
         }
-        drc_head_t *curr_node = (drc_head_t *)addr;
-        ++*index;
-        ++index_in_pool;
-        if (curr_node->is_using) {
-            return curr_node;
+        (*index)++;
+        if (drc_head->is_using) {
+            fill_dv_drc_buf_info(drc_head, res_buf_info);
+            return;
         }
-        addr += pool->item_size;
     }
-    return NULL;
+    res_buf_info->is_valid = CM_FALSE;
 }
 
 drc_res_pool_t *get_buf_pool(int drc_type)
@@ -951,16 +944,6 @@ drc_res_pool_t *get_buf_pool(int drc_type)
             return &ctx->global_alock_res.res_map.res_pool;
         default:
             return NULL;
-    }
-}
-
-void get_location_in_buf_pool(uint64 *pool_index, uint64 *index_in_pool, drc_res_pool_t *pool)
-{
-    for (*pool_index = 0; *pool_index < pool->max_extend_num; ++*pool_index) {
-        if (*index_in_pool < pool->each_pool_size[*pool_index]) {
-            break;
-        }
-        *index_in_pool -= pool->each_pool_size[*pool_index];
     }
 }
 
@@ -984,19 +967,7 @@ void dms_get_buf_res(uint64 *index, dv_drc_buf_info *res_buf_info, int drc_type)
         res_buf_info->is_valid = CM_FALSE;
         return;
     }
-    uint64 pool_index = pool->max_extend_num;
-    uint64 index_in_pool = *index;
-    get_location_in_buf_pool(&pool_index, &index_in_pool, pool);
-    if (pool_index == pool->max_extend_num) {
-        res_buf_info->is_valid = CM_FALSE;
-        return;
-    }
-    drc_head_t *drc = find_valid_drc_buf(pool_index, index_in_pool, index, pool);
-    if (drc == NULL) {
-        res_buf_info->is_valid = CM_FALSE;
-        return;
-    }
-    fill_dv_drc_buf_info(drc, res_buf_info);
+    find_valid_drc_buf(pool, index, res_buf_info);
 }
 
 bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_mode)

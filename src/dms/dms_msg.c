@@ -119,7 +119,7 @@ void dms_build_req_info_local(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode,
     req_info->inst_id    = dms_ctx->inst_id;
     req_info->is_try     = dms_ctx->is_try;
     req_info->sess_id    = (uint16)dms_ctx->sess_id;
-    req_info->req_time   = g_timer()->now;
+    req_info->req_time   = g_timer()->monotonic_now;
     req_info->sess_type  = dms_ctx->sess_type;
     req_info->is_upgrade = dms_ctx->is_upgrade;
     req_info->req_proto_ver  = DMS_SW_PROTO_VER;
@@ -683,7 +683,7 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     req.is_upgrade = dms_ctx->is_upgrade;
     req.res_type   = dms_ctx->type;
     req.len        = dms_ctx->len;
-    req.req_time   = g_timer()->now;
+    req.req_time   = g_timer()->monotonic_now;
     req.req_proto_ver = req.head.msg_proto_ver;
     req.srsn       = g_dms.callback.inc_and_get_srsn(dms_ctx->sess_id);
 #ifndef OPENGAUSS
@@ -1776,6 +1776,7 @@ void dms_smon_entry(thread_t *thread)
 
     DRC_RES_CTX->smon_handle = g_dms.callback.get_db_handle(&DRC_RES_CTX->smon_sid, DMS_SESSION_TYPE_NONE);
     cm_panic_log(DRC_RES_CTX->smon_handle != NULL, "alloc db handle failed");
+    mes_block_sighup_signal();
     
     while (!thread->closed) {
         end = cm_clock_monotonic_now();
@@ -1788,11 +1789,6 @@ void dms_smon_entry(thread_t *thread)
         }
         dms_smon_confirm_converting(&res_id);
     }
-}
-
-void dms_proc_removed_req(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
-{
-    /* pass */
 }
 
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)

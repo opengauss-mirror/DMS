@@ -34,6 +34,7 @@
 #include "cm_thread.h"
 #include "cm_latch.h"
 #include "cm_date.h"
+#include "cm_list.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,8 +60,7 @@ extern "C" {
 #define DRC_RECYCLE_GREEDY_CNT 0 /* recycle as many as possible */
 #define DRC_RECYCLE_ONE_CNT 1
 #define DLS_LATCH_IS_OWNER(lock_mode) ((lock_mode) == DMS_LOCK_EXCLUSIVE || (lock_mode) == DMS_LOCK_SHARE)
-#define DLS_LATCH_IS_LOCKED(stat) \
-((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
+#define DLS_LATCH_IS_LOCKED(stat) ((stat) == LATCH_STATUS_X || (stat) == LATCH_STATUS_IX || (stat) == LATCH_STATUS_S)
 
 typedef enum {
     DMS_RES_TYPE_IS_PAGE = 0,
@@ -92,7 +92,7 @@ typedef struct st_drc_lock_item {
 } drc_lock_item_t;
 
 typedef struct st_drc_cvt_item {
-    int64 begin_time;
+    uint64 begin_time;
     drc_request_info_t req_info;
 } drc_cvt_item_t;
 
@@ -148,13 +148,11 @@ typedef struct st_drc_res_pool {
     bilist_t    free_list;
     uint32      item_num;
     uint32      used_num;
-    uint32      item_size;
     uint32      extend_step;
-    uint32      extend_num;
     uint32      max_extend_num;
-    char*       addr[DRC_RES_EXTEND_MAX_NUM];
-    bool32      can_extend;
-    uint64      each_pool_size[DRC_RES_EXTEND_MAX_NUM];
+    bool32      need_recycle;
+    uint64      item_size;
+    ptlist_t    addr_list;
 } drc_res_pool_t;
 
 int32 drc_res_pool_init(drc_res_pool_t *pool, uint32 max_extend_num, uint32 res_size, uint32 res_num);
@@ -299,6 +297,7 @@ typedef struct st_drc_res_ctx {
     uint32                  smon_recycle_sid;
     void*                   smon_recycle_handle;
     spinlock_t              smon_recycle_lock;
+    bool32                  smon_recycle_pause;
 } drc_res_ctx_t;
 
 extern drc_res_ctx_t g_drc_res_ctx;

@@ -43,11 +43,12 @@ extern "C" {
 
 #define DMS_RES_MAP_INIT_PARAM 2
 #define DMS_GET_DRC_INFO_COUNT 100
-#define DMS_GET_DRC_INFO_SLEEP_TIME 10
+#define DMS_GET_DRC_INFO_SLEEP_TIME 100
 
 typedef struct st_drc_recycle_obj {
-    drc_global_res_map_t *obj_res_map;
-    char *obj_name;    
+    drc_global_res_map_t *global_drc_res;
+    char *name;
+    bool8 has_recycled;
 } drc_recycle_obj_t;
 
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
@@ -71,6 +72,17 @@ static inline void drc_dec_ref_count(drc_head_t *drc)
 {
     cm_panic(drc->ref_count >= 1);
     (void)cm_atomic32_dec(&drc->ref_count);
+}
+
+static inline char *drc_pool_find_item(drc_res_pool_t *pool,  uint32 index)
+{
+    uint32 addr_idx = index / pool->extend_step;
+    uint32 offset   = index % pool->extend_step;
+    char *addr = (char *)cm_ptlist_get(&pool->addr_list, addr_idx);
+    if (addr == NULL) {
+        return NULL;
+    }
+    return (addr + offset * pool->item_size);
 }
 
 int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_session_e sess_type, uint8 *id);

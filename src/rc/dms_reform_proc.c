@@ -209,12 +209,12 @@ void dms_validate_drc(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, unsigned lon
              * no need to check connverting info.
              */
             if (ctrl->lock_mode != drc->lock_mode) {
-                cm_panic_log(req_info->req_mode >= ctrl->lock_mode,
+                cm_panic_log(req_info->req_mode == ctrl->lock_mode,
                     "[DRC validate][%s]lock mode unmatch with converting info(DRC:%d, buf:%d, cvt:%d)",
                     cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode, req_info->req_mode);
             }
         } else {
-            cm_panic_log(drc->lock_mode >= ctrl->lock_mode, "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
+            cm_panic_log(drc->lock_mode == ctrl->lock_mode, "[DRC validate][%s]lock mode unmatch(DRC:%d, buf:%d)",
                 cm_display_pageid(dms_ctx->resid), drc->lock_mode, ctrl->lock_mode);
         }
     } else {
@@ -1010,12 +1010,8 @@ static void dms_reform_set_az_switchover_result(void)
 
 static inline void dms_reform_mark_locking(bool8 is_locking)
 {
-    g_dms.reform_ctx.reform_info.is_locking = is_locking;
-    if (is_locking) {
-        mes_interrupt_get_response();
-    } else {
-        mes_resume_get_response();
-    }
+    reform_info_t *reform_info = DMS_REFORM_INFO;
+    reform_info->is_locking = is_locking;
 }
 
 static inline void dms_reform_instance_lock_reset()
@@ -2021,6 +2017,7 @@ void dms_reform_proc_thread(thread_t *thread)
     g_dms.callback.dms_thread_init(CM_TRUE, (char **)&thread->reg_data);
 #endif
 
+    mes_block_sighup_signal();
     dms_reform_proc_stat_bind_proc();
     dms_set_tls_sid(reform_ctx->sess_proc);
     LOG_RUN_INF("[DMS REFORM]dms_reform_proc thread started");

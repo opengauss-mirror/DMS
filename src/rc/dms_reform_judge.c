@@ -765,10 +765,10 @@ static void dms_reform_judgement_failover_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
     dms_reform_judgement_drc_validate(true); /* maintain drc inaccess as failover not finished */
-    dms_reform_judgement_drc_access();
     dms_reform_judgement_failover_promote_opengauss();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_repair();
+    dms_reform_judgement_drc_access();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
@@ -787,9 +787,9 @@ static void dms_reform_judgement_normal_opengauss(instance_list_t *inst_lists)
     dms_reform_judgement_drc_clean(inst_lists);
     dms_reform_judgement_rebuild(inst_lists);
     dms_reform_judgement_remaster(inst_lists);
-    dms_reform_judgement_drc_access();
     dms_refrom_judgement_startup_opengauss();
     dms_reform_judgement_repair();
+    dms_reform_judgement_drc_access();
     dms_reform_judgement_recovery_opengauss(inst_lists);
     dms_reform_judgement_page_access();
     dms_reform_judgement_drc_validate(false);
@@ -1016,6 +1016,12 @@ static bool32 dms_reform_judgement_new_join_check(instance_list_t *inst_lists)
 
     if (inst_lists[INST_LIST_OLD_JOIN].inst_id_count != 0 || inst_lists[INST_LIST_OLD_REMOVE].inst_id_count != 0 ||
         inst_lists[INST_LIST_NEW_JOIN].inst_id_count == 0) {
+        dms_reform_judgement_stat_cancel();
+        return CM_FALSE;
+    }
+
+    if (g_dms.callback.db_in_rollback(g_dms.reform_ctx.handle_judge)) {
+        LOG_DEBUG_INF("[DMS REFORM]dms_reform_judgement, db in rollback");
         dms_reform_judgement_stat_cancel();
         return CM_FALSE;
     }
@@ -1706,6 +1712,7 @@ void dms_reform_judgement_thread(thread_t *thread)
     reform_context_t *reform_ctx = DMS_REFORM_CONTEXT;
     dms_set_tls_sid(reform_ctx->sess_judge);
     cm_set_thread_name(DMS_REFORM_JUDG_THRD_NAME);
+    mes_block_sighup_signal();
 #ifdef OPENGAUSS
     g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
 #endif
