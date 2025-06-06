@@ -210,15 +210,15 @@ static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
 }
 
 /* previously mfc_allocbuf_and_recv_data */
-int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
+int32 mfc_get_response_ex(uint64 ruid, dms_message_t *response, int32 timeout_ms, void *arg)
 {
     if (response == NULL && timeout_ms == 0) {
-        return mes_get_response(ruid, NULL, 0);
+        return mes_get_response_ex(ruid, NULL, 0, arg);
     }
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     mes_msg_t msg = { 0 };
-    int ret = mes_get_response(ruid, &msg, timeout_ms);
+    int ret = mes_get_response_ex(ruid, &msg, timeout_ms, arg);
     DMS_RETURN_IF_ERROR(ret);
     response->buffer = msg.buffer;
     response->head = (dms_message_head_t *)msg.buffer;
@@ -229,6 +229,11 @@ int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
         mes_release_msg(&msg);
     }
     return ret;
+}
+
+int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
+{
+    return mfc_get_response_ex(ruid, response, timeout_ms, NULL);
 }
 
 void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
@@ -370,13 +375,13 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
 }
 
 int32 mfc_get_broadcast_res_with_msg_and_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts,
-    uint64 *succ_insts, mes_msg_list_t *msg_list)
+    void *db_handle, uint64 *succ_insts, mes_msg_list_t *msg_list)
 {
     if (ruid == 0) {
         *succ_insts = 0;
         return DMS_SUCCESS;
     }
-    int ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+    int ret = mes_broadcast_get_response_ex(ruid, msg_list, timeout_ms, db_handle);
     DMS_RETURN_IF_ERROR(ret);
     ret = mfc_check_broadcast_res(msg_list, CM_TRUE, expect_insts, succ_insts);
     return ret;

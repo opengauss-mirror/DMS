@@ -173,7 +173,8 @@ static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64
     mes_msg_list_t responses;
     responses.count = 0;
 
-    int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, succ_insts, &responses);
+    int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, ctx->db_handle,
+        succ_insts, &responses);
 #ifndef OPENGAUSS
     dms_handle_invld_ack_msg(ctx, &responses, succ_insts);
 #endif
@@ -498,7 +499,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
 
     dms_message_t msg = {0};
     int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
-    ret = mfc_get_response(req.head.ruid, &msg, max_wait_time_ms);
+    ret = mfc_get_response_ex(req.head.ruid, &msg, max_wait_time_ms, dms_ctx->check_handle);
     dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_OWNER, dms_ctx->type, ret);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: wait ack timeout, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u, "
@@ -525,7 +526,7 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
 
     dms_message_t msg = {0};
     int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
-    int32 ret = mfc_get_response(dms_ctx->ctx_ruid, &msg, max_wait_time_ms);
+    int32 ret = mfc_get_response_ex(dms_ctx->ctx_ruid, &msg, max_wait_time_ms, dms_ctx->check_handle);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_handle_ask_master_ack]:wait master ack timeout timeout=%d ms, ruid=%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), max_wait_time_ms, dms_ctx->ctx_ruid);

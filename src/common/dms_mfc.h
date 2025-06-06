@@ -72,6 +72,7 @@ int32 mfc_send_data2_async(dms_message_head_t *head, uint32 head_size, const voi
 int32 mfc_send_data3_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2);
 int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms);
+int32 mfc_get_response_ex(uint64 ruid, dms_message_t *response, int32 timeout_ms, void *arg);
 int32 mfc_forward_request(dms_message_head_t *msg);
 int32 mfc_send_response(dms_message_head_t *msg);
 
@@ -82,7 +83,7 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts);
 int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, mes_msg_list_t *msg_list);
 int32 mfc_get_broadcast_res_with_msg_and_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts,
-    uint64 *succ_insts, mes_msg_list_t *msg_list);
+    void *db_handle, uint64 *succ_insts, mes_msg_list_t *msg_list);
 
 
 static inline void mfc_release_broadcast_response(mes_msg_list_t *response)

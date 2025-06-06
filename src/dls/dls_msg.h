@@ -110,6 +110,7 @@ static inline void dls_init_dms_ctx_ext(dms_context_t *dms_ctx, void *resid, uin
     dms_ctx->len          = len;
     dms_ctx->type         = type;
     dms_ctx->is_try       = is_try;
+    dms_ctx->check_handle = dms_ctx->db_handle;
     DMS_SECUREC_CHECK(memcpy_s(dms_ctx->resid, DMS_RESID_SIZE, resid, len));
 }
 
