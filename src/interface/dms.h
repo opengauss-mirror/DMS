@@ -365,6 +365,16 @@ DMS_DECLARE int dms_smon_broadcast_msg(dms_context_t *dms_ctx, char *data, unsig
     char *output, unsigned int *output_len);
 
 /*
+ * @brief ask for sync delta infomation from write node
+ * @[in]param rowgroup - rowgroup id of asked relation.
+ * @[in]param xid - max xid of current scan
+ * @[out]param bitmap - result bitmap
+ * @return DMS_SUCCESS - success;otherwise: failed
+ */
+DMS_DECLARE int dms_request_imcstore_delta(dms_context_t *dms_ctx, unsigned int tableid, unsigned int rowgroup,
+    unsigned char* bitmap,  unsigned long long* delta_max);
+
+/*
 * @brief broadcast ddl sync message to other instances.
 * @param dms_ctx - dms_context_t structure.
 * @param data - message data.

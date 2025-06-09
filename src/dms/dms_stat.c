@@ -300,6 +300,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_DRM, "drm", "", "dms" },
     { MSG_REQ_DRM_FINISH, "drm finish", "", "dms" },
     { MSG_REQ_PRE_CRE_DRC, "pre create drc", "", "dms" },
+    { MSG_REQ_IMCSTORE_DELTA, "req imcstore delta from remote", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },
@@ -356,6 +357,7 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_ACK_CHECK_OWNERSHIP, "ack check page ownership", "", "dms" },
     { MSG_ACK_DRC_MIGRATE, "drm ack", "", "dms"},
     { MSG_ACK_DRM_FINISH, "drm finish ack", "", "dms"},
+    { MSG_ACK_IMCSTORE_DELTA, "ack imcstore delta request", "", "dms" },
 };
 
 /* g_wait_cmd_desc size */
