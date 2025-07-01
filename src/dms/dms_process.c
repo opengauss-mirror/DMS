@@ -149,6 +149,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_DRM,                    dms_proc_drm,                       CM_TRUE, CM_FALSE, "drm" },
     { MSG_REQ_DRM_FINISH,             dms_proc_drm_finish,                CM_TRUE, CM_FALSE, "drm finish" },
     { MSG_REQ_PRE_CRE_DRC,            dms_proc_pre_cre_drc_req,           CM_TRUE, CM_TRUE, "pre cre drc req" },
+    { MSG_REQ_IMCSTORE_DELTA,         dms_proc_imcstore_delta, 			  CM_TRUE, CM_FALSE,  "get imcstore delta data" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -209,6 +210,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_CHECK_OWNERSHIP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack check page ownership" },
     { MSG_ACK_DRC_MIGRATE,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack drc migrate" },
     { MSG_ACK_DRM_FINISH,                   dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack drm finish" },
+    { MSG_ACK_IMCSTORE_DELTA,               dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack imcstore get delta" },
 };
 
 static bool32 dms_cmd_is_reform(uint32 cmd)

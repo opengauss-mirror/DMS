@@ -27,6 +27,8 @@
 
 #include "dms_process.h"
 
+void dms_proc_imcstore_delta(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
+
 #ifdef __cplusplus
 extern "C" {
 #endif
