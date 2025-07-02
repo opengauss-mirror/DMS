@@ -189,11 +189,13 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
         if (type == DRC_RES_PAGE_TYPE) {
             uint64 page_lfn = 0;
             int32 ret = g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_TRUE, seq, &page_lfn);
+#ifndef OPENGAUSS
             if (ret == DMS_SUCCESS) {
                 dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVALID_DRC_LSNDWAIT, CM_TRUE);
                 g_dms.callback.lsnd_wait(ctx->db_handle, page_lfn);
                 dms_end_stat(ctx->sess_id);
             }
+#endif
             return ret;
         }
         return dls_invld_lock_ownership(ctx->db_handle, resid, type, DMS_LOCK_EXCLUSIVE, CM_FALSE);
@@ -1281,12 +1283,14 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
     if (req.res_type == DRC_RES_PAGE_TYPE) {
         uint64 page_lfn = 0;
         ret = g_dms.callback.invalidate_page(proc_ctx->db_handle, req.resid, req.invld_owner, req.head.seq, &page_lfn);
+#ifndef OPENGAUSS
         if (ret == DMS_SUCCESS && req.invld_owner) {
             dms_begin_stat(proc_ctx->sess_id, DMS_EVT_DCS_INVALID_DRC_LSNDWAIT, CM_TRUE);
             g_dms.callback.lsnd_wait(proc_ctx->db_handle, page_lfn);
             dms_end_stat(proc_ctx->sess_id);
         }
         ack.lfn = page_lfn;
+#endif
     } else {
         ret = dls_invld_lock_ownership(proc_ctx->db_handle, req.resid, req.res_type, DMS_LOCK_EXCLUSIVE, req.is_try);
     }
