@@ -450,10 +450,12 @@ static inline int32 get_dms_msg_max_wait_time_ms(dms_context_t *dms_ctx)
 
 static int32 dms_get_msg_flag_4_prio(dms_context_t *dms_ctx)
 {
+#ifndef OPENGAUSS
     if (dms_ctx->db_handle != NULL && dms_reform_in_process() &&
         g_dms.callback.check_if_reform_session(dms_ctx->db_handle)) {
         return REQ_FLAG_REFORM_SESSION;
     }
+#endif
     return REQ_FLAG_DEFAULT;
 }
 
