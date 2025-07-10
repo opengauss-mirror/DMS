@@ -69,11 +69,6 @@ void dms_reform_judgement_reconnect(instance_list_t *inst_lists)
 // Notice: DRC_CLEAN and REBUILD must be used in pairs
 void dms_reform_judgement_drc_clean(instance_list_t *inst_lists)
 {
-    // if reform_type is fail-over, all DRC has lost, no need to do drc_clean
-    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS)) {
-        return;
-    }
-
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_FULL_CLEAN);
 }
