@@ -24,14 +24,13 @@
 
 #include "dcs_cr_page.h"
 #include "dcs_page.h"
+#include "dcs_msg.h"
 #include "drc_res_mgr.h"
 #include "dms_error.h"
-#include "cmpt_msg_cmd.h"
+#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "dms_stat.h"
 #include "dms_dynamic_trace.h"
-#include "cmpt_msg_pcr.h"
-#include "cmpt_msg_tran.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,7 +94,7 @@ static int dcs_send_pcr_request(dms_process_context_t *ctx, msg_pcr_request_t *r
 
 static int dcs_send_txn_wait(dms_process_context_t *ctx, msg_pcr_request_t *request, char *wxid)
 {
-    msg_txn_wait_t msg;
+    msg_txn_wait_t msg ;
     dms_init_ack_head(&request->head, &msg.head, MSG_ACK_TXN_WAIT, sizeof(msg_txn_wait_t), ctx->sess_id);
     msg.head.src_inst = ctx->inst_id;
     CM_ASSERT(request->head.dst_inst == ctx->inst_id);
@@ -1060,16 +1059,12 @@ int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_cr, unsigned
     for (;;) {
         dms_begin_stat(dms_ctx->sess_id, DMS_EVT_PCR_CHECK_CURR_VISIBLE, CM_TRUE);
         DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_CHECK_VISIBLE, MSG_REQ_CHECK_VISIBLE);
-        ret = mfc_send_data3(&check.head, sizeof(msg_cr_check_t), dms_cr->page);
-        if (ret != CM_SUCCESS) {
-            DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, check.head.cmd, check.head.dst_inst);
+        if (mfc_send_data3(&check.head, sizeof(msg_cr_check_t), dms_cr->page) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
         }
 
-        ret = mfc_get_response(check.head.ruid, &message, DMS_WAIT_MAX_TIME);
-        if (ret != CM_SUCCESS) {
-            DMS_THROW_ERROR(ERRNO_DMS_RECV_MSG_FAILED, ret, check.head.cmd, check.head.dst_inst);
+        if (mfc_get_response(check.head.ruid, &message, DMS_WAIT_MAX_TIME) != CM_SUCCESS) {
             dms_end_stat(dms_ctx->sess_id);
             break;
         }

@@ -22,6 +22,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include "dms_mfc.h"
 #include "dms_process.h"
 #include "dms_error.h"
 #include "dms_stat.h"
@@ -66,6 +67,30 @@ static inline bool32 mfc_msg_is_req(dms_message_head_t *head)
 {
     return head->cmd < MSG_REQ_END;
 }
+static bool8 mfc_try_get_ticket(uint8 dst_inst)
+{
+    mfc_ticket_t *ticket = &g_dms.mfc.remain_tickets[dst_inst];
+    uint32 time = 0;
+    for (;;) {
+        if (time >= g_dms.mfc.max_wait_ticket_time) {
+            return CM_FALSE;
+        }
+
+        time += DMS_MFC_SEND_WAIT_TIME;
+        if (!cm_spin_try_lock(&ticket->lock)) {
+            cm_sleep(DMS_MFC_SEND_WAIT_TIME);
+            continue;
+        }
+
+        if (ticket->count > 0) {
+            ticket->count--;
+            cm_spin_unlock(&ticket->lock);
+            return CM_TRUE;
+        }
+        cm_spin_unlock(&ticket->lock);
+        cm_sleep(DMS_MFC_SEND_WAIT_TIME);
+    }
+}
 
 /*
  * currently groupd id is equivalent to MES priority number
@@ -73,7 +98,7 @@ static inline bool32 mfc_msg_is_req(dms_message_head_t *head)
  */
 static inline unsigned int mfc_get_mes_flag(dms_message_head_t *msg)
 {
-    unsigned int flag = dms_get_mes_prio_by_cmd(msg);
+    unsigned int flag = dms_get_mes_prio_by_cmd(msg->cmd);
     CM_ASSERT(flag <= MES_FLAG_SERIAL);
     return flag;
 }
@@ -90,12 +115,58 @@ int32 mfc_forward_request(dms_message_head_t *msg)
     return ret;
 }
 
+static inline int32 mfc_send_data_req(dms_message_head_t *msg, bool8 is_sync)
+{
+    if (!mfc_try_get_ticket(msg->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
+        return ERRNO_DMS_MFC_NO_TICKETS;
+    }
+
+    int ret = DMS_SUCCESS;
+    if (is_sync) {
+        ret = mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
+    } else {
+        ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
+    }
+
+    if (ret != CM_SUCCESS) {
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[msg->dst_inst], 1);
+    }
+    return ret;
+}
+
+static inline int32 mfc_send_data_ack(dms_message_head_t *msg, bool8 is_sync)
+{
+    msg->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[msg->dst_inst]);
+
+    int ret = DMS_SUCCESS;
+    if (is_sync) {
+        ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+    } else {
+        ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
+    }
+    if (ret != CM_SUCCESS) {
+        mfc_add_tickets(&g_dms.mfc.recv_tickets[msg->dst_inst], msg->tickets);
+    }
+    return ret;
+}
+
 int32 mfc_send_data_async(dms_message_head_t *msg)
 {
     DDES_FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
     uint64 start_stat_time = dms_cm_get_time_usec();
 
-    int ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
+    int ret = DMS_SUCCESS;
+    if (DMS_MFC_OFF) {
+        ret = mes_send_data(msg->dst_inst, mfc_get_mes_flag(msg), (char *)msg, msg->size);
+    } else {
+        if (mfc_msg_is_req(msg)) {
+            ret = mfc_send_data_req(msg, CM_FALSE);
+        } else {
+            ret = mfc_send_data_ack(msg, CM_FALSE);
+        }
+    }
+
     dms_consume_with_time(msg->cmd, start_stat_time, ret);
     return ret;
 }
@@ -107,10 +178,18 @@ int32 mfc_send_data(dms_message_head_t *msg)
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
-    if (mfc_msg_is_req(msg)) {
-        ret = mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
+    if (DMS_MFC_OFF) {
+        if (mfc_msg_is_req(msg)) {
+            ret = mes_send_request(msg->dst_inst, mfc_get_mes_flag(msg), &msg->ruid, (char *)msg, msg->size);
+        } else {
+            ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+        }
     } else {
-        ret = mes_send_response(msg->dst_inst, mfc_get_mes_flag(msg), msg->ruid, (char *)msg, msg->size);
+        if (mfc_msg_is_req(msg)) {
+            ret = mfc_send_data_req(msg, CM_TRUE);
+        } else {
+            ret = mfc_send_data_ack(msg, CM_TRUE);
+        }
     }
 
     dms_consume_with_time(msg->cmd, start_stat_time, ret);
@@ -128,6 +207,36 @@ int32 mfc_send_response(dms_message_head_t *msg)
     return ret;
 }
 
+static inline int32 mfc_send_data3_req(dms_message_head_t *head, uint32 head_size, const void *body)
+{
+    if (!mfc_try_get_ticket(head->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
+        return ERRNO_DMS_MFC_NO_TICKETS;
+    }
+
+    int ret = DMS_SUCCESS;
+    ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
+        DMS_TWO, head, head_size, body, head->size - head_size);
+    if (ret != CM_SUCCESS) {
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
+    }
+
+    return ret;
+}
+
+static inline int32 mfc_send_data3_ack(dms_message_head_t *head, uint32 head_size, const void *body)
+{
+    head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
+
+    int ret = DMS_SUCCESS;
+    ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
+        DMS_TWO, head, head_size, body, head->size - head_size);
+    if (ret != CM_SUCCESS) {
+        mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
+    }
+    return ret;
+}
+
 /* 2-BODY SYNC MESSAGE, with 1st body as user-customized head. */
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body)
 {
@@ -135,16 +244,55 @@ int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *bod
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
-    if (mfc_msg_is_req(head)) {
-        ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
-            DMS_TWO, head, head_size, body, head->size - head_size);
+    if (DMS_MFC_OFF) {
+        if (mfc_msg_is_req(head)) {
+            ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
+                DMS_TWO, head, head_size, body, head->size - head_size);
+        } else {
+            MFC_RETURN_IF_BAD_RUID(head->ruid);
+            ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
+                DMS_TWO, head, head_size, body, head->size - head_size);
+        }
     } else {
-        MFC_RETURN_IF_BAD_RUID(head->ruid);
-        ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
-            DMS_TWO, head, head_size, body, head->size - head_size);
+        if (mfc_msg_is_req(head)) {
+            ret = mfc_send_data3_req(head, head_size, body);
+        } else {
+            ret = mfc_send_data3_ack(head, head_size, body);
+        }
     }
 
     dms_consume_with_time(head->cmd, start_stat_time, ret);
+    return ret;
+}
+
+static inline int32 mfc_send_data4_req(dms_message_head_t *head, uint32 head_size,
+    const void *body1, uint32 len1, const void *body2, uint32 len2)
+{
+    if (!mfc_try_get_ticket(head->dst_inst)) {
+        DMS_THROW_ERROR(ERRNO_DMS_MFC_NO_TICKETS);
+        return ERRNO_DMS_MFC_NO_TICKETS;
+    }
+
+    int ret = DMS_SUCCESS;
+    ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
+        DMS_THREE, head, head_size, body1, len1, body2, len2);
+    if (ret != CM_SUCCESS) {
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[head->dst_inst], 1);
+    }
+
+    return ret;
+}
+
+static inline int32 mfc_send_data4_ack(dms_message_head_t *head, uint32 head_size,
+    const void *body1, uint32 len1, const void *body2, uint32 len2)
+{
+    int ret = DMS_SUCCESS;
+    head->tickets = mfc_clean_tickets(&g_dms.mfc.recv_tickets[head->dst_inst]);
+    ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
+        DMS_THREE, head, head_size, body1, len1, body2, len2);
+    if (ret != CM_SUCCESS) {
+        mfc_add_tickets(&g_dms.mfc.recv_tickets[head->dst_inst], head->tickets);
+    }
     return ret;
 }
 
@@ -156,37 +304,40 @@ int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size, const void *bod
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     int ret = DMS_SUCCESS;
-    if (mfc_msg_is_req(head)) {
-        ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
-            DMS_THREE, head, head_size, body1, len1, body2, len2);
+    if (DMS_MFC_OFF) {
+        if (mfc_msg_is_req(head)) {
+            ret = mes_send_request_x(head->dst_inst, mfc_get_mes_flag(head), &head->ruid,
+                DMS_THREE, head, head_size, body1, len1, body2, len2);
+        } else {
+            MFC_RETURN_IF_BAD_RUID(head->ruid);
+            ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
+                DMS_THREE, head, head_size, body1, len1, body2, len2);
+        }
     } else {
-        MFC_RETURN_IF_BAD_RUID(head->ruid);
-        ret = mes_send_response_x(head->dst_inst, mfc_get_mes_flag(head), head->ruid,
-            DMS_THREE, head, head_size, body1, len1, body2, len2);
+        if (mfc_msg_is_req(head)) {
+            ret = mfc_send_data4_req(head, head_size, body1, len1, body2, len2);
+        } else {
+            ret = mfc_send_data4_ack(head, head_size, body1, len1, body2, len2);
+        }
     }
 
     dms_consume_with_time(head->cmd, start_stat_time, ret);
     return ret;
 }
 
-int32 mfc_send_data2_async(dms_message_head_t *head, uint32 head_size, const void *body, uint32 len)
-{
-    DDES_FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
-    uint64 start_stat_time = dms_cm_get_time_usec();
-    int ret = mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head), DMS_TWO, head, head_size, body, len);
-    dms_consume_with_time(head->cmd, start_stat_time, ret);
-    return ret;
-}
-
 /* 3-BODY ASYNC MESSAGE, with 1st body as user-customized head. */
-int32 mfc_send_data3_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2)
 {
     DDES_FAULT_INJECTION_ACTION_TRIGGER(return (DMS_SUCCESS));
-    uint64 start_stat_time = dms_cm_get_time_usec();
-    int ret = mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head),
-        DMS_THREE, head, head_size, body1, len1, body2, len2);
-    dms_consume_with_time(head->cmd, start_stat_time, ret);
+    int ret = DMS_SUCCESS;
+    if (DMS_MFC_OFF) {
+        uint64 start_stat_time = dms_cm_get_time_usec();
+        ret = mes_send_data_x(head->dst_inst, mfc_get_mes_flag(head),
+            DMS_THREE, head, head_size, body1, len1, body2, len2);
+        dms_consume_with_time(head->cmd, start_stat_time, ret);
+    }
+    /* Need to adapt if MFC to be enabled */
     return ret;
 }
 
@@ -196,7 +347,7 @@ static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
     dms_set_node_proto_version((head)->src_inst, (head)->sw_proto_ver);
     if ((head)->cmd == MSG_ACK_PROTOCOL_VERSION_NOT_MATCH) {
         dms_protocol_result_ack_t recv_msg = *(dms_protocol_result_ack_t*)dms_msg->buffer;
-        LOG_RUN_WAR("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
+        LOG_RUN_INF("[DMS] receive ack version not match, ack info: src_inst:%u, src_sid:%u, dst_inst:%u, "
             "dst_sid:%u, msg_proto_ver:%u, result:%u, my sw_proto_ver:%u",
             (uint32)(head)->src_inst, (uint32)(head)->src_sid,
             (uint32)(head)->dst_inst, (uint32)(head)->dst_sid,
@@ -210,30 +361,55 @@ static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
 }
 
 /* previously mfc_allocbuf_and_recv_data */
-int32 mfc_get_response_ex(uint64 ruid, dms_message_t *response, int32 timeout_ms, void *arg)
+int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
 {
     if (response == NULL && timeout_ms == 0) {
-        return mes_get_response_ex(ruid, NULL, 0, arg);
+        return mes_get_response(ruid, NULL, 0);
     }
     uint64 start_stat_time = dms_cm_get_time_usec();
 
     mes_msg_t msg = { 0 };
-    int ret = mes_get_response_ex(ruid, &msg, timeout_ms, arg);
+    int ret = mes_get_response(ruid, &msg, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     response->buffer = msg.buffer;
     response->head = (dms_message_head_t *)msg.buffer;
     ret = dms_handle_recv_ack_internal(response);
     dms_consume_with_time(response->head->cmd, start_stat_time, ret);
 
+    if (DMS_MFC_OFF) {
+        if (dms_check_if_protocol_compatibility_error(ret)) {
+            mes_release_msg(&msg);
+        }
+        return ret;
+    }
+
+    CM_ASSERT(response->head->cmd >= MSG_ACK_BEGIN);
+    mfc_add_tickets(&g_dms.mfc.remain_tickets[response->head->src_inst], response->head->tickets);
     if (dms_check_if_protocol_compatibility_error(ret)) {
         mes_release_msg(&msg);
     }
+
     return ret;
 }
 
-int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
+/* were mfc to be used, further adaptation is needed */
+static void mfc_wait_acks_add_tickets(mes_msg_list_t *recv_msg)
 {
-    return mfc_get_response_ex(ruid, response, timeout_ms, NULL);
+    for (uint32 i = 0; i < recv_msg->count; i++) {
+        dms_message_head_t *head = (dms_message_head_t *)recv_msg->messages[i].buffer;
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[head->src_inst], head->tickets);
+    }
+}
+
+static void mfc_add_tickets_and_release_msg(mes_msg_list_t *recv_msg)
+{
+    dms_message_t msg;
+    for (uint8 i = 0; i < recv_msg->count; i++) {
+        msg.head = (dms_message_head_t *)recv_msg->messages[i].buffer;
+        msg.buffer = recv_msg->messages[i].buffer;
+        mfc_add_tickets(&g_dms.mfc.remain_tickets[msg.head->src_inst], msg.head->tickets);
+        mfc_release_response(&msg);
+    }
 }
 
 void mfc_broadcast(uint64 inst_bits, void *msg_data, uint64 *success_inst)
@@ -294,13 +470,8 @@ static int32 mfc_check_broadcast_res(mes_msg_list_t *msg_list, bool32 check_ret,
         }
 
         dms_common_ack_t *ack_msg = (dms_common_ack_t*)msg_list->messages[i].buffer;
-        if (head->cmd != MSG_ACK_PROTOCOL_VERSION_NOT_MATCH) {
-            if (!check_ret || ack_msg->ret == DMS_SUCCESS) {
-                *recv_succ_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
-            } else {
-                LOG_RUN_ERR("[mfc_check_bcast_res]node:%hhu acks errno:%d",
-                    ack_msg->head.src_inst, ack_msg->ret);
-            }
+        if (head->cmd != MSG_ACK_PROTOCOL_VERSION_NOT_MATCH && (!check_ret || ack_msg->ret == DMS_SUCCESS)) {
+            *recv_succ_insts |= ((uint64)0x1 << msg_list->messages[i].src_inst);
         }
     }
 
@@ -326,12 +497,26 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 
     mes_msg_list_t responses;
     responses.count = 0;
+    int ret = DMS_SUCCESS;
     uint64 recv_succ_insts = 0;
 
-    int ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
-    DMS_RETURN_IF_ERROR(ret);
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_broadcast_res(&responses, CM_FALSE, expect_insts, &recv_succ_insts);
+        mfc_release_broadcast_response(&responses);
+        return ret;
+    }
+
+    /* were mfc to be used, further adaptation is needed */
+    ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+    if (ret != CM_SUCCESS) {
+        mfc_wait_acks_add_tickets(&responses);
+        return ret;
+    }
     ret = mfc_check_broadcast_res(&responses, CM_FALSE, expect_insts, &recv_succ_insts);
-    mfc_release_broadcast_response(&responses);
+
+    mfc_add_tickets_and_release_msg(&responses);
     return ret;
 }
 
@@ -345,13 +530,22 @@ int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint
         *succ_insts = 0;
         return DMS_SUCCESS;
     }
+    int ret = DMS_SUCCESS;
     mes_msg_list_t responses;
     responses.count = 0;
 
-    int ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_broadcast_res(&responses, CM_TRUE, expect_insts, succ_insts);
+        mfc_release_broadcast_response(&responses);
+        return ret;
+    }
+
+    ret = mes_broadcast_get_response(ruid, &responses, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     ret = mfc_check_broadcast_res(&responses, CM_TRUE, expect_insts, succ_insts);
-    mfc_release_broadcast_response(&responses);
+    mfc_add_tickets_and_release_msg(&responses);
     return ret;
 }
 
@@ -364,10 +558,22 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
     if (ruid == 0) {
         return DMS_SUCCESS;
     }
+    int ret = DMS_SUCCESS;
     uint64 recv_succ_insts = 0;
-    int ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
+        if (ret != DMS_SUCCESS) {
+            mfc_release_broadcast_response(msg_list);
+        }
+        return ret;
+    }
+
+    ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     ret = mfc_check_broadcast_res(msg_list, CM_FALSE, expect_insts, &recv_succ_insts);
+    mfc_wait_acks_add_tickets(msg_list);
     if (ret != DMS_SUCCESS) {
         mfc_release_broadcast_response(msg_list);
     }
@@ -375,15 +581,24 @@ int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expe
 }
 
 int32 mfc_get_broadcast_res_with_msg_and_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts,
-    void *db_handle, uint64 *succ_insts, mes_msg_list_t *msg_list)
+    uint64 *succ_insts, mes_msg_list_t *msg_list)
 {
     if (ruid == 0) {
         *succ_insts = 0;
         return DMS_SUCCESS;
     }
-    int ret = mes_broadcast_get_response_ex(ruid, msg_list, timeout_ms, db_handle);
+    int ret = DMS_SUCCESS;
+    if (DMS_MFC_OFF) {
+        ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
+        DMS_RETURN_IF_ERROR(ret);
+        ret = mfc_check_broadcast_res(msg_list, CM_TRUE, expect_insts, succ_insts);
+        return ret;
+    }
+
+    ret = mes_broadcast_get_response(ruid, msg_list, timeout_ms);
     DMS_RETURN_IF_ERROR(ret);
     ret = mfc_check_broadcast_res(msg_list, CM_TRUE, expect_insts, succ_insts);
+    mfc_wait_acks_add_tickets(msg_list);
     return ret;
 }
 

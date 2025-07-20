@@ -51,7 +51,7 @@ DMS_DECLARE int dms_init(dms_profile_t *dms_profile);
 
 /*
 * @brief DMS init logger
- * @[in] param param_def - logger parameter
+ * @[in] param param_def - logger parameter 
  * @return DMS_SUCCESS - success; otherwise: failed
 */
 DMS_DECLARE int dms_init_logger(logger_param_t *param_def);
@@ -60,7 +60,7 @@ DMS_DECLARE int dms_init_logger(logger_param_t *param_def);
 * @brief DMS refresh logger configure
  * @[in] log_field -  logger configure string.
  * @[in] value -  logger configure value.
- * @return void
+ * @return void 
 */
 DMS_DECLARE void dms_refresh_logger(char *log_field, unsigned long long *value);
 
@@ -157,7 +157,7 @@ DMS_DECLARE int dms_check_current_visible(dms_context_t *dms_ctx, dms_cr_t *dms_
 
 DMS_DECLARE int dms_try_ask_master_for_page_owner_id_batch(dms_context_t *dms_ctx,
     dms_buf_ctrl_t **ctrls, unsigned int req_count, dms_lock_mode_t req_mode);
-DMS_DECLARE void dms_try_send_drc_create_msg(dms_context_t *dms_ctx, char *pageid);
+
 /*
 * @brief init distributed spin lock.
 * @param lock - distributed resource lock identifier.
@@ -363,16 +363,6 @@ DMS_DECLARE int dms_broadcast_msg(dms_context_t *dms_ctx, dms_broadcast_info_t *
 */
 DMS_DECLARE int dms_smon_broadcast_msg(dms_context_t *dms_ctx, char *data, unsigned int len, unsigned int timeout,
     char *output, unsigned int *output_len);
-
-/*
- * @brief ask for sync delta infomation from write node
- * @[in]param rowgroup - rowgroup id of asked relation.
- * @[in]param xid - max xid of current scan
- * @[out]param bitmap - result bitmap
- * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_request_imcstore_delta(dms_context_t *dms_ctx, unsigned int tableid, unsigned int rowgroup,
-    unsigned char* bitmap,  unsigned long long* delta_max);
 
 /*
 * @brief broadcast ddl sync message to other instances.
@@ -637,13 +627,12 @@ DMS_DECLARE int dms_smon_request_sql_from_sid(dms_context_t *dms_ctx, unsigned c
  * @[in]param dms_ctx - dms_context_t structure.
  * @[in]param dst_inst - Target Instance
  * @[in]param xid - xid
- * @[in]param xid_len - length of xid
  * @[out]param ilock - ilock
  * @[in]param ilock - ilock length
  * @return DMS_SUCCESS - success;otherwise: failed
  */
-DMS_DECLARE int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char *xid,
-    unsigned int xid_len, char *ilock, unsigned int ilock_len);
+DMS_DECLARE int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char xid[DMS_XID_SIZE],
+    char *ilock, unsigned int ilock_len);
 
 /*
  * @brief the smon thread get table lock msg by rm
@@ -781,12 +770,6 @@ DMS_DECLARE int dms_get_version(void);
 DMS_DECLARE int dms_reform_in_process(void);
 
 /*
- * @brief check if reform is success
- * @* @return true&false
- */
-DMS_DECLARE int dms_reform_check_success(void);
-
-/*
  * @brief show dms version
  * @* @return dms version
  */
@@ -811,9 +794,9 @@ DMS_DECLARE void dms_file_enter(void);
 DMS_DECLARE void dms_file_leave(void);
 
 DMS_DECLARE int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
-    unsigned long long *send_insts, unsigned long long *success_inst, unsigned long long *ruid);
+    unsigned long long *success_inst, unsigned long long *ruid);
 DMS_DECLARE int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout,
-    unsigned long long *wait_insts, unsigned long long *succ_insts);
+    unsigned long long *success_inst);
 /*
  * @brief thorough check for DRC and bufferpool buffer befor reform ends
  * @ PANIC if any of version, pageid, lockmode and need_flush is unmatched.
@@ -869,13 +852,13 @@ DMS_DECLARE void dms_reform_cache_curr_point(unsigned int node_id, void *curr_po
 /*
  * @brief send oldest_xmin
  * @[in]param dms_ctx -  context information.
- * @[in]param oldest_xmin -  oldest xmin during snapshot in node
+ * @[in]param oldest_xmin -  oldest xmin during snapshot in node 
  * @[in]param dest_id -  destination instance id
  * @return DMS_SUCCESS - success;otherwise: failed
  */
 DMS_DECLARE int dms_send_opengauss_oldest_xmin(dms_context_t *dms_ctx, unsigned long long oldest_xmin,
     unsigned char dest_id);
-
+    
 DMS_DECLARE int dms_get_drc_info(int *is_found, dv_drc_buf_info* drc_info);
 
 /*
@@ -884,8 +867,8 @@ DMS_DECLARE int dms_get_drc_info(int *is_found, dv_drc_buf_info* drc_info);
  * @[out]param event_cnt - the count of the happenings of specified waiting event
  * @[out]param event_time - the total cost time of specified waiting event
  * @return DMS_SUCCESS - success;otherwise: failed
- */
-DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt,
+ */   
+DMS_DECLARE int dms_get_mes_wait_event(unsigned int cmd, unsigned long long *event_cnt, 
     unsigned long long *event_time);
 
 DMS_DECLARE int dms_create_global_xa_res(dms_context_t *dms_ctx, unsigned char owner_id, unsigned char undo_set_id,
@@ -1032,15 +1015,6 @@ DMS_DECLARE int dms_collect_mem_usage_stat();
 DMS_DECLARE int dms_get_mem_usage_stat_row(unsigned int mem_id, mem_info_stat_t *mem_stat_row_result);
 DMS_DECLARE int dms_get_online_inst(unsigned long long *online_node);
 DMS_DECLARE int dms_update_param(unsigned int index, char *value);
-
-DMS_DECLARE int dms_convert_error_to_event(unsigned int dms_error, unsigned int *dms_event);
-DMS_DECLARE int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event);
-DMS_DECLARE int dms_end_sess_wait(unsigned int sid, unsigned int dms_event);
-DMS_DECLARE void dms_update_inst_cnt(unsigned int inst_cnt, unsigned long long int inst_map);
-DMS_DECLARE void dms_get_session_event(unsigned int sid, dms_wait_event_t event_type, unsigned long long *event_cnt,
-    unsigned long long *event_time);
-DMS_DECLARE void dms_get_session_stat_wait_attr(unsigned int sid, dms_wait_event_t event, unsigned int *is_waiting);
-DMS_DECLARE void dms_get_version_info(dms_version_info_t* version_stats);
 
 #ifdef __cplusplus
 }

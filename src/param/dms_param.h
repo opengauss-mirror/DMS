@@ -25,7 +25,7 @@
 #include "cm_config.h"
 #include "dms_api.h"
 #include "dms_msg.h"
-#include "cmpt_msg_cmd.h"
+#include "dms_msg_command.h"
 #include "cm_types.h"
 #include "dms_error.h"
 #include "ddes_fault_injection.h"

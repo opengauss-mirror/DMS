@@ -164,7 +164,7 @@ static int32 drc_chk_conflict_4_upgrade(dms_process_context_t *ctx, drc_head_t *
         DMS_THROW_ERROR(ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER);
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
-
+    
     // converting node can only receive error ack or wait timeout
     // so we can remove it from converting directly
     if (converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE) {
@@ -278,6 +278,19 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_head_t *drc, drc_r
         cm_bilist_add_head(&req->node, &drc->convert_q);
     }
     return DMS_SUCCESS;
+}
+
+uint8 drc_lookup_owner_id(uint64 *owner_map)
+{
+    for (uint8 i = 0; i < DMS_MAX_INSTANCES; ++i) {
+        // currently, for multiple owners, return the owner with the smallest id
+        if (bitmap64_exist(owner_map, i)) {
+            return i;
+        }
+    }
+
+    cm_panic(0);
+    return 0;
 }
 
 int drc_get_no_owner_id(void *db_handle, drc_head_t *drc, uint8 *owner_id)
@@ -426,11 +439,6 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     if (drc->type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
         result->seq = drc_page->seq;
-
-        DDES_FAULT_INJECTION_ACTION_TRIGGER_CUSTOM_ALWAYS(DMS_FI_DRC_FROZEN, {
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
-        return ERRNO_DMS_DRC_RECOVERY_PAGE; });
-
         if (req_info->sess_type == DMS_SESSION_NORMAL && drc_page->need_recover) {
             LOG_DEBUG_ERR("[DRC][%s]: request page fail, page in recovery", cm_display_resid(resid, type));
             DMS_THROW_ERROR(ERRNO_DMS_DRC_RECOVERY_PAGE, cm_display_resid(resid, type));
@@ -453,7 +461,10 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
         return ret;
     }
 
-    drc_shift_to_head(drc);
+    if (drc->type == DRC_RES_PAGE_TYPE) {
+        drc_shift_to_head(drc);
+    }
+
     return DMS_SUCCESS;
 }
 
@@ -511,14 +522,22 @@ void drc_get_convert_info(drc_head_t *drc, cvt_info_t *cvt_info)
 {
     drc_request_info_t *req_info = &drc->converting.req_info;
 
-    cvt_info->req_info = *req_info;
+    cvt_info->req_id = req_info->inst_id;
+    cvt_info->req_sid = req_info->sess_id;
+    cvt_info->req_ruid = req_info->ruid;
+    cvt_info->curr_mode = req_info->curr_mode;
+    cvt_info->req_mode = req_info->req_mode;
     cvt_info->res_type = drc->type;
     cvt_info->len = drc->len;
-    cvt_info->owner_id = drc->owner;
+    cvt_info->is_try = req_info->is_try;
+    cvt_info->sess_type = req_info->sess_type;
+    cvt_info->req_proto_ver = req_info->req_proto_ver;
     cvt_info->seq = try_get_drc_page_seq(drc);
 
     CM_ASSERT(cvt_info->req_mode == DMS_LOCK_EXCLUSIVE || cvt_info->req_mode == DMS_LOCK_SHARE);
     CM_ASSERT(cvt_info->req_id < DMS_MAX_INSTANCES);
+
+    cvt_info->owner_id = drc->owner;
 
     errno_t ret = memcpy_s(cvt_info->resid, DMS_RESID_SIZE, DRC_DATA(drc), drc->len);
     DMS_SECUREC_CHECK(ret);
@@ -748,8 +767,7 @@ bool8 drc_can_release(drc_page_t *drc_page, uint8 inst_id)
 bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
 {
     drc_head_t *drc = NULL;
-    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-    options |= DRC_RES_RELEASE;
+    uint8 options = (DRC_RES_NORMAL | DRC_RES_CHECK_MASTER | DRC_RES_RELEASE | DRC_RES_CHECK_ACCESS);
     if (drc_enter(resid, len, DRC_RES_PAGE_TYPE, options, &drc) != DMS_SUCCESS) {
         return CM_FALSE;
     }
@@ -766,7 +784,7 @@ bool8 drc_chk_4_release(char *resid, uint16 len, uint8 inst_id)
     } else if (!release) {
         drc_try_confirm_cvt(drc);
     }
-
+    
     drc_leave(drc, options);
     return release;
 }
@@ -872,10 +890,6 @@ void fill_dv_drc_buf_info(drc_head_t *drc, dv_drc_buf_info *res_buf_info)
     res_buf_info->converting_req_info_inst_id = drc->converting.req_info.inst_id;
     res_buf_info->converting_req_info_curr_mode = drc->converting.req_info.curr_mode;
     res_buf_info->converting_req_info_req_mode = drc->converting.req_info.req_mode;
-
-    uint32 hash_key = 0;
-    (void)drc_get_page_hash(DRC_DATA(drc), &hash_key, NULL); /* hashval not needed */
-    res_buf_info->hash_key = hash_key;
     char *drc_data = cm_display_resid(DRC_DATA(drc), drc->type);
     int ret = strcpy_s(res_buf_info->data, DMS_MAX_RESOURCE_NAME_LEN, drc_data);
     if (ret != EOK) {
@@ -928,8 +942,6 @@ drc_res_pool_t *get_buf_pool(int drc_type)
             return &ctx->global_lock_res.res_map.res_pool;
         case DRC_RES_ALOCK_TYPE:
             return &ctx->global_alock_res.res_map.res_pool;
-        case DRC_RES_GLOBAL_XA_TYPE:
-            return &ctx->global_xa_res.res_map.res_pool;
         default:
             return NULL;
     }
@@ -962,7 +974,6 @@ bool8 drc_chk_page_ownership(char* resid, uint16 len, uint8 inst_id, uint8 curr_
 {
     drc_head_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
-    options |= DRC_RES_RELEASE;
     if (drc_enter(resid, len, DRC_RES_PAGE_TYPE, options, &drc) != DMS_SUCCESS || drc == NULL) {
         return CM_FALSE;
     }

@@ -24,6 +24,8 @@
 
 #include "dms_reform_proc_stat.h"
 #include "cm_timer.h"
+#include "dms_process.h"
+#include "dms_reform_proc.h"
 
 drps_t g_drps;
 thread_local_var drps_items_t *g_drps_items = NULL;

@@ -31,6 +31,30 @@
 extern "C" {
 #endif
 
+#pragma pack(4)
+    typedef struct st_dms_smon_deadlock_alock_req {
+        dms_message_head_t head;
+        alockid_t          alockid;
+    } dms_smon_deadlock_alock_req_t;
+
+    typedef struct st_dms_smon_deadlock_alock_rsp {
+        dms_message_head_t head;
+        uint32 ret_code;
+        uint32 data_size;
+        char data[0];
+    } dms_smon_deadlock_alock_rsp_t;
+#pragma pack()
+
+typedef struct st_dcs_req_tlock_by_rm {
+    uint32 type;
+    uint16 sid;
+    uint16 rmid;
+} dcs_req_tlock_by_rm_t;
+
+typedef struct st_dcs_req_tlock_by_tid {
+    char tlock[DMS_SMON_TLOCK_MSG_MAX_LEN];
+} dcs_req_tlock_by_tid_t;
+
 void dcs_proc_smon_dlock_msg(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_process_get_itl_lock(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_smon_deadlock_sql(dms_process_context_t *ctx, dms_message_t *receive_msg);

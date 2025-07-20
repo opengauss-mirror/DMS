@@ -13,28 +13,22 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  *
- * dms_smon.h
+ * dcs_msg.c
  *
  *
  * IDENTIFICATION
- *    src/dms/dms_smon.h
+ *    src/dcs/dcs_msg.c
  *
  * -------------------------------------------------------------------------
  */
-#ifndef __DMS_SMON_H__
-#define __DMS_SMON_H__
 
-#include "drc.h"
+#include "dcs_msg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void dms_smon_entry(thread_t *thread);
-bool32 dms_the_same_drc_req(drc_request_info_t *req1, drc_request_info_t *req2);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __DMS_SMON_H__ */

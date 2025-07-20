@@ -23,10 +23,11 @@
  */
 
 #include "drc_res_mgr.h"
+#include <stdlib.h>
+#include "securec.h"
+#include "dms_error.h"
 #include "drc_page.h"
 #include "dms_reform_proc_parallel.h"
-#include "drc_tran.h"
-#include "cmpt_msg_drm.h"
 
 /* some global struct definition */
 drc_res_ctx_t g_drc_res_ctx;
@@ -130,14 +131,9 @@ void drc_res_pool_reinit(drc_res_pool_t *pool)
  */
 static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
 {
-    if (g_dms.drc_mem_context == NULL && pool->addr_list.count >= pool->max_extend_num) {
-        return CM_FALSE;
-    }
     uint64 sz = pool->extend_step * pool->item_size;
     char *addr = (char *)dms_malloc(g_dms.drc_mem_context, sz);
     if (addr == NULL) {
-        LOG_DEBUG_ERR_INHIBIT(LOG_INHIBIT_LEVEL2,
-            "drc res pool_extend failed, memory used maybe has reached context max_mem_size");
         pool->need_recycle = CM_TRUE;
         return CM_FALSE;
     }
@@ -147,7 +143,7 @@ static bool8 drc_res_pool_extend(drc_res_pool_t *pool)
         return CM_FALSE;
     }
     pool->item_num += pool->extend_step;
-    pool->need_recycle = CM_FALSE;
+    pool->need_recycle = pool->addr_list.count >= pool->max_extend_num;
     return CM_TRUE;
 }
 
@@ -182,11 +178,13 @@ char *drc_res_pool_alloc_item_inner(drc_res_pool_t *pool)
     }
 
     // 2. try extend buffer
-    if (pool->item_hwm == pool->item_num && !drc_res_pool_extend(pool)) {
-        return NULL;
+    if (pool->item_hwm == pool->item_num) {
+        if (!drc_res_pool_extend(pool)) {
+            return NULL;
+        }
     }
 
-    // 3. alloc from hwm
+    // 3. alloc form hwm
     CM_ASSERT(pool->item_hwm < pool->item_num);
     char *addr = drc_pool_find_item(pool, pool->item_hwm);
     CM_ASSERT(addr != NULL);
@@ -301,14 +299,7 @@ static void drc_init(drc_head_t *drc, char *resid, uint16 len, uint8 res_type)
     // init drc_page
     if (res_type == DRC_RES_PAGE_TYPE) {
         drc_page_t *drc_page = (drc_page_t *)drc;
-        cm_bilist_node_init(&drc_page->flush_node);
-        drc_page->owner_lsn = 0;
-        drc_page->edp_map = 0;
-        drc_page->rebuild_type = REFORM_ASSIST_LIST_NONE;
-        drc_page->need_recover = CM_FALSE;
-        drc_page->need_flush = CM_FALSE;
         drc_page->last_edp = CM_INVALID_ID8;
-        drc_page->last_edp_lsn = 0;
         drc_page->seq = 0;
     }
 }
@@ -322,8 +313,6 @@ uint16 drc_get_partid(drc_head_t *drc)
             return drc_get_lock_partid(DRC_DATA(drc), DMS_DRID_SIZE, DRC_MAX_PART_NUM);
         case DRC_RES_ALOCK_TYPE:
             return drc_get_lock_partid(DRC_DATA(drc), DMS_ALOCKID_SIZE, DRC_MAX_PART_NUM);
-        case DRC_RES_GLOBAL_XA_TYPE:
-            return drc_get_xa_partid((drc_global_xid_t *)DRC_DATA(drc));
         default:
             cm_panic_log(CM_FALSE, "invalid type when get partid");
             return 0;
@@ -351,10 +340,6 @@ static inline void drc_remove_from_part_list(drc_head_t *drc)
 
 drc_head_t *drc_create(drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type, drc_res_bucket_t *bucket)
 {
-    DDES_FAULT_INJECTION_ACTION_TRIGGER_CUSTOM_ALWAYS(DMS_FI_DRC_NOT_ENOUGH, {
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH);
-        return NULL; });
-
     drc_head_t *drc = (drc_head_t *)drc_res_pool_alloc_item(pool);
     if (drc == NULL) {
         LOG_DEBUG_WAR("[DRC][%s]drc create fail", cm_display_resid(resid, res_type));
@@ -377,57 +362,6 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
     cm_unlatch(&res_map->res_latch, NULL);
 }
 
-drc_head_t *drc_alloc(uint8 options, drc_res_pool_t *pool, char *resid, uint16 len, uint8 res_type,
-    drc_res_bucket_t *bucket)
-{
-    if (!(options & DRC_ALLOC)) {
-        return NULL;
-    }
-
-    drc_head_t *drc = drc_create(pool, resid, len, res_type, bucket);
-    if (SECUREC_UNLIKELY(drc == NULL)) {
-        return NULL;
-    } else {
-        return drc;
-    }
-}
-
-drc_head_t *drc_migrate(char *resid, uint16 len, uint8 res_type, uint8 options, uint8 old_master)
-{
-    drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
-    drc_res_map_t *res_map = &global_res_map->res_map;
-    drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
-    drc_head_t *drc = NULL;
-    dms_ack_drc_migrate_t ack;
-
-    if (dms_req_drc_migrate(&ack, resid, len, res_type, options, old_master) != DMS_SUCCESS) {
-        return NULL;
-    }
-
-    if (!ack.exist) {
-        return drc_alloc(options, &res_map->res_pool, resid, len, res_type, bucket);
-    }
-
-    drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
-    if (SECUREC_UNLIKELY(drc == NULL)) {
-        return NULL;
-    }
-    drc->owner = ack.owner;
-    drc->lock_mode = ack.lock_mode;
-    drc->copy_insts = ack.copy_insts;
-    drc->converting = ack.converting;
-    if (res_type == DRC_RES_PAGE_TYPE) {
-        drc_page_t *drc_page = (drc_page_t *)drc;
-        drc_page->last_edp = ack.last_edp;
-        drc_page->edp_map = ack.edp_map;
-        drc_page->last_edp_lsn = ack.last_edp_lsn;
-        drc_page->seq = ack.seq;
-    }
-    DRC_DISPLAY(drc, "DRM");
-    dms_notify_old_master_release(drc, old_master, options);
-    return drc;
-}
-
 drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
@@ -442,28 +376,18 @@ drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 op
         return drc;
     }
 
-    // accessed by old master(for migrate or release), return NULL if drc not exists
-    if (options & DRC_RES_CHECK_OLD_MASTER) {
+    if (!(options & DRC_RES_ALLOC)) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
     }
 
-    uint8 old_master = CM_INVALID_ID8;
-    if (drc_get_old_master_id(resid, res_type, &old_master) != DMS_SUCCESS) {
+    drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
+    if (SECUREC_UNLIKELY(drc == NULL)) {
         cm_spin_unlock(&bucket->lock);
         return NULL;
     }
 
-    // old master is self, just create drc according options. otherwise, should ask old master for drc
-    if (dms_dst_id_is_self(old_master)) {
-        drc = drc_alloc(options, &res_map->res_pool, resid, len, res_type, bucket);
-    } else {
-        drc = drc_migrate(resid, len, res_type, options, old_master);
-    }
-
-    if (drc != NULL) {
-        drc_inc_ref_count(drc);
-    }
+    drc_inc_ref_count(drc);
     cm_spin_unlock(&bucket->lock);
     return drc;
 }
@@ -507,50 +431,21 @@ int drc_enter_check_access(char *resid, uint8 res_type, uint8 options)
         return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
-    switch (res_type) {
-        case DRC_RES_PAGE_TYPE:
-            if (!(options & DRC_RES_RELEASE) &&
-                res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
-                LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
-                DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-                return ERRNO_DMS_REFORM_IN_PROCESS;
-            }
-            break;
-        case DRC_RES_LOCK_TYPE:
-        case DRC_RES_ALOCK_TYPE:
-            if ((options & DRC_CHECK_BIZ_SESSION) &&
-                res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
-                LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
-                DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
-                return ERRNO_DMS_REFORM_IN_PROCESS;
-            }
-        case DRC_RES_GLOBAL_XA_TYPE:
-            break;
-        default:
-            LOG_RUN_ERR("invalid res type:%d", res_type);
-            break;
+    if (res_type == (uint8)DRC_RES_PAGE_TYPE && !(options & DRC_RES_RELEASE) &&
+        res_map->drc_accessible_stage == PAGE_ACCESS_STAGE_REALESE_ACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
+    }
+
+    if (res_type == DRC_RES_LOCK_TYPE && (options & DRC_CHECK_BIZ_SESSION) &&
+        res_map->drc_accessible_stage == LOCK_ACCESS_STAGE_NON_BIZ_SESSION_ACCESS) {
+        LOG_DEBUG_WAR("[%s][drc_enter_check_access]data is inaccessible", cm_display_resid(resid, res_type));
+        DMS_THROW_ERROR(ERRNO_DMS_REFORM_IN_PROCESS);
+        return ERRNO_DMS_REFORM_IN_PROCESS;
     }
 
     return DMS_SUCCESS;
-}
-
-int drc_enter_check_old_master(char *resid, uint8 res_type, uint8 options)
-{
-    if (!(options & DRC_RES_CHECK_OLD_MASTER)) {
-        return DMS_SUCCESS;
-    }
-
-    uint8 master_id = CM_INVALID_ID8;
-    int ret = drc_get_old_master_id(resid, res_type, &master_id);
-    DMS_RETURN_IF_ERROR(ret);
-
-    if (dms_dst_id_is_self(master_id)) {
-        return DMS_SUCCESS;
-    }
-
-    LOG_DEBUG_WAR("[%s][drc_enter_check_old_master]old_master is %d", cm_display_resid(resid, res_type), master_id);
-    DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID, cm_display_resid(resid, res_type));
-    return ERRNO_DMS_DRC_INVALID;
 }
 
 int drc_enter_check_master(char *resid, uint8 res_type, uint8 options)
@@ -615,12 +510,6 @@ int drc_enter_check(char *resid, uint8 res_type, uint8 options)
         return ret;
     }
 
-    ret = drc_enter_check_old_master(resid, res_type, options);
-    if (ret != DMS_SUCCESS) {
-        drc_unlatch(res_type, options);
-        return ret;
-    }
-
     return DMS_SUCCESS;
 }
 
@@ -646,93 +535,6 @@ int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t
     cm_spin_lock(&(*drc)->lock, NULL);
     try_drc_page_inc_seq(*drc);
     return DMS_SUCCESS;
-}
-
-bool8 drm_create_inner(char *resid, uint16 len, uint8 res_type, uint8 options)
-{
-    drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
-    drc_res_map_t *res_map = &global_res_map->res_map;
-    drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
-
-    cm_spin_lock(&bucket->lock, NULL);
-    drc_head_t *drc = (drc_head_t *)drc_res_map_lookup(res_map, bucket, resid, len);
-    if (drc != NULL) {
-        cm_spin_unlock(&bucket->lock);
-        return CM_TRUE;
-    }
-
-    drc = drc_alloc(options, &res_map->res_pool, resid, len, res_type, bucket);
-    if (drc == NULL) {
-        cm_spin_unlock(&bucket->lock);
-        return CM_FALSE;
-    }
-
-    switch (res_type) {
-        case DRC_RES_PAGE_TYPE: {
-            drm_migrate_page_t *migrate_page = (drm_migrate_page_t *)resid;
-            drc_page_t *drc_page = (drc_page_t *)drc;
-            errno_t err = memcpy_s(&drc->converting, sizeof(drc_cvt_item_t),
-                &migrate_page->converting, sizeof(drc_cvt_item_t));
-            DMS_SECUREC_CHECK(err);
-            drc->owner = migrate_page->owner;
-            drc->lock_mode = migrate_page->lock_mode;
-            drc->copy_insts = migrate_page->copy_insts;
-            drc_page->last_edp = migrate_page->last_edp;
-            drc_page->edp_map = migrate_page->edp_map;
-            drc_page->last_edp_lsn = migrate_page->last_edp_lsn;
-            drc_page->seq = migrate_page->seq;
-            break;
-        }
-
-        case DRC_RES_LOCK_TYPE: {
-            drm_migrate_lock_t *migrate_lock = (drm_migrate_lock_t *)resid;
-            errno_t err = memcpy_s(&drc->converting, sizeof(drc_cvt_item_t),
-                &migrate_lock->converting, sizeof(drc_cvt_item_t));
-            DMS_SECUREC_CHECK(err);
-            drc->owner = migrate_lock->owner;
-            drc->lock_mode = migrate_lock->lock_mode;
-            drc->copy_insts = migrate_lock->copy_insts;
-            break;
-        }
-
-        case DRC_RES_ALOCK_TYPE: {
-            drm_migrate_alock_t *migrate_alock = (drm_migrate_alock_t *)resid;
-            errno_t err = memcpy_s(&drc->converting, sizeof(drc_cvt_item_t),
-                &migrate_alock->converting, sizeof(drc_cvt_item_t));
-            DMS_SECUREC_CHECK(err);
-            drc->owner = migrate_alock->owner;
-            drc->lock_mode = migrate_alock->lock_mode;
-            drc->copy_insts = migrate_alock->copy_insts;
-            break;
-        }
-
-        case DRC_RES_GLOBAL_XA_TYPE: {
-            drm_migrate_xa_t *migrate_xa = (drm_migrate_xa_t *)resid;
-            drc->owner = migrate_xa->owner;
-            break;
-        }
-
-        default:
-            CM_ASSERT(0);
-            break;
-    }
-
-    DRC_DISPLAY(drc, "DRM");
-    cm_spin_unlock(&bucket->lock);
-
-    return CM_TRUE;
-}
-
-bool8 drm_create(char* resid, uint16 len, uint8 res_type)
-{
-    uint8 options = drc_build_options(CM_TRUE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
-    if (drc_enter_check(resid, res_type, options) != DMS_SUCCESS) {
-        return CM_FALSE;
-    }
-
-    bool8 ret = drm_create_inner(resid, len, res_type, options);
-    drc_unlatch(res_type, options);
-    return ret;
 }
 
 void drc_leave(drc_head_t *drc, uint8 options)
@@ -829,9 +631,7 @@ void drc_destroy(void)
         cm_chan_free(ctx->chan);
         ctx->chan = NULL;
     }
-
     uninit_drc_mem_context();
-    drm_thread_deinit();
 }
 
 int dcs_ckpt_get_page_owner_inner(void *db_handle, uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], uint8 *id)
@@ -912,23 +712,6 @@ int32 drc_get_page_master_id(char *pageid, unsigned char *master_id)
     return DMS_SUCCESS;
 }
 
-int32 drc_get_page_old_master_id(char *pageid, unsigned char *master_id)
-{
-    dms_reset_error();
-    uint8  inst_id;
-    uint32 part_id;
-
-    part_id = drc_page_partid(pageid);
-    inst_id = DRC_PART_OLD_MASTER_ID(part_id);
-    if (inst_id == CM_INVALID_ID8) {
-        DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND, cm_display_pageid(pageid));
-        return ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND;
-    }
-
-    *master_id = inst_id;
-    return DMS_SUCCESS;
-}
-
 int drc_get_page_remaster_id(char pageid[DMS_PAGEID_SIZE], uint8 *id)
 {
     uint8  inst_id;
@@ -988,23 +771,7 @@ int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
         case DRC_RES_ALOCK_TYPE:
             return drc_get_lock_master_id(resid, DMS_ALOCKID_SIZE, master_id);
         default:
-            return DMS_ERROR;
-    }
-}
-
-int32 drc_get_old_master_id(char *resid, uint8 type, uint8 *master_id)
-{
-    switch (type) {
-        case DRC_RES_PAGE_TYPE:
-            return drc_get_page_old_master_id(resid, master_id);
-        case DRC_RES_GLOBAL_XA_TYPE:
-            return drc_get_xa_old_master_id((drc_global_xid_t *)resid, master_id);
-        case DRC_RES_LOCK_TYPE:
-            return drc_get_lock_old_master_id(resid, DMS_DRID_SIZE, master_id);
-        case DRC_RES_ALOCK_TYPE:
-            return drc_get_lock_old_master_id(resid, DMS_ALOCKID_SIZE, master_id);
-        default:
-            return DMS_ERROR;
+            return CM_INVALID_ID8;
     }
 }
 
@@ -1013,7 +780,7 @@ uint8 drc_build_options(bool32 alloc, dms_session_e sess_type, uint8 intercept_t
     uint8 options = DRC_RES_NORMAL;
 
     if (alloc) {
-        options |= DRC_ALLOC;
+        options |= DRC_RES_ALLOC;
     }
 
     if (intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
@@ -1169,14 +936,8 @@ static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *globa
 {
     drc_res_ctx_t *res_ctx = DRC_RES_CTX;
 
-    if (drc->type == DRC_RES_GLOBAL_XA_TYPE && drc->owner != CM_INVALID_ID8) {
-        LOG_DEBUG_WAR("[DRC recycle][%s]fail to release drc xa, owner:%d",
-            cm_display_resid(DRC_DATA(drc), drc->type), drc->owner);
-        return CM_FALSE;
-    }
-
     if (drc->copy_insts > 0 && dms_invalidate_share_copy(ctx, DRC_DATA(drc), drc->len, drc->type,
-        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq, NULL) != DMS_SUCCESS) {
+        drc->copy_insts, DMS_SESSION_NORMAL, CM_FALSE, CM_FALSE, seq) != DMS_SUCCESS) {
         LOG_DEBUG_WAR("[DRC recycle][%s]fail to release share copy: %llu",
             cm_display_resid(DRC_DATA(drc), drc->type), drc->copy_insts);
         return CM_FALSE;
@@ -1220,24 +981,9 @@ static bool8 drc_chk_4_recycle(drc_head_t *drc, uint64 *seq)
             return CM_FALSE;
         }
     }
-
-    if (drc->type == DRC_RES_GLOBAL_XA_TYPE) {
-        if (drc->owner != CM_INVALID_ID8) {
-            cm_spin_unlock(&drc->lock);
-            return CM_FALSE;
-        }
-    }
-
     drc->is_recycling = CM_TRUE;
     cm_spin_unlock(&drc->lock);
     return CM_TRUE;
-}
-
-bool8 drc_recycle_part_check(uint16 part_id)
-{
-    uint8 curr_master = DRC_PART_MASTER_ID(part_id);
-    uint8 old_master = DRC_PART_OLD_MASTER_ID(part_id);
-    return dms_dst_id_is_self(old_master) && dms_dst_id_is_self(curr_master);
 }
 
 void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *obj_res_map, drc_part_list_t *part)
@@ -1248,9 +994,7 @@ void drc_recycle_drc_by_part(dms_process_context_t *ctx, drc_global_res_map_t *o
 
     if (node == NULL) {
         return;
-    }
-    // drc can not be released by other thread, so we can access drc directly here
-    // so drc in old master can not processed here, otherwise there may be concurrency issues
+    }    
     drc_head_t *drc = (drc_head_t *)BILIST_NODE_OF(drc_head_t, node, part_node);
     // check
     uint64 seq = 0;
@@ -1302,18 +1046,16 @@ void drc_recycle_buf_res_set_running(void)
 
 static inline bool8 drc_chk_if_need_recycle(drc_res_pool_t *pool)
 {
-    if (pool->used_num < pool->item_num * DRC_RECYCLE_THRESHOLD) {
-        return CM_FALSE;
+    bool8 need_recycle = pool->need_recycle;
+    if (g_dms.drc_mem_context != NULL) {
+        uint64 used, total;
+        ddes_memory_stat(g_dms.drc_mem_context, &used, &total);
+        need_recycle = (bool8)(used >= total * DRC_RECYCLE_THRESHOLD);
     }
-    if (g_dms.drc_mem_context == NULL) {
-        return (pool->need_recycle || pool->addr_list.count >= pool->max_extend_num);
-    }
-    uint64 used, total;
-    ddes_memory_stat(g_dms.drc_mem_context, &used, &total);
-    return (pool->need_recycle || used >= total * DRC_RECYCLE_THRESHOLD);
+    return (need_recycle && pool->used_num >= pool->item_num * DRC_RECYCLE_THRESHOLD);
 }
 
-static bool8 recycle_global_drc(dms_process_context_t *ctx, drc_recycle_obj_t *obj)
+static bool8 drc_recycle_internal(dms_process_context_t *ctx, drc_recycle_obj_t *obj)
 {
     drc_res_ctx_t *res_ctx = DRC_RES_CTX;
     drc_global_res_map_t *global_drc_res = obj->global_drc_res;
@@ -1340,10 +1082,8 @@ static bool8 recycle_global_drc(dms_process_context_t *ctx, drc_recycle_obj_t *o
     }
     // serial recycling
     for (uint16 part_id = 0; part_id < DRC_MAX_PART_NUM; part_id++) {
-        if (drc_recycle_part_check(part_id)) {
-            drc_part_list_t *part = &global_drc_res->res_parts[part_id];
-            drc_recycle_drc_by_part(ctx, global_drc_res, part);
-        }
+        drc_part_list_t *part = &global_drc_res->res_parts[part_id];
+        drc_recycle_drc_by_part(ctx, global_drc_res, part);
         if (res_ctx->smon_recycle_pause) {
             break;
         }
@@ -1356,92 +1096,22 @@ static drc_recycle_obj_t recycle_objs[] = {
     { &g_drc_res_ctx.global_buf_res,   "BUF RES",   CM_FALSE },
     { &g_drc_res_ctx.global_lock_res,  "LOCK RES",  CM_FALSE },
     { &g_drc_res_ctx.global_alock_res, "ALOCK RES", CM_FALSE },
-    { &g_drc_res_ctx.global_xa_res,    "XA RES",    CM_FALSE },
 };
-
-static void recycle_local_res_by_part(drc_res_ctx_t *ctx, drc_part_list_t *part)
-{
-    cm_spin_lock(&part->lock, NULL);
-    bilist_node_t *node = cm_bilist_tail(&part->list);
-    cm_spin_unlock(&part->lock);
-    if (node == NULL) {
-        return;
-    }
-    drc_local_lock_res_t *lock_res = (drc_local_lock_res_t *)BILIST_NODE_OF(drc_local_lock_res_t, node, lru_node);
-    date_t begin = g_timer()->now;
-    lock_res->recycling = CM_TRUE;
-    cm_spin_lock(&lock_res->lock, NULL);
-    // waiting for all owners to release the lock
-    while (lock_res->latch_stat.stat != LATCH_STATUS_IDLE) {
-        cm_spin_unlock(&lock_res->lock);
-        if ((g_timer()->now - begin) / MICROSECS_PER_MILLISEC >= DMS_WAIT_MAX_TIME || ctx->smon_recycle_pause) {
-            lock_res->recycling = CM_FALSE;
-            lock_resx_move_to_lru_head(lock_res);
-            LOG_DEBUG_WAR("[DLS] recycle local res(%s) timeout", cm_display_lockid(&lock_res->resid));
-            return;
-        }
-        cm_sleep(1);
-        cm_spin_lock(&lock_res->lock, NULL);
-    }
-    drc_res_bucket_t *bucket = drc_res_map_get_bucket(&ctx->local_lock_res,
-        (char *)&lock_res->resid, sizeof(dms_drid_t));
-    // remove from hash bucket
-    cm_spin_lock(&bucket->lock, NULL);
-    drc_res_map_del_res(&ctx->local_lock_res, bucket, (char *)&lock_res->resid, sizeof(dms_drid_t));
-    cm_spin_unlock(&bucket->lock);
-    // remove from LRU part
-    lock_resx_del_from_lru(lock_res);
-    // change version and invalid local res which be cached
-    cm_spin_lock(&lock_res->modify_mode_lock, NULL);
-    lock_res->version = (uint64)cm_atomic_inc(&ctx->version);
-    cm_spin_unlock(&lock_res->modify_mode_lock);
-    // someone(dms_latch_s\dms_latch_x) may be waiting for the recycling to be completed
-    // reset this flag and wake up them in time
-    lock_res->recycling = CM_FALSE;
-    cm_spin_unlock(&lock_res->lock);
-    // free drc to resource pool, to be reused later
-    drc_res_pool_free_item(&ctx->local_lock_res.res_pool, (char*)lock_res);
-}
-
-static bool8 recycle_local_res(drc_res_ctx_t *ctx)
-{
-    drc_res_pool_t *pool = &ctx->local_lock_res.res_pool;
-    if (!drc_chk_if_need_recycle(pool)) {
-        if (ctx->start_recycled) {
-            ctx->start_recycled = CM_FALSE;
-            LOG_DEBUG_INF("[DRC local res recycle]end, total: %u, used: %u", pool->item_num, pool->used_num);
-        }
-        return CM_FALSE;
-    }
-    if (!ctx->start_recycled) {
-        ctx->start_recycled = CM_TRUE;
-        LOG_DEBUG_INF("[DRC local res recycle]start, total: %u, used: %u", pool->item_num, pool->used_num);
-    }
-    cm_spin_lock(&ctx->smon_recycle_lock, NULL);
-    for (uint32 i = 0; i < DRC_MAX_PART_NUM; i++) {
-        if (ctx->smon_recycle_pause) {
-            break;
-        }
-        recycle_local_res_by_part(ctx, &ctx->local_res_parts[i]);
-    }
-    cm_spin_unlock(&ctx->smon_recycle_lock);
-    return CM_TRUE;
-}
 
 static bool8 drc_do_recycle_task(dms_process_context_t *ctx)
 {
-    bool8 ret = CM_FALSE;
     drc_res_ctx_t *res_ctx = DRC_RES_CTX;
+    uint8 recycle_obj_count = 0;
     uint8 obj_count = ELEMENT_COUNT(recycle_objs);
     for (uint8 i = 0; i < obj_count; i++) {
-        if (recycle_global_drc(ctx, &recycle_objs[i])) {
-            ret = CM_TRUE;
+        if (drc_recycle_internal(ctx, &recycle_objs[i])) {
+            recycle_obj_count++;
         }
         if (res_ctx->smon_recycle_pause) {
-            return CM_FALSE;
+            break;
         }
     }
-    return (recycle_local_res(res_ctx) || ret);
+    return (recycle_obj_count > 0);
 }
 
 void drc_recycle_thread(thread_t *thread)
@@ -1460,7 +1130,7 @@ void drc_recycle_thread(thread_t *thread)
     proc_ctx.inst_id   = g_dms.inst_id;
     proc_ctx.sess_id   = ctx->smon_recycle_sid;
     proc_ctx.db_handle = ctx->smon_recycle_handle;
-
+    
     LOG_RUN_INF("[DRC recycle]drc_recycle_thread start");
     while (!thread->closed) {
         if (!ctx->smon_recycle_pause && drc_do_recycle_task(&proc_ctx)) {

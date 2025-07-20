@@ -28,7 +28,7 @@
 #include "dms_mfc.h"
 #include "cm_types.h"
 #include "dms_msg.h"
-#include "cmpt_msg_cmd.h"
+#include "dms_msg_command.h"
 #include "dms_reform.h"
 #include "fault_injection.h"
 
@@ -60,10 +60,10 @@ typedef struct st_dms_instance {
     uint32 proc_ctx_cnt;
     dms_ock_scrlock_context_t scrlock_ctx;
     dms_process_context_t *proc_ctx;
-    dms_processor_t req_processors[DMS_REQ_CMD_SIZE];
-    dms_processor_t ack_processors[DMS_ACK_CMD_SIZE];
+    dms_processor_t processors[CM_MAX_MES_MSG_CMD];
     dms_callback_t callback;
     reform_context_t reform_ctx;
+    mfc_t mfc;
     uint64 min_scn[DMS_MAX_INSTANCES];
     uint8 gdb_in_progress;
     bool8 dms_init_finish;
@@ -73,7 +73,6 @@ typedef struct st_dms_instance {
     void* mes_ptr;
     uint32 max_wait_time;
     atomic32_t cluster_proto_vers[DMS_MAX_INSTANCES];
-    atomic32_t cluster_running_min_proto_vers;
     uint32 max_alive_time_for_abnormal_status;
     ddes_fi_context_t fi_ctx;
     dms_msg_stats_t msg_stats[DMS_CM_MAX_SESSIONS];
@@ -87,6 +86,8 @@ typedef enum en_dms_msg_buffer_number {
     DMS_MSG_BUFFER_NO_2,
     DMS_MSG_BUFFER_NO_CEIL
 } dms_msg_buffer_number_e;
+
+#define DMS_MFC_OFF (g_dms.mfc.profile_tickets == 0)
 
 #define DMS_PRIORITY_COMPRESS_LEVEL 0
 #define DMS_MSG_BUFFER_QUEUE_NUM (8)
@@ -198,21 +199,10 @@ static inline void dms_proc_broadcast_ack3(dms_process_context_t *process_ctx, d
 
 static inline const char *dms_get_mescmd_msg(uint32 cmd)
 {
-    if (cmd < MSG_REQ_END) {
-        return g_dms.req_processors[cmd].name;
-    } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
-        return g_dms.ack_processors[cmd - MSG_ACK_BEGIN].name;
-    } else {
-        return "INVALID";
-    }
+    return (cmd < MSG_CMD_CEIL) ? g_dms.processors[cmd].name : "INVALID";
 }
 
-static inline uint32 dms_get_cluster_running_min_version()
-{
-    return (uint32)cm_atomic32_get(&g_dms.cluster_running_min_proto_vers);
-}
-
-unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg);
+unsigned int dms_get_mes_prio_by_cmd(uint32 cmd);
 void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg);
 void *dms_malloc(memory_context_t *context, size_t size);
 void dms_free(void *ptr);

@@ -27,7 +27,6 @@
 
 #include "cm_thread.h"
 #include "dms.h"
-#include "dms_reform.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,8 +35,9 @@ extern "C" {
 void dms_reform_judgement_thread(thread_t *thread);
 void dms_reform_update_reformer_version(uint64 start_time, uint8 inst_id);
 int dms_reform_get_list_from_cm(instance_list_t *list_online, instance_list_t *list_offline, uint64 *online_version);
-void dms_set_driver_ping_info(uint64 online_version, instance_list_t *list_online, node_info_t *node_infos);
-int dms_reform_get_online_status(instance_list_t *list_online, uint32 sess_id, node_info_t *node_infos);
+void dms_set_driver_ping_info(uint64 online_version, uint8 *online_rw_status, instance_list_t *list_online);
+int dms_reform_get_online_status(instance_list_t *list_online, uint8 *online_status, uint64 *online_times,
+    uint8 *online_rw_status, uint32 sess_id);
 int dms_reform_sync_cluster_version(bool8 pushing);
 char *dms_reform_get_type_desc(uint32 reform_type);
 

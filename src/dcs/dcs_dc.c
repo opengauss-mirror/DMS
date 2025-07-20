@@ -23,12 +23,12 @@
  */
 
 #include "dcs_dc.h"
+#include "dcs_msg.h"
+#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "dms_error.h"
 #include "dms_api.h"
 #include "cm_utils.h"
-#include "cmpt_msg_cmd.h"
-#include "cmpt_msg_misc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,7 +82,6 @@ static int dcs_handle_broadcast_msg(dms_context_t *dms_ctx, mes_msg_list_t *recv
             ret = g_dms.callback.process_broadcast_ack(dms_ctx->db_handle, &broad_ctx);
         }
         if (ret != DMS_SUCCESS) {
-            LOG_RUN_ERR("SS bcast ack from inst:%d failed, errno:%d", head->src_inst, ret);
             return ret;
         }
     }
@@ -125,18 +124,11 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
         all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id))); // exclude self
     }
 
-    if (all_inst == 0) {
-        return DMS_SUCCESS;
-    }
-
     mfc_broadcast2(all_inst, &head, (const void *)dms_broad_info->data, &succ_inst);
     LOG_DEBUG_INF("Send broadcast cmd: %d, all inst: %llu, expect succ inst: %llu", cmd, all_inst, succ_inst);
 
     if (!dms_broad_info->handle_recv_msg) {
         ret = mfc_get_broadcast_res_with_succ_insts(head.ruid, dms_broad_info->timeout, all_inst, &succ_inst);
-        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_AND_RETURN_IF_BCAST_ERROR(ret, "bcast cmd:%d, expect_insts:%llu, succ_insts:%llu",
-            cmd, all_inst, succ_inst);
     } else {
         mes_msg_list_t recv_msg;
         recv_msg.count = 0;
@@ -149,9 +141,7 @@ static int dms_broadcast_msg_internal(dms_context_t *dms_ctx, dms_broadcast_info
     }
     if (ret != DMS_SUCCESS) {
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_AND_RETURN_IF_BCAST_ERROR(ret, "bcast cmd:%d, expect_insts:%llu, succ_insts:%llu",
-            cmd, all_inst, succ_inst);
-        DMS_THROW_ERROR(ret);
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
     }
 
     return ret;
@@ -218,8 +208,8 @@ void dcs_proc_boc(dms_process_context_t *process_ctx, dms_message_t *receive_msg
     return;
 }
 
-int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
-    unsigned long long *send_insts, unsigned long long *succ_insts, unsigned long long *ruid)
+int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len, unsigned long long *success_inst,
+    unsigned long long *ruid)
 {
     dms_reset_error();
     reform_info_t *reform_info = DMS_REFORM_INFO;
@@ -227,24 +217,31 @@ int dms_send_bcast(dms_context_t *dms_ctx, void *data, unsigned int len,
 
     DMS_INIT_MESSAGE_HEAD(&head, MSG_REQ_BROADCAST, 0, dms_ctx->inst_id, 0,  dms_ctx->sess_id, CM_INVALID_ID16);
     head.size = (uint16)(sizeof(dms_message_head_t) + len);
-    *send_insts = reform_info->bitmap_connect & (~((uint64)0x1 << (dms_ctx->inst_id)));
+    uint64 all_inst = reform_info->bitmap_connect;
+    all_inst = all_inst & (~((uint64)0x1 << (dms_ctx->inst_id)));
     DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_BROADCAST, MSG_REQ_BROADCAST);
-    mfc_broadcast2(*send_insts, &head, (const void *)data, succ_insts);
+    mfc_broadcast2(all_inst, &head, (const void *)data, success_inst);
     *ruid = head.ruid;
-    if (*succ_insts == *send_insts) {
+    if (*success_inst == all_inst) {
         return DMS_SUCCESS;
     }
-    return ERRNO_DMS_DCS_BROADCAST_FAILED;
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, all_inst, *success_inst);
+    return DMS_ERROR;
 }
 
 int dms_wait_bcast(unsigned long long ruid, unsigned int inst_id, unsigned int timeout,
-    unsigned long long *wait_insts, unsigned long long *succ_insts)
+    unsigned long long *success_inst)
 {
     dms_reset_error();
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    *wait_insts = reform_info->bitmap_connect & (~((uint64)0x1 << inst_id));
-    int ret = mfc_get_broadcast_res_with_succ_insts(ruid, timeout, *wait_insts, succ_insts);
-    DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
+    uint64 all_inst = reform_info->bitmap_connect;
+    all_inst = all_inst & (~((uint64)0x1 << inst_id));
+    int ret = mfc_get_broadcast_res_with_succ_insts(ruid, timeout, all_inst, success_inst);
+    if (ret != DMS_SUCCESS) {
+        DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, all_inst, *success_inst);
+        return DMS_ERROR;
+    }
     return ret;
 }
 
@@ -268,7 +265,7 @@ int dms_send_boc(dms_context_t *dms_ctx, unsigned long long commit_scn, unsigned
     mfc_broadcast(inval_insts, (void *)&boc_req, success_inst);
     *ruid = boc_req.head.ruid;
     if (*success_inst != inval_insts) {
-        LOG_RUN_ERR("[boc]invld_insts=%llu, succ_insts=%llu", inval_insts, *success_inst);
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED, inval_insts, *success_inst);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
     }
     return DMS_SUCCESS;

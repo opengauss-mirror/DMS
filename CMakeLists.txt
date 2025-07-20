@@ -145,19 +145,20 @@ set(DMS_INTERFACE_PATH ${PROJECT_SOURCE_DIR}/src/interface)
 set(DMS_OCK_PATH ${PROJECT_SOURCE_DIR}/src/ock)
 set(DMS_FI_PATH ${PROJECT_SOURCE_DIR}/src/fi)
 set(DMS_PARAM_PATH ${PROJECT_SOURCE_DIR}/src/param)
-set(DMS_CMPT_PATH ${PROJECT_SOURCE_DIR}/src/cmpt)
 
 ## other dependency include 
 set(DMS_SECUREC_INC_PATH        "${CMAKE_CURRENT_SOURCE_DIR}/library/huawei_security/include")
 set(DMS_OPENSSL_PATH            "${CMAKE_CURRENT_SOURCE_DIR}/library/openssl/include")
 set(DMS_CBB_PATH                "${CMAKE_CURRENT_SOURCE_DIR}/library/cbb/include")
 set(ZLIB_INC_PATH               "${CMAKE_CURRENT_SOURCE_DIR}/library/zlib/include/")
+set(LZ4_INC_PATH                "${CMAKE_CURRENT_SOURCE_DIR}/library/lz4/include/")
 
 ## lib
 set(SECUREC_LIB_PATH            "${CMAKE_CURRENT_SOURCE_DIR}/library/huawei_security/lib")
 set(OPENSSL_LIB_PATH            "${CMAKE_CURRENT_SOURCE_DIR}/library/openssl/lib")
 set(CBB_LIB_PATH                "${CMAKE_CURRENT_SOURCE_DIR}/library/cbb/lib")
 set(ZLIB_PATH                   "${CMAKE_CURRENT_SOURCE_DIR}/library/zlib/lib/")
+set(LZ4_PATH                    "${CMAKE_CURRENT_SOURCE_DIR}/library/lz4/lib/")
 
 ## output path
 set (LIBRARY_OUTPUT_PATH        ${CMAKE_CURRENT_SOURCE_DIR}/output/lib)

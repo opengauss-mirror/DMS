@@ -22,10 +22,109 @@
  * -------------------------------------------------------------------------
  */
 
+#include "dms_reform_proc.h"
 #include "dms_reform_msg.h"
+#include "drc_res_mgr.h"
+#include "dms_error.h"
+#include "drc_page.h"
+#include "dms_reform_judge.h"
+#include "dcs_page.h"
+#include "dms_reform_health.h"
+#include "cm_timer.h"
+#include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
+#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
-#include "drc_tran.h"
+
+int dms_reform_req_migrate_xa(drc_global_xa_res_t *xa_res, dms_reform_req_migrate_t *req, uint32 *offset,
+    uint32 sess_id)
+{
+    int ret = DMS_SUCCESS;
+    drc_global_xid_t *xid = &xa_res->xid;
+    /* fmt_id + gtrid_len + bqual_len + unso_set_id + gtrid + bqual 
+     * 3 * sizeof(uint8): undo_set_id + gtrid_len + bqual_len
+     */
+    uint32 append_size = (uint32)(sizeof(uint64) + xid->bqual_len + xid->gtrid_len + 3 * sizeof(uint8));
+    if ((*offset + append_size) > DMS_REFORM_MSG_MAX_LENGTH) {
+        // send current msg, then reset the msg pack
+        req->head.size = (uint16)(*offset);
+        ret = dms_reform_send_data(&req->head, sess_id);
+        if (ret != DMS_SUCCESS) {
+            LOG_DEBUG_FUNC_FAIL;
+            DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, MES_REQ_MGRT_MASTER_DATA, req->head.dst_inst);
+            return ERRNO_DMS_SEND_MSG_FAILED;
+        }
+        *offset = (uint32)sizeof(dms_reform_req_migrate_t);
+        req->res_num = 0;
+    }
+
+    *(uint64 *)((char *)req + *offset) = xid->fmt_id;
+    *offset += sizeof(uint64);
+    *(uint8 *)((char *)req + *offset) = xid->gtrid_len;
+    *offset += sizeof(uint8);
+    *(uint8 *)((char *)req + *offset) = xid->bqual_len;
+    *offset += sizeof(uint8);
+    *(uint64 *)((char *)req + *offset) = xa_res->undo_set_id;
+    *offset += sizeof(uint8);
+    ret = memcpy_sp((char *)req + *offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
+    if (ret != EOK) {
+        DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+        return ret;
+    }
+    *offset += xid->gtrid_len;
+    if (xid->bqual_len > 0) {
+        ret = memcpy_sp((char *)req + *offset, xid->bqual_len, xid->bqual, xid->bqual_len);
+        if (ret != EOK) {
+            DMS_THROW_ERROR(ERR_SYSTEM_CALL, ret);
+            return ret;
+        }
+
+        *offset += xid->bqual_len;
+    }
+
+    req->res_num++;
+    return DMS_SUCCESS;
+}
+
+void dms_reform_proc_req_xa_migrate(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_migrate_t), CM_TRUE);
+    dms_reform_req_migrate_t *req = (dms_reform_req_migrate_t *)receive_msg->buffer;
+
+    int ret = DMS_SUCCESS;
+    drc_global_xid_t xid = { 0 };
+    uint32 owner_id = req->head.dst_inst;
+    uint32 offset = (uint32)sizeof(dms_reform_req_migrate_t);
+    for (uint32 i = 0; i < req->res_num; i++) {
+        CM_ASSERT(offset <= req->head.size);
+        xid.fmt_id = *(uint64 *)((uint8 *)receive_msg->buffer + offset);
+        offset += sizeof(uint64);
+        xid.gtrid_len = *(uint8 *)((uint8 *)receive_msg->buffer + offset);
+        offset += sizeof(uint8);
+        xid.bqual_len = *(uint8 *)((uint8 *)receive_msg->buffer + offset);
+        offset += sizeof(uint8);
+        uint8 undo_set_id = *(uint8 *)((uint8 *)receive_msg->buffer + offset);
+        offset += sizeof(uint8);
+        ret = memcpy_sp(xid.gtrid, DMS_MAX_XA_BASE16_GTRID_LEN, (uint8 *)receive_msg->buffer + offset, xid.gtrid_len);
+        DMS_SECUREC_CHECK(ret);
+        offset += xid.gtrid_len;
+        if (xid.bqual_len > 0) {
+            ret = memcpy_sp(xid.bqual, DMS_MAX_XA_BASE16_BQUAL_LEN, (uint8 *)receive_msg->buffer + offset,
+                xid.bqual_len);
+            DMS_SECUREC_CHECK(ret);
+            offset += xid.bqual_len;
+        }
+
+        ret = drc_create_xa_res(process_ctx->db_handle, process_ctx->sess_id, &xid, owner_id, undo_set_id, CM_FALSE);
+        if (ret != DMS_SUCCESS) {
+            LOG_RUN_ERR("[DRC][%s]dms_reform_proc_req_xa_migrate", cm_display_resid((char *)&xid,
+                DRC_RES_GLOBAL_XA_TYPE));
+            LOG_DEBUG_FUNC_FAIL;
+            break;
+        }
+    }
+    dms_reform_ack_req_migrate(process_ctx, receive_msg, ret);
+}
 
 static int32 dms_reform_rebuild_append_xid(dms_reform_req_rebuild_t *req_rebuild, drc_global_xid_t *xid,
     uint8 master_id, uint8 undo_set_id)
@@ -121,6 +220,8 @@ int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
 {
     dms_reset_error();
     uint8 master_id = CM_INVALID_ID8;
+    uint8 remaster_id = CM_INVALID_ID8;
+    share_info_t *share_info = DMS_SHARE_INFO;
     drc_global_xid_t *xid = &dms_ctx->global_xid;
 
     int ret = drc_get_master_id((char *)xid, DRC_RES_GLOBAL_XA_TYPE, &master_id);
@@ -130,15 +231,26 @@ int dms_reform_rebuild_one_xa(dms_context_t *dms_ctx, unsigned char undo_set_id,
         return ret;
     }
 
-    LOG_DEBUG_INF("[DMS][%s] dms_reform_rebuild_xa_res, master_id:%d",
-        cm_display_resid((char *)xid, DRC_RES_GLOBAL_XA_TYPE), master_id);
-    if (dms_dst_id_is_self(master_id)) {
+    if (!share_info->full_clean && !dms_reform_list_exist(&share_info->list_rebuild, master_id)) {
+        return DMS_SUCCESS;
+    }
+
+    ret = drc_get_xa_remaster_id(xid, &remaster_id);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s] dms_reform_rebuild_one_xa, fail to get master id", cm_display_resid((char *)xid,
+            DRC_RES_GLOBAL_XA_TYPE));
+        return ret;
+    }
+
+    LOG_DEBUG_INF("[DMS][%s] dms_reform_rebuild_xa_res, remaster to node %u", cm_display_resid((char *)xid,
+        DRC_RES_GLOBAL_XA_TYPE), remaster_id);
+    if (remaster_id == g_dms.inst_id) {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_LOCAL);
-        ret = drc_xa_create(dms_ctx->db_handle, DMS_SESSION_REFORM, dms_ctx->sess_id, xid, g_dms.inst_id);
+        ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, xid, g_dms.inst_id, undo_set_id, CM_FALSE);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_LOCAL);
     } else {
         dms_reform_proc_stat_start(DRPS_DRC_REBUILD_XA_REMOTE);
-        ret = dms_reform_req_xa_rebuild(dms_ctx, xid, undo_set_id, master_id, thread_index);
+        ret = dms_reform_req_xa_rebuild(dms_ctx, xid, undo_set_id, remaster_id, thread_index);
         dms_reform_proc_stat_end(DRPS_DRC_REBUILD_XA_REMOTE);
     }
     return ret;
@@ -166,7 +278,7 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
         offset += sizeof(uint8);
         xid.bqual_len = *(uint8 *)((uint8 *)receive_msg->buffer + offset);
         offset += sizeof(uint8);
-        // undo_set_id
+        uint8 undo_set_id = *(uint8 *)((uint8 *)receive_msg->buffer + offset);
         offset += sizeof(uint8);
         ret = memcpy_sp(xid.gtrid, DMS_MAX_XA_BASE16_GTRID_LEN, (uint8 *)receive_msg->buffer + offset, xid.gtrid_len);
         DMS_SECUREC_CHECK(ret);
@@ -177,7 +289,7 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
             offset += xid.bqual_len;
         }
 
-        ret = drc_xa_create(ctx->db_handle, DMS_SESSION_REFORM, ctx->sess_id, &xid, owner_id);
+        ret = drc_create_xa_res(ctx->db_handle, ctx->sess_id, &xid, owner_id, undo_set_id, CM_FALSE);
         if (ret != DMS_SUCCESS) {
             LOG_RUN_ERR("[DRC][%s] dms_reform_proc_xa_rebuild", cm_display_resid((char *)&xid, DRC_RES_GLOBAL_XA_TYPE));
             break;
@@ -185,6 +297,22 @@ void dms_reform_proc_xa_rebuild(dms_process_context_t *ctx, dms_message_t *recei
     }
 
     dms_reform_ack_req_rebuild(ctx, receive_msg, ret);
+}
+
+void dms_reform_clean_xa_res_by_part(drc_part_list_t *part)
+{
+    drc_global_xa_res_t *xa_res = NULL;
+    share_info_t *share_info = DMS_SHARE_INFO;
+    bilist_node_t *node = cm_bilist_head(&part->list);
+
+    while (node != NULL) {
+        xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);
+        if (bitmap64_exist(&share_info->bitmap_clean, xa_res->owner_id)) {
+            (void)drc_delete_xa_res(&xa_res->xid, CM_FALSE);
+        }
+
+        node = BINODE_NEXT(node);
+    }
 }
 
 void dms_reform_delete_xa_rms(void *db_handle, uint8 undo_set_id)

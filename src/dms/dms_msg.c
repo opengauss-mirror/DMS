@@ -22,14 +22,17 @@
  * -------------------------------------------------------------------------
  */
 
-#include "dms_msg.h"
+#include "dms_process.h"
+#include "dms_cm.h"
+#include "dms_error.h"
 #include "drc_page.h"
 #include "dls_msg.h"
 #include "dcs_page.h"
+#include "dms_stat.h"
+#include "dms_msg.h"
 #include "dms_msg_protocol.h"
+#include "fault_injection.h"
 #include "dms_dynamic_trace.h"
-#include "cmpt_msg_misc.h"
-#include "dms_smon.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -173,8 +176,7 @@ static inline int32 dms_handle_invalidate_ack(dms_process_context_t *ctx, uint64
     mes_msg_list_t responses;
     responses.count = 0;
 
-    int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, ctx->db_handle,
-        succ_insts, &responses);
+    int32 ret = mfc_get_broadcast_res_with_msg_and_succ_insts(ruid, timeout_ms, invld_insts, succ_insts, &responses);
 #ifndef OPENGAUSS
     dms_handle_invld_ack_msg(ctx, &responses, succ_insts);
 #endif
@@ -189,13 +191,11 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
         if (type == DRC_RES_PAGE_TYPE) {
             uint64 page_lfn = 0;
             int32 ret = g_dms.callback.invalidate_page(ctx->db_handle, resid, CM_TRUE, seq, &page_lfn);
-#ifndef OPENGAUSS
             if (ret == DMS_SUCCESS) {
                 dms_begin_stat(ctx->sess_id, DMS_EVT_DCS_INVALID_DRC_LSNDWAIT, CM_TRUE);
                 g_dms.callback.lsnd_wait(ctx->db_handle, page_lfn);
                 dms_end_stat(ctx->sess_id);
             }
-#endif
             return ret;
         }
         return dls_invld_lock_ownership(ctx->db_handle, resid, type, DMS_LOCK_EXCLUSIVE, CM_FALSE);
@@ -255,21 +255,16 @@ int32 dms_invalidate_ownership(dms_process_context_t *ctx, char* resid, uint16 l
     return ret;
 }
 
-static void drc_clean_share_copy_insts(char *resid, uint16 len, uint8 type, dms_session_e sess_type, uint64 owner_map,
-    drc_request_info_t *req_info)
+static void drc_clean_share_copy_insts(char *resid, uint16 len, uint8 type, dms_session_e sess_type, uint64 owner_map)
 {
     drc_head_t *drc = NULL;
     uint8 options = drc_build_options(CM_FALSE, sess_type, DMS_RES_INTERCEPT_TYPE_NONE, CM_TRUE);
     if (drc_enter(resid, len, type, options, &drc) != DMS_SUCCESS || drc == NULL) {
         return;
     }
-
-    if (req_info == NULL || dms_the_same_drc_req(req_info, &drc->converting.req_info)) {
-        drc->copy_insts = drc->copy_insts & (~owner_map);
-        LOG_DEBUG_INF("[DMS][%s]: invld_owner_map=%llu, curr_copy_insts=%llu", cm_display_resid(resid, type), owner_map,
-            drc->copy_insts);
-    }
-
+    drc->copy_insts = drc->copy_insts & (~owner_map);
+    LOG_DEBUG_INF("[DMS][%s]: invld_owner_map=%llu, curr_copy_insts=%llu", cm_display_resid(resid, type), owner_map,
+        drc->copy_insts);
     drc_leave(drc, options);
 }
 
@@ -285,9 +280,9 @@ static inline int32 dms_invalidate_res_l(dms_process_context_t *ctx, char *resid
     return ret;
 }
 
-int32 dms_invalidate_share_copy_with_timeout(dms_process_context_t *ctx, char *resid, uint16 len, uint8 type,
-    uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint32 timeout_ms, uint64 seq,
-    drc_request_info_t *req_info)
+int32 dms_invalidate_share_copy_with_timeout(dms_process_context_t *ctx, char *resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint32 timeout_ms,
+    uint64 seq)
 {
     uint64 succ_insts = 0;
     bool32 invld_local = CM_FALSE;
@@ -322,12 +317,13 @@ int32 dms_invalidate_share_copy_with_timeout(dms_process_context_t *ctx, char *r
     }
 
     if (succ_insts > 0) {
-        drc_clean_share_copy_insts(resid, len, type, sess_type, succ_insts, req_info);
+        drc_clean_share_copy_insts(resid, len, type, sess_type, succ_insts);
     }
 
     if (succ_insts != copy_insts) {
         LOG_DYN_TRC_ERR("[ISC][%s]: invalid failed, invld_insts=%llu, succ_insts=%llu",
             cm_display_resid(resid, type), copy_insts, succ_insts);
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_BROADCAST_FAILED);
         dms_dyn_trc_end(ctx->sess_id);
         dms_end_stat(ctx->sess_id);
         return ERRNO_DMS_DCS_BROADCAST_FAILED;
@@ -340,11 +336,11 @@ int32 dms_invalidate_share_copy_with_timeout(dms_process_context_t *ctx, char *r
     return DMS_SUCCESS;
 }
 
-int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 len, uint8 type, uint64 copy_insts,
-    dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint64 seq, drc_request_info_t *req_info)
+int32 dms_invalidate_share_copy(dms_process_context_t *ctx, char *resid, uint16 len,
+    uint8 type, uint64 copy_insts, dms_session_e sess_type, bool8 is_try, bool8 can_direct, uint64 seq)
 {
-    return dms_invalidate_share_copy_with_timeout(ctx, resid, len, type, copy_insts, sess_type, is_try, can_direct,
-        DMS_WAIT_MAX_TIME, seq, req_info);
+    return dms_invalidate_share_copy_with_timeout(
+        ctx, resid, len, type, copy_insts, sess_type, is_try, can_direct, DMS_WAIT_MAX_TIME, seq);
 }
 
 void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn)
@@ -382,7 +378,7 @@ void dms_claim_ownership(dms_context_t *dms_ctx, uint8 master_id, dms_lock_mode_
         (uint32)request.head.dst_inst, (uint32)request.head.dst_sid, (bool32)request.has_edp, page_lsn);
 }
 
-void dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
+static int32 dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8 res_type, uint8 ownerid,
     dms_lock_mode_t mode, bool8 has_edp, uint64 page_lsn, uint32 sess_id, dms_session_e sess_type, uint32 srsn)
 {
     claim_info->new_id   = ownerid;
@@ -395,7 +391,12 @@ void dms_set_claim_info(claim_info_t *claim_info, char *resid, uint16 len, uint8
     claim_info->sess_type = sess_type;
     claim_info->srsn = srsn;
     int ret = memcpy_s(claim_info->resid, DMS_RESID_SIZE, resid, len);
-    DMS_SECUREC_CHECK(ret);
+    if (ret == EOK) {
+        return DMS_SUCCESS;
+    }
+    LOG_DEBUG_ERR("[DMS][%s][dms_set_claim_info]: system call failed", cm_display_resid(resid, res_type));
+    DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_resid(resid, res_type));
+    return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
 }
 
 static inline int32 dms_handle_grant_owner_ack(dms_context_t *dms_ctx, void *res,
@@ -450,24 +451,12 @@ static inline int32 get_dms_msg_max_wait_time_ms(dms_context_t *dms_ctx)
     return (dms_ctx != NULL && dms_ctx->max_wait_rsp_time != 0) ? (int32)dms_ctx->max_wait_rsp_time : DMS_WAIT_MAX_TIME;
 }
 
-static int32 dms_get_msg_flag_4_prio(dms_context_t *dms_ctx)
-{
-#ifndef OPENGAUSS
-    if (dms_ctx->db_handle != NULL && dms_reform_in_process() &&
-        g_dms.callback.check_if_reform_session(dms_ctx->db_handle)) {
-        return REQ_FLAG_REFORM_SESSION;
-    }
-#endif
-    return REQ_FLAG_DEFAULT;
-}
-
 static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, drc_req_owner_result_t *result)
 {
     dms_ask_res_req_t req = { 0 };
-    int32 flags = dms_get_msg_flag_4_prio(dms_ctx);
     DMS_INIT_MESSAGE_HEAD(&req.head,
-        MSG_REQ_ASK_OWNER_FOR_PAGE, flags, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
+        MSG_REQ_ASK_OWNER_FOR_PAGE, 0, dms_ctx->inst_id, result->curr_owner_id, dms_ctx->sess_id, CM_INVALID_ID16);
     req.head.size = (uint16)sizeof(dms_ask_res_req_t);
     req.req_mode  = req_mode;
     req.curr_mode = curr_mode;
@@ -493,8 +482,8 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
         LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), dms_get_mescmd_msg(req.head.cmd),
             req.head.src_inst, req.head.src_sid, req.head.dst_inst, req.head.dst_sid, (uint32)req_mode);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_SEND_MSG_FAULT);
-        return ERRNO_DMS_DCS_SEND_MSG_FAULT;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
 
     LOG_DEBUG_INF("[DMS][%s][%s]: send ok, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
@@ -503,7 +492,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
 
     dms_message_t msg = {0};
     int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
-    ret = mfc_get_response_ex(req.head.ruid, &msg, max_wait_time_ms, dms_ctx->check_handle);
+    ret = mfc_get_response(req.head.ruid, &msg, max_wait_time_ms);
     dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_OWNER, dms_ctx->type, ret);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: wait ack timeout, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u, "
@@ -511,8 +500,8 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
             cm_display_resid(dms_ctx->resid, dms_ctx->type), "ASK OWNER", (uint32)req.head.src_inst,
             req.head.src_sid, req.head.dst_inst, req.head.dst_sid, (uint32)req_mode, ret);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_RECV_MSG_FAULT);
-        return ERRNO_DMS_DCS_RECV_MSG_FAULT;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
 
     ret = dms_handle_ask_owner_ack(dms_ctx, res, (uint8)dms_ctx->inst_id, req_mode, &msg);
@@ -530,13 +519,13 @@ static int32 dms_handle_ask_master_ack(dms_context_t *dms_ctx,
 
     dms_message_t msg = {0};
     int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
-    int32 ret = mfc_get_response_ex(dms_ctx->ctx_ruid, &msg, max_wait_time_ms, dms_ctx->check_handle);
+    int32 ret = mfc_get_response(dms_ctx->ctx_ruid, &msg, max_wait_time_ms);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_handle_ask_master_ack]:wait master ack timeout timeout=%d ms, ruid=%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), max_wait_time_ms, dms_ctx->ctx_ruid);
         DMS_RETURN_IF_PROTOCOL_COMPATIBILITY_ERROR(ret);
-        DMS_THROW_ERROR(ERRNO_DMS_DCS_RECV_MSG_FAULT);
-        return ERRNO_DMS_DCS_RECV_MSG_FAULT;
+        DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+        return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
     }
     dms_message_head_t *ack_dms_head = get_dms_head(&msg);
     LOG_DYN_TRC_INF("[AMR ACK][%s]srcid=%u ssid=%u dstid=%u dsid =%u flag=%u ruid=%llu",
@@ -659,7 +648,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
         int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
         ret = dms_invalidate_share_copy_with_timeout(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
             dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE, max_wait_time_ms,
-            result.seq, &req_info);
+            result.seq);
         if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
             (void)mfc_get_response(dms_ctx->ctx_ruid, NULL, 0);
             dms_dyn_trc_end(dms_ctx->sess_id);
@@ -678,9 +667,8 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode)
 {
     dms_ask_res_req_t req = { 0 };
-    int32 flags = dms_get_msg_flag_4_prio(dms_ctx);
     DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_ASK_MASTER_FOR_PAGE,
-        flags, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
+        0, dms_ctx->inst_id, master_id, dms_ctx->sess_id, CM_INVALID_ID16);
 
     req.head.size  = (uint16)sizeof(dms_ask_res_req_t);
     req.req_mode   = req_mode;
@@ -723,8 +711,8 @@ static int32 dms_send_ask_master_req(dms_context_t *dms_ctx, uint8 master_id,
     }
 
     LOG_DEBUG_ERR("failed to send ask master request. Try again later");
-    DMS_THROW_ERROR(ERRNO_DMS_DCS_SEND_MSG_FAULT);
-    return ERRNO_DMS_DCS_SEND_MSG_FAULT;
+    DMS_THROW_ERROR(ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT);
+    return ERRNO_DMS_DCS_ASK_FOR_RES_MSG_FAULT;
 }
 
 static int32 dms_ask_master4res_r(dms_context_t *dms_ctx, void *res, uint8 master_id, dms_lock_mode_t curr_mode,
@@ -808,14 +796,6 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
     }
 
     CM_CHK_RESPONSE_SIZE(&msg, (uint32)sizeof(dms_ask_res_owner_id_ack_t), CM_FALSE);
-    if (ack_dms_head->size < (uint32)sizeof(dms_ask_res_owner_id_ack_t)) {
-        LOG_DEBUG_ERR("recv invalid msg, cmd:%u size:%u len:%u", (uint32)ack_dms_head->cmd,
-            (uint32)ack_dms_head->size, (uint32)sizeof(dms_ask_res_owner_id_ack_t));
-        dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
-        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_QUERY_OWNER_ID);
-        mfc_release_response(&msg);
-        return ERRNO_DMS_MES_INVALID_MSG;
-    }
     dms_ask_res_owner_id_ack_t *ack = (dms_ask_res_owner_id_ack_t *)msg.buffer;
     *owner_id = ack->owner_id;
 
@@ -1101,8 +1081,8 @@ void dms_proc_ask_master_for_res(dms_process_context_t *ctx, dms_message_t *rece
     if (result.invld_insts != 0) {
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(req.resid, req.res_type), result.invld_insts);
-        ret = dms_invalidate_share_copy(ctx, req.resid, req.len, req.res_type, result.invld_insts, req.sess_type,
-            req.is_try, CM_TRUE, result.seq, req_info);
+        ret = dms_invalidate_share_copy(ctx, req.resid, req.len,
+            req.res_type, result.invld_insts, req.sess_type, req.is_try, CM_TRUE, result.seq);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(ctx, req_info->inst_id, req_info->sess_id, req_info->ruid, ret, req_info->req_proto_ver);
             return;
@@ -1147,57 +1127,27 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *ctx, dms_message_t *receiv
     dms_ask_res_owner_id_ack_t ack = { 0 };
     dms_init_ack_head(&req.head, &ack.head, MSG_ACK_ASK_RES_OWNER_ID, sizeof(dms_ask_res_owner_id_ack_t), ctx->sess_id);
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: src_id=%u, src_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
+        (uint32)req.head.src_sid);
 
     ack.owner_id = owner_id;
     DDES_FAULT_INJECTION_CALL(DMS_FI_ACK_ASK_RES_OWNER_ID, MSG_ACK_ASK_RES_OWNER_ID);
     if (mfc_send_data(&ack.head) == DMS_SUCCESS) {
         LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: finished, dst_id=%u, dst_sid=%u",
-            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
+        (uint32)ack.head.dst_sid);
     } else {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_ask_res_owner_id]: failed to send ack, dst_id=%u, dst_sid=%u",
-            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
+        (uint32)ack.head.dst_sid);
     }
     return;
-}
-
-static int32 is_drc_frozen(dms_ask_res_req_t *req)
-{
-    drc_res_ctx_t *ctx = DRC_RES_CTX;
-
-    if (req->res_type == DRC_RES_PAGE_TYPE &&
-        ctx->global_buf_res.drc_accessible_stage < PAGE_ACCESS_STAGE_ALL_ACCESS &&
-        req->sess_type == DMS_SESSION_NORMAL) {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
-            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req->resid, req->res_type),
-            (uint32)req->head.src_inst, (uint32)req->head.src_sid, req->head.ruid, (uint32)req->req_mode);
-        return DMS_ERROR;
-    }
-
-    if (req->res_type == DRC_RES_LOCK_TYPE &&
-        ctx->global_lock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
-        req->intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but lock access is forbidden, req_id=%u, "
-            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req->resid, req->res_type),
-            (uint32)req->head.src_inst, (uint32)req->head.src_sid, req->head.ruid, (uint32)req->req_mode);
-        return DMS_ERROR;
-    }
-
-    if (req->res_type == DRC_RES_ALOCK_TYPE &&
-        ctx->global_alock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
-        req->intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
-        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but alock access is forbidden, req_id=%u, "
-            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req->resid, req->res_type),
-            (uint32)req->head.src_inst, (uint32)req->head.src_sid, req->head.ruid, (uint32)req->req_mode);
-        return DMS_ERROR;
-    }
-
-    return DMS_SUCCESS;
 }
 
 void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_ask_res_req_t), CM_TRUE);
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
     dms_ask_res_req_t req = *(dms_ask_res_req_t *)(receive_msg->buffer);
     if (SECUREC_UNLIKELY(req.len > DMS_RESID_SIZE ||
         req.curr_mode >= DMS_LOCK_MODE_MAX ||
@@ -1206,7 +1156,30 @@ void dms_proc_ask_owner_for_res(dms_process_context_t *proc_ctx, dms_message_t *
         return;
     }
 
-    if (is_drc_frozen(&req) != DMS_SUCCESS) {
+    if (req.res_type == DRC_RES_PAGE_TYPE &&
+        ctx->global_buf_res.drc_accessible_stage < PAGE_ACCESS_STAGE_ALL_ACCESS &&
+        req.sess_type == DMS_SESSION_NORMAL) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but data access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
+            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
+        return;
+    }
+
+    if (req.res_type == DRC_RES_LOCK_TYPE &&
+        ctx->global_lock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
+        req.intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but lock access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
+            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
+        return;
+    }
+
+    if (req.res_type == DRC_RES_ALOCK_TYPE &&
+        ctx->global_alock_res.drc_accessible_stage < LOCK_ACCESS_STAGE_ALL_ACCESS &&
+        req.intercept_type == DMS_RES_INTERCEPT_TYPE_BIZ_SESSION) {
+        LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_owner_for_res]: owner received but alock access is forbidden, req_id=%u, "
+            "req_sid=%u, req_ruid=%llu, mode=%u", cm_display_resid(req.resid, req.res_type),
+            (uint32)req.head.src_inst, (uint32)req.head.src_sid, req.head.ruid, (uint32)req.req_mode);
         return;
     }
 
@@ -1279,20 +1252,19 @@ void dms_proc_invld_req(dms_process_context_t *proc_ctx, dms_message_t *receive_
     ack.lfn = 0;
     dms_init_ack_head(&req.head, &ack.common_ack.head, ack_cmd, sizeof(dms_invld_ack_t), proc_ctx->sess_id);
     LOG_DYN_TRC_INF("[PIR][%s]srcid=%u ssid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
+        (uint32)req.head.src_sid);
 
     int32 ret = DMS_SUCCESS;
     if (req.res_type == DRC_RES_PAGE_TYPE) {
         uint64 page_lfn = 0;
         ret = g_dms.callback.invalidate_page(proc_ctx->db_handle, req.resid, req.invld_owner, req.head.seq, &page_lfn);
-#ifndef OPENGAUSS
         if (ret == DMS_SUCCESS && req.invld_owner) {
             dms_begin_stat(proc_ctx->sess_id, DMS_EVT_DCS_INVALID_DRC_LSNDWAIT, CM_TRUE);
             g_dms.callback.lsnd_wait(proc_ctx->db_handle, page_lfn);
             dms_end_stat(proc_ctx->sess_id);
         }
         ack.lfn = page_lfn;
-#endif
     } else {
         ret = dls_invld_lock_ownership(proc_ctx->db_handle, req.resid, req.res_type, DMS_LOCK_EXCLUSIVE, req.is_try);
     }
@@ -1412,7 +1384,7 @@ static int32 dms_notify_granted_directly(dms_process_context_t *ctx, cvt_info_t 
     return CM_SUCCESS;
 }
 
-void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info)
+static void dms_handle_cvt_info(dms_process_context_t *ctx, cvt_info_t *cvt_info)
 {
     int ret;
 
@@ -1464,7 +1436,7 @@ void dms_proc_claim_ownership_req(dms_process_context_t *ctx, dms_message_t *rec
 
     CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, request->res_type, CM_FALSE);
     // call drc interface to claim ownership
-    dms_set_claim_info(&claim_info, request->resid, request->len, (uint8)request->res_type,
+    (void)dms_set_claim_info(&claim_info, request->resid, request->len, (uint8)request->res_type,
         request->head.src_inst, request->req_mode, (bool8)request->has_edp, request->lsn, request->head.src_sid,
         request->sess_type, request->srsn);
 
@@ -1478,8 +1450,8 @@ void dms_proc_claim_ownership_req(dms_process_context_t *ctx, dms_message_t *rec
         LOG_DYN_TRC_INF("[COIS][%s]invld insts=%llu",
             cm_display_resid(request->resid, request->res_type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(ctx, cvt_info.resid, cvt_info.len, cvt_info.res_type,
-            cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_TRUE, cvt_info.seq, &cvt_info.req_info);
+        int32 ret = dms_invalidate_share_copy(ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_TRUE, cvt_info.seq);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(ctx, cvt_info.req_id, cvt_info.req_sid, cvt_info.req_ruid, ret, cvt_info.req_proto_ver);
             dms_dyn_trc_end(ctx->sess_id);
@@ -1541,7 +1513,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *ctx, dms_message_t *rece
         cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
         (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
 
-    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_FALSE);
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
     drc_request_info_t *req_info = &req.drc_reg_info;
     req_info->ruid = req.head.ruid;
 
@@ -1552,8 +1524,8 @@ void dms_proc_cancel_request_res(dms_process_context_t *ctx, dms_message_t *rece
         LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
             cm_display_resid(req.resid, req.res_type), cvt_info.invld_insts);
 
-        int32 ret = dms_invalidate_share_copy(ctx, cvt_info.resid, cvt_info.len, cvt_info.res_type,
-            cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_TRUE, cvt_info.seq, &cvt_info.req_info);
+        int32 ret = dms_invalidate_share_copy(ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_TRUE, cvt_info.seq);
         if (ret != DMS_SUCCESS) {
             dms_send_error_ack(ctx, cvt_info.req_id, cvt_info.req_sid, cvt_info.req_ruid, ret, cvt_info.req_proto_ver);
             return;
@@ -1567,23 +1539,23 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *re
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_confirm_cvt_req_t), CM_FALSE);
     dms_confirm_cvt_req_t req = *(dms_confirm_cvt_req_t *)(receive_msg->buffer);
 
+    int32 ret;
     uint8 lock_mode;
     dms_confirm_cvt_ack_t ack;
-    int32 ret = memset_s(&ack, sizeof(dms_confirm_cvt_ack_t), 0, sizeof(dms_confirm_cvt_ack_t));
-    DMS_SECUREC_CHECK(ret);
+    if (memset_s(&ack, sizeof(dms_confirm_cvt_ack_t), 0, sizeof(dms_confirm_cvt_ack_t)) != EOK) {
+        cm_panic(0);
+    }
     dms_init_ack_head(&(req.head), &ack.head, MSG_ACK_CONFIRM_CVT, sizeof(dms_confirm_cvt_ack_t),
         proc_ctx->sess_id);
     LOG_DEBUG_INF("[DMS][%s][dms_proc_confirm_cvt_req]: src_id=%u, src_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst, (uint32)req.head.src_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
+        (uint32)req.head.src_sid);
 
     if (req.res_type == DRC_RES_PAGE_TYPE) {
         ret = g_dms.callback.confirm_converting(proc_ctx->db_handle,
             req.resid, CM_TRUE, &lock_mode, &ack.edp_map, &ack.lsn);
-    } else if (req.res_type == DRC_RES_LOCK_TYPE || req.res_type == DRC_RES_ALOCK_TYPE) {
-        ret = drc_confirm_converting(proc_ctx->db_handle, req.resid, req.res_type, &lock_mode);
     } else {
-        LOG_DEBUG_ERR("[DMS][dms_proc_confirm_cvt_req]: invalid type: %d", req.res_type);
-        return;
+        ret = drc_confirm_converting(proc_ctx->db_handle, req.resid, req.res_type, &lock_mode);
     }
     if (ret != DMS_SUCCESS) {
         ack.result = CONFIRM_NONE;
@@ -1594,11 +1566,245 @@ void dms_proc_confirm_cvt_req(dms_process_context_t *proc_ctx, dms_message_t *re
 
     if (mfc_send_data(&ack.head) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][dms_proc_confirm_cvt_req]: failed to send ack, dst_id=%u, dst_sid=%u",
-            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
+            cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
+            (uint32)ack.head.dst_sid);
         return;
     }
     LOG_DEBUG_INF("[DMS][%s][dms_proc_confirm_cvt_req]: send ack ok, dst_id=%u, dst_sid=%u",
-        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
+        cm_display_resid(req.resid, req.res_type), (uint32)ack.head.dst_inst,
+        (uint32)ack.head.dst_sid);
+}
+
+static int32 dms_smon_send_confirm_req(res_id_t *res_id, drc_request_info_t *cvt_req, uint64 *ruid)
+{
+    dms_confirm_cvt_req_t req;
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_CONFIRM_CVT, 0,
+        g_dms.inst_id, cvt_req->inst_id, ctx->smon_sid, CM_INVALID_ID16);
+    req.head.size = (uint16)sizeof(dms_confirm_cvt_req_t);
+    req.res_type = res_id->type;
+    req.cvt_mode = cvt_req->req_mode;
+    errno_t err = memcpy_s(req.resid, DMS_RESID_SIZE, res_id->data, res_id->len);
+    DMS_SECUREC_CHECK(err);
+
+    DDES_FAULT_INJECTION_CALL(DMS_FI_REQ_CONFIRM_CVT, MSG_REQ_CONFIRM_CVT);
+    int ret = mfc_send_data(&req.head);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS]dms_smon_send_confirm_req send error, dst_id: %d", cvt_req->inst_id);
+        *ruid = req.head.ruid;
+        DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, req.head.cmd, req.head.dst_inst);
+        return ERRNO_DMS_SEND_MSG_FAILED;
+    }
+    *ruid = req.head.ruid;
+    LOG_DEBUG_INF("[DMS]dms_smon_send_confirm_req send ok dst_id: %d", cvt_req->inst_id);
+    return DMS_SUCCESS;
+}
+
+static inline bool32 dms_the_same_drc_req(drc_request_info_t *req1, drc_request_info_t *req2)
+{
+    if (req1->inst_id == req2->inst_id &&
+        req1->curr_mode == req2->curr_mode &&
+        req1->req_mode == req2->req_mode &&
+        req1->sess_id == req2->sess_id &&
+        req1->ruid == req2->ruid) {
+        return CM_TRUE;
+    }
+    return CM_FALSE;
+}
+
+static void dms_smon_handle_ready_ack(dms_process_context_t *ctx,
+    res_id_t *res_id, drc_request_info_t *cvt_req, dms_confirm_cvt_ack_t *ack)
+{
+    drc_head_t *drc = NULL;
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
+    if (drc_enter(res_id->data, res_id->len, res_id->type, options, &drc) != DMS_SUCCESS || drc == NULL) {
+        return;
+    }
+
+    if (!dms_the_same_drc_req(&drc->converting.req_info, cvt_req)) {
+        drc_leave(drc, options);
+        return;
+    }
+
+    bool32 has_edp = CM_FALSE;
+    if (drc->owner != CM_INVALID_ID8) {
+        has_edp = bitmap64_exist(&ack->edp_map, drc->owner);
+    }
+    claim_info_t claim_info;
+    (void)dms_set_claim_info(&claim_info, DRC_DATA(drc), drc->len, drc->type, cvt_req->inst_id,
+        ack->lock_mode, (bool8)has_edp, ack->lsn, cvt_req->sess_id, DMS_SESSION_NORMAL, cvt_req->srsn);
+
+    cvt_info_t cvt_info;
+    drc_convert_page_owner(drc, &claim_info, &cvt_info);
+    LOG_DEBUG_INF("[DMS][%s][dms_smon_handle_ready_ack]: mode=%d, owner=%d, copy_insts=%llu",
+        cm_display_resid(res_id->data, res_id->type), drc->lock_mode, drc->owner, drc->copy_insts);
+    drc_leave(drc, options);
+
+    if (cvt_info.invld_insts != 0) {
+        LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu",
+            cm_display_resid(claim_info.resid, claim_info.res_type), cvt_info.invld_insts);
+
+        int32 ret = dms_invalidate_share_copy(ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_FALSE, cvt_info.seq);
+        if (ret != DMS_SUCCESS) {
+            dms_send_error_ack(ctx, cvt_info.req_id, cvt_info.req_sid, cvt_info.req_ruid, ret, cvt_info.req_proto_ver);
+            return;
+        }
+    }
+    dms_handle_cvt_info(ctx, &cvt_info);
+}
+
+static void dms_smon_handle_cancel_ack(dms_process_context_t *ctx, res_id_t *res_id,
+    drc_request_info_t *cvt_req)
+{
+    drc_head_t *drc = NULL;
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
+    if (drc_enter(res_id->data, res_id->len, res_id->type, options, &drc) != DMS_SUCCESS || drc == NULL) {
+        return;
+    }
+
+    if (!dms_the_same_drc_req(&drc->converting.req_info, cvt_req)) {
+        drc_leave(drc, options);
+        return;
+    }
+
+    cvt_info_t cvt_info;
+    cvt_info.invld_insts = 0;
+    cvt_info.req_id = CM_INVALID_ID8;
+
+    (void)drc_cancel_converting(drc, cvt_req, &cvt_info);
+    drc_leave(drc, options);
+
+    if (cvt_info.invld_insts != 0) {
+        LOG_DEBUG_INF("[DMS][%s] share copy to be invalidated: %llu", cm_display_resid(res_id->data, res_id->type),
+            cvt_info.invld_insts);
+        int32 ret = dms_invalidate_share_copy(ctx, cvt_info.resid, cvt_info.len,
+            cvt_info.res_type, cvt_info.invld_insts, cvt_info.sess_type, cvt_info.is_try, CM_FALSE, cvt_info.seq);
+        if (ret != DMS_SUCCESS) {
+            dms_send_error_ack(ctx, cvt_info.req_id, cvt_info.req_sid, cvt_info.req_ruid, ret, cvt_info.req_proto_ver);
+            return;
+        }
+    }
+    dms_handle_cvt_info(ctx, &cvt_info);
+}
+
+static void dms_smon_handle_confirm_ack(uint64 ruid, res_id_t *res_id, drc_request_info_t *cvt_req)
+{
+    dms_message_t msg = {0};
+    drc_res_ctx_t *ctx = DRC_RES_CTX;
+
+    int32 ret = mfc_get_response(ruid, &msg, DMS_WAIT_MAX_TIME);
+    if (ret != DMS_SUCCESS) {
+        LOG_DEBUG_ERR("[DMS][%s][%s]: wait ack timeout, src_id=%u, src_sid=%u, dst_id=%u",
+            cm_display_resid(res_id->data, res_id->type), "CONFIRM CVT", (uint32)g_dms.inst_id,
+            (uint32)ctx->smon_sid, (uint32)cvt_req->inst_id);
+        return;
+    }
+    dms_confirm_cvt_ack_t ack = *(dms_confirm_cvt_ack_t*)msg.buffer;
+    mfc_release_response(&msg);
+
+    LOG_DEBUG_INF("[DMS][%s] recv confirm ack [result:%u edp_map:%llu lsn:%llu]",
+        cm_display_resid(res_id->data, res_id->type), (uint32)ack.result, ack.edp_map, ack.lsn);
+
+    dms_process_context_t proc_ctx;
+    proc_ctx.inst_id = (uint8)g_dms.inst_id;
+    proc_ctx.sess_id = DRC_RES_CTX->smon_sid;
+    proc_ctx.db_handle = DRC_RES_CTX->smon_handle;
+
+    if (ack.result == CONFIRM_READY) {
+        dms_smon_handle_ready_ack(&proc_ctx, res_id, cvt_req, &ack);
+        return;
+    }
+
+    if (ack.result == CONFIRM_CANCEL) {
+        dms_smon_handle_cancel_ack(&proc_ctx, res_id, cvt_req);
+    }
+}
+
+static void dms_smon_confirm_converting(res_id_t *res_id)
+{
+    drc_head_t *drc = NULL;
+    uint8 options = drc_build_options(CM_FALSE, DMS_SESSION_NORMAL, DMS_RES_INTERCEPT_TYPE_BIZ_SESSION, CM_TRUE);
+    int ret = drc_enter(res_id->data, res_id->len, res_id->type, options, &drc);
+    if (ret != DMS_SUCCESS || drc == NULL) {
+        return;
+    }
+
+    if (drc->converting.req_info.inst_id == CM_INVALID_ID8) {
+        drc_leave(drc, options);
+        return;
+    }
+    drc_request_info_t cvt_req = drc->converting.req_info;
+    drc_leave(drc, options);
+
+    LOG_DEBUG_WAR("[DMS][%s] start confirm converting [inst:%u sid:%u ruid:%llu req_mode:%u]",
+        cm_display_resid(res_id->data, res_id->type), (uint32)cvt_req.inst_id,
+        (uint32)cvt_req.sess_id, cvt_req.ruid, (uint32)cvt_req.req_mode);
+
+    uint64 ruid;
+    if (dms_smon_send_confirm_req(res_id, &cvt_req, &ruid) != DMS_SUCCESS) {
+        return;
+    }
+
+    dms_smon_handle_confirm_ack(ruid, res_id, &cvt_req);
+}
+
+static void dms_event_trace_monitor(void)
+{
+    char buf[DMS_DYN_TRACE_HEADER_SZ];
+    int len = 0;
+    for (int sid = 0; sid < g_dms_stat.sess_cnt; sid++) {
+        if (!dms_dyn_trc_inited() || !DMS_SID_IS_VALID(sid)) {
+            return;
+        }
+        dms_sess_dyn_trc_t *sess_trc = g_dms_dyn_trc.sess_dyn_trc + sid;
+        if (sess_trc->wait[0].is_waiting) {
+            timeval_t begin = sess_trc->wait[0].begin_tv;
+            timeval_t end;
+            (void)cm_gettimeofday(&end);
+            if ((uint64)TIMEVAL_DIFF_US(&begin, &end) >= DMS_EVENT_MONITOR_TIMEOUT && sess_trc->trc_len > 0) {
+                char endstr[CM_MAX_TIME_STRLEN];
+                char beginstr[CM_MAX_TIME_STRLEN];
+                date_t begin_dt = cm_timeval2date(begin);
+                date_t end_dt = cm_timeval2date(end);
+                (void)cm_date2str(begin_dt, "yyyy-mm-dd hh24:mi:ss.ff3", beginstr, CM_MAX_TIME_STRLEN);
+                (void)cm_date2str(end_dt, "yyyy-mm-dd hh24:mi:ss.ff3", endstr, CM_MAX_TIME_STRLEN);
+                len = snprintf_s(buf, DMS_DYN_TRACE_HEADER_SZ, DMS_DYN_TRACE_HEADER_SZ - 1,
+                    "[DYN TRC WARN]HANG DETECTED sid=%d evt=%s begin=%s curr=%s trc:\n",
+                    sid, dms_get_event_desc(sess_trc->wait[0].event), beginstr, endstr);
+                sess_trc->trc_buf[sess_trc->trc_len++] = '\n';
+                LOG_DMS_EVENT_TRACE(buf, len);
+                LOG_DMS_EVENT_TRACE(sess_trc->trc_buf, sess_trc->trc_len);
+            }
+        }
+    }
+}
+
+void dms_smon_entry(thread_t *thread)
+{
+#ifdef OPENGAUSS
+    g_dms.callback.dms_thread_init(CM_FALSE, (char **)&thread->reg_data);
+#endif
+    res_id_t res_id;
+    date_t begin = cm_clock_monotonic_now();
+    date_t end;
+
+    DRC_RES_CTX->smon_handle = g_dms.callback.get_db_handle(&DRC_RES_CTX->smon_sid, DMS_SESSION_TYPE_NONE);
+    cm_panic_log(DRC_RES_CTX->smon_handle != NULL, "alloc db handle failed");
+    mes_block_sighup_signal();
+    
+    while (!thread->closed) {
+        end = cm_clock_monotonic_now();
+        if ((end - begin) >= DMS_EVENT_MONITOR_INTERVAL) {
+            begin = end;
+            dms_event_trace_monitor();
+        }
+        if (cm_chan_recv_timeout(DRC_RES_CTX->chan, (void *)&res_id, DMS_MSG_SLEEP_TIME) != CM_SUCCESS) {
+            continue;
+        }
+        dms_smon_confirm_converting(&res_id);
+    }
 }
 
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
@@ -1669,24 +1875,6 @@ uint32 dms_get_send_proto_version_by_cmd(uint32 cmd, uint8 dest_inst)
     return dms_get_ptp_proto_version(dest_inst);
 }
 
-uint32 dms_get_reform_proto_version(uint64 bitmap_online)
-{
-    uint32 msg_version = DMS_SW_PROTO_VER;
-    for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        if (i == g_dms.inst_id) {
-            continue;
-        }
-        if (!bitmap64_exist(&bitmap_online, i)) {
-            continue;
-        }
-        uint32 node_version = dms_get_node_proto_version(i);
-        if (node_version != DMS_INVALID_PROTO_VER && node_version < msg_version) {
-            msg_version = node_version;
-        }
-    }
-    return msg_version;
-}
-
 inline dms_message_head_t *get_dms_head(dms_message_t *msg)
 {
     return (dms_message_head_t *)(msg->buffer);
@@ -1721,8 +1909,6 @@ void dms_init_cluster_proto_version()
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
         dms_set_node_proto_version(i, DMS_INVALID_PROTO_VER);
     }
-
-    g_dms.cluster_running_min_proto_vers = DMS_SW_PROTO_VER;
 
     int ret = CM_FALSE;
     do {
@@ -1911,7 +2097,6 @@ bool8 dms_cmd_need_ack(uint32 cmd)
         case MSG_REQ_OWNER_CKPT_EDP:
         case MSG_REQ_MASTER_CLEAN_EDP:
         case MSG_REQ_OWNER_CLEAN_EDP:
-        case MSG_REQ_PRE_CRE_DRC:
             return CM_FALSE;
         default:
             return CM_TRUE;
@@ -1964,7 +2149,6 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
      * 2) When the lower version sends a message to the higher version, the new fields at the end will be set to
      * 3) If the message is sent from the same version, the message will be copied normally.
      **/
-    int32 ret;
     dms_message_head_t *msg_head = (dms_message_head_t *)(msg->buffer);
     const dms_proto_version_attr *version_attr = dms_get_version_attr(version_attrs, msg_head->msg_proto_ver);
     if (version_attr == NULL) {
@@ -1974,14 +2158,11 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
     }
 
     if (version_attr->req_size < info_size) {
-        ret = memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
-        DMS_SECUREC_CHECK(ret);
+        (void)memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
         uint32 remain_size = info_size - msg_head->size;
-        ret = memset_s(((uchar *)out_info) + msg_head->size, remain_size, 0, remain_size);
-        DMS_SECUREC_CHECK(ret);
+        (void)memset_s(((uchar *)out_info) + msg_head->size, remain_size, 0, remain_size);
     } else {
-        ret = memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
-        DMS_SECUREC_CHECK(ret);
+        (void)memcpy_s(out_info, info_size, msg->buffer, msg_head->size);
     }
 
     return DMS_SUCCESS;
@@ -2062,7 +2243,7 @@ void dms_inc_msg_stat(uint32 sid, dms_stat_cmd_e cmd, uint32 type, status_t ret)
     if (cmd >= DMS_STAT_CMD_COUNT) {
         return;
     }
-
+    
     if (ret != CM_SUCCESS) {
         if (type == DRC_RES_LOCK_TYPE) {
             g_dms.msg_stats[sid].stat_cmd[cmd].ask_lock_fail_cnt++;
@@ -2110,7 +2291,7 @@ void dms_proc_check_page_ownership(dms_process_context_t *proc_ctx, dms_message_
             cm_display_resid(req.resid, DRC_RES_PAGE_TYPE), (uint32)ack.head.dst_inst, (uint32)ack.head.dst_sid);
         return;
     }
-
+    
     LOG_DEBUG_INF("[DMS][%s][check ownership]: send ack successfully, check ret:%d",
             cm_display_resid(req.resid, DRC_RES_PAGE_TYPE), ack.ret);
 }
@@ -2125,7 +2306,7 @@ static bool8 dms_check_page_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
     req.len = dms_ctx->len;
     req.curr_mode = curr_mode;
     req.inst_id = dms_ctx->inst_id;
-
+    
     if (memcpy_sp(req.resid, DMS_RESID_SIZE, dms_ctx->resid, dms_ctx->len) != EOK) {
         LOG_DEBUG_ERR("[DMS][%s]: system call failed", cm_display_resid(dms_ctx->resid, DRC_RES_PAGE_TYPE));
         return CM_FALSE;
@@ -2136,7 +2317,7 @@ static bool8 dms_check_page_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
             cm_display_resid(req.resid, DRC_RES_PAGE_TYPE), (uint32)master_id);
         return CM_FALSE;
     }
-
+    
     dms_message_t msg = {0};
     if (mfc_get_response(req.head.ruid, &msg, DMS_WAIT_MAX_TIME) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s]:wait owner ack timeout timeout=%d ms",
@@ -2153,7 +2334,7 @@ static bool8 dms_check_page_ownership_r(dms_context_t *dms_ctx, uint8 master_id,
 bool8 dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode)
 {
     uint8 master_id;
-
+    
     if (drc_get_master_id(dms_ctx->resid, DRC_RES_PAGE_TYPE, &master_id) != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][check ownership]: get master id failed",
             cm_display_resid(dms_ctx->resid, DRC_RES_PAGE_TYPE));
@@ -2163,9 +2344,10 @@ bool8 dms_check_page_ownership(dms_context_t *dms_ctx, dms_lock_mode_t curr_mode
     if (master_id == dms_ctx->inst_id) {
         return drc_chk_page_ownership(dms_ctx->resid, dms_ctx->len, dms_ctx->inst_id, curr_mode);
     }
-
+    
     return dms_check_page_ownership_r(dms_ctx, master_id, curr_mode);
 }
+
 #ifdef __cplusplus
 }
 #endif

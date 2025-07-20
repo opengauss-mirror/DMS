@@ -55,7 +55,6 @@ int dms_reform_full_clean(void);
 int dms_reform_migrate(void);
 int dms_reform_rebuild(void);
 int dms_reform_remaster(void);
-void dms_reform_remaster_inner(void);
 int dms_reform_rebuild_inner(void *handle, uint32 sess_id, uint8 thread_index, uint8 thread_num);
 int drc_get_lock_remaster_id(void *lock_id, uint8 len, uint8 *master_id);
 void dms_rebuild_assist_list_init(void);
@@ -64,6 +63,11 @@ int dms_reform_repair_by_partid(uint8 thread_index, uint16 part_id);
 int dms_reform_repair(void);
 void dms_reform_rebuild_add_to_flush_copy(drc_page_t *drc_page);
 void dms_reform_rebuild_del_from_flush_copy(drc_page_t *drc_page);
+
+typedef struct st_repair_item {
+    char        page_id[DMS_PAGEID_SIZE];
+    uint32      action;
+} repair_item_t;
 
 #ifdef __cplusplus
 }

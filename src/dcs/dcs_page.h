@@ -24,9 +24,10 @@
 #ifndef __DCS_PAGE_H__
 #define __DCS_PAGE_H__
 
+#include "cm_types.h"
 #include "drc.h"
-#include "cmpt_msg_mesi.h"
-#include "dms_mfc.h"
+#include "dcs_msg.h"
+#include "dms_msg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,13 @@ extern "C" {
 
 #define DCS_INSTID_VALID(instid) ((instid) != CM_INVALID_ID8)
 #define DCS_DMS_REQUEST_PAGE_WAIT_TIME  2000
+
+typedef struct st_msg_page_batch_op {
+    dms_message_head_t head;
+    uint32 count;
+    atomic_t lsn;
+    uint64 scn;
+} msg_page_batch_op_t;
 
 void drc_proc_buf_ctrl_recycle(dms_process_context_t *ctx, dms_message_t *receive_msg);
 void dcs_proc_try_ask_master_for_page_owner_id(dms_process_context_t *ctx, dms_message_t *receive_msg);
@@ -48,7 +56,6 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, uint32 master_id, dms_message_t *msg, dms_lock_mode_t mode);
 int32 dcs_send_ack_page(dms_process_context_t *ctx, dms_buf_ctrl_t *ctrl,
     dms_res_req_info_t *req_info, dms_ask_res_ack_t *page_ack);
-void dms_proc_pre_cre_drc_req(dms_process_context_t *ctx, dms_message_t *receive_msg);
 
 #ifdef __cplusplus
 }

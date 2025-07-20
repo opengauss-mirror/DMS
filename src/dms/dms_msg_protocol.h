@@ -24,11 +24,30 @@
 #ifndef __DMS_MSG_PROTOCOL_H__
 #define __DMS_MSG_PROTOCOL_H__
 
-#include "cmpt_msg_version.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef enum st_dms_protocol_version {
+    DMS_PROTO_VER_0 = 0,    // invalid version
+    DMS_PROTO_VER_1 = 1,    // first version
+    DMS_PROTO_VER_2 = 2,
+    DMS_PROTO_VER_3 = 3,    // add MSG_REQ_OPENGAUSS_IMMEDIATE_CKPT, MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT
+    DMS_PROTO_VER_NUMS
+} dms_protocol_version_t;
+
+#define DMS_INVALID_PROTO_VER DMS_PROTO_VER_0
+#define DMS_SW_PROTO_VER      DMS_PROTO_VER_3
+
+typedef enum en_dms_protocol_result {
+    DMS_PROTOCOL_VERSION_NOT_MATCH = 0,
+    DMS_PROTOCOL_VERSION_NOT_SUPPORT = 1,
+} dms_protocol_result_e;
+
+typedef struct st_dms_protocol_result_ack {
+    dms_message_head_t head;
+    dms_protocol_result_e result;
+} dms_protocol_result_ack_t;
 
 static inline bool8 dms_check_if_protocol_compatibility_error(int ret)
 {
@@ -54,9 +73,12 @@ bool8 dms_check_message_proto_version(dms_message_head_t *head);
 uint32 dms_get_forward_request_proto_version(uint8 dst_inst, uint32 recv_req_proto_ver);
 void dms_protocol_proc_maintain_version(dms_process_context_t *proc_ctx, dms_message_t *receive_msg);
 void dms_proc_opengauss_immediate_ckpt(dms_process_context_t *process_ctx, dms_message_t *receive_msg);
-uint32 dms_get_reform_proto_version(uint64 bitmap_online);
 
 /****************** A lightweight, universal DMS message version compatibility solution *******************/
+typedef struct st_dms_proto_version_attr {
+    uint32 req_size;
+} dms_proto_version_attr;
+
 const dms_proto_version_attr *dms_get_version_attr(dms_proto_version_attr *version_attrs, uint32 proto_version);
 int dms_fill_versioned_msg_head(dms_proto_version_attr *version_attrs, dms_message_head_t *head, uint32 send_version);
 int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t *msg,
