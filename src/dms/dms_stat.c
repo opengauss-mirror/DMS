@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-dms_stat_t g_dms_stat = {0};
+dms_stat_t g_dms_stat;
 dms_time_consume_t g_dms_time_consume;
 
 void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
@@ -52,10 +52,6 @@ void dms_begin_stat(uint32 sid, dms_wait_event_t event, bool32 immediate)
     stat->wait[curr_level].pre_spin_usecs = cm_total_spin_usecs();
     stat->wait[curr_level].immediate = immediate;
     LOG_DEBUG_INF("[DMS][EVT %u-%u]", sid, curr_level);
-
-#ifndef OPENGAUSS
-    g_dms.callback.begin_event_wait(sid, event, immediate);
-#endif
 
     if (!immediate || !g_dms_stat.time_stat_enabled) {
         return;
@@ -100,19 +96,12 @@ void dms_end_stat_ex(uint32 sid, dms_wait_event_t event)
     stat->wait_time[event] += stat->wait[stat->level].usecs;
     stat->wait_count[event]++;
 
-#ifndef OPENGAUSS
-    g_dms.callback.end_event_wait(sid, stat->wait[stat->level].event, event);
-#endif
-
     stat->wait[stat->level].is_waiting = CM_FALSE;
 }
 
 DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *event_cnt,
     unsigned long long *event_time)
 {
-    if (!g_dms_stat.inited) {
-        return;
-    }
     unsigned long long cnt = 0;
     unsigned long long time = 0;
 
@@ -144,28 +133,10 @@ DMS_DECLARE void dms_get_event(dms_wait_event_t event_type, unsigned long long *
     }
 }
 
-DMS_DECLARE void dms_get_session_event(unsigned int sid, dms_wait_event_t event_type, unsigned long long *event_cnt,
-    unsigned long long *event_time)
-{
-    uint32 sess_cnt = g_dms_stat.sess_cnt;
-    if (sid >= sess_cnt || !g_dms_stat.inited) {
-        return;
-    }
-    session_stat_t *stat = g_dms_stat.sess_stats + sid;
-    if (event_cnt != NULL) {
-        *event_cnt = stat->wait_count[event_type];
-    }
-    if (event_time != NULL) {
-        *event_time = stat->wait_time[event_type];
-    }
-}
-
 DMS_DECLARE unsigned long long dms_get_stat(dms_sysstat_t stat_type)
 {
     unsigned long long cnt = 0;
-    if (!g_dms_stat.inited) {
-        return cnt;
-    }
+
     uint32 sess_cnt = g_dms_stat.sess_cnt;
     for (uint32 i = 0; i < sess_cnt; ++i) {
         session_stat_t *stat = g_dms_stat.sess_stats + i;
@@ -175,27 +146,8 @@ DMS_DECLARE unsigned long long dms_get_stat(dms_sysstat_t stat_type)
     return cnt;
 }
 
-DMS_DECLARE void dms_get_session_stat_wait_attr(unsigned int sid, dms_wait_event_t event, unsigned int *is_waiting)
-{
-    uint32 sess_cnt = g_dms_stat.sess_cnt;
-    if (sid >= sess_cnt || !g_dms_stat.inited) {
-        return;
-    }
-    session_stat_t *stat = g_dms_stat.sess_stats + sid;
-    uint32 level = MIN(stat->level, DMS_STAT_MAX_LEVEL);
-    for (uint32 i = 0; i < level; i++) {
-        session_wait_t *wait = &stat->wait[i];
-        if ((wait->event == event) && (is_waiting != NULL)) {
-            *is_waiting = wait->is_waiting;
-        }
-    }
-}
-
 DMS_DECLARE void dms_reset_stat(void)
 {
-    if (!g_dms_stat.inited) {
-        return;
-    }
     uint32 j;
     uint32 sess_cnt = g_dms_stat.sess_cnt;
     for (uint32 i = 0; i < sess_cnt; ++i) {
@@ -295,12 +247,6 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_REQ_SMON_ALOCK_BY_DRID, "req smon deadlock advisory lock", "", "dms" },
     { MSG_REQ_CHECK_OWNERSHIP, "req check page ownership", "", "dms" },
     { MSG_REQ_REPAIR_NEW, "req repair new", "", "dms" },
-    { MSG_REQ_DRC_MIGRATE, "drm req", "", "dms" },
-    { MSG_REQ_DRC_RELEASE, "drm release", "", "dms" },
-    { MSG_REQ_DRM, "drm", "", "dms" },
-    { MSG_REQ_DRM_FINISH, "drm finish", "", "dms" },
-    { MSG_REQ_PRE_CRE_DRC, "pre create drc", "", "dms" },
-    { MSG_REQ_IMCSTORE_DELTA, "req imcstore delta from remote", "", "dms" },
     { MSG_ACK_CHECK_VISIBLE, "ack check visible", "", "dms" },
     { MSG_ACK_PAGE_OWNER_ID, "ack page owner id", "", "dms" },
     { MSG_ACK_BROADCAST, "ack broadcast", "", "dms" },
@@ -355,9 +301,6 @@ const wait_cmd_desc_t g_wait_cmd_desc[] = {
     { MSG_ACK_SMON_ALOCK_BY_DRID, "ack smon deadlock alock by drid", "", "dms" },
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT, "ack immediate ckpt request", "", "dms" },
     { MSG_ACK_CHECK_OWNERSHIP, "ack check page ownership", "", "dms" },
-    { MSG_ACK_DRC_MIGRATE, "drm ack", "", "dms"},
-    { MSG_ACK_DRM_FINISH, "drm finish ack", "", "dms"},
-    { MSG_ACK_IMCSTORE_DELTA, "ack imcstore delta request", "", "dms" },
 };
 
 /* g_wait_cmd_desc size */
@@ -368,7 +311,7 @@ static_assert(DMS_CMD_SIZE == DMS_CMD_DESC_SIZE,
 DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_result)
 {
     /* input cmd is offset */
-    if (index >= DMS_CMD_DESC_SIZE || index < 0) {
+    if (index >= DMS_CMD_SIZE || index < 0) {
         cmd_stat_result->is_valid = CM_FALSE;
         return;
     }
@@ -393,20 +336,8 @@ DMS_DECLARE void dms_get_cmd_stat(int index, wait_cmd_stat_result_t *cmd_stat_re
         return;
     }
 
-    uint32 i;
-    uint32 cmd = g_wait_cmd_desc[index].cmd;
-    if (cmd < MSG_REQ_END) {
-        i = cmd;
-    } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
-        i = MSG_REQ_END + cmd - MSG_ACK_BEGIN;
-    } else {
-        LOG_DEBUG_ERR("[DMS][dms_get_cmd_stat:wait_class]:invalid command %u", cmd);
-        cmd_stat_result->is_valid = CM_FALSE;
-        return;
-    }
-
-    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[i].count;
-    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[i].time;
+    cmd_stat_result->wait_count = (uint64)g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].count;
+    cmd_stat_result->wait_time = g_dms_time_consume.cmd_stats[g_wait_cmd_desc[index].cmd].time;
     cmd_stat_result->is_valid = CM_TRUE;
 }
 
@@ -415,7 +346,7 @@ int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_in
     if (!g_dms.dms_init_finish || worker_id >= MES_MAX_TASK_NUM) {
         return DMS_ERROR;
     }
-    mes_worker_info_t mes_worker_info = { 0 };
+    mes_worker_info_t mes_worker_info;
     if (mes_get_worker_info(worker_id, &mes_worker_info) != DMS_SUCCESS) {
         return DMS_ERROR;
     }
@@ -426,46 +357,16 @@ int dms_get_task_worker_msg_stat(unsigned int worker_id, mes_worker_msg_stats_in
     mes_worker_msg_stats_result->get_msgitem_time = mes_worker_info.get_msgitem_time;
     mes_worker_msg_stats_result->msg_ruid = mes_worker_info.msg_ruid;
     mes_worker_msg_stats_result->msg_src_inst = mes_worker_info.msg_src_inst;
-    mes_worker_msg_stats_result->is_free = mes_worker_info.is_free;
     MEMS_RETURN_IFERR(memcpy_sp(&mes_worker_msg_stats_result->msg_info, sizeof(mes_worker_msg_stats_result->msg_info),
         mes_worker_info.data, sizeof(mes_worker_msg_stats_result->msg_info)));
 
     if (mes_worker_msg_stats_result->msg_info.cmd < MSG_REQ_END) {
-        uint32 cmd = mes_worker_msg_stats_result->msg_info.cmd;
-        if (cmd >= MSG_ACK_END || (cmd >= MSG_REQ_END && cmd < MSG_ACK_BEGIN)) {
-            LOG_DEBUG_ERR("[DMS]invalid command ID: %u", cmd);
-            return DMS_ERROR;
-        }
-        dms_processor_t *processor = NULL;
-        if (cmd < MSG_REQ_END) {
-            processor = &g_dms.req_processors[cmd];
-        } else {
-            processor = &g_dms.ack_processors[cmd - MSG_ACK_BEGIN];
-        }
-
-        errno_t ret = strcpy_s(mes_worker_msg_stats_result->msg_cmd_desc, DMS_CMD_DESC_LEN, processor->name);
+        errno_t ret = strcpy_s(mes_worker_msg_stats_result->msg_cmd_desc, DMS_CMD_DESC_LEN,
+            g_dms.processors[mes_worker_msg_stats_result->msg_info.cmd].name);
         if (ret != EOK) {
             LOG_DEBUG_ERR("[DMS]strcpy_s error");
             return DMS_ERROR;
         }
-        mes_worker_info.longest_cmd = ((mes_msg_info_t *)mes_worker_info.longest_data)->cmd;
-        if (mes_worker_info.longest_cmd < MSG_REQ_END) {
-            processor = &g_dms.req_processors[mes_worker_info.longest_cmd];
-            ret = strcpy_s(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, processor->name);
-        } else if (mes_worker_info.longest_cmd >= MSG_ACK_BEGIN && mes_worker_info.longest_cmd < MSG_ACK_END) {
-            processor = &g_dms.ack_processors[mes_worker_info.longest_cmd - MSG_ACK_BEGIN];
-            ret = strcpy_s(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, processor->name);
-        } else {
-            ret = memset_sp(mes_worker_msg_stats_result->longest_cmd_desc, DMS_CMD_DESC_LEN, 0, DMS_CMD_DESC_LEN);
-        }
-
-        if (ret != EOK) {
-            LOG_DEBUG_ERR("[DMS]Secure C lib has thrown an error %d", ret);
-            return DMS_ERROR;
-        }
-
-        mes_worker_msg_stats_result->longest_cost_time = mes_worker_info.longest_cost_time;
-        mes_worker_msg_stats_result->longest_get_msgitem_time = mes_worker_info.longest_get_msgitem_time;
     }
     return DMS_SUCCESS;
 }
@@ -485,7 +386,6 @@ int dms_get_task_worker_priority_stat(unsigned int priority_id,
     mes_task_priority_stats_result->worker_num = mes_worker_priority_info.worker_num;
     mes_task_priority_stats_result->finished_msgitem_num = mes_worker_priority_info.finished_msgitem_num;
     mes_task_priority_stats_result->inqueue_msgitem_num = mes_worker_priority_info.inqueue_msgitem_num;
-    mes_task_priority_stats_result->avg_cost_time = mes_worker_priority_info.avg_cost_time;
     return DMS_SUCCESS;
 }
 

@@ -33,13 +33,11 @@
 #include "dms_reform_proc_parallel.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_fault_inject.h"
-#include "drc_res_mgr.h"
-#include "dms_msg_protocol.h"
 #ifndef WIN32
 #include "config.h"
-#else
-#define  DEF_DMS_VERSION    "dms.dll develop for windows"
 #endif
+
+
 
 bool8 dms_dst_id_is_self(uint8 dst_id)
 {
@@ -86,16 +84,6 @@ int dms_reform_in_process(void)
     } else {
         return CM_FALSE;
     }
-}
-
-int dms_reform_check_success(void)
-{
-    reform_info_t *reform_info = DMS_REFORM_INFO;
-
-    if (!dms_reform_in_process()) {
-        return CM_TRUE;
-    }
-    return reform_info->reform_success;
 }
 
 int dms_drc_accessible(unsigned char res_type)
@@ -156,11 +144,9 @@ void dms_reform_set_start(void)
     reform_info->reform_pause = CM_FALSE;
     reform_info->current_step = (uint8)share_info->reform_step[reform_info->reform_step_index++];
     reform_info->proc_time = (uint64)g_timer()->now;
-    reform_info->reform_success = CM_FALSE;
     dms_reform_proc_stat_clear_current();
     dms_reform_health_set_running();
     dms_reform_proc_set_running();
-    drm_thread_set_pause();
     dms_rebuild_assist_list_init();
 #ifndef OPENGAUSS
     if (share_info->reform_type != DMS_REFORM_TYPE_FOR_AZ_FAILOVER &&
@@ -254,9 +240,6 @@ static void dms_reform_init_for_maintain(void)
             inst_part->last = i;
         }
     }
-
-    dms_reform_part_copy_inner(part_mngr->old_inst_part_tbl, part_mngr->inst_part_tbl,
-        part_mngr->old_part_map, part_mngr->part_map);
 }
 
 void dms_reform_db_handle_deinit(void)
@@ -854,11 +837,4 @@ void dms_reform_list_minus(instance_list_t *list_dst, instance_list_t *list_src)
         }
     }
     *list_dst = list_result;
-}
-
-void dms_get_version_info(dms_version_info_t* version_stats)
-{
-    if (version_stats != NULL) {
-        version_stats->dms_proto_version = (uint32)DMS_SW_PROTO_VER;
-    }
 }

@@ -24,7 +24,8 @@
 
 #include "dms_reform_judge_step.h"
 #include "cm_timer.h"
-#include "drc_res_mgr.h"
+#include "dms_error.h"
+#include "dms_process.h"
 
 void dms_reform_judgement_prepare(void)
 {
@@ -69,53 +70,37 @@ void dms_reform_judgement_reconnect(instance_list_t *inst_lists)
 // Notice: DRC_CLEAN and REBUILD must be used in pairs
 void dms_reform_judgement_drc_clean(instance_list_t *inst_lists)
 {
+    // if reform_type is fail-over, all DRC has lost, no need to do drc_clean
+    if (dms_reform_type_is(DMS_REFORM_TYPE_FOR_FAILOVER_OPENGAUSS)) {
+        return;
+    }
+
     dms_reform_add_step(DMS_REFORM_STEP_SYNC_WAIT);
     dms_reform_add_step(DMS_REFORM_STEP_FULL_CLEAN);
-}
-
-void dms_reform_part_copy_inner(drc_inst_part_t *dst_tbl, drc_inst_part_t *src_tbl,
-    drc_part_t *dst_map, drc_part_t *src_map)
-{
-    uint32 size;
-    errno_t err;
-
-    size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
-    if (src_tbl == NULL) {
-        err = memset_s(dst_tbl, size, 0, size);
-    } else {
-        err = memcpy_s(dst_tbl, size, src_tbl, size);
-    }
-    DMS_SECUREC_CHECK(err);
-
-    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
-    if (src_map == NULL) {
-        err = memset_s(dst_map, size, 0, size);
-    } else {
-        err = memcpy_s(dst_map, size, src_map, size);
-    }
-    DMS_SECUREC_CHECK(err);
 }
 
 void dms_reform_part_copy(void)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
-    share_info_t *share_info = DMS_SHARE_INFO;
     drc_part_mngr_t *part_mngr = DRC_PART_MNGR;
     remaster_info_t *remaster_info = DMS_REMASTER_INFO;
-    remaster_info_t *old_master_info = DMS_OLD_MASTER_INFO;
-
-    // save old part map
-    if (share_info->drm_trigger) {
-        dms_reform_part_copy_inner(old_master_info->inst_part_tbl, part_mngr->inst_part_tbl,
-            old_master_info->part_map, part_mngr->part_map);
-    }
+    uint32 size;
+    errno_t err;
 
     if (reform_info->use_default_map) {
-        dms_reform_part_copy_inner(remaster_info->inst_part_tbl, NULL,
-            remaster_info->part_map, NULL);
+        size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
+        err = memset_s(remaster_info->inst_part_tbl, size, 0, size);
+        DMS_SECUREC_CHECK(err);
+        size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
+        err = memset_s(remaster_info->part_map, size, 0, size);
+        DMS_SECUREC_CHECK(err);
     } else {
-        dms_reform_part_copy_inner(remaster_info->inst_part_tbl, part_mngr->inst_part_tbl,
-            remaster_info->part_map, part_mngr->part_map);
+        size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
+        err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
+        DMS_SECUREC_CHECK(err);
+        size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
+        err = memcpy_s(remaster_info->part_map, size, part_mngr->part_map, size);
+        DMS_SECUREC_CHECK(err);
     }
 }
 

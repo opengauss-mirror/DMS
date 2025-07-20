@@ -27,17 +27,19 @@
 #include "mes_interface.h"
 #include "cm_spinlock.h"
 #include "dms_api.h"
-#include "cmpt_msg_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* common code to adapt new MES */
+
 #define DMS_MSG_HEAD_SIZE       sizeof(dms_message_head_t)
+#define DMS_ASYNC_OR_INVLD_RUID (0)
+
+#define DMS_MSG_HEAD_UNUSED_SIZE 24
 #define DMS_MAX_WORK_THREAD_CNT  128
 
-#define DMS_ASYNC_OR_INVLD_RUID (0)
 #define MFC_RETURN_IF_BAD_RUID(ruid)                \
     do {                                            \
         if (ruid == 0) {                            \
@@ -46,10 +48,65 @@ extern "C" {
         }                                           \
     } while (0)
 
+typedef struct st_dms_message_head {
+    unsigned int msg_proto_ver;
+    unsigned int sw_proto_ver;
+    unsigned int cmd;
+    unsigned int  flags;
+    unsigned long long ruid;
+    unsigned char src_inst;
+    unsigned char dst_inst;
+    unsigned short size;
+    unsigned int cluster_ver;
+    unsigned short src_sid;
+    unsigned short dst_sid;
+    unsigned short tickets;
+    unsigned short unused;
+    union {
+        struct {
+            long long judge_time; // for message used in reform, check if it is the same round of reform
+        };
+        struct {
+            unsigned long long seq;
+        };
+        unsigned char reserved[DMS_MSG_HEAD_UNUSED_SIZE]; /* 64 bytes total */
+    };
+} dms_message_head_t;
+
 typedef struct st_dms_message_t {
     dms_message_head_t *head;
     char *buffer;
 } dms_message_t;
+
+typedef struct st_mfc_ticket {
+    uint16 count;
+    spinlock_t lock;
+} mfc_ticket_t;
+
+typedef struct st_mfc {
+    uint16 profile_tickets;
+    uint16 max_wait_ticket_time; // ms
+    mfc_ticket_t remain_tickets[DMS_MAX_INSTANCES];
+    mfc_ticket_t recv_tickets[DMS_MAX_INSTANCES];
+} mfc_t;
+
+static inline void mfc_add_tickets(mfc_ticket_t *ticket, uint16 count)
+{
+    cm_spin_lock(&ticket->lock, NULL);
+    ticket->count += count;
+    cm_spin_unlock(&ticket->lock);
+}
+
+static inline uint16 mfc_clean_tickets(mfc_ticket_t *ticket)
+{
+    uint16 count;
+    cm_spin_lock(&ticket->lock, NULL);
+    count = ticket->count;
+    ticket->count = 0;
+    cm_spin_unlock(&ticket->lock);
+    return count;
+}
+
 
 #define mfc_init mes_init
 #define mfc_uninit mes_uninit
@@ -68,11 +125,9 @@ int32 mfc_send_data_async(dms_message_head_t *msg);
 int32 mfc_send_data3(dms_message_head_t *head, uint32 head_size, const void *body);
 int32 mfc_send_data4(dms_message_head_t *head, uint32 head_size,
     const void *body1, uint32 len1, const void *body2, uint32 len2);
-int32 mfc_send_data2_async(dms_message_head_t *head, uint32 head_size, const void *body, uint32 len);
-int32 mfc_send_data3_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
+int32 mfc_send_data4_async(dms_message_head_t *head, uint32 head_size, const void *body1, uint32 len1,
     const void *body2, uint32 len2);
 int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms);
-int32 mfc_get_response_ex(uint64 ruid, dms_message_t *response, int32 timeout_ms, void *arg);
 int32 mfc_forward_request(dms_message_head_t *msg);
 int32 mfc_send_response(dms_message_head_t *msg);
 
@@ -83,7 +138,7 @@ int32 mfc_get_broadcast_res(uint64 ruid, uint32 timeout_ms, uint64 expect_insts)
 int32 mfc_get_broadcast_res_with_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, uint64 *succ_insts);
 int32 mfc_get_broadcast_res_with_msg(uint64 ruid, uint32 timeout_ms, uint64 expect_insts, mes_msg_list_t *msg_list);
 int32 mfc_get_broadcast_res_with_msg_and_succ_insts(uint64 ruid, uint32 timeout_ms, uint64 expect_insts,
-    void *db_handle, uint64 *succ_insts, mes_msg_list_t *msg_list);
+    uint64 *succ_insts, mes_msg_list_t *msg_list);
 
 
 static inline void mfc_release_broadcast_response(mes_msg_list_t *response)

@@ -48,11 +48,6 @@ int32 drc_enqueue_txn(void *db_handle, uint64 *xid, uint8 inst_id, dms_txn_info_
 bool8 drc_local_txn_wait(uint64 *xid);
 void drc_local_txn_recycle(uint64 *xid);
 void drc_local_txn_awake(uint64 *xid);
-uint16 drc_get_xa_partid(drc_global_xid_t *xid);
-int32 drc_get_xa_master_id(drc_global_xid_t *global_xid, uint8 *master_id);
-int32 drc_get_xa_old_master_id(drc_global_xid_t *xid, uint8 *master_id);
-int32 drc_xa_create(void *db_handle, dms_session_e sess_type, uint32 sess_id, drc_global_xid_t *xid, uint8 owner_id);
-int32 drc_xa_delete(drc_global_xid_t *xid);
 
 #ifdef __cplusplus
 }

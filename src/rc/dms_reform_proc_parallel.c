@@ -23,6 +23,9 @@
  */
 
 #include "dms_reform_proc_parallel.h"
+#include "dms_reform_proc.h"
+#include "dms_error.h"
+#include "dms_process.h"
 #include "drc_page.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_xa.h"
@@ -251,13 +254,11 @@ static int drc_recycle_drc_res_proc(resource_id_t *res_id, parallel_thread_t *pa
     dms_process_context_t ctx;
     drc_global_res_map_t *obj_res_map = (drc_global_res_map_t*)parallel->argument;
     drc_part_list_t *part = &obj_res_map->res_parts[res_id->part_id];
-
-    if (drc_recycle_part_check(res_id->part_id)) {
-        ctx.inst_id = g_dms.inst_id;
-        ctx.sess_id = parallel->sess_id;
-        ctx.db_handle = parallel->handle;
-        drc_recycle_drc_by_part(&ctx, obj_res_map, part);
-    }
+    
+    ctx.inst_id = g_dms.inst_id;
+    ctx.sess_id = parallel->sess_id;
+    ctx.db_handle = parallel->handle;
+    drc_recycle_drc_by_part(&ctx, obj_res_map, part);
     return DMS_SUCCESS;
 }
 

@@ -23,13 +23,16 @@
  */
 
 #include "dms_process.h"
+#include "dms_stat.h"
 #include "dcs_dc.h"
+#include "dcs_msg.h"
 #include "dcs_page.h"
 #include "dcs_cr_page.h"
 #include "dcs_tran.h"
+#include "dls_msg.h"
 #include "dms_error.h"
 #include "dms_msg.h"
-#include "cmpt_msg_cmd.h"
+#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "drc_lock.h"
 #include "drc_res_mgr.h"
@@ -37,13 +40,17 @@
 #include "dcs_ckpt.h"
 #include "dcs_smon.h"
 #include "mes_metadata.h"
+#include "mes_interface.h"
 #include "cm_timer.h"
+#include "dms_reform.h"
+#include "dms_reform_msg.h"
 #include "scrlock_adapter.h"
+#include "cm_log.h"
 #include "dms_reform_xa.h"
+#include "fault_injection.h"
 #include "dms_reform_proc_stat.h"
 #include "dms_reform_alock.h"
 #include "dms_dynamic_trace.h"
-#include "dms_smon.h"
 
 #ifndef WIN32
 #include <sys/prctl.h>
@@ -144,12 +151,6 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_AZ_FAILOVER, dms_reform_proc_req_az_failover, CM_TRUE, CM_FALSE,  "dms az failover" },
     { MSG_REQ_CHECK_OWNERSHIP, dms_proc_check_page_ownership, CM_TRUE, CM_FALSE,  "check page ownership" },
     { MSG_REQ_REPAIR_NEW, dms_reform_proc_repair, CM_TRUE, CM_TRUE, "repair new" },
-    { MSG_REQ_DRC_MIGRATE,            dms_proc_drc_migrate,               CM_TRUE, CM_FALSE, "drc migrate" },
-    { MSG_REQ_DRC_RELEASE,            dms_proc_drc_release,               CM_TRUE, CM_FALSE, "drc release" },
-    { MSG_REQ_DRM,                    dms_proc_drm,                       CM_TRUE, CM_FALSE, "drm" },
-    { MSG_REQ_DRM_FINISH,             dms_proc_drm_finish,                CM_TRUE, CM_FALSE, "drm finish" },
-    { MSG_REQ_PRE_CRE_DRC,            dms_proc_pre_cre_drc_req,           CM_TRUE, CM_TRUE, "pre cre drc req" },
-    { MSG_REQ_IMCSTORE_DELTA,         dms_proc_imcstore_delta, 			  CM_TRUE, CM_FALSE,  "get imcstore delta data" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -208,9 +209,6 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack immediate ckpt request" },
     { MSG_ACK_SMON_ALOCK_BY_DRID,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack smon deadlock alock drid" },
     { MSG_ACK_CHECK_OWNERSHIP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack check page ownership" },
-    { MSG_ACK_DRC_MIGRATE,                  dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack drc migrate" },
-    { MSG_ACK_DRM_FINISH,                   dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack drm finish" },
-    { MSG_ACK_IMCSTORE_DELTA,               dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack imcstore get delta" },
 };
 
 static bool32 dms_cmd_is_reform(uint32 cmd)
@@ -268,8 +266,8 @@ static bool32 dms_same_txn(char *res, const char *res_id, uint32 len)
 
 static bool32 dms_same_global_xid(char *res, const char *res_id, uint32 len)
 {
-    drc_xa_t *drc_xa = (drc_xa_t *)res;
-    drc_global_xid_t *global_xid1 = &drc_xa->xid;
+    drc_global_xa_res_t *xa_res = (drc_global_xa_res_t *)res;
+    drc_global_xid_t *global_xid1 = &xa_res->xid;
     drc_global_xid_t *global_xid2 = (drc_global_xid_t *)res_id;
     if (global_xid1->fmt_id != global_xid2->fmt_id) {
         return CM_FALSE;
@@ -297,24 +295,6 @@ static bool32 dms_same_global_xid(char *res, const char *res_id, uint32 len)
     }
 
     return CM_TRUE;
-}
-
-static uint32 dms_xa_res_hash(int32 res_type, char *resid, uint32 len)
-{
-    uint32 offset = 0;
-    drc_global_xid_t *xid = (drc_global_xid_t *)resid;
-    char buffer[DMS_MAX_XA_BASE16_GTRID_LEN + DMS_MAX_XA_BASE16_BQUAL_LEN + sizeof(uint64)] = { 0 };
-    char *xid_pointer = buffer;
-    *(uint64 *)xid_pointer = xid->fmt_id;
-    offset += sizeof(uint64);
-    int32 ret = memcpy_sp(xid_pointer + offset, xid->gtrid_len, xid->gtrid, xid->gtrid_len);
-    DMS_SECUREC_CHECK(ret);
-    offset += xid->gtrid_len;
-    if (xid->bqual_len > 0) {
-        ret = memcpy_sp(xid_pointer + offset, xid->bqual_len, xid->bqual, xid->bqual_len);
-        DMS_SECUREC_CHECK(ret);
-    }
-    return cm_hash_bytes((uint8 *)buffer, offset, INFINITE_HASH_RANGE);
 }
 
 /* Reform-related messages are exempt from GCV check or instance lock. */
@@ -457,64 +437,63 @@ void dms_cast_mes_msg(mes_msg_t *mes_msg, dms_message_t *dms_msg)
     dms_msg->buffer = mes_msg->buffer;
 }
 
-static bool32 validate_msg_args(dms_process_context_t *ctx, dms_message_t *dms_msg,
-    uint32 work_idx, uint64 ruid, dms_processor_t **processor)
+static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg)
 {
-    dms_message_head_t* head = get_dms_head(dms_msg);
-        bool32 init_finish = g_dms.dms_init_finish;
+    if (work_idx >= g_dms.proc_ctx_cnt) {
+        cm_panic(0);
+    }
+
+    dms_message_t dms_msg;
+    dms_cast_mes_msg(mes_msg, &dms_msg);
+    dms_reform_proc_stat_bind_mes_task(work_idx);
+    dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
+    dms_message_head_t* head = get_dms_head(&dms_msg);
+
+    bool32 init_finish = g_dms.dms_init_finish;
     if (!init_finish) {
         LOG_DEBUG_INF("[DMS] discard msg with cmd:%u, src_inst:%u, dst_inst:%u, "
             "src_sid:%u, dest_sid:%u, finish dms init:%u", 
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             (uint32)head->src_sid, (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
-        return CM_FALSE;
+        return;
     }
 
     if (SECUREC_UNLIKELY(ctx->db_handle == NULL)) {
         ctx->db_handle = g_dms.callback.get_db_handle(&ctx->sess_id, DMS_SESSION_TYPE_WORKER);
         if (ctx->db_handle == NULL) {
-            return CM_FALSE;
+            return;
         }
     }
+    
+    /* ruid should have been brought in dms msghead */
+    CM_ASSERT(ruid == 0 || head->ruid == ruid);
 
     dms_set_node_proto_version(head->src_inst, head->sw_proto_ver);
     if ((head->cmd >= MSG_REQ_END && head->cmd < MSG_ACK_BEGIN) || head->cmd >= MSG_ACK_END) {
-        dms_protocol_send_ack_version_not_match(ctx, dms_msg, CM_FALSE);
-        return CM_FALSE;
+        dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_FALSE);
+        return;
     }
 
     mes_msg_info_t msg_data = {head->cmd, head->src_sid};
     mes_set_cur_msg_info(work_idx, &msg_data, sizeof(mes_msg_info_t));
-
-    *processor = NULL;
-    if (head->cmd < MSG_REQ_END) {
-        *processor = &g_dms.req_processors[head->cmd];
-    } else {
-        *processor = &g_dms.ack_processors[head->cmd - MSG_ACK_BEGIN];
-    }
-    if ((*processor)->is_enqueue) {
+    dms_processor_t *processor = &g_dms.processors[head->cmd];
+    if (processor->is_enqueue) {
         bool8 pass_check = dms_check_message_proto_version(head);
         if (!pass_check) {
             if (dms_cmd_need_ack(head->cmd)) {
-                dms_protocol_send_ack_version_not_match(ctx, dms_msg, CM_TRUE);
+                dms_protocol_send_ack_version_not_match(ctx, &dms_msg, CM_TRUE);
             }
-            return CM_FALSE;
+            return;
         }
     }
 
-    return CM_TRUE;
-}
-
-static void process_msg_inner(dms_process_context_t *ctx, mes_msg_t *mes_msg,
-    dms_message_t *dms_msg, dms_processor_t *processor)
-{
 #ifdef OPENGAUSS
     bool32 enable_proc = DMS_FIRST_REFORM_FINISH || processor->is_enable_before_reform;
 #else
     bool32 enable_proc = CM_TRUE;
 #endif
 
-    dms_message_head_t* head = get_dms_head(dms_msg);
+    dms_lock_instance_s(head->cmd, ctx->sess_id);
     bool32 gcv_approved = head->cluster_ver == DMS_GLOBAL_CLUSTER_VER || \
         dms_msg_skip_gcv_check(head->cmd);
     if (!enable_proc || !gcv_approved) {
@@ -523,6 +502,7 @@ static void process_msg_inner(dms_process_context_t *ctx, mes_msg_t *mes_msg,
             (uint32)head->cmd, (uint32)head->src_inst, (uint32)head->dst_inst,
             DMS_GLOBAL_CLUSTER_VER, head->cluster_ver, (uint32)head->src_sid,
             (uint32)head->dst_sid, (uint32)g_dms.dms_init_finish);
+        dms_unlock_instance_s(head->cmd, ctx->sess_id);
         return;
     }
 
@@ -536,11 +516,11 @@ static void process_msg_inner(dms_process_context_t *ctx, mes_msg_t *mes_msg,
     (void)g_dms.callback.cache_msg(ctx->db_handle, (char*)mes_msg->buffer);
 #endif
     if (processor->is_enqueue) {
-        processor->proc(ctx, dms_msg);
+        processor->proc(ctx, &dms_msg);
     }
 #ifdef OPENGAUSS  
     (void)g_dms.callback.db_check_lock(ctx->db_handle);
-#endif
+#endif   
 
     /*
      * Now DMS use memory manager functions provided by DB,
@@ -556,28 +536,6 @@ static void process_msg_inner(dms_process_context_t *ctx, mes_msg_t *mes_msg,
         dms_dyn_trc_end(ctx->sess_id);
     }
 
-    return;
-}
-
-static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg)
-{
-    if (work_idx >= g_dms.proc_ctx_cnt) {
-        cm_panic(0);
-    }
-
-    dms_message_t dms_msg;
-    dms_cast_mes_msg(mes_msg, &dms_msg);
-    dms_reform_proc_stat_bind_mes_task(work_idx);
-    dms_process_context_t *ctx = &g_dms.proc_ctx[work_idx];
-    dms_message_head_t* head = get_dms_head(&dms_msg);
-
-    dms_processor_t *processor = NULL;
-    if (!validate_msg_args(ctx, &dms_msg, work_idx, ruid, &processor)) {
-        return;
-    }
-
-    dms_lock_instance_s(head->cmd, ctx->sess_id);
-    process_msg_inner(ctx, mes_msg, &dms_msg, processor);
     dms_unlock_instance_s(head->cmd, ctx->sess_id);
 }
 
@@ -585,26 +543,15 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
 static int dms_register_proc_func(processor_func_t *proc_func)
 {
     if ((proc_func->cmd_type >= MSG_REQ_END && proc_func->cmd_type < MSG_ACK_BEGIN) ||
-        proc_func->cmd_type >= MSG_ACK_END) {
+        proc_func->cmd_type >= MSG_ACK_END || proc_func->cmd_type >= CM_MAX_MES_MSG_CMD) {
         DMS_THROW_ERROR(ERRNO_DMS_CMD_INVALID, proc_func->cmd_type);
         return ERRNO_DMS_CMD_INVALID;
     }
+    g_dms.processors[proc_func->cmd_type].proc = proc_func->proc;
+    g_dms.processors[proc_func->cmd_type].is_enqueue  = proc_func->is_enqueue_work_thread;
+    g_dms.processors[proc_func->cmd_type].is_enable_before_reform = proc_func->is_enable_before_reform;
 
-    uint32 index;
-    dms_processor_t *proc = NULL;
-    if (proc_func->cmd_type < MSG_REQ_END) {
-        // req
-        proc = g_dms.req_processors;
-        index = proc_func->cmd_type;
-    } else {
-        // ack
-        proc = g_dms.ack_processors;
-        index = proc_func->cmd_type - MSG_ACK_BEGIN;
-    }
-    proc[index].proc = proc_func->proc;
-    proc[index].is_enqueue  = proc_func->is_enqueue_work_thread;
-    proc[index].is_enable_before_reform = proc_func->is_enable_before_reform;
-    int ret = strcpy_s(proc[index].name, CM_MAX_NAME_LEN, proc_func->func_name);
+    int ret = strcpy_s(g_dms.processors[proc_func->cmd_type].name, CM_MAX_NAME_LEN, proc_func->func_name);
     DMS_SECUREC_CHECK(ret);
 
     return DMS_SUCCESS;
@@ -726,9 +673,9 @@ void dms_set_mes_message_pool(unsigned long long recv_msg_buf_size, mes_profile_
  * group 5 derived messages
  * group 6 everythin else
  */
-unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg)
+unsigned int dms_get_mes_prio_by_cmd(uint32 cmd)
 {
-    switch (msg->cmd) {
+    switch (cmd) {
         case MSG_REQ_SYNC_STEP:
         case MES_REQ_MGRT_MASTER_DATA:
         case MSG_REQ_PAGE_REBUILD:
@@ -757,12 +704,7 @@ unsigned int dms_get_mes_prio_by_cmd(dms_message_head_t *msg)
         case MSG_REQ_CLAIM_OWNER:
         case MSG_REQ_INVALID_OWNER:
         case MSG_REQ_INVALIDATE_SHARE_COPY:
-        case MSG_REQ_PRE_CRE_DRC:
-        case MSG_REQ_RELEASE_OWNER:
             return MES_PRIORITY_FIVE;
-        case MSG_REQ_ASK_MASTER_FOR_PAGE:
-        case MSG_REQ_ASK_OWNER_FOR_PAGE:
-            return (msg->flags & REQ_FLAG_REFORM_SESSION ? MES_PRIORITY_ZERO : MES_PRIORITY_SIX);
         default:
             return MES_PRIORITY_SIX;
     }
@@ -964,17 +906,10 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 static unsigned short dms_get_msg_cmd(char *buff)
 {
     dms_message_head_t *dms_head = (dms_message_head_t *)buff;
-    
-    if (dms_head->cmd < MSG_REQ_END) {
-        return dms_head->cmd;
-    } else if (dms_head->cmd >= MSG_ACK_BEGIN && dms_head->cmd < MSG_ACK_END) {
-        return MSG_REQ_END + dms_head->cmd - MSG_ACK_BEGIN;
-    } else {
-        return CM_MAX_MES_MSG_CMD;
-    }
+    return (unsigned short)(dms_head->cmd);
 }
 
-int dms_mes_interrupt(void *db_handle, int wait_time)
+int dms_mes_interrupt(void *arg, int wait_time)
 {
     reform_info_t *reform_info = DMS_REFORM_INFO;
     share_info_t *share_info = DMS_SHARE_INFO;
@@ -983,13 +918,6 @@ int dms_mes_interrupt(void *db_handle, int wait_time)
     }
     if (dms_reform_in_process() && wait_time >= MILLISECS_PER_SECOND &&
         !REFORM_TYPE_IS_AZ_SWITCHOVER(share_info->reform_type)) {
-        return CM_TRUE;
-    }
-    if (db_handle != NULL &&
-#ifdef OPENGAUSS
-        g_dms.callback.check_session_status != NULL &&
-#endif
-        g_dms.callback.check_session_status(db_handle) != DMS_SUCCESS) {
         return CM_TRUE;
     }
     return CM_FALSE;
@@ -1020,7 +948,7 @@ int dms_init_mes(dms_profile_t *dms_profile)
 static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 inst_cnt, int32 res_type,
     uint32 pool_size, uint32 item_size, res_cmp_callback res_cmp_func, res_hash_callback get_hash_func)
 {
-    size_t size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
+    uint32 size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
     DMS_SECUREC_CHECK(memset_s(global_res->res_parts, size, 0, size));
     return drc_res_map_init(&global_res->res_map, inst_cnt, res_type, pool_size,
         item_size, res_cmp_func, get_hash_func);
@@ -1028,7 +956,7 @@ static status_t dms_global_res_init(drc_global_res_map_t *global_res, uint32 ins
 
 void dms_global_res_reinit(drc_global_res_map_t *global_res)
 {
-    size_t size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
+    uint32 size = sizeof(drc_part_list_t) * DRC_MAX_PART_NUM;
     DMS_SECUREC_CHECK(memset_s(global_res->res_parts, size, 0, size));
     drc_res_map_reinit(&global_res->res_map);
 }
@@ -1043,20 +971,6 @@ static inline int32 init_common_res_ctx(const dms_profile_t *dms_profile)
     }
 
     return ret;
-}
-
-static bool32 dms_same_page(char *res, const char *resid, uint32 len)
-{
-    drc_page_t *drc_page = (drc_page_t *)res;
-    if (drc_page == NULL || resid == NULL || len == 0) {
-        cm_panic(0);
-    }
-    return memcmp(drc_page->data, resid, len) == 0 ? CM_TRUE : CM_FALSE;
-}
-
-static uint32 dms_res_hash(int32 res_type, char *resid, uint32 len)
-{
-    return cm_hash_bytes((uint8 *)resid, len, INFINITE_HASH_RANGE);
 }
 
 static int32 init_page_res_ctx(const dms_profile_t *dms_profile)
@@ -1150,7 +1064,7 @@ static int32 init_xa_res_ctx(dms_profile_t *dms_profile)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     uint32 res_num = dms_profile->max_session_cnt;
     int32 ret = dms_global_res_init(&ctx->global_xa_res, dms_profile->inst_cnt, DMS_RES_TYPE_IS_XA, res_num,
-        sizeof(drc_xa_t), dms_same_global_xid, dms_xa_res_hash);
+        sizeof(drc_global_xa_res_t), dms_same_global_xid, dms_xa_res_hash);
     if (ret != DMS_SUCCESS) {
         LOG_RUN_ERR("[DRC]global xid resource pool init fail, return error:%d", ret);
         return ret;
@@ -1216,13 +1130,6 @@ static int32 init_drc_smon_ctx(void)
     ret = cm_create_thread(drc_recycle_thread, 0, NULL, &ctx->smon_recycle_thread);
     if (ret != CM_SUCCESS) {
         LOG_RUN_ERR("[DRC]fail to create smon recycle thread");
-        DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
-        return ERRNO_DMS_COMMON_CBB_FAILED;
-    }
-
-    ret = drm_thread_init();
-    if (ret != DMS_SUCCESS) {
-        LOG_RUN_ERR("[DRC]fail to create drm thread");
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_CBB_FAILED, ret);
         return ERRNO_DMS_COMMON_CBB_FAILED;
     }
@@ -1334,23 +1241,23 @@ static int32 init_single_logger_core(log_param_t *log_param, log_type_t log_id, 
 {
     int32 ret;
     switch (log_id) {
-        case CM_LOG_RUN:
+        case LOG_RUN:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/run/%s", log_param->log_home, "dms.rlog");
             break;
-        case CM_LOG_DEBUG:
+        case LOG_DEBUG:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/debug/%s", log_param->log_home, "dms.dlog");
             break;
-        case CM_LOG_ALARM:
+        case LOG_ALARM:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/alarm/%s", log_param->log_home, "dms.alog");
             break;
-        case CM_LOG_AUDIT:
+        case LOG_AUDIT:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN, "%s/DMS/audit/%s", log_param->log_home, "dms.aud");
             break;
-        case CM_LOG_DMS_EVT_TRC:
+        case LOG_DMS_EVT_TRC:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN,
                 "%s/trc/%s", log_param->log_home, "dms_event.trc");
             break;
-        case CM_LOG_DMS_RFM_TRC:
+        case LOG_DMS_RFM_TRC:
             ret = snprintf_s(file_name, file_name_len, CM_MAX_FILE_NAME_LEN,
                 "%s/trc/%s", log_param->log_home, "dms_reform.trc");
             break;
@@ -1380,8 +1287,8 @@ static int32 init_single_logger(log_param_t *log_param, log_type_t log_id)
 int dms_dyn_trc_init_logger_handle()
 {
     log_param_t *log_param = cm_log_param_instance();
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_EVT_TRC));
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_RFM_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_EVT_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_RFM_TRC));
     return DMS_SUCCESS;
 }
 
@@ -1444,20 +1351,20 @@ int32 dms_init_logger(logger_param_t *param_def)
     }
 
 #ifdef OPENGAUSS
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_RUN));
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DEBUG));
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_ALARM));
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_AUDIT));
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_EVT_TRC));
-    CM_RETURN_IFERR(init_single_logger(log_param, CM_LOG_DMS_RFM_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_RUN));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DEBUG));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_ALARM));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_AUDIT));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_EVT_TRC));
+    CM_RETURN_IFERR(init_single_logger(log_param, LOG_DMS_RFM_TRC));
 #endif
 
     log_param->log_instance_startup = (bool32)CM_TRUE;
 
 #ifdef OPENGAUSS
     if (log_param->log_level >= DEBUG_LOG_LEVEL) {
-        cm_recovery_log_file(CM_LOG_DEBUG);
-        cm_recovery_log_file(CM_LOG_RUN);
+        cm_recovery_log_file(LOG_DEBUG);
+        cm_recovery_log_file(LOG_RUN);
     }
 #endif
     return DMS_SUCCESS;
@@ -1523,6 +1430,22 @@ static void dms_set_global_dms(dms_profile_t *dms_profile)
     LOG_RUN_INF("[DMS] dms_set_global_dms end");
 }
 
+static void dms_init_mfc(dms_profile_t *dms_profile)
+{
+    LOG_RUN_INF("[DMS] dms_init_mfc start");
+    g_dms.mfc.profile_tickets = dms_profile->mfc_tickets;
+    g_dms.mfc.max_wait_ticket_time = dms_profile->mfc_max_wait_ticket_time;
+
+    for (uint32 i = 0; i < DMS_MAX_INSTANCES; ++i) {
+        g_dms.mfc.remain_tickets[i].count = g_dms.mfc.profile_tickets;
+        GS_INIT_SPIN_LOCK(g_dms.mfc.remain_tickets[i].lock);
+
+        g_dms.mfc.recv_tickets[i].count = 0;
+        GS_INIT_SPIN_LOCK(g_dms.mfc.recv_tickets[i].lock);
+    }
+    LOG_RUN_INF("[DMS] dms_init_mfc end");
+}
+
 int dms_init(dms_profile_t *dms_profile)
 {
     int ret;
@@ -1581,6 +1504,8 @@ int dms_init(dms_profile_t *dms_profile)
         dms_deinit_proc_ctx();
         return ret;
     }
+
+    dms_init_mfc(dms_profile);
 
     ret = dms_reform_init(dms_profile);
     if (ret != DMS_SUCCESS) {
@@ -1741,7 +1666,7 @@ int dms_create_global_xa_res(dms_context_t *dms_ctx, uint8 owner_id, uint8 undo_
 
     if (master_id == dms_ctx->inst_id) {
         *remote_result = DMS_SUCCESS;
-        ret = drc_xa_create(dms_ctx->db_handle, DMS_SESSION_NORMAL, dms_ctx->sess_id, global_xid, owner_id);
+        ret = drc_create_xa_res(dms_ctx->db_handle, dms_ctx->sess_id, global_xid, owner_id, undo_set_id, CM_TRUE);
         if (ret == ERRNO_DMS_DRC_XA_RES_ALREADY_EXISTS && ignore_exist) {
             return DMS_SUCCESS;
         } else {
@@ -1771,7 +1696,7 @@ int dms_delete_global_xa_res(dms_context_t *dms_ctx, uint32 *remote_result)
 
     if (master_id == dms_ctx->inst_id) {
         *remote_result = DMS_SUCCESS;
-        return drc_xa_delete(global_xid);
+        return drc_delete_xa_res(global_xid, CM_TRUE);
     }
     
     return dms_request_delete_xa_res(dms_ctx, master_id, remote_result);
@@ -1823,28 +1748,29 @@ int dms_calc_mem_usage(dms_profile_t *dms_profile, uint64 *total_mem)
     *total_mem += (uint64)((dms_profile->work_thread_cnt + dms_profile->channel_cnt + dms_profile->max_session_cnt) * sizeof(session_stat_t));
     if (g_dms.drc_mem_context == NULL) {
         // common res
-        *total_mem += DMS_CM_MAX_SESSIONS * SESSION_MULTIPLES * sizeof(drc_lock_item_t) * dms_profile->inst_cnt;
+        *total_mem += DMS_CM_MAX_SESSIONS * SESSION_MULTIPLES * sizeof(drc_lock_item_t) * DMS_MAX_INSTANCES;
         // page res
         uint32 page_res_num =
             (uint32)(DRC_RECYCLE_ALLOC_COUNT * dms_profile->data_buffer_size / dms_profile->page_size);
-        *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_page_t), dms_profile->inst_cnt);
+        *total_mem += dms_calc_res_map_mem(page_res_num, sizeof(drc_page_t), DMS_MAX_INSTANCES);
         // global lock res
-        *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_GLOCK_RES_NUM, sizeof(drc_lock_t), dms_profile->inst_cnt);
+        *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_GLOCK_RES_NUM, sizeof(drc_lock_t), DMS_MAX_INSTANCES);
         // global alock res
-        *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_ALOCK_RES_NUM, sizeof(drc_alock_t), dms_profile->inst_cnt);
+        *total_mem += dms_calc_res_map_mem(DRC_DEFAULT_ALOCK_RES_NUM, sizeof(drc_alock_t), DMS_MAX_INSTANCES);
         // local lock res
         *total_mem +=
-            dms_calc_res_map_mem(DRC_DEFAULT_LLOCK_RES_NUM, sizeof(drc_local_lock_res_t), dms_profile->inst_cnt);
+            dms_calc_res_map_mem(DRC_DEFAULT_LLOCK_RES_NUM, sizeof(drc_local_lock_res_t), DMS_MAX_INSTANCES);
         // xa res
         *total_mem +=
-            dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_xa_t), dms_profile->inst_cnt);
+            dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_global_xa_res_t), DMS_MAX_INSTANCES);
         // local txn res
-        *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), dms_profile->inst_cnt);
+        *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
         // global txn res
-        *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), dms_profile->inst_cnt);
+        *total_mem += dms_calc_res_map_mem(dms_profile->max_session_cnt, sizeof(drc_txn_res_t), DMS_MAX_INSTANCES);
     } else {
         *total_mem += g_dms.drc_mem_context->mem_max_size;
     }
+
     // dms smon ctx
     *total_mem += DRC_SMON_QUEUE_SIZE * sizeof(res_id_t) + sizeof(chan_t);
 
@@ -1906,43 +1832,4 @@ void dms_get_dms_thread(thread_set_t *thread_set)
     dms_get_reform_thread(thread_set, dms_thread_name_format);
     dms_get_smon_thread(thread_set, dms_thread_name_format);
     dms_get_reform_parallel_thread(thread_set, dms_thread_name_format);
-}
-
-int dms_convert_error_to_event(unsigned int dms_error, unsigned int *dms_event)
-{
-    switch (dms_error) {
-        case ERRNO_DMS_DRC_IS_RECYCLING:
-            *dms_event = DMS_EVT_DRC_RECYCLE;
-            break;
-        case ERRNO_DMS_DRC_FROZEN:
-        case ERRNO_DMS_DRC_RECOVERY_PAGE:
-            *dms_event = DMS_EVT_DRC_FROZEN;
-            break;
-        case ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH:
-            *dms_event = DMS_EVT_DRC_ENQ_ITEM_NOT_ENOUGH;
-            break;
-        case ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER:
-            *dms_event = DMS_EVT_DRC_ENQ_ITEM_CONFLICT;
-            break;
-        case ERRNO_DMS_DRC_PAGE_POOL_CAPACITY_NOT_ENOUGH:
-            *dms_event = DMS_EVT_DRC_NOT_ENOUGH;
-            break;
-        default:
-            *dms_event = DMS_EVT_IDLE_WAIT;
-            break;
-    }
-
-    return DMS_SUCCESS;
-}
-
-int dms_begin_sess_wait(unsigned int sid, unsigned int dms_event)
-{
-    dms_begin_stat(sid, dms_event, CM_TRUE);
-    return DMS_SUCCESS;
-}
-
-int dms_end_sess_wait(unsigned int sid, unsigned int dms_event)
-{
-    dms_end_stat_ex(sid, dms_event);
-    return DMS_SUCCESS;
 }

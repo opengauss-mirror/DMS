@@ -27,7 +27,7 @@
 #include "dms.h"
 #include "dms_cm.h"
 #include "dms_error.h"
-#include "cmpt_msg_cmd.h"
+#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "drc.h"
 #include "drc_res_mgr.h"
@@ -48,7 +48,7 @@ static int32 dcs_send_edp(dms_context_t *dms_ctx, uint8 dest_id, uint32 cmd, dms
         uint32 size = (uint32)(sizeof(dms_message_head_t) + sizeof(unsigned int) + send_cnt * sizeof(dms_edp_info_t));
         head.size = (uint16)size;
 
-        if ((ret = mfc_send_data3_async(&head, sizeof(dms_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
+        if ((ret = mfc_send_data4_async(&head, sizeof(dms_message_head_t), &send_cnt, (uint32)sizeof(unsigned int),
             pages, send_cnt * (uint32)sizeof(dms_edp_info_t))) != CM_SUCCESS) {
             LOG_DEBUG_ERR("[DMS]send edp failed, errno = %d", ret);
             DMS_THROW_ERROR(ERRNO_DMS_DCS_SEND_EDP_FAILED);
@@ -206,7 +206,7 @@ static bool32 get_and_clean_edp_map(dms_context_t *dms_ctx, dms_edp_info_t *edp)
         return CM_TRUE;
     }
 
-    if (drc_page->edp_map == 0) {
+    if (drc_page->last_edp_lsn > edp->lsn || drc_page->edp_map == 0) {
         drc_leave((drc_head_t *)drc_page, options);
         return CM_FALSE;
     }

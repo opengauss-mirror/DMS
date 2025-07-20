@@ -34,7 +34,11 @@
 #include "dcs_page.h"
 #include "dms_reform_xa.h"
 #include "dms_reform_proc_stat.h"
-#include "cmpt_msg_reform.h"
+
+static dms_proto_version_attr g_req_share_info_version_ctrl[DMS_PROTO_VER_NUMS] = {
+     [DMS_PROTO_VER_1] = { OFFSET_OF(dms_reform_req_sync_share_info_t, share_info.inst_bitmap), },
+     [DMS_PROTO_VER_2] = { sizeof(dms_reform_req_sync_share_info_t) },
+};
 
 static int dms_reform_req_common_wait(uint64 ruid)
 {
@@ -131,12 +135,12 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
 
     if (SECUREC_UNLIKELY(req.share_info.reform_type >= DMS_REFORM_TYPE_COUNT ||
         req.share_info.reform_step_count > DMS_REFORM_STEP_TOTAL_COUNT ||
-        req.share_info.list_stable.inst_id_count > DMS_MAX_INSTANCES ||
-        req.share_info.list_online.inst_id_count > DMS_MAX_INSTANCES ||
-        req.share_info.list_offline.inst_id_count > DMS_MAX_INSTANCES ||
-        req.share_info.list_reconnect.inst_id_count > DMS_MAX_INSTANCES ||
-        req.share_info.list_disconnect.inst_id_count > DMS_MAX_INSTANCES)) {
-        LOG_RUN_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
+        req.share_info.list_stable.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_online.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_offline.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_reconnect.inst_id_count > g_dms.inst_cnt ||
+        req.share_info.list_disconnect.inst_id_count > g_dms.inst_cnt)) {
+        LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_share_info invalid share info message");
         return;
     }
 
@@ -146,8 +150,8 @@ void dms_reform_proc_sync_share_info(dms_process_context_t *process_ctx, dms_mes
     cm_spin_lock(&reform_context->share_info_lock, NULL);
     if (local_share_info->version_num == received_share_info->version_num &&
         dms_reform_version_same(&local_reform_info->reformer_version, &received_share_info->reformer_version)) {
-        LOG_RUN_WAR("[DMS REFORM] current round(version num:%llu) of reform is being executed "
-            "or share info sync msg has been expired", local_share_info->version_num);
+        LOG_DEBUG_WAR("[DMS REFORM] current round(version num:%llu) of reform is being executed "
+                      "or share info sync msg has been expired", local_share_info->version_num);
         dms_reform_ack_sync_share_info(process_ctx, receive_msg, DMS_SUCCESS);
         cm_spin_unlock(&reform_context->share_info_lock);
         return;
@@ -205,6 +209,7 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
 {
     CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_reform_req_sync_step_t), CM_TRUE);
     dms_reform_req_sync_step_t *req = (dms_reform_req_sync_step_t *)receive_msg->buffer;
+    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     reform_info_t *reform_info = DMS_REFORM_INFO;
     uint8 instance_id = req->head.src_inst;
 
@@ -216,19 +221,17 @@ void dms_reform_proc_sync_step(dms_process_context_t *process_ctx, dms_message_t
 
     if (SECUREC_UNLIKELY(req->last_step >= DMS_REFORM_STEP_COUNT ||
         req->curr_step >= DMS_REFORM_STEP_COUNT ||
-        req->next_step >= DMS_REFORM_STEP_COUNT ||
-        instance_id >= DMS_MAX_INSTANCES)) {
+        req->next_step >= DMS_REFORM_STEP_COUNT)) {
         LOG_DEBUG_ERR("[DMS REFORM] dms_reform_proc_sync_step, invalid request, "
             "last_step=%u, curr_step=%u, next_step=%u", (uint32)req->last_step,
             (uint32)req->curr_step, (uint32)req->next_step);
         return;
     }
 
-    node_info_t *node_info = DMS_NODE_INFO(instance_id);
     if (req->curr_step == DMS_REFORM_STEP_SELF_FAIL) {
-        node_info->instance_fail = CM_TRUE;
+        reformer_ctrl->instance_fail[instance_id] = CM_TRUE;
     } else {
-        node_info->instance_step = req->last_step;
+        reformer_ctrl->instance_step[instance_id] = req->last_step;
     }
     reform_info->max_scn = MAX(reform_info->max_scn, req->scn);
 
@@ -290,7 +293,8 @@ void dms_reform_ack_req_dms_status(dms_process_context_t *process_ctx, dms_messa
     }
 }
 
-int dms_reform_req_dms_status_wait(uint8 dst_id, uint64 ruid, online_status_t *online_status)
+int dms_reform_req_dms_status_wait(uint8 *online_status, uint64* online_times, uint8 *online_rw_status,
+    uint8 dst_id, uint64 ruid)
 {
     dms_message_t res;
     int ret = DMS_SUCCESS;
@@ -306,16 +310,16 @@ int dms_reform_req_dms_status_wait(uint8 dst_id, uint64 ruid, online_status_t *o
         mfc_release_response(&res);
         return DMS_ERROR;
     }
-    online_status->status = ack_common->dms_status;
-    online_status->start_time = ack_common->start_time;
-    online_status->rw_status = ack_common->db_is_readwrite;
+    online_status[dst_id] = ack_common->dms_status;
+    online_times[dst_id] = ack_common->start_time;
+    online_rw_status[dst_id] = ack_common->db_is_readwrite;
     mfc_release_response(&res);
     return DMS_SUCCESS;
 }
 
 void dms_reform_proc_req_dms_status(dms_process_context_t *process_ctx, dms_message_t *receive_msg)
 {
-    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_TRUE);
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, sizeof(dms_reform_req_partner_status_t), CM_FALSE);
     dms_reform_ack_req_dms_status(process_ctx, receive_msg);
 }
 
@@ -452,10 +456,10 @@ void dms_reform_proc_req_prepare(dms_process_context_t *process_ctx, dms_message
     }
 
     // switchover will change reformer, initial status array at every instances
+    reformer_ctrl_t *reformer_ctrl = DMS_REFORMER_CTRL;
     for (uint8 i = 0; i < DMS_MAX_INSTANCES; i++) {
-        node_info_t *info = DMS_NODE_INFO(i);
-        info->instance_fail = 0;
-        info->instance_step = 0;
+        reformer_ctrl->instance_fail[i] = 0;
+        reformer_ctrl->instance_step[i] = 0;
     }
 }
 
@@ -515,22 +519,22 @@ void dms_reform_proc_sync_next_step(dms_process_context_t *process_ctx, dms_mess
     reform_info_t *reform_info = DMS_REFORM_INFO;
 
     if (!dms_reform_check_judge_time(&req->head)) {
-        LOG_RUN_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
         return;
     }
 
     if (SECUREC_UNLIKELY(req->next_step >= DMS_REFORM_STEP_COUNT)) {
-        LOG_RUN_ERR("[DMS REFORM]dms_reform_proc_sync_next_step invalid next_step");
+        LOG_DEBUG_ERR("[DMS REFORM]dms_reform_proc_sync_next_step invalid next_step");
         return;
     }
 
     if (DMS_IS_REFORMER) {
-        LOG_RUN_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
+        LOG_DEBUG_WAR("[DMS REFORM]invalid dms_reform_proc_sync_next_step");
         return;
     }
 
     if (req->start_time != reform_info->start_time) {
-        LOG_RUN_WAR("[DMS REFORM]expired dms_reform_proc_sync_next_step");
+        LOG_DEBUG_WAR("[DMS REFORM]expired dms_reform_proc_sync_next_step");
         return;
     }
 
@@ -614,6 +618,7 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
 
     int ret = DMS_SUCCESS;
     drc_head_t *drc = NULL;
+    drc_global_xa_res_t *xa_res = NULL;
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(type);
 
     drc_part_list_t *part = &global_res_map->res_parts[migrate_task->part_id];
@@ -627,9 +632,14 @@ int dms_reform_req_migrate_res(migrate_task_t *migrate_task, uint8 type, void *h
     }
 
     for (uint32 i = 0; i < res_list->count; i++) {
-        drc = DRC_RES_NODE_OF(drc_head_t, node, part_node);
-        DRC_DISPLAY(drc, "migrate");
-        ret = dms_reform_req_migrate_add_buf_res(drc, req, &offset, sess_id);
+        if (type == DRC_RES_GLOBAL_XA_TYPE) {
+            xa_res = DRC_RES_NODE_OF(drc_global_xa_res_t, node, part_node);
+            ret = dms_reform_req_migrate_xa(xa_res, req, &offset, sess_id);
+        } else {
+            drc = DRC_RES_NODE_OF(drc_head_t, node, part_node);
+            DRC_DISPLAY(drc, "migrate");
+            ret = dms_reform_req_migrate_add_buf_res(drc, req, &offset, sess_id);
+        }
 
         if (ret != DMS_SUCCESS) {
             g_dms.callback.mem_free(handle, req);
@@ -746,6 +756,11 @@ void dms_reform_proc_req_migrate(dms_process_context_t *process_ctx, dms_message
 
     if (!dms_reform_check_judge_time(&req->head)) {
         LOG_DEBUG_ERR("[DMS REFORM]%s, fail to check judge time", __FUNCTION__);
+        return;
+    }
+
+    if (req->res_type == DRC_RES_GLOBAL_XA_TYPE) {
+        dms_reform_proc_req_xa_migrate(process_ctx, receive_msg);
         return;
     }
 
@@ -1225,10 +1240,15 @@ int dms_reform_map_info_req_wait(uint64 ruid)
     drc_res_ctx_t *ctx = DRC_RES_CTX;
     mfc_release_response(&res);
 
-    dms_reform_part_copy_inner(part_mngr->inst_part_tbl, remaster_info.inst_part_tbl,
-        part_mngr->part_map, remaster_info.part_map);
+    uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
+    errno_t err = memcpy_s(part_mngr->inst_part_tbl, size, remaster_info.inst_part_tbl, size);
+    DMS_SECUREC_CHECK(err);
 
-    errno_t err = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info.deposit_map, DMS_MAX_INSTANCES);
+    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
+    err = memcpy_s(part_mngr->part_map, size, remaster_info.part_map, size);
+    DMS_SECUREC_CHECK(err);
+
+    err = memcpy_s(ctx->deposit_map, DMS_MAX_INSTANCES, remaster_info.deposit_map, DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(err);
 
     return DMS_SUCCESS;
@@ -1249,8 +1269,13 @@ void dms_reform_proc_map_info_req(dms_process_context_t *process_ctx, dms_messag
     dms_init_ack_head(receive_msg->head, &ack_map.head, MSG_ACK_MAP_INFO, sizeof(dms_reform_ack_map_t),
         process_ctx->sess_id);
 
-    dms_reform_part_copy_inner(remaster_info->inst_part_tbl, part_mngr->inst_part_tbl,
-        remaster_info->part_map, part_mngr->part_map);
+    uint32 size = (uint32)(sizeof(drc_inst_part_t) * DMS_MAX_INSTANCES);
+    err = memcpy_s(remaster_info->inst_part_tbl, size, part_mngr->inst_part_tbl, size);
+    DMS_SECUREC_CHECK(err);
+
+    size = (uint32)(sizeof(drc_part_t) * DRC_MAX_PART_NUM);
+    err = memcpy_s(remaster_info->part_map, size, part_mngr->part_map, size);
+    DMS_SECUREC_CHECK(err);
 
     err = memcpy_s(remaster_info->deposit_map, DMS_MAX_INSTANCES, ctx->deposit_map, DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(err);

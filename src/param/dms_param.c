@@ -202,7 +202,7 @@ int dms_url_change_check(mes_addr_t *inst_net_addr, uint32 node_cnt)
     uint64 bitmap_new = 0;
     dms_get_bitmap_inst(&bitmap_old, MES_GLOBAL_INST_MSG.profile.inst_net_addr, MES_GLOBAL_INST_MSG.profile.inst_cnt);
     dms_get_bitmap_inst(&bitmap_new, inst_net_addr, node_cnt);
-    if (!cm_bitmap64_include(bitmap_new, bitmap_old)) {
+    if (!bitmap64_include(bitmap_new, bitmap_old)) {
         LOG_RUN_ERR("the new inst bitmap must include old inst bitmap. please check");
         CM_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "change the node ID or decrease node cnt",
             "the cluster when the URL is changed dynamically");
@@ -210,7 +210,7 @@ int dms_url_change_check(mes_addr_t *inst_net_addr, uint32 node_cnt)
     }
 
     int i_old = 0;
-    for (uint32 i = 0; i < node_cnt; ++i) {
+    for (int i = 0; i < node_cnt; ++i) {
         if (inst_net_addr[i].inst_id != MES_GLOBAL_INST_MSG.profile.inst_net_addr[i_old].inst_id) {
             continue;
         }
@@ -242,13 +242,13 @@ status_t dms_update_elapsed_switch(char *value)
 
 status_t dms_update_drc_mem_max_size(char *value)
 {
-    int64 val = 0;
+    uint64 val = 0;
     CM_RETURN_IFERR(cm_str2size(value, (int64 *)&val));
     if (g_dms.drc_mem_context == NULL || val == 0) {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "SS_DRC_MAX_MEM_SIZE change failed, drc_mem_context is not available");
         return DMS_ERROR;
     }
-    g_dms.drc_mem_context->mem_max_size = (uint64)val;
+    g_dms.drc_mem_context->mem_max_size = val;
     return DMS_SUCCESS;
 }
 
@@ -296,14 +296,4 @@ status_t dms_update_param(uint32 index, char *value)
         return DMS_ERROR;
     }
     return g_dms_param_func[index](value);
-}
-
-void dms_update_inst_cnt(unsigned int inst_cnt, unsigned long long int inst_map)
-{
-    if (inst_cnt != g_dms.inst_cnt || inst_map != g_dms.inst_map) {
-        LOG_RUN_INF("[DMS REFORM] change dms inst_cnt from %u to %u, and inst_map from %llu to %llu",
-            g_dms.inst_cnt, inst_cnt, g_dms.inst_map, inst_map);
-        g_dms.inst_cnt = inst_cnt;
-        g_dms.inst_map = inst_map;
-    }
 }

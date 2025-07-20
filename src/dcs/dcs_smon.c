@@ -25,11 +25,10 @@
 #include "dcs_smon.h"
 #include "dms_error.h"
 #include "dms_mfc.h"
+#include "dms_msg_command.h"
 #include "dms_msg_protocol.h"
 #include "drc_res_mgr.h"
 #include "dms_stat.h"
-#include "cmpt_msg_cmd.h"
-#include "cmpt_msg_lock.h"
 
 #ifndef OPENGAUSS
 #define CM_MAX_RMS 16320
@@ -230,7 +229,7 @@ void dcs_proc_smon_tlock_by_rm(dms_process_context_t *ctx, dms_message_t *receiv
 
     if (SECUREC_UNLIKELY(sid >= DMS_CM_MAX_SESSIONS)) {
         cm_send_error_msg(receive_msg->head, ERRNO_DMS_PARAM_INVALID, "invalid sid value");
-        LOG_DEBUG_ERR("[SMON] proc table lock by rm, the sid %u is invalid", (uint32)sid);
+        LOG_RUN_ERR("[SMON] proc table lock by rm, the sid %u is invalid", (uint32)sid);
         return;
     }
 
@@ -328,8 +327,8 @@ int dms_smon_request_ss_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst,
     return CM_SUCCESS;
 }
 
-int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char *xid, unsigned int xid_len,
-    char *ilock, unsigned int ilock_len)
+int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst, char xid[DMS_XID_SIZE], char *ilock,
+    unsigned int ilock_len)
 {
     dms_reset_error();
     int ret;
@@ -348,7 +347,7 @@ int dms_smon_request_itl_lock_msg(dms_context_t *dms_ctx, unsigned char dst_inst
     DMS_INIT_MESSAGE_HEAD(head, MSG_REQ_SMON_DEADLOCK_ITL, 0, g_dms.inst_id, dst_inst, dms_ctx->sess_id,
         CM_INVALID_ID16);
     char *dest = (char *)(send_msg + sizeof(dms_message_head_t));
-    int32 retMemcpy = memcpy_s(dest, DMS_XID_SIZE, xid, xid_len);
+    int32 retMemcpy = memcpy_s(dest, DMS_XID_SIZE, xid, DMS_XID_SIZE);
     if (SECUREC_UNLIKELY(retMemcpy != EOK)) {
         g_dms.callback.mem_free(dms_ctx->db_handle, send_msg);
         CM_THROW_ERROR(ERR_SYSTEM_CALL, retMemcpy);
@@ -538,11 +537,6 @@ void dcs_proc_smon_broadcast_req(dms_process_context_t *ctx, dms_message_t *rece
     uint32 msg_size = (uint32)(sizeof(dms_message_head_t) + DMS_SMON_TLOCK_MSG_MAX_LEN * MAX_TABLE_LOCK_NUM);
 
     dms_message_head_t *ack_head = (dms_message_head_t *)g_dms.callback.mem_alloc(ctx->db_handle, msg_size);
-    if (ack_head == NULL) {
-        cm_send_error_msg(receive_msg->head, ERRNO_DMS_ALLOC_FAILED, "alloc memory failed");
-        return;
-    }
-    
     char *output_msg = (char *)ack_head + sizeof(dms_message_head_t);
 
     dms_message_head_t *head = (dms_message_head_t *)(receive_msg->buffer);
@@ -624,8 +618,10 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
 
     LOG_DEBUG_INF("[DMS][ASK TLOCK BY TID]: src_id=%u-%u, dst_inst=%u", dms_ctx->inst_id, dms_ctx->sess_id, inst_id);
 
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE, CM_TRUE);
     ret = mfc_send_data(head);
     if (ret != CM_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
         DMS_THROW_ERROR(ERRNO_DMS_SEND_MSG_FAILED, ret, head->cmd, head->dst_inst);
         return ERRNO_DMS_SEND_MSG_FAILED;
     }
@@ -634,6 +630,7 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
     dms_message_t msg = {0};
     ret = mfc_get_response(ruid, &msg, DMS_WAIT_MAX_TIME);
     if (ret != DMS_SUCCESS) {
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
         LOG_DEBUG_ERR("[DMS][dms_smon_req_tlock_by_tid]: wait get tlock by tid ack timeout");
         return ret;
     }
@@ -642,6 +639,7 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
     if (ack_dms_head->cmd == MSG_ACK_ERROR) {
         cm_print_error_msg(msg.buffer);
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_MSG_ACK, msg.buffer + sizeof(msg_error_t));
+        dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
         mfc_release_response(&msg);
         return ERRNO_DMS_COMMON_MSG_ACK;
     }
@@ -651,12 +649,13 @@ int dms_smon_req_tlock_by_tid(dms_context_t *dms_ctx, void *data, unsigned int l
 
     g_dms.callback.get_tlock_by_tid_ack(recv_msg, stack, w_marks, valid_cnt);
     mfc_release_response(&msg);
+    dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DEAD_LOCK_TABLE);
     return CM_SUCCESS;
 }
 
 typedef struct dms_send_req_and_handle_ack_ctx {
-    uint16 req_msg_type;
-    uint16 rsp_msg_type;
+    uint8 req_msg_type;
+    uint8 rsp_msg_type;
     uint16 msg_size;
     void *cookie;
     int (*build_req_msg_body)(void *cookie, void *req_msg);
