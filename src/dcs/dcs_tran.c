@@ -745,6 +745,86 @@ unsigned char dms_wait_txn_cond(dms_context_t *dms_ctx)
     return drc_local_txn_wait(xid);
 }
 
+int dms_request_imcstore_delta(dms_context_t *dms_ctx, unsigned int tableid, unsigned int rowgroup,
+                               unsigned char* bitmap, unsigned long long* delta_max)
+{
+    dms_reset_error();
+    dms_message_t dms_msg = { 0 };
+    dms_imcstore_delta_req_t req;
+    dms_xmap_ctx_t *xmap_ctx = &dms_ctx->xmap_ctx;
+
+    DMS_INIT_MESSAGE_HEAD(&req.head, MSG_REQ_IMCSTORE_DELTA, 0, dms_ctx->inst_id, xmap_ctx->dest_id,
+                          (uint16)dms_ctx->sess_id, CM_INVALID_ID16);
+    req.tableid = tableid;
+    req.rowgroup = rowgroup;
+    req.head.size = (uint16)sizeof(dms_imcstore_delta_req_t);
+
+    dms_begin_stat(dms_ctx->sess_id, DMS_EVT_REQ_IMCSTORE_DELTA, CM_TRUE);
+
+    unsigned long long maxsize = IMCCTORE_DELTA_BITMAP_SIZE;
+    for (int i = 0; i < maxsize;) {
+        req.begin = i;
+        int32 ret = mfc_send_data(&req.head);
+        if (ret != CM_SUCCESS) {
+            dms_end_stat(dms_ctx->sess_id);
+            LOG_DEBUG_ERR("[IMCStore] send req message to instance(%u) failed, table(%u), rowgroup(%u)"
+                          "ruid(%llu) errcode(%u)",
+                          (uint32)dms_ctx->inst_id, tableid, rowgroup, req.head.ruid, (uint32)ret);
+            return ret;
+        }
+        ret = mfc_get_response(req.head.ruid, &dms_msg, DMS_WAIT_MAX_TIME);
+        if (ret != CM_SUCCESS) {
+            dms_end_stat(dms_ctx->sess_id);
+            LOG_DEBUG_ERR("[IMCStore] get response from instance(%u) failed, table(%u), rowgroup(%u)"
+                          "ruid(%llu) errcode(%u)",
+                          (uint32)dms_ctx->inst_id, tableid, rowgroup, req.head.ruid, (uint32)ret);
+            return ret;
+        }
+        dms_imcstore_delta_ack_t *delta_ack = (dms_imcstore_delta_ack_t*)(dms_msg.buffer);
+
+        errno_t err = memcpy_s(bitmap + req.begin, IMCCTORE_DELTA_BITMAP_SIZE - req.begin,
+                               &delta_ack->bitmap, delta_ack->size);
+        if (err != EOK) {
+            LOG_DEBUG_ERR("[IMCStore] copy bitmap failed");
+        }
+        maxsize = delta_ack->max_size;
+        i += delta_ack->size;
+        mfc_release_response(&dms_msg);
+    }
+    dms_end_stat(dms_ctx->sess_id);
+    *delta_max = maxsize;
+    return DMS_SUCCESS;
+}
+
+void dms_proc_imcstore_delta(dms_process_context_t *proc_ctx, dms_message_t *receive_msg)
+{
+    CM_CHK_PROC_MSG_SIZE_NO_ERR(receive_msg, (uint32)sizeof(dms_imcstore_delta_req_t), CM_TRUE);
+    dms_imcstore_delta_req_t req = *(dms_imcstore_delta_req_t *)receive_msg->buffer;
+
+    unsigned char bitmap[IMCCTORE_DELTA_BITMAP_SIZE];
+    dms_imcstore_delta_ack_t ack = { 0 };
+    g_dms.callback.get_imcstore_delta(req.tableid, req.rowgroup, bitmap, &ack.max_size);
+
+    dms_init_ack_head(&req.head, &ack.head, MSG_ACK_IMCSTORE_DELTA,
+                      sizeof(dms_imcstore_delta_ack_t), proc_ctx->sess_id);
+
+    unsigned int total = IMCCTORE_DELTA_BITMAP_SIZE;
+    ack.size = (total - req.begin) > IMCSTORE_DELTA_PER_MESSAGE ? IMCSTORE_DELTA_PER_MESSAGE : (total - req.begin);
+    errno_t err = memcpy_s(ack.bitmap, IMCSTORE_DELTA_PER_MESSAGE, bitmap + req.begin, ack.size);
+    if (err != EOK) {
+        LOG_DEBUG_ERR("[IMCStore] copy bitmap failed");
+    }
+
+    int32 ret = mfc_send_data(&ack.head);
+    if (ret == DMS_SUCCESS) {
+        LOG_DEBUG_INF("[DMS][dms_proc_imcstore_delta]: finished, dst_id = %u, dst_sid = %u",
+                      (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid);
+    } else {
+        LOG_DEBUG_ERR("[DMS][dms_proc_imcstore_delta]: failed to send ack, dst_id = %u, dst_sid = %u, errcode = %u",
+                      (uint8)ack.head.dst_inst, (uint16)ack.head.dst_sid, ret);
+    }
+}
+
 int dms_request_opengauss_page_status(dms_context_t *dms_ctx, unsigned int page, int page_num,
     unsigned long int *page_map, int *bit_count)
 {
