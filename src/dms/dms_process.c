@@ -151,6 +151,7 @@ static processor_func_t g_proc_func_req[(uint32)MSG_REQ_END - (uint32)MSG_REQ_BE
     { MSG_REQ_AZ_FAILOVER, dms_reform_proc_req_az_failover, CM_TRUE, CM_FALSE,  "dms az failover" },
     { MSG_REQ_CHECK_OWNERSHIP, dms_proc_check_page_ownership, CM_TRUE, CM_FALSE,  "check page ownership" },
     { MSG_REQ_REPAIR_NEW, dms_reform_proc_repair, CM_TRUE, CM_TRUE, "repair new" },
+    { MSG_REQ_IMCSTORE_DELTA,         dms_proc_imcstore_delta, 			  CM_TRUE, CM_FALSE,  "get imcstore delta data" },
 };
 
 static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BEGIN] = {
@@ -209,6 +210,7 @@ static processor_func_t g_proc_func_ack[(uint32)MSG_ACK_END - (uint32)MSG_ACK_BE
     { MSG_ACK_OPENGAUSS_IMMEDIATE_CKPT,     dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack immediate ckpt request" },
     { MSG_ACK_SMON_ALOCK_BY_DRID,           dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack smon deadlock alock drid" },
     { MSG_ACK_CHECK_OWNERSHIP,              dms_proc_msg_ack,        CM_FALSE, CM_TRUE,  "ack check page ownership" },
+    { MSG_ACK_IMCSTORE_DELTA,               dms_proc_msg_ack,        CM_FALSE, CM_TRUE, "ack imcstore get delta" },
 };
 
 static bool32 dms_cmd_is_reform(uint32 cmd)
@@ -464,7 +466,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
             return;
         }
     }
-    
+
     /* ruid should have been brought in dms msghead */
     CM_ASSERT(ruid == 0 || head->ruid == ruid);
 
@@ -520,7 +522,7 @@ static void dms_process_message(uint32 work_idx, uint64 ruid, mes_msg_t *mes_msg
     }
 #ifdef OPENGAUSS  
     (void)g_dms.callback.db_check_lock(ctx->db_handle);
-#endif   
+#endif
 
     /*
      * Now DMS use memory manager functions provided by DB,

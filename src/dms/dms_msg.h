@@ -42,6 +42,9 @@ extern "C" {
 #define DMS_BROADCAST_ALL_INST  (0xFFFFFFFFFFFFFFFF)
 #define DMS_MSG_CONFIRM_TIMES   (10)
 
+#define IMCCTORE_DELTA_BITMAP_SIZE 69377
+#define IMCSTORE_DELTA_PER_MESSAGE 25600
+
 #define DMS_EVENT_MONITOR_TIMEOUT  (20 * MICROSECS_PER_SECOND) /* 20s */
 #define DMS_EVENT_MONITOR_INTERVAL (10 * MICROSECS_PER_SECOND) /* 10s */
 
@@ -443,6 +446,20 @@ static inline void cm_print_error_msg_and_throw_error(const void *msg_data)
     } while (0)
 
 #define DMS_MESSAGE_BODY(msg) ((msg)->buffer + sizeof(dms_message_head_t))
+
+typedef struct st_dms_imcstore_delta_req {
+    dms_message_head_t head;
+    unsigned int tableid;
+    unsigned int rowgroup;
+    unsigned short begin;
+} dms_imcstore_delta_req_t;
+
+typedef struct st_dms_imcstore_delta_ack {
+    dms_message_head_t head;
+    unsigned short size;
+    unsigned long long max_size;
+    unsigned char bitmap[IMCSTORE_DELTA_PER_MESSAGE];
+} dms_imcstore_delta_ack_t;
 
 void cm_send_error_msg(dms_message_head_t *head, int32 err_code, char *err_info);
 void cm_ack_result_msg(dms_process_context_t *process_ctx, dms_message_t *receive_msg, uint32 cmd, int32 ret);
