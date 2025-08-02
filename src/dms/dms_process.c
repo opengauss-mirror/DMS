@@ -1453,7 +1453,9 @@ int dms_init(dms_profile_t *dms_profile)
     int ret;
 
 #ifndef OPENGAUSS
-    dms_init_log(dms_profile);
+    if (dms_profile != NULL) {
+        dms_init_log(dms_profile);
+    }
 #endif
 
     ret = cm_start_timer(g_timer());

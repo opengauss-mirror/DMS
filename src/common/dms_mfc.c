@@ -363,8 +363,11 @@ static inline int32 dms_handle_recv_ack_internal(dms_message_t *dms_msg)
 /* previously mfc_allocbuf_and_recv_data */
 int32 mfc_get_response(uint64 ruid, dms_message_t *response, int32 timeout_ms)
 {
-    if (response == NULL && timeout_ms == 0) {
-        return mes_get_response(ruid, NULL, 0);
+    if (response == NULL) {
+        if (timeout_ms == 0) {
+            return mes_get_response(ruid, NULL, 0);
+        }
+        return DMS_ERROR;
     }
     uint64 start_stat_time = dms_cm_get_time_usec();
 
