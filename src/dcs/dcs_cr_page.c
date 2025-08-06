@@ -138,7 +138,7 @@ static void dcs_init_pcr_assist(dms_cr_assist_t *pcr, void *handle, uint64 query
 static int dcs_handle_pcr_result(dms_process_context_t *ctx,
     msg_pcr_request_t *request, dms_cr_assist_t *pcr)
 {
-    int ret;
+    int ret = DMS_SUCCESS;
     /* 
      * send message according to CR construct result
      */

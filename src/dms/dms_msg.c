@@ -2008,7 +2008,7 @@ void dms_proc_ask_node_buf_info(dms_process_context_t * proc_ctx, dms_message_t 
 
 void dms_check_message_cmd(unsigned int cmd, bool8 is_req)
 {
-    bool8 is_req_actual;
+    bool8 is_req_actual = CM_TRUE;
     if (cmd < MSG_REQ_END) {
         is_req_actual = CM_TRUE;
     } else if (cmd >= MSG_ACK_BEGIN && cmd < MSG_ACK_END) {
@@ -2156,7 +2156,7 @@ int dms_recv_versioned_msg(dms_proto_version_attr *version_attrs, dms_message_t 
     dms_message_head_t *msg_head = (dms_message_head_t *)(msg->buffer);
     const dms_proto_version_attr *version_attr = dms_get_version_attr(version_attrs, msg_head->msg_proto_ver);
     if (version_attr == NULL) {
-        LOG_DEBUG_ERR("recv invalid msg, msg_size=%u, req_size=%u", msg_head->size, version_attr->req_size);
+        LOG_DEBUG_ERR("recv invalid msg, msg_size=%u", msg_head->size);
         cm_send_error_msg(msg->head, ERRNO_DMS_MES_INVALID_MSG, "recv invalid msg");
         return DMS_ERROR;
     }

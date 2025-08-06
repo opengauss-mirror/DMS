@@ -178,6 +178,11 @@ static int32 dms_reform_req_xa_rebuild(dms_context_t *dms_ctx, drc_global_xid_t 
     dms_reform_req_rebuild_t *req_rebuild = NULL;
     rebuild_info_t *rebuild_info = DMS_REBUILD_INFO;
     parallel_info_t *parallel_info = DMS_PARALLEL_INFO;
+    if (thread_index >= DMS_PARALLEL_MAX_THREAD) {
+        LOG_RUN_ERR("[DMS REFORM]invalid parameter, thread_index: %d", thread_index);
+        DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "thread_index");
+        return ERRNO_DMS_PARAM_INVALID;
+    }
     parallel_thread_t *parallel = &parallel_info->parallel[thread_index];
 
     if (thread_index == CM_INVALID_ID8) {
