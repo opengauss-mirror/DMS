@@ -322,7 +322,7 @@ uint16 drc_get_partid(drc_head_t *drc)
 void drc_add_into_part_list(drc_head_t *drc)
 {
     drc_global_res_map_t *res_map = drc_get_global_res_map(drc->type);
-    drc->part_id = drc_get_partid(drc);
+    drc->part_id = (uint8)drc_get_partid(drc);
     drc_part_list_t *part = &res_map->res_parts[drc->part_id];
     cm_spin_lock(&part->lock, NULL);
     cm_bilist_add_head(&drc->part_node, &part->list);
@@ -918,6 +918,7 @@ void dms_get_drc_local_lock_res(unsigned int *vmid, drc_local_lock_res_result_t 
 
 void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *bucket)
 {
+    drc->is_using = CM_FALSE;
     // remove convert_q
     drc_release_convert_q(&drc->convert_q);
 
@@ -929,7 +930,6 @@ void drc_release(drc_head_t *drc, drc_res_map_t *drc_res_map, drc_res_bucket_t *
 
     // free drc to resource pool, to be reused later
     drc_res_pool_free_item(&drc_res_map->res_pool, (char*)drc);
-    drc->is_using = CM_FALSE;
 }
 
 static bool8 drc_recycle(dms_process_context_t *ctx, drc_global_res_map_t *global_res, drc_head_t *drc, uint64 seq)

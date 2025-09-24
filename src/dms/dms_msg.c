@@ -1062,7 +1062,7 @@ void dms_proc_ask_master_for_res(dms_process_context_t *ctx, dms_message_t *rece
         cm_display_resid(req.resid, req.res_type),
         req.head.src_inst, req.head.src_sid, req.req_mode, req.curr_mode);
 
-    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(ctx, receive_msg, req.res_type, CM_TRUE);
 
 #ifndef OPENGAUSS
     if (ctx->db_handle != NULL) {
@@ -1107,7 +1107,7 @@ void dms_proc_ask_res_owner_id(dms_process_context_t *ctx, dms_message_t *receiv
         return;
     }
 
-    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(ctx, receive_msg, req.res_type, CM_TRUE);
 
     LOG_DEBUG_INF("[DMS][%s][dms_proc_ask_res_owner_id]: src_id=%d, src_sid=%d",
         cm_display_resid(req.resid, req.res_type), req.head.src_inst, req.head.src_sid);
@@ -1438,7 +1438,7 @@ void dms_proc_claim_ownership_req(dms_process_context_t *ctx, dms_message_t *rec
         (uint32)request->head.src_sid, (uint32)request->head.dst_inst,
         (uint32)request->head.dst_sid, (uint32)request->has_edp, (uint32)request->req_mode);
 
-    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, request->res_type, CM_FALSE);
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(ctx, receive_msg, request->res_type, CM_FALSE);
     // call drc interface to claim ownership
     (void)dms_set_claim_info(&claim_info, request->resid, request->len, (uint8)request->res_type,
         request->head.src_inst, request->req_mode, (bool8)request->has_edp, request->lsn, request->head.src_sid,
@@ -1517,7 +1517,7 @@ void dms_proc_cancel_request_res(dms_process_context_t *ctx, dms_message_t *rece
         cm_display_resid(req.resid, req.res_type), (uint32)req.head.src_inst,
         (uint32)req.head.src_sid, (uint32)req.head.dst_inst);
 
-    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(receive_msg, req.res_type, CM_TRUE);
+    CM_CHECK_PROC_MSG_RES_TYPE_NO_ERROR(ctx, receive_msg, req.res_type, CM_TRUE);
     drc_request_info_t *req_info = &req.drc_reg_info;
     req_info->ruid = req.head.ruid;
 

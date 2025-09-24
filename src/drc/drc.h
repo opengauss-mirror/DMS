@@ -98,11 +98,10 @@ typedef struct st_drc_head {
     uint8               type;
     uint8               owner;
     uint8               lock_mode;
-    bool8               is_using : 1;
-    bool8               is_recycling : 1;
-    bool8               unused : 6;
+    bool8               is_using;
+    bool8               is_recycling;
+    uint8               part_id;
     uint16              len;
-    uint16              part_id;
     uint64              copy_insts;
     bilist_node_t       part_node;
     drc_cvt_item_t      converting;
