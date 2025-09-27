@@ -53,7 +53,9 @@ typedef struct st_drc_recycle_obj {
 
 static inline uint16 drc_page_partid(char pageid[DMS_PAGEID_SIZE])
 {
+    // muyulinzhong 按照page tag三元生成一个hash之；
     uint32 hash_val = g_dms.callback.get_page_hash_val(pageid);
+    // muyulinzhong 对该Hash值按照128取模；
     return (uint16)cm_hash_uint32(hash_val, DRC_MAX_PART_NUM);
 }
 

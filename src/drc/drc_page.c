@@ -71,6 +71,7 @@ static int32 chk_if_valid_retry_request(drc_head_t *drc, drc_request_info_t *new
         DMS_THROW_ERROR(ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST);
         return ERRNO_DMS_DRC_INVALID_REPEAT_REQUEST;
     }
+    // muyulinzhong 如果当前要锁等级更高；
     if (new_req->req_mode > old_req->req_mode) {
         return chk_convertq_4_conflict_reverse(drc, new_req, next);
     }
@@ -83,6 +84,7 @@ static int32 chk_convertq_4_conflict(drc_head_t *drc, drc_request_info_t* req, b
     while (tmp != NULL) {
         // retry request
         if (tmp->req_info.inst_id == req->inst_id) {
+            // muyulinzhong 如果是一个重试请求；
             int32 ret = chk_if_valid_retry_request(drc, req, &tmp->req_info, (drc_lock_item_t*)tmp->node.next);
             if (ret != DMS_SUCCESS) {
                 return ret;
@@ -193,13 +195,16 @@ static int32 drc_chk_conflict_4_normal(drc_head_t *drc, drc_request_info_t *req,
 
     // retry request
     if (req->inst_id == converting->req_info.inst_id) {
+        // muyulinzhong 如果当前请求节点和转换的节点一致；
         drc_lock_item_t *first_node = (drc_lock_item_t*)cm_bilist_head(&drc->convert_q);
+        // muyulinzhong 如果发生锁冲突，则报错；
         int32 ret = chk_if_valid_retry_request(drc, req, &converting->req_info, first_node);
         if (ret != DMS_SUCCESS) {
             return ret;
         }
         // converting: request s mode, and has been granted, but claim request has not been processed
         // req: s->x
+        // muyulinzhong 如果当前req的持锁模式是covnert的期望模式；
         if (req->curr_mode == converting->req_info.req_mode) {
             drc_register_converting_simply(drc, converting);
         }
@@ -208,7 +213,7 @@ static int32 drc_chk_conflict_4_normal(drc_head_t *drc, drc_request_info_t *req,
         converting->begin_time = g_timer()->monotonic_now;
         return DMS_SUCCESS;
     }
-
+    // muyulinzhong 如果当前资源是共享锁，正在申请独占锁，然而req->inst_id又是副本（S），则冲突；
     if (drc->lock_mode == DMS_LOCK_SHARE && converting->req_info.req_mode == DMS_LOCK_EXCLUSIVE &&
         bitmap64_exist(&drc->copy_insts, req->inst_id)) {
         LOG_DEBUG_INF("[DRC][%s]:conflicted with other, [drc:owner=%d, mode=%d, cvt:id=%d, rmode=%d], "
@@ -218,7 +223,7 @@ static int32 drc_chk_conflict_4_normal(drc_head_t *drc, drc_request_info_t *req,
         /* expected, requester will retry, no need to throw error */
         return ERRNO_DMS_DRC_CONFLICT_WITH_OTHER_REQER;
     }
-
+    // muyulinzhong 如果owner是自己
     if (drc->owner == req->inst_id) {
         // for example: owner:0, converting:1, new request inst:0
         LOG_DEBUG_INF("[DRC][%s]:req conflict, [drc:owner=%d, mode=%d], "
@@ -245,6 +250,7 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_head_t *drc, drc_r
 {
     /* there is no waiting and converting */
     if (drc->converting.req_info.inst_id == CM_INVALID_ID8) {
+        // muyulinzhong 如果当前没有队列在等待，疑问：这里不需要加锁吗？
         cm_panic(drc->convert_q.count == 0);
         drc->converting.req_info = *req_info;
         drc->converting.begin_time = g_timer()->monotonic_now;
@@ -257,13 +263,14 @@ static int32 drc_enq_req_item(dms_process_context_t *ctx, drc_head_t *drc, drc_r
         LOG_DEBUG_WAR("[DMS][%s] abandon try", cm_display_resid(DRC_DATA(drc), drc->type));
         return ERRNO_DMS_DRC_LOCK_ABANDON_TRY;
     }
-
+    // muyulinzhong 如果队列非空；
     bool32 is_retry_quest = CM_FALSE;
+    // muyulinzhong 检查是否是锁冲突，这块其实没有看太懂；
     int32 ret = drc_check_req_4_conflict(ctx, drc, req_info, &is_retry_quest, converting);
     if (ret != DMS_SUCCESS || is_retry_quest || *converting) {
         return ret;
     }
-
+    // muyulinzhong 如果没有存在锁冲突，并且都ok，尝试加入到转换队列中；
     drc_lock_item_t *req = (drc_lock_item_t*)drc_res_pool_alloc_item(&DRC_RES_CTX->lock_item_pool);
     if (SECUREC_UNLIKELY(req == NULL)) {
         DMS_THROW_ERROR(ERRNO_DMS_DRC_ENQ_ITEM_CAPACITY_NOT_ENOUGH);
@@ -383,6 +390,7 @@ static int drc_set_req_result(dms_process_context_t *ctx, drc_req_owner_result_t
         if (drc->owner == CM_INVALID_ID8) {
             return drc_get_page_no_owner(ctx, result, drc, req_info);
         }
+        // muyulinzhong 这是持有页面的owner；
         result->curr_owner_id = drc->owner;
 
         if (drc->owner == req_info->inst_id) {
@@ -396,7 +404,7 @@ static int drc_set_req_result(dms_process_context_t *ctx, drc_req_owner_result_t
                 result->type = DRC_REQ_OWNER_CONVERTING;
             }
         }
-
+        // muyulinzhong 如果请求是X锁，准备失效消息；
         if (req_info->req_mode == DMS_LOCK_EXCLUSIVE) {
             result->invld_insts = drc->copy_insts;
             bitmap64_clear(&result->invld_insts, req_info->inst_id); // don't invalidate self
@@ -406,6 +414,7 @@ static int drc_set_req_result(dms_process_context_t *ctx, drc_req_owner_result_t
             CM_ASSERT(drc->copy_insts == 0);
         }
     } else {
+        // muyulinzhong 如果不能开始转换，进入等待；
         result->type = DRC_REQ_OWNER_WAITING;
         result->curr_owner_id = CM_INVALID_ID8;
         drc_try_confirm_cvt(drc);
@@ -437,6 +446,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     drc_request_info_t *req_info, drc_req_owner_result_t *result, drc_head_t *drc)
 {
     if (drc->type == DRC_RES_PAGE_TYPE) {
+        // muyulinzhong 如果是页面数据，则需要版本信息，这里seq和result->seq需要保持一致；
         drc_page_t *drc_page = (drc_page_t *)drc;
         result->seq = drc_page->seq;
         if (req_info->sess_type == DMS_SESSION_NORMAL && drc_page->need_recover) {
@@ -450,6 +460,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
     }
 
     bool32 can_cvt = CM_FALSE;
+    // muyulinzhong convert 队列等待；
     int32 ret = drc_enq_req_item(ctx, drc, req_info, &can_cvt);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
         drc_try_confirm_cvt(drc);
@@ -461,6 +472,7 @@ static int drc_request_page_owner_internal(dms_process_context_t *ctx, char *res
         return ret;
     }
 
+    // muyulinzhong 放在最前面，这样的意义是什么？
     if (drc->type == DRC_RES_PAGE_TYPE) {
         drc_shift_to_head(drc);
     }
@@ -487,6 +499,7 @@ int32 drc_request_page_owner(dms_process_context_t *ctx, char* resid, uint16 len
         LOG_DYN_TRC_WAR("[RPO][%s]is recycling", cm_display_resid(resid, res_type));
         return ERRNO_DMS_DRC_IS_RECYCLING;
     }
+    // muyulinzhong 向owner 要page；
     ret = drc_request_page_owner_internal(ctx, resid, res_type, req_info, result, drc);
     drc_leave(drc, options);
     return ret;

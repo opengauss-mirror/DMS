@@ -478,7 +478,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
         DMS_THROW_ERROR(ERRNO_DMS_COMMON_COPY_PAGEID_FAIL, cm_display_resid(dms_ctx->resid, dms_ctx->type));
         return ERRNO_DMS_COMMON_COPY_PAGEID_FAIL;
     }
-
+    // muyulinzhong 发送消息；
     ret = mfc_send_data(&req.head);
     if (ret != DMS_SUCCESS) {
         LOG_DEBUG_ERR("[DMS][%s][%s]: send failed, src_id=%u, src_sid=%u, dst_id=%u, dst_sid=%u, req_mode=%u",
@@ -494,6 +494,7 @@ static int32 dms_ask_owner_for_res(dms_context_t *dms_ctx, void *res,
 
     dms_message_t msg = {0};
     int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
+    // muyulinzhong 等待消息；
     ret = mfc_get_response(req.head.ruid, &msg, max_wait_time_ms);
     dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_OWNER, dms_ctx->type, ret);
     if (ret != DMS_SUCCESS) {
@@ -574,7 +575,7 @@ static int32 dms_handle_local_req_result(dms_context_t *dms_ctx, void *res,
     dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode, drc_req_owner_result_t *result)
 {
     int ret;
-
+    // muyulinzhong 获取消息；
     if (result->type != DRC_REQ_OWNER_WAITING) {
         (void)mfc_get_response(dms_ctx->ctx_ruid, NULL, 0);
     }
@@ -599,6 +600,7 @@ static int32 dms_handle_local_req_result(dms_context_t *dms_ctx, void *res,
 
         case DRC_REQ_OWNER_CONVERTING:
             // owner is another instance
+            // muyulinzhong 向其他节点开始寻求resource资源；
             ret = dms_ask_owner_for_res(dms_ctx, res, curr_mode, req_mode, result);
             dms_dyn_trc_end_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
             dms_end_stat_ex(dms_ctx->sess_id, DMS_EVT_DCS_REQ_OWNER4PAGE);
@@ -620,6 +622,7 @@ static int32 dms_handle_local_req_result(dms_context_t *dms_ctx, void *res,
     }
 }
 
+// muyulinzhong 如果当前master节点就是自己；
 static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode,
     dms_lock_mode_t req_mode)
 {
@@ -635,6 +638,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
 
     dms_begin_stat(dms_ctx->sess_id, DMS_EVT_DCS_REQ_MASTER4PAGE_1WAY, CM_TRUE);
 
+    // muyulinzhong 这里如果master节点就是自己，少去了和master交互的过程；
     int32 ret = drc_request_page_owner(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len, dms_ctx->type, &req_info,
         &result);
     if (SECUREC_UNLIKELY(ret != DMS_SUCCESS)) {
@@ -648,6 +652,7 @@ static int32 dms_ask_master4res_l(dms_context_t *dms_ctx, void *res, dms_lock_mo
         LOG_DYN_TRC_INF("[AML][%s]invld sharers:%llu",
             cm_display_resid(dms_ctx->resid, dms_ctx->type), result.invld_insts);
         int32 max_wait_time_ms = get_dms_msg_max_wait_time_ms(dms_ctx);
+        // muyulinzhong 发送页面失效消息；
         ret = dms_invalidate_share_copy_with_timeout(&dms_ctx->proc_ctx, dms_ctx->resid, dms_ctx->len,
             dms_ctx->type, result.invld_insts, dms_ctx->sess_type, dms_ctx->is_try, CM_FALSE, max_wait_time_ms,
             result.seq);
@@ -810,14 +815,17 @@ int32 dms_ask_res_owner_id_r(dms_context_t *dms_ctx, uint8 master_id, uint8 *own
 int32 dms_request_res_internal(dms_context_t *dms_ctx, void *res, dms_lock_mode_t curr_mode, dms_lock_mode_t req_mode)
 {
     uint8 master_id;
+    // muyulinzhong 在drc资源中找到master的ID号码；
     int32 ret = drc_get_master_id(dms_ctx->resid, dms_ctx->type, &master_id);
     if (ret != DMS_SUCCESS) {
         return ret;
-    }
+    }s
 
     if (master_id == dms_ctx->inst_id) {
+        // muyulinzhong 如果当前master节点就是自己；
         ret = dms_ask_master4res_l(dms_ctx, res, curr_mode, req_mode);
     } else {
+        // muyulinzhong 如果当前master节点是远端；
         ret = dms_ask_master4res_r(dms_ctx, res, master_id, curr_mode, req_mode);
         dms_inc_msg_stat(dms_ctx->sess_id, DMS_STAT_ASK_MASTER, dms_ctx->type, ret);
     }

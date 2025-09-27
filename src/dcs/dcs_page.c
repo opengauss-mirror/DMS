@@ -172,6 +172,7 @@ int32 dcs_handle_ack_already_owner(dms_context_t *dms_ctx,
     return DMS_SUCCESS;
 }
 
+// muyulinzhong 从ack消息中获取页面，然后进行填充；
 static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
     dms_buf_ctrl_t *ctrl, dms_message_t *msg, dms_lock_mode_t mode)
 {
@@ -202,6 +203,7 @@ static int dcs_handle_page_from_owner(dms_context_t *dms_ctx,
             g_dms.callback.verify_page(ctrl, msg->buffer + sizeof(dms_ask_res_ack_t));
         }
 #endif
+        // muyulinzhong 将页面填充到内存中；
         int ret = memcpy_s(g_dms.callback.get_page(ctrl), g_dms.page_size,
             msg->buffer + sizeof(dms_ask_res_ack_t) + node_data_size, g_dms.page_size);
         DMS_SECUREC_CHECK(ret);
@@ -286,7 +288,7 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
         DMS_THROW_ERROR(ERRNO_DMS_DCS_REFORM_VISIT_RES, cm_display_pageid(dms_ctx->resid));
         return ERRNO_DMS_DCS_REFORM_VISIT_RES;
     }
-
+    // muyulinzhong 开始处理发送过来的page；
     int32 ret = dcs_handle_page_from_owner(dms_ctx, ctrl, msg, mode);
     if (ret != DMS_SUCCESS) {
         cm_spin_unlock(&ctrl->lock_ss_read);
@@ -297,6 +299,7 @@ int32 dcs_handle_ack_page_ready(dms_context_t *dms_ctx,
     cm_spin_unlock(&ctrl->lock_ss_read);
 
     uint64 page_lsn = g_dms.callback.get_page_lsn(ctrl);
+    // muyulinzhong 开始向其他节点cliam页面；
     dms_claim_ownership(dms_ctx, (uint8)master_id, mode, DCS_ACK_PAGE_IS_DIRTY(msg), page_lsn);
     return DMS_SUCCESS;
 }
@@ -318,6 +321,7 @@ int dms_request_page(dms_context_t *dms_ctx, dms_buf_ctrl_t *ctrl, dms_lock_mode
 #endif
 
     LOG_DEBUG_INF("[DCS][%s][dcs request page enter]", cm_display_pageid(dms_ctx->resid));
+    // muyulinzhong 要页面
     int ret = dms_request_res_internal(dms_ctx, (void*)ctrl, ctrl->lock_mode, mode);
     LOG_DEBUG_INF("[DCS][%s][dcs request page leave] ret: %d", cm_display_pageid(dms_ctx->resid), ret);
 

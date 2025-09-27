@@ -364,12 +364,17 @@ void drc_buf_res_set_inaccess(drc_global_res_map_t *res_map)
 
 drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 options)
 {
+    // muyulinzhong 拿到全局res map的res_map;
     drc_global_res_map_t *global_res_map = drc_get_global_res_map(res_type);
     drc_res_map_t *res_map = &global_res_map->res_map;
+
+    // muyulinzhong 算一个Hahs，然后映射到具体的某个桶；
     drc_res_bucket_t *bucket = drc_res_map_get_bucket(res_map, resid, len);
 
     cm_spin_lock(&bucket->lock, NULL);
+    // muyulinzhong 在桶中查找对应的资源；
     drc_head_t *drc = (drc_head_t *)drc_res_map_lookup(res_map, bucket, resid, len);
+    // muyulinzhong 如果找到，直接return；
     if (drc != NULL) {
         drc_inc_ref_count(drc);
         cm_spin_unlock(&bucket->lock);
@@ -380,7 +385,7 @@ drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 op
         cm_spin_unlock(&bucket->lock);
         return NULL;
     }
-
+    // muyulinzhong 如果没找到，直接create一个；
     drc = drc_create(&res_map->res_pool, resid, len, res_type, bucket);
     if (SECUREC_UNLIKELY(drc == NULL)) {
         cm_spin_unlock(&bucket->lock);
@@ -392,6 +397,7 @@ drc_head_t *drc_find_or_create(char* resid, uint16 len, uint8 res_type, uint8 op
     return drc;
 }
 
+// muyulinzhong 拿到gloabl res map，然后进行加锁；
 int drc_latch(char *resid, uint8 res_type, uint8 options)
 {
     if (!(options & DRC_RES_CHECK_ACCESS)) {
@@ -497,13 +503,13 @@ int drc_enter_check(char *resid, uint8 res_type, uint8 options)
 {
     int ret = drc_latch(resid, res_type, options);
     DMS_RETURN_IF_ERROR(ret);
-
+    // muyulinzhong 检测一下资源是否可用；
     ret = drc_enter_check_access(resid, res_type, options);
     if (ret != DMS_SUCCESS) {
         drc_unlatch(res_type, options);
         return ret;
     }
-
+    // muyulinzhong 复检一下，看看请求的master是不是当前自己；
     ret = drc_enter_check_master(resid, res_type, options);
     if (ret != DMS_SUCCESS) {
         drc_unlatch(res_type, options);
@@ -526,6 +532,7 @@ int drc_enter(char *resid, uint16 len, uint8 res_type, uint8 options, drc_head_t
     int ret = drc_enter_check(resid, res_type, options);
     DMS_RETURN_IF_ERROR(ret);
 
+    // muyulinzhong 找到globl resource，根据buffer tag；
     *drc = drc_find_or_create(resid, len, res_type, options);
     if ((*drc) == NULL) {
         drc_unlatch(res_type, options);
@@ -559,6 +566,7 @@ void drc_res_map_add_res(drc_res_bucket_t* bucket, char* res)
  * spin lock is held outside of this function.
  * resid is the resource handle address.
  */
+// muyulinzhong 根据buffer tag去找具体的页面分布信息；
 char* drc_res_map_lookup(const drc_res_map_t* res_map, drc_res_bucket_t* res_bucket, char* resid, uint32 len)
 {
     if (res_bucket->bucket_version != res_map->bucket_version) {
@@ -695,13 +703,17 @@ int drc_get_page_owner_id(uint8 edp_inst, char pageid[DMS_PAGEID_SIZE], dms_sess
     return DMS_SUCCESS;
 }
 
+// muyulinzhong 根据当前buffer tag，换算128分区，确定drc资源分布的节点；
+// muyulinzhong 这里是为了找到真正持有drc资源的节点？
 int32 drc_get_page_master_id(char *pageid, unsigned char *master_id)
 {
     dms_reset_error();
     uint8  inst_id;
     uint32 part_id;
 
+    // muyulinzhong 根据buffertage 三元组算hash值，映射到128个分区空间内；
     part_id = drc_page_partid(pageid);
+    // muyulinzhong 获取该part的inst ID；
     inst_id = DRC_PART_MASTER_ID(part_id);
     if (inst_id == CM_INVALID_ID8) {
         DMS_THROW_ERROR(ERRNO_DMS_DRC_PAGE_MASTER_NOT_FOUND, cm_display_pageid(pageid));
@@ -759,6 +771,7 @@ static inline void drc_release_convert_q(bilist_t *convert_q)
     }
 }
 
+// muyulinzhong 根据不同的DRC资源去找不同的地方；
 int32 drc_get_master_id(char *resid, uint8 type, uint8 *master_id)
 {
     switch (type) {
