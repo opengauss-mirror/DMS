@@ -535,6 +535,7 @@ typedef enum en_dms_lock_mode {
 typedef enum en_dms_conn_mode {
     DMS_CONN_MODE_TCP = 0,
     DMS_CONN_MODE_RDMA = 1,
+    DMS_CONN_MODE_UBC = 2,
 } dms_conn_mode_t;
 
 typedef enum en_dms_txn_wait_status {
