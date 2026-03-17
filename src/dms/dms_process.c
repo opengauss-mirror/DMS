@@ -1281,7 +1281,7 @@ int32 dms_init_logger(logger_param_t *param_def)
     log_param->log_instance_startup = (bool32)CM_TRUE;
 
 #ifdef OPENGAUSS
-    if (log_param->log_level >= DEBUG_LOG_LEVEL) {
+    if (log_param->log_level >= DEBUG_LOG_LEVEL && log_param->log_compressed) {
         cm_recovery_log_file(LOG_DEBUG);
         cm_recovery_log_file(LOG_RUN);
     }
