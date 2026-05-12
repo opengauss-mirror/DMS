@@ -52,6 +52,9 @@
 #include "dms_reform_alock.h"
 #include "dms_dynamic_trace.h"
 
+_Static_assert(DMS_SHM_UB_COMM_QUEUE_NUM == MES_PRIORITY_CEIL + 1,
+    "DMS_SHM_UB_COMM_QUEUE_NUM must match MES_PRIORITY_CEIL + 1");
+
 #ifndef WIN32
 #include <sys/prctl.h>
 #endif
@@ -859,8 +862,19 @@ static status_t dms_set_mes_task_threadpool_attr(dms_profile_t *dms_profile, mes
     return DMS_SUCCESS;
 }
 
+/* Pass through server GUC parameters per-queue CPU bind IDs from dms_profile to mes_profile.
+   Unset entries default to -1 (0xFFFFFFFF), meaning "no CPU bind" per MES convention. */
+static void dms_set_mes_profile_shm_ub_cpu_ids(const dms_profile_t *dms_profile, mes_profile_t *mes_profile)
+{
+    errno_t err;
+    err = memcpy_s(mes_profile->mes_shm_ub_comm_cpu_ids, sizeof(mes_profile->mes_shm_ub_comm_cpu_ids),
+        dms_profile->mes_shm_ub_comm_cpu_ids, sizeof(dms_profile->mes_shm_ub_comm_cpu_ids));
+    DMS_SECUREC_CHECK(err);
+}
+
 int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
 {
+    errno_t err;
     LOG_RUN_INF("[DMS] dms_set_mes_profile start");
     mes_profile->inst_id = dms_profile->inst_id;
     mes_profile->inst_cnt = dms_profile->inst_cnt;
@@ -870,6 +884,8 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
         mes_profile->pipe_type = DMS_CS_TYPE_RDMA;
     } else if (dms_profile->pipe_type == DMS_CONN_MODE_UBC) {
         mes_profile->pipe_type = DMS_CS_TYPE_UBC;
+    } else if (dms_profile->pipe_type == DMS_CONN_MODE_SHM) {
+        mes_profile->pipe_type = DMS_CS_TYPE_SHM;
     } else {
         DMS_THROW_ERROR(ERRNO_DMS_PARAM_INVALID, "dms_profile's pipe_type");
         return ERRNO_DMS_PARAM_INVALID;
@@ -883,13 +899,16 @@ int dms_set_mes_profile(dms_profile_t *dms_profile, mes_profile_t *mes_profile)
     mes_profile->rdma_rpc_is_bind_core = dms_profile->rdma_rpc_is_bind_core;
     mes_profile->rdma_rpc_bind_core_start = dms_profile->rdma_rpc_bind_core_start;
     mes_profile->rdma_rpc_bind_core_end = dms_profile->rdma_rpc_bind_core_end;
+    if (mes_profile->pipe_type == DMS_CS_TYPE_SHM) {
+        dms_set_mes_profile_shm_ub_cpu_ids(dms_profile, mes_profile);
+    }
     mes_profile->frag_size = DMS_MESSAGE_BUFFER_SIZE;
     mes_profile->max_wait_time = dms_profile->max_wait_time;
     mes_profile->connect_timeout = (int)CM_CONNECT_TIMEOUT;
     mes_profile->socket_timeout = (int)CM_NETWORK_IO_TIMEOUT;
     mes_profile->send_directly = CM_TRUE;
     mes_profile->need_serial = CM_FALSE;
-    errno_t err = memcpy_s(mes_profile->inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
+    err = memcpy_s(mes_profile->inst_net_addr, sizeof(mes_addr_t) * DMS_MAX_INSTANCES, dms_profile->inst_net_addr,
         sizeof(mes_addr_t) * DMS_MAX_INSTANCES);
     DMS_SECUREC_CHECK(err);
     err = memcpy_s(mes_profile->ock_log_path, MES_MAX_LOG_PATH, dms_profile->ock_log_path, DMS_OCK_LOG_PATH_LEN);

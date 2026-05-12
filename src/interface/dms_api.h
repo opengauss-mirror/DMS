@@ -536,6 +536,7 @@ typedef enum en_dms_conn_mode {
     DMS_CONN_MODE_TCP = 0,
     DMS_CONN_MODE_RDMA = 1,
     DMS_CONN_MODE_UBC = 2,
+    DMS_CONN_MODE_SHM = 3,
 } dms_conn_mode_t;
 
 typedef enum en_dms_txn_wait_status {
@@ -1243,6 +1244,10 @@ typedef struct st_dms_instance_net_addr {
     unsigned char reserved[1];
 } dms_instance_net_addr_t;
 
+/* SHM ub_comm: one queue per MES priority (0..7) plus one prio6 mirror queue (8).
+   Must stay in sync with MES_SHM_UB_QUEUE_NUM (MES_PRIORITY_CEIL + 1) in mes_interface.h. */
+#define DMS_SHM_UB_COMM_QUEUE_NUM 9
+
 typedef struct st_dms_profile {
     unsigned int inst_id;
     unsigned long long inst_map;
@@ -1272,6 +1277,8 @@ typedef struct st_dms_profile {
     unsigned char rdma_rpc_is_bind_core;
     unsigned char rdma_rpc_bind_core_start;
     unsigned char rdma_rpc_bind_core_end;
+    /* MES SHM ub_comm: per-queue CPU bind; -1 = no bind for that queue */
+    int mes_shm_ub_comm_cpu_ids[DMS_SHM_UB_COMM_QUEUE_NUM];
     char ock_log_path[DMS_OCK_LOG_PATH_LEN];
     // ock scrlock configs
     unsigned char enable_scrlock;

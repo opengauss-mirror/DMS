@@ -52,6 +52,7 @@ typedef struct st_ock_scrlock_context {
 #define DMS_CS_TYPE_TCP (1)
 #define DMS_CS_TYPE_RDMA (7)
 #define DMS_CS_TYPE_UBC (8)
+#define DMS_CS_TYPE_SHM (9)
 
 typedef struct st_dms_instance {
     uint32 inst_id;
