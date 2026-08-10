@@ -1,0 +1,49 @@
+# pre-commit configuration for DMS.
+#
+# This repository is mainly C/C++ with CMake and shell scripts. To avoid
+# reformatting legacy files wholesale, clang-format is applied only to changed
+# diff hunks through clang-format-diff.py. The formatting style is defined in
+# .clang-format (Huawei C++ Coding Standard V5.4).
+#
+# Hook repositories use gitcode mirrors, matching the DSS setup for
+# environments that cannot access github directly.
+
+default_language_version:
+  python: python3
+
+exclude: '^\.pre-commit-venv/'
+
+repos:
+  - repo: https://gitcode.com/gh_mirrors/pr/pre-commit-hooks.git
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  - repo: https://gitcode.com/gh_mirrors/co/codespell.git
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        files: '(^|/)(CMakeLists\.txt|.*\.(md|txt|sh|cmake|ini|in|ya?ml|json|toml))$'
+        exclude: '^License\.txt$'
+        args:
+          - "--ignore-words-list=opengauss,dms,dcs,drc,cmake,datadir,binarylibs,paramenter,reqeust,ommissions"
+
+  - repo: local
+    hooks:
+      - id: clang-format-diff
+        name: clang-format (staged C/C++ diff)
+        entry: bash -c 'if git diff --cached --quiet -- "$@"; then git diff -U0 --no-color -- "$@" | clang-format-diff.py -p1 -i; else git diff --cached -U0 --no-color -- "$@" | clang-format-diff.py -p1 -i; fi' --
+        language: python
+        additional_dependencies: ["clang-format==22.1.5"]
+        files: '\.(c|h|cc|cpp|cxx|hh|hpp)$'
+        require_serial: true
