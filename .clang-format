@@ -1,0 +1,99 @@
+# .clang-format for Huawei C++ Coding Standard V5.4
+# Target: LLVM 22.1.8, C++17
+# Used by the clang-format-diff pre-commit hook (changed diff hunks only).
+
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++17
+
+# G.FMT.02: 4-space indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# G.FMT.05: 120 column limit
+ColumnLimit: 120
+
+# G.FMT.03: K&R braces - function brace on new line, all other braces attached
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterClass: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterNamespace: false
+  AfterExternBlock: false
+  BeforeElse: false
+  BeforeCatch: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+
+# G.FMT.11: if/for/while must have braces, no short statements on one line
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: None
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortNamespacesOnASingleLine: false
+InsertBraces: true
+RemoveBracesLLVM: false
+
+# G.FMT.13: case labels indented relative to switch
+IndentCaseLabels: true
+
+# G.FMT.14: pointer/reference attached to the type
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+# G.FMT.16: spaces before parens in control statements, and around assignment
+SpaceBeforeParens: ControlStatements
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeRangeBasedForLoopColon: true
+
+# G.FMT.06: operators stay at the end of the line when wrapping
+BreakBeforeBinaryOperators: None
+AlignOperands: Align
+
+# G.FMT.07: preprocessor directives start at column 0
+IndentPPDirectives: None
+
+# G.FMT.09: constructor initializer list formatting
+# Note: ConstructorInitializerAllOnOneLineOrOnePerLine was removed in LLVM 22.
+# PackConstructorInitializers: NextLine achieves "one per line when wrapped".
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+
+# G.FMT.10: function return type on the same line
+BreakAfterReturnType: None
+
+# G.FMT.08: class access modifier spacing
+EmptyLineBeforeAccessModifier: Always
+EmptyLineAfterAccessModifier: Never
+AccessModifierOffset: -2
+
+# G.CMT.01: comment spacing
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 1
+
+# G.INC.07: include sorting
+SortIncludes: true
+IncludeBlocks: Preserve
+
+# G.FMT.16: no spaces inside angle brackets or parentheses
+SpacesInAngles: Never
+SpacesInParens: Never
+
+# G.FMT.16: bit-field colon spacing
+BitFieldColonSpacing: Both
+
+# G.FMT.04: one variable per line (use clang-tidy readability-isolate-declaration)
