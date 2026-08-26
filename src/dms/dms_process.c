@@ -41,6 +41,7 @@
 #include "dcs_smon.h"
 #include "mes_metadata.h"
 #include "mes_interface.h"
+#include "mes_shm.h"
 #include "cm_timer.h"
 #include "dms_reform.h"
 #include "dms_reform_msg.h"
@@ -1396,6 +1397,17 @@ int32 dms_init_logger(logger_param_t *param_def)
 void dms_fsync_logfile(void)
 {
     cm_fync_logfile();
+}
+
+int dms_request_mes_shm_to_tcp_fallback(int notify_peers)
+{
+    if (mes_request_shm_to_tcp_fallback(notify_peers) != CM_SUCCESS) {
+        LOG_RUN_ERR("[DMS] mes_request_shm_to_tcp_fallback failed, notify_peers=%d", notify_peers);
+        return DMS_ERROR;
+    }
+
+    LOG_RUN_WAR("[DMS] requested MES SHM to TCP fallback, notify_peers=%d", notify_peers);
+    return DMS_SUCCESS;
 }
 
 /* max timeout interval should be within [1, 30]s */
