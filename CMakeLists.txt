@@ -41,9 +41,9 @@ EXECUTE_PROCESS(
         OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-# DMS_VERSION_STR like: libdms.so (openGauss build ab4a14da) compiled at 2000-01-01 00:00:00 debug)
+# DMS_VERSION_STR like: libdms.so (openGauss 7.0.0 build ab4a14da) compiled at 2000-01-01 00:00:00 debug)
 SET(DMS_VERSION_STR
-        "libdms.so (${COMPONENT} build ${COMMIT_ID}) compiled at ${COMPILE_TIME} ${CMAKE_BUILD_TYPE}"
+        "libdms.so (${COMPONENT} 7.0.0 build ${COMMIT_ID}) compiled at ${COMPILE_TIME} ${CMAKE_BUILD_TYPE}"
 )
 
 message(STATUS "Version info: ${DMS_VERSION_STR}")
