@@ -1014,6 +1014,13 @@ DMS_DECLARE void dms_get_driver_ping_info(driver_ping_info_t *driver_ping_info);
 DMS_DECLARE void dms_get_msg_stats(dms_msg_stats_t *msg_stat);
 DMS_DECLARE void dms_fsync_logfile(void);
 
+/*
+ * @brief Request runtime MES SHM to TCP fallback (e.g. when enable_ub_ha is turned off).
+ * @[in] notify_peers - non-zero to notify peer instances before local switch.
+ * @return DMS_SUCCESS - success; otherwise failed.
+ */
+DMS_DECLARE int dms_request_mes_shm_to_tcp_fallback(int notify_peers);
+
 DMS_DECLARE int dms_get_task_worker_msg_stat(unsigned int worker_id,
     mes_worker_msg_stats_info_t *mes_worker_msg_stats_result);
 
