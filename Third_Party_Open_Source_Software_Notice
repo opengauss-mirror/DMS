@@ -1,0 +1,352 @@
+THIRD PARTY OPEN SOURCE SOFTWARE NOTICE
+
+Please note we provide an open source software notice for the third party open source software along with this software and/or this software component contributed by Huawei (in the following just “this SOFTWARE”). The open source software licenses are granted by the respective right holders.
+
+Warranty Disclaimer  
+THE OPEN SOURCE SOFTWARE IN THIS SOFTWARE IS DISTRIBUTED IN THE HOPE THAT IT WILL BE USEFUL, BUT WITHOUT ANY WARRANTY, WITHOUT EVEN THE IMPLIED WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. SEE THE APPLICABLE LICENSES FOR MORE DETAILS.
+
+Copyright Notice and License Texts
+
+Software: OpenSSL 1.1.1n
+Copyright notice：Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2011-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
+Copyright 2002-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2015-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2015-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2002-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2006-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2001-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2010-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2011 Google Inc.
+Copyright 2011-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2014-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 2014, Intel Corporation. All Rights Reserved.
+Copyright (c) 2015, CloudFlare, Inc.
+Copyright 2014-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 2016 Viktor Dukhovni <openssl-users@dukhovni.org>.
+Copyright 2017-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2015-2016 Cryptography Research, Inc.
+Copyright 2015 Cryptography Research, Inc.
+Copyright 2014 Cryptography Research, Inc.
+Copyright 2007-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2013-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1995-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2007-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2005-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2001-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1999-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2004-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2004-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2006-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1999-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1999-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2003-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 2004 Kungliga Tekniska Högskolan
+Copyright 2003-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1995-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2017 BaishanCloud. All rights reserved.
+Copyright 2015-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2011-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2006-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 2017, Oracle and/or its affiliates.  All rights reserved.
+Copyright 2017 Ribose Inc. All Rights Reserved.
+Copyright 2005 Nokia. All rights reserved.
+Copyright 2014-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2002-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2012-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1998-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1998-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1998-2001 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2001-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2006 NTT (Nippon Telegraph and Telephone Corporation) .
+Copyright (c) 2017 National Security Research Institute.  All rights reserved.
+Copyright (c) 2018, Oracle and/or its affiliates.  All rights reserved.
+Copyright 2008-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2005-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2005-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2008-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2012-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2010-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (C) 2006, Network Resonance, Inc. Copyright (C) 2011, RTFM, Inc.
+Copyright (c) 2004, EdelKey Project. All Rights Reserved.
+Copyright (c) 2004, Richard Levitte <richard@levitte.org>
+Copyright (c) 2013-2014 Timo Teräs <timo.teras@gmail.com>
+Copyright 1998-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016 VMS Software, Inc. All Rights Reserved.
+Copyright (c) 2012, Intel Corporation. All Rights Reserved.
+Copyright 2013-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (C) 1989, 1991 Free Software Foundation, Inc.
+Copyright 2013-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (C) 2017 National Security Research Institute. All Rights Reserved.
+Copyright Patrick Powell 1995
+Copyright (c) 2007 KISA(Korea Information Security Agency). All rights reserved.
+Copyright (c) 2012-2016 Jean-Philippe Aumasson
+Copyright (c) 2012-2014 Daniel J. Bernstein
+Copyright 2012-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016 Cryptography Research, Inc.
+Copyright 2014-2016 Cryptography Research, Inc.
+Copyright 2009-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 1998-2018 The OpenSSL Project.  All rights reserved.
+Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+Copyright (c) 1998-2018 The OpenSSL Project
+Copyright (c) 1995-1998 Eric A. Young, Tim J. Hudson
+Copyright 2012, Samuel Neves <sneves@dei.uc.pt>
+Copyright (c) 2004, 2018, Richard Levitte <richard@levitte.org>
+Copyright 2004-2014, Akamai Technologies. All Rights Reserved.
+Copyright 2003-2017 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2010-2017 The OpenSSL Project Authors. All Rights Reserved. 
+License：OpenSSL Combined License
+  
+  LICENSE ISSUES
+  ==============
+
+  The OpenSSL toolkit stays under a dual license, i.e. both the conditions of
+  the OpenSSL License and the original SSLeay license apply to the toolkit.
+  See below for the actual license texts. Actually both licenses are BSD-style
+  Open Source licenses. In case of any license issues related to OpenSSL
+  please contact openssl-core@openssl.org.
+
+  OpenSSL License
+  ---------------
+
+/* ====================================================================
+ * Copyright (c) 1998-2019 The OpenSSL Project.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. All advertising materials mentioning features or use of this
+ *    software must display the following acknowledgment:
+ *    "This product includes software developed by the OpenSSL Project
+ *    for use in the OpenSSL Toolkit. (http://www.openssl.org/)"
+ *
+ * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission. For written permission, please contact
+ *    openssl-core@openssl.org.
+ *
+ * 5. Products derived from this software may not be called "OpenSSL"
+ *    nor may "OpenSSL" appear in their names without prior written
+ *    permission of the OpenSSL Project.
+ *
+ * 6. Redistributions of any form whatsoever must retain the following
+ *    acknowledgment:
+ *    "This product includes software developed by the OpenSSL Project
+ *    for use in the OpenSSL Toolkit (http://www.openssl.org/)"
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+ * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+ * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ====================================================================
+ *
+ * This product includes cryptographic software written by Eric Young
+ * (eay@cryptsoft.com).  This product includes software written by Tim
+ * Hudson (tjh@cryptsoft.com).
+ *
+ */
+
+ Original SSLeay License
+ -----------------------
+
+/* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+ * All rights reserved.
+ *
+ * This package is an SSL implementation written
+ * by Eric Young (eay@cryptsoft.com).
+ * The implementation was written so as to conform with Netscapes SSL.
+ *
+ * This library is free for commercial and non-commercial use as long as
+ * the following conditions are aheared to.  The following conditions
+ * apply to all code found in this distribution, be it the RC4, RSA,
+ * lhash, DES, etc., code; not just the SSL code.  The SSL documentation
+ * included with this distribution is covered by the same copyright terms
+ * except that the holder is Tim Hudson (tjh@cryptsoft.com).
+ *
+ * Copyright remains Eric Young's, and as such any Copyright notices in
+ * the code are not to be removed.
+ * If this package is used in a product, Eric Young should be given attribution
+ * as the author of the parts of the library used.
+ * This can be in the form of a textual message at program startup or
+ * in documentation (online or textual) provided with the package.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    "This product includes cryptographic software written by
+ *     Eric Young (eay@cryptsoft.com)"
+ *    The word 'cryptographic' can be left out if the rouines from the library
+ *    being used are not cryptographic related :-).
+ * 4. If you include any Windows specific code (or a derivative thereof) from
+ *    the apps directory (application code) you must include an acknowledgement:
+ *    "This product includes software written by Tim Hudson (tjh@cryptsoft.com)"
+ *
+ * THIS SOFTWARE IS PROVIDED BY ERIC YOUNG ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * The licence and distribution terms for any publically available version or
+ * derivative of this code cannot be changed.  i.e. this code cannot simply be
+ * copied and put under another distribution licence
+ * [including the GNU Public Licence.]
+ */ 
+
+Software: zlib 1.2.11
+Copyright notice：Copyright (C) 1995-2006, 2011, 2016 Jean-loup Gailly
+Copyright (C) 2011, 2016 Mark Adler
+Copyright (C) 1995-2006, 2010, 2011, 2016 Jean-loup Gailly
+Copyright (C) 1995-2003 Mark Adler
+Copyright (C) 2003 Chris Anderson <christop@charm.net>
+2005 - Adaptation to Microsoft C Compiler for AMD64 by Gilles Vollant
+Copyright (C) 1995-2003 Jean-loup Gailly and Mark Adler.
+Copyright (C) 1998 by Bob Dellaca.
+Copyright (C) 2003 by Cosmin Truta.
+Copyright (C) 1995-2003 by Jean-loup Gailly.
+Copyright (C) 1998,1999,2000 by Jacques Nomssi Nzali.
+Copyright (C) 1995-2011, 2016 Mark Adler
+Copyright (C) 1995-2005, 2014, 2016 Jean-loup Gailly, Mark Adler
+Copyright (C) 1995-2006, 2010, 2011, 2012, 2016 Mark Adler
+Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler
+Copyright (C) 1995-2016 Jean-loup Gailly
+Copyright (C) 2004, 2010 Mark Adler
+Copyright (C) 2004, 2005, 2010, 2011, 2012, 2013, 2016 Mark Adler
+Copyright (C) 2004-2017 Mark Adler
+Copyright (C) 1995-2016 Mark Adler
+Copyright (C) 1995-2017 Mark Adler
+Copyright (C) 1995-2003, 2010 Mark Adler
+Copyright (C) 1995-2005, 2010 Mark Adler
+(C) 1995-2017 Jean-loup Gailly and Mark Adler
+Copyright (C) 1995-2017 Jean-loup Gailly
+Copyright (C) 1995-2003, 2010, 2014, 2016 Jean-loup Gailly, Mark Adler
+Copyright (C) 1995-2016 Jean-loup Gailly, Mark Adler
+Copyright (C) 1995-2008 Mark Adler
+Copyright (C) 2003 Mark Adler
+Copyright (C) 1998-2005 Gilles Vollant
+Copyright (C) 1998-2010 Gilles Vollant (minizip) ( http://www.winimage.com/zLibDll/minizip.html )
+Copyright (C) 2009-2010 Mathias Svensson ( http://result42.com )
+Copyright (C) 2007-2008 Even Rouault
+Copyright (c) 1990-2000 Info-ZIP.  All rights reserved.
+Copyright (C) 1998 - 2010 Gilles Vollant, Even Rouault, Mathias Svensson
+Copyright (c) 1997
+Copyright (C) 2002-2013 Mark Adler
+Copyright (C) 2002-2013 Mark Adler, all rights reserved
+Copyright (C) 2003, 2012, 2013 Mark Adler
+Copyright (c) Henrik Ravn 2004
+Copyright (C) 2007, 2008, 2012 Mark Adler
+Copyright (C) 2003, 2005, 2008, 2010, 2012 Mark Adler
+Copyright (C) 2003, 2012 Mark Adler, all rights reserved
+Copyright (C) 2004, 2005, 2012 Mark Adler, all rights reserved
+Copyright (C) 2004, 2008, 2012, 2016 Mark Adler, all rights reserved
+Copyright (C) 2004, 2008, 2012 Mark Adler, all rights reserved
+Copyright (C) 2005, 2012 Mark Adler
+© Copyright Henrik Ravn 2004 
+License：zlib/libpng License
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software. If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source
+distribution.
+
+Software: lz4 v1.9.3
+Copyright notice：Copyright (c) 2016-present, Przemyslaw Skibinski
+Copyright (c) 2018-present    lzutao <taolzu(at)gmail.com>
+Copyright (c) 2018-present  lzutao <taolzu(at)gmail.com>
+Copyright (c) 2018-present        lzutao <taolzu(at)gmail.com>
+Copyright (c) 2016-present, Facebook, Inc.
+Copyright (c) 2014, lpsantil
+Copyright (C) Yann Collet 2014-present
+Copyright (C) Yann Collet 2018 - present
+Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
+Copyright (C) Yann Collet 2012-2016
+Copyright (C) Yann Collet 2014-2016
+Copyright (C) Yann Collet 2012-2017
+Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
+Copyright (c) 2016-present, Przemyslaw Skibinski, Yann Collet, Facebook, Inc.
+Copyright (C) 2011-present, Takayuki Matsuoka
+Copyright (c) 2011-2016, Yann Collet
+Copyright (C) 2011-present, Yann Collet.
+Copyright (C) 2011-2016, Yann Collet.
+Copyright (C) 2011-2017, Yann Collet.
+Copyright (C) 2012-2016, Yann Collet
+Copyright (C) 2012-2016, Yann Collet.
+Copyright (C) Yann Collet 2011-2016
+Copyright (C) Yann Collet 2011-2017
+Copyright (C) 2016-present, Przemyslaw Skibinski, Yann Collet
+All rights reserved.
+License：BSD 2-Clause License
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or
+  other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
